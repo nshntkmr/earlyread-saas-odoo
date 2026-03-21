@@ -450,7 +450,10 @@ class PosterraPortal(CustomerPortal):
             elif provider_filter:
                 pf = provider_filter[0]
                 pf_param = pf.param_name or pf.field_name or ''
-                pf_field = pf.field_name or pf.param_name or pf.schema_column_name or ''
+                # For matching against hha.provider ORM records, prefer:
+                # 1. field_name (ORM field), 2. schema_column_name (DB column
+                #    which often matches ORM field name), 3. param_name (URL key)
+                pf_field = pf.field_name or pf.schema_column_name or pf.param_name or ''
                 pf_value = (kw.get(pf_param) or '').strip()
 
                 if pf_value and pf_value != 'all' and pf_field:

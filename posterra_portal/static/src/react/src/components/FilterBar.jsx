@@ -125,6 +125,24 @@ export default function FilterBar() {
 
     const targets = sourceToTargets.get(filter.id) || []
 
+    // Pre-clear targets with resets_target=True in the snapshot so that
+    // allValues sent to the cascade API never includes stale values for
+    // filters about to be reset. Without this, changing Provider would
+    // send the old State/County/City values as sibling WHERE constraints,
+    // artificially restricting the cascade results.
+    for (const edge of targets) {
+      if (edge.resets_target) {
+        const tf = filtersById.get(edge.targetId)
+        if (tf) {
+          const tp = edge.targetParam || tf.param_name || tf.field_name
+          if (tp && snapshot[tp]) {
+            console.debug(`[CASCADE]   pre-clear stale target: ${tp} (was "${snapshot[tp]}")`)
+            snapshot[tp] = ''
+          }
+        }
+      }
+    }
+
     if (isRoot) {
       console.debug(`[CASCADE] ▶ START: filter=${filter.name}(id=${filter.id}, param=${paramKey}), value="${newValue}", targets=${targets.length}`)
       console.debug(`[CASCADE]   snapshot:`, { ...snapshot })
