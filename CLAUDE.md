@@ -41,7 +41,7 @@ portal.py (app_dashboard)
   5. Generic provider resolution (reads filter config, no hardcoding)
   6. Geo data from selected provider
   7. Auto-fill geo filters from provider (auto_fill_from_hha)
-  8. Build filter_values (with deferred default_strategy resolution), filter_options, sql_params
+  8. Build filter_values (root deferred defaults resolved early, then filter_options, then remaining deferred), sql_params
   9. Execute widget SQL with sql_params
   10. Render template with React data attributes
      |
@@ -156,12 +156,12 @@ The `default_strategy` field on each filter controls how the initial value is co
 URL param (wins) → auto_fill from provider (wins) → default_strategy → empty
 ```
 
-**Implementation:** Non-static strategies use deferred resolution — marked as `'__DEFERRED__'` in the first pass, then resolved after `filter_options` are computed via `compute_default_value(options)`.
+**Implementation:** Non-static strategies use deferred resolution — marked as `'__DEFERRED__'` in the first pass. Root filters (those with no incoming dependency edges) are resolved early, before the main `filter_options` loop, so their real values are available as constraints for child filters. Any remaining deferred filters are resolved after `filter_options` are computed via `compute_default_value(options)`.
 
 ### How Filter Values Reach React
 
 1. Server resolves `filter_values` dict (auto-fill + URL params + default_strategy)
-2. Deferred defaults resolved after `filter_options` are computed (two-pass)
+2. Deferred defaults resolved in two phases: root filters early (before child options), remaining filters after `filter_options` are computed
 3. `_build_page_config_json()` puts resolved values into `default_value` for each filter
 4. React `FilterContext.buildDefaults()` reads `default_value`, then overrides with URL params
 5. Geo params NOT in URL → server-resolved auto-fill values persist
@@ -181,7 +181,7 @@ for f in page_filters:
 
 This handles multi-CCN URLs (e.g., `hha_ccn=A,B` where both share the same state → State auto-selected).
 
-**Deferred defaults** are resolved immediately after auto-select, before `filter_values_by_name` is built.
+**Deferred defaults** for root filters are resolved before this loop runs (so their values are available as constraints). Any remaining deferred defaults are resolved immediately after auto-select, before `filter_values_by_name` is built.
 
 ### Client-Side Cascade (FilterBar.jsx)
 
@@ -231,7 +231,7 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 - **Hidden filters (`is_visible=False`)** are excluded from React state and URL by `FilterContext.jsx`. They are server-side SQL context only (e.g., hha_ccn, hha_name for widget SQL).
 - **`dep_is_hha_provider_id` check in `_build_schema_where()`** — only `True` when source filter has `field_name='id'`. When `field_name='hha_ccn'`, falls through to direct column matching (correct behavior).
 - **Cascade `resets_target` + auto-select** — when True: (a) exactly 1 option + no `include_all_option` → auto-select that option; (b) multi-select target + 2+ options + no `include_all_option` → auto-select ALL as CSV; (c) otherwise → reset to `''`. To suppress CSV auto-select, set `include_all_option=True` on the target filter.
-- **`default_strategy` deferred resolution** — non-static strategies use a `'__DEFERRED__'` sentinel in the first pass, resolved after `filter_options` are built. The sentinel is always resolved before `filter_values_by_name` / `sql_params` are constructed — it never leaks to SQL or React.
+- **`default_strategy` deferred resolution order matters** — non-static strategies use a `'__DEFERRED__'` sentinel. Root filters (no incoming dependency edges) are resolved early, BEFORE the main `filter_options` loop, so child filters get real constraint values. The sentinel must never leak into `constraint_values` — the options loop explicitly skips `'__DEFERRED__'` values when building constraints. Any remaining deferred filters are resolved after `filter_options` are built. The sentinel never reaches `filter_values_by_name`, `sql_params`, or React.
 - **`auto_fill_from_hha` only works server-side** — runs on page load when `selected_provider` is resolved. Client-side auto-select is handled by the cascade auto-select logic in `handleGraphCascade()`.
 - **`is_provider_selector` must be toggled ON** — admin must explicitly mark the Provider filter on each page. Without this, `selected_provider` will be `None` and auto-fill won't fire. Check this first when debugging "State shows All".
 - **Seed data in `filters_data.xml`** may show `param_name=hha_id` but DB records may have been updated to `hha_ccn` by admin. DB state is authoritative.
@@ -259,11 +259,15 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 14. Single-select filter in cascade with 2+ options → resets to empty (unchanged)
 15. Change Provider dropdown → multi-select child filters auto-select ALL cascaded values as CSV
 
+### First Login / Deferred Resolution
+16. First login (no URL params) with `default_strategy=all_values` on Provider → all providers selected AND State/County/City show cascaded options (not empty)
+17. First login with URL params → child filters show options matching the URL-provided parent values
+
 ### Default Strategy
-16. `default_strategy=static`, `default_value=2023` → page loads with Year=2023 (backward compat)
-17. `default_strategy=first` on Provider → page loads with first provider selected
-18. `default_strategy=latest` on Year → page loads with most recent year (e.g., 2024)
-19. `default_strategy=all_values` on multi-select Provider → page loads with all providers as CSV
-20. URL param `?year=2022` with `default_strategy=latest` → URL wins (loads 2022, not latest)
-21. Single-provider user with `auto_fill_from_hha=True` → auto-fill wins over default_strategy
-22. Admin UI: Default Strategy dropdown visible in Settings → Pages → Context Filters (4 options)
+18. `default_strategy=static`, `default_value=2023` → page loads with Year=2023 (backward compat)
+19. `default_strategy=first` on Provider → page loads with first provider selected
+20. `default_strategy=latest` on Year → page loads with most recent year (e.g., 2024)
+21. `default_strategy=all_values` on multi-select Provider → page loads with all providers as CSV
+22. URL param `?year=2022` with `default_strategy=latest` → URL wins (loads 2022, not latest)
+23. Single-provider user with `auto_fill_from_hha=True` → auto-fill wins over default_strategy
+24. Admin UI: Default Strategy dropdown visible in Settings → Pages → Context Filters (4 options)
