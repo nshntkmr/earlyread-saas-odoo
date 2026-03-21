@@ -442,9 +442,11 @@ class PosterraPortal(CustomerPortal):
             lambda f: f.is_provider_selector
         ) if (app.access_mode == 'hha_provider' and providers) else None
 
+        matched_providers = None  # All providers matching URL param (for multi-select auto-fill)
         if app.access_mode == 'hha_provider' and providers:
             if len(providers) == 1:
                 selected_provider = providers[0]
+                matched_providers = providers
             elif provider_filter:
                 pf = provider_filter[0]
                 pf_param = pf.param_name or pf.field_name or ''
@@ -452,22 +454,25 @@ class PosterraPortal(CustomerPortal):
                 pf_value = (kw.get(pf_param) or '').strip()
 
                 if pf_value and pf_value != 'all' and pf_field:
+                    # Split CSV for multi-select (e.g. "047114,077163")
+                    val_list = [v.strip() for v in pf_value.split(',') if v.strip()]
+
                     if pf_field == 'id':
-                        # Value is an Odoo record ID (integer)
                         try:
-                            matched = providers.filtered(
-                                lambda p: p.id == int(pf_value))
-                            if matched:
-                                selected_provider = matched[0]
+                            id_set = {int(v) for v in val_list}
+                            matched_providers = providers.filtered(
+                                lambda p, ids=id_set: p.id in ids)
                         except (ValueError, TypeError):
                             pass
                     else:
-                        # Value is a string field (e.g. hha_ccn, etc.)
-                        matched = providers.filtered(
-                            lambda p, fld=pf_field, val=pf_value:
-                                str(getattr(p, fld, '')) == val)
-                        if matched:
-                            selected_provider = matched[0]
+                        val_set = set(val_list)
+                        matched_providers = providers.filtered(
+                            lambda p, fld=pf_field, vals=val_set:
+                                str(getattr(p, fld, '')) in vals)
+
+                    # Single match → use as selected_provider (existing behavior)
+                    if matched_providers and len(matched_providers) == 1:
+                        selected_provider = matched_providers[0]
 
             org_display_name = (
                 providers[0].hha_dba or providers[0].hha_name or ''
@@ -487,7 +492,10 @@ class PosterraPortal(CustomerPortal):
         provider_map = {}
 
         if app.access_mode == 'hha_provider' and providers:
-            geo_provider_ids = [selected_provider.id] if selected_provider else providers.ids
+            geo_provider_ids = (
+                matched_providers.ids if matched_providers
+                else ([selected_provider.id] if selected_provider else providers.ids)
+            )
             geo_records = request.env['hha.provider'].sudo().browse(geo_provider_ids).read(
                 ['id', 'hha_state', 'hha_county', 'hha_city']
             )
@@ -520,15 +528,28 @@ class PosterraPortal(CustomerPortal):
         # Auto-fill from selected HHA (hha_provider apps only)
         # Use the actual ORM field_name for getattr, but store under param_name
         # (or field_name) so the key matches URL params and SQL placeholders.
+        # Supports multi-provider: auto-fill only when ALL matched providers
+        # share the same value for a field; otherwise leave as "All".
         hha_auto_fill = {}
-        if selected_provider:
+        auto_fill_source = matched_providers if matched_providers else (
+            providers[:1] if selected_provider else None
+        )
+        if auto_fill_source:
             for f in page_filters:
                 if f.auto_fill_from_hha:
                     actual_field = f.field_name or f.param_name or f.schema_column_name or ''
                     param_key = f.param_name or f.field_name or ''
-                    if actual_field and param_key and hasattr(selected_provider, actual_field):
-                        val = getattr(selected_provider, actual_field, '') or ''
-                        hha_auto_fill[param_key] = str(val).strip()
+                    if actual_field and param_key:
+                        values = set()
+                        for p in auto_fill_source:
+                            if hasattr(p, actual_field):
+                                val = str(getattr(p, actual_field, '') or '').strip()
+                                if val:
+                                    values.add(val)
+                        if len(values) == 1:
+                            # All providers share same value → auto-fill
+                            hha_auto_fill[param_key] = values.pop()
+                        # else: different values or empty → leave as "All"
 
         filter_values = {}
         for f in page_filters:
