@@ -105,7 +105,7 @@ def _build_portal_ctx(page, user, app, kw):
             if provider_filter:
                 pf = provider_filter[0]
                 pf_param = pf.param_name or pf.field_name or ''
-                pf_field = pf.field_name or pf.param_name or pf.schema_column_name or ''
+                pf_field = pf.field_name or pf.schema_column_name or pf.param_name or ''
                 pf_value = (kw.get(pf_param) or '').strip()
 
                 if pf_value and pf_value != 'all' and pf_field:
@@ -788,6 +788,18 @@ class PosterraWidgetAPI(http.Controller):
         changed_param = changed_filter.param_name or changed_filter.field_name
         snapshot[changed_param] = changed_value
 
+        # Pre-clear targets with resets_target=True so that stale values
+        # don't leak into all_filter_values as sibling WHERE constraints.
+        # Without this, changing Provider would send old State/County/City
+        # values, artificially restricting cascade results.
+        for edge in source_to_targets.get(changed_filter_id, []):
+            if edge['resets_target']:
+                tf = filters_on_page.get(edge['target_id'])
+                if tf:
+                    tp = tf.param_name or tf.field_name
+                    if tp and snapshot.get(tp):
+                        snapshot[tp] = ''
+
         # ── Walk DAG using BFS (Kahn's-inspired) ───────────────────────────
         updated_filters = {}
         visited = {changed_filter_id}
@@ -884,6 +896,15 @@ class PosterraWidgetAPI(http.Controller):
                                 value_changed = True
 
                 snapshot[target_param] = new_value
+
+                # Pre-clear this target's own reset-targets too (recursive)
+                for child_edge in source_to_targets.get(tid, []):
+                    if child_edge['resets_target']:
+                        child_f = filters_on_page.get(child_edge['target_id'])
+                        if child_f:
+                            child_p = child_f.param_name or child_f.field_name
+                            if child_p and snapshot.get(child_p):
+                                snapshot[child_p] = ''
 
                 updated_filters[str(tid)] = {
                     'param_name': target_param,
