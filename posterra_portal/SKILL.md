@@ -1113,12 +1113,11 @@ Three-layer variable merge for `insight_panel`:
 ```python
 # Layer 1: all SQL result columns (classification, metric1, metric2, …)
 template_vars = dict(sql_row)
-# Layer 2: all active page filter values keyed by field_name
+# Layer 2: all active page filter values keyed by param_name
+# (includes geo values like hha_state, hha_county via their param_name)
 template_vars.update(portal_ctx.get('filter_values_by_name', {}))
 # Layer 3: HHA context
 template_vars['hha_name']   = hha.name if hha else ''
-template_vars['hha_state']  = portal_ctx.get('ctx_state', '')
-template_vars['hha_county'] = portal_ctx.get('ctx_county', '')
 return self.narrative_template % template_vars
 ```
 
@@ -1282,12 +1281,12 @@ The controller builds a `params` dict and passes it to `env.cr.execute(sql, para
 
 | Parameter | Value |
 |-----------|-------|
-| `%(hha_state)s` | Current `ctx_state` filter value (e.g. `'TX'`) |
-| `%(hha_county)s` | Current `ctx_county` filter value |
-| `%(hha_city)s` | Current locations filter value |
+| `%(hha_state)s` | State filter value via param_name (e.g. `'TX'`) |
+| `%(hha_county)s` | County filter value via param_name |
+| `%(hha_city)s` | City/locations filter value via param_name |
 | `%(hha_name)s` | Display name of selected HHA provider |
 | `%(hha_id)s` | Database ID of selected HHA provider (string) |
-| `%(field_name)s` | Any active page filter where `field_name` = the key |
+| `%(param_name)s` | Any active page filter value, keyed by its `param_name` |
 | `%(drill_key)s` | Any active drill filter from click-actions (Phase 8) |
 
 All values are strings. Cast in SQL as needed: `%(hha_id)s::int`

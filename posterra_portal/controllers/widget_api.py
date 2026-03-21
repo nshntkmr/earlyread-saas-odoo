@@ -80,7 +80,7 @@ def _build_portal_ctx(page, user, app, kw):
 
     Returns:
         portal_ctx dict with keys: sql_params, filter_values_by_name,
-        ctx_state, ctx_county, selected_hha
+        selected_hha
     """
     providers = request.env['hha.provider'].sudo().browse()
     selected_provider = None
@@ -148,19 +148,6 @@ def _build_portal_ctx(page, user, app, kw):
         else:
             filter_values[f.id] = f.default_value or ''
 
-    # ── Derive geo context (config-driven via geo_role) ──────────────────
-    ctx_state  = ''
-    ctx_county = ''
-    ctx_cities = []
-    for f in page_filters:
-        if f.geo_role == 'state':
-            ctx_state = filter_values.get(f.id, '')
-        elif f.geo_role == 'county':
-            ctx_county = filter_values.get(f.id, '')
-        elif f.geo_role == 'city':
-            raw = filter_values.get(f.id, '')
-            ctx_cities = [c.strip() for c in raw.split(',') if c.strip()]
-
     filter_values_by_name = {}
     for f in page_filters:
         key = f.param_name or f.field_name
@@ -205,8 +192,6 @@ def _build_portal_ctx(page, user, app, kw):
             sql_params[key] = val
 
     return {
-        'ctx_state':             ctx_state,
-        'ctx_county':            ctx_county,
         'selected_hha':          selected_provider,
         'filter_values_by_name': filter_values_by_name,
         'sql_params':            sql_params,

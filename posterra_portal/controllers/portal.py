@@ -545,18 +545,9 @@ class PosterraPortal(CustomerPortal):
             else:
                 filter_values[f.id] = f.default_value or ''
 
-        # Derive geo context (config-driven via geo_role — no hardcoded param names)
-        ctx_state  = ''
-        ctx_county = ''
-        ctx_cities = []
-        for f in page_filters:
-            if f.geo_role == 'state':
-                ctx_state = filter_values.get(f.id, '')
-            elif f.geo_role == 'county':
-                ctx_county = filter_values.get(f.id, '')
-            elif f.geo_role == 'city':
-                raw = filter_values.get(f.id, '')
-                ctx_cities = [c.strip() for c in raw.split(',') if c.strip()]
+        # Geo context is NOT extracted separately — filter values already flow
+        # through filter_values_by_name / sql_params to widgets and annotations
+        # via their param_name (e.g. %(hha_state)s). No special geo handling needed.
 
         accessible_provider_ids = providers.ids if providers else []
 
@@ -626,8 +617,6 @@ class PosterraPortal(CustomerPortal):
                 sql_params[key] = val
 
         portal_ctx = {
-            'ctx_state':             ctx_state,
-            'ctx_county':            ctx_county,
             'selected_hha':          selected_provider,
             'filter_values_by_name': filter_values_by_name,
             'sql_params':            sql_params,
@@ -691,10 +680,6 @@ class PosterraPortal(CustomerPortal):
             # Geo data
             'provider_geo_data_json': json.dumps(provider_geo_data),
             'provider_map_json':      json.dumps(provider_map),
-            'ctx_state':   ctx_state,
-            'ctx_county':  ctx_county,
-            'ctx_cities':  ctx_cities,
-            'ctx_locations_str': ','.join(ctx_cities),
             # Widgets
             'widgets':      widgets,
             'widget_data':  widget_data,
