@@ -137,6 +137,17 @@ class DashboardPageFilter(models.Model):
     default_value = fields.Char(
         help='Value used when no URL parameter is present.',
     )
+    default_strategy = fields.Selection([
+        ('static', 'Static value'),
+        ('first', 'First available option'),
+        ('all_values', 'Select all values'),
+        ('latest', 'Latest/last option'),
+    ], string='Default Strategy', default='static',
+       help='How to compute the initial value when no URL param is present.\n'
+            '"Static" uses the Default Value field.\n'
+            '"First" picks the first available option.\n'
+            '"Latest" picks the last available option.\n'
+            '"All values" selects all options as CSV (multi-select only).')
     placeholder = fields.Char(
         help='Placeholder shown when no value is selected.',
     )
@@ -934,6 +945,32 @@ class DashboardPageFilter(models.Model):
         return sorted(options, key=lambda o: o['label'].lower())
 
     # ── "All" option prepender ───────────────────────────────────────────────
+    def compute_default_value(self, options):
+        """Resolve default value using the configured default_strategy.
+
+        Args:
+            options: list of {value, label} dicts from get_options().
+        Returns:
+            str — the default value to use.
+        """
+        self.ensure_one()
+        strategy = self.default_strategy or 'static'
+        if strategy == 'static':
+            return self.default_value or ''
+        # Filter out the synthetic "All" option (empty value) from real options
+        real_opts = [o for o in options if o.get('value') and o['value'] != 'all']
+        if not real_opts:
+            return self.default_value or ''
+        if strategy == 'first':
+            return real_opts[0]['value']
+        if strategy == 'latest':
+            return real_opts[-1]['value']
+        if strategy == 'all_values':
+            if self.is_multiselect:
+                return ','.join(o['value'] for o in real_opts)
+            return ''  # all_values on single-select is a no-op
+        return self.default_value or ''
+
     def _prepend_all_option(self, options):
         """Prepend an "All N <label>" option when include_all_option is ON."""
         if self.include_all_option and options:

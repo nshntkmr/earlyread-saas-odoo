@@ -90,6 +90,8 @@
                                            placeholder="Override label (optional)"/>
                                     <field name="default_value"
                                            placeholder="Default value"/>
+                                    <field name="default_strategy"
+                                           optional="show"/>
                                     <field name="placeholder"
                                            placeholder="e.g. All States"/>
                                     <!-- URL Param: auto-filled from Column for DB-driven filters.

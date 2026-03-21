@@ -41,7 +41,7 @@ portal.py (app_dashboard)
   5. Generic provider resolution (reads filter config, no hardcoding)
   6. Geo data from selected provider
   7. Auto-fill geo filters from provider (auto_fill_from_hha)
-  8. Build filter_values, filter_options, sql_params
+  8. Build filter_values (with deferred default_strategy resolution), filter_options, sql_params
   9. Execute widget SQL with sql_params
   10. Render template with React data attributes
      |
@@ -85,6 +85,8 @@ auto_fill_from_hha → auto-populate from selected provider on page load
 scope_to_user_hha → restrict options to user's accessible providers
 is_visible       → False = hidden SQL context param, not shown in UI
 is_multiselect   → allow multiple selections (CSV in URL)
+default_value    → static default when no URL param present
+default_strategy → how to compute initial value: static | first | latest | all_values
 depends_on_filter_id → legacy single-parent cascade
 ```
 
@@ -138,13 +140,32 @@ if selected_provider:
 This fills State, County, City from the provider's record — no hardcoded field names.
 Works whether filters use ORM models (field_name) or schema sources (param_name/schema_column_name).
 
+### Default Strategy (Admin-Configurable Initial Values)
+
+The `default_strategy` field on each filter controls how the initial value is computed when no URL param is present:
+
+| Strategy | Behavior | Example |
+|----------|----------|---------|
+| `static` | Use the `default_value` text field (backward-compatible default) | Admin types `2023` → filter starts at `2023` |
+| `first` | Pick the first available option from `get_options()` | Year options `[2021,2022,2023,2024]` → picks `2021` |
+| `latest` | Pick the last available option | Year options `[2021,2022,2023,2024]` → picks `2024` |
+| `all_values` | Select every option as CSV (multi-select only) | Providers `[A,B,C]` → value `A,B,C` |
+
+**Resolution priority (unchanged):**
+```
+URL param (wins) → auto_fill from provider (wins) → default_strategy → empty
+```
+
+**Implementation:** Non-static strategies use deferred resolution — marked as `'__DEFERRED__'` in the first pass, then resolved after `filter_options` are computed via `compute_default_value(options)`.
+
 ### How Filter Values Reach React
 
-1. Server resolves `filter_values` dict (auto-fill + URL params + defaults)
-2. `_build_page_config_json()` puts resolved values into `default_value` for each filter
-3. React `FilterContext.buildDefaults()` reads `default_value`, then overrides with URL params
-4. Geo params NOT in URL → server-resolved auto-fill values persist
-5. After user clicks Apply → URL sync pushes all values to URL
+1. Server resolves `filter_values` dict (auto-fill + URL params + default_strategy)
+2. Deferred defaults resolved after `filter_options` are computed (two-pass)
+3. `_build_page_config_json()` puts resolved values into `default_value` for each filter
+4. React `FilterContext.buildDefaults()` reads `default_value`, then overrides with URL params
+5. Geo params NOT in URL → server-resolved auto-fill values persist
+6. After user clicks Apply → URL sync pushes all values to URL
 
 ### Server-Side Auto-Select (Step 8.7 in portal.py)
 
@@ -160,15 +181,23 @@ for f in page_filters:
 
 This handles multi-CCN URLs (e.g., `hha_ccn=A,B` where both share the same state → State auto-selected).
 
+**Deferred defaults** are resolved immediately after auto-select, before `filter_values_by_name` is built.
+
 ### Client-Side Cascade (FilterBar.jsx)
 
 When user changes a dropdown:
 1. `handleGraphCascade()` fires
 2. For each dependent filter: fetch new options from `/api/v1/filters/cascade/multi`
-3. If `resets_target=True` AND exactly 1 option AND no `include_all_option`: auto-select that option
-4. If `resets_target=True` AND 0 or 2+ options: reset to `''` (user must choose)
-5. If `resets_target=False`: keep value if still valid in new options
-6. Recurse into children's children (Phase 2 picks up auto-selected values from snapshot)
+3. If `resets_target=True`:
+   - Exactly 1 option + no `include_all_option` → auto-select that option
+   - Multi-select target + 2+ options + no `include_all_option` → auto-select ALL as CSV (e.g., `AR,IL,TX`)
+   - Otherwise (0 options, or `include_all_option=True`) → reset to `''` (user must choose)
+4. If `resets_target=False`: keep value if still valid in new options (prune invalid CSV values for multi-select)
+5. Recurse into children's children (Phase 2 picks up auto-selected values from snapshot)
+
+**Multi-select cascade example:** User selects 3 providers from AR, IL, TX → State filter gets `AR,IL,TX` (not "All"). Admin can set `include_all_option=True` on State to revert to the old "reset to All" behavior.
+
+The same auto-select logic is mirrored server-side in `api_filters_resolve` (widget_api.py) for batch cascade resolution.
 
 ### SQL Parameter Flow
 
@@ -186,7 +215,7 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 |------|---------|
 | `controllers/portal.py` | Main page controller. Provider resolution, filter values, widget execution, template render |
 | `controllers/widget_api.py` | API endpoints for widget data refresh + filter cascade. Has `_build_portal_ctx()` mirroring portal.py |
-| `models/dashboard_page_filter.py` | Filter model: `get_options()`, `_build_orm_domain_from_constraints()`, `_build_schema_where()` |
+| `models/dashboard_page_filter.py` | Filter model: `get_options()`, `compute_default_value()`, `_build_orm_domain_from_constraints()`, `_build_schema_where()` |
 | `models/dashboard_filter_dependency.py` | Cascade dependency edges between filters |
 | `models/dashboard_widget.py` | Widget model: SQL execution, data formatting |
 | `data/filters_data.xml` | Seed data for geo filters (State, County, City) per page |
@@ -201,7 +230,8 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 - **`provider_map` keys are Odoo record IDs** (not CCNs). Built at portal.py step 9 but NOT passed to React — only used in template context.
 - **Hidden filters (`is_visible=False`)** are excluded from React state and URL by `FilterContext.jsx`. They are server-side SQL context only (e.g., hha_ccn, hha_name for widget SQL).
 - **`dep_is_hha_provider_id` check in `_build_schema_where()`** — only `True` when source filter has `field_name='id'`. When `field_name='hha_ccn'`, falls through to direct column matching (correct behavior).
-- **Cascade `resets_target` + auto-select** — when True AND exactly 1 option exists AND the filter has no `include_all_option`, the value is auto-selected (not cleared). When 2+ options exist, value resets to `''` (user must choose). This is the expected UX.
+- **Cascade `resets_target` + auto-select** — when True: (a) exactly 1 option + no `include_all_option` → auto-select that option; (b) multi-select target + 2+ options + no `include_all_option` → auto-select ALL as CSV; (c) otherwise → reset to `''`. To suppress CSV auto-select, set `include_all_option=True` on the target filter.
+- **`default_strategy` deferred resolution** — non-static strategies use a `'__DEFERRED__'` sentinel in the first pass, resolved after `filter_options` are built. The sentinel is always resolved before `filter_values_by_name` / `sql_params` are constructed — it never leaks to SQL or React.
 - **`auto_fill_from_hha` only works server-side** — runs on page load when `selected_provider` is resolved. Client-side auto-select is handled by the cascade auto-select logic in `handleGraphCascade()`.
 - **`is_provider_selector` must be toggled ON** — admin must explicitly mark the Provider filter on each page. Without this, `selected_provider` will be `None` and auto-fill won't fire. Check this first when debugging "State shows All".
 - **Seed data in `filters_data.xml`** may show `param_name=hha_id` but DB records may have been updated to `hha_ccn` by admin. DB state is authoritative.
@@ -209,14 +239,30 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 
 ## Testing Checklist (Filter Changes)
 
+### Core Filter Flow
 1. Load with single provider: `/my/posterra?hha_ccn=017014&year=2024,2023&ffs_ma=MA&tab=command_center`
 2. Verify State/County/City auto-populate from provider's geo data (not "All")
 3. Load with multi-provider CSV: `hha_ccn=017014,047114` → geo auto-selects if all share same state, else "All"
 4. Load without provider param (multi-provider user) → geo filters show "All"
 5. Single-provider user → geo filters auto-populate regardless of URL
-6. Change Provider dropdown → child filters auto-select if 1 option, reset if 2+
-7. Change State dropdown → Provider/County/City cascade correctly (bidirectional)
-8. Click Apply → URL updates with all filter values (including auto-selected geo)
-9. Widget data reflects correct sql_params (check browser network tab)
-10. Test on different pages (Overview, Hospitals, etc.) — each has its own filter set
-11. Verify `is_provider_selector` is ON for Provider filter in admin (Settings → Pages → Context Filters)
+6. Change State dropdown → Provider/County/City cascade correctly (bidirectional)
+7. Click Apply → URL updates with all filter values (including auto-selected geo)
+8. Widget data reflects correct sql_params (check browser network tab)
+9. Test on different pages (Overview, Hospitals, etc.) — each has its own filter set
+10. Verify `is_provider_selector` is ON for Provider filter in admin (Settings → Pages → Context Filters)
+
+### Cascade Multi-Select Auto-Select
+11. Select 3 providers from different states → State filter shows CSV (e.g., `AR,IL,TX`), not "All"
+12. Select 1 provider where county has 1 option → County auto-selects that single value (unchanged)
+13. Multi-select filter with `include_all_option=True` → still resets to "All" on cascade (unchanged)
+14. Single-select filter in cascade with 2+ options → resets to empty (unchanged)
+15. Change Provider dropdown → multi-select child filters auto-select ALL cascaded values as CSV
+
+### Default Strategy
+16. `default_strategy=static`, `default_value=2023` → page loads with Year=2023 (backward compat)
+17. `default_strategy=first` on Provider → page loads with first provider selected
+18. `default_strategy=latest` on Year → page loads with most recent year (e.g., 2024)
+19. `default_strategy=all_values` on multi-select Provider → page loads with all providers as CSV
+20. URL param `?year=2022` with `default_strategy=latest` → URL wins (loads 2022, not latest)
+21. Single-provider user with `auto_fill_from_hha=True` → auto-fill wins over default_strategy
+22. Admin UI: Default Strategy dropdown visible in Settings → Pages → Context Filters (4 options)

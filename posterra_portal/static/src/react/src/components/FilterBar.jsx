@@ -214,13 +214,19 @@ export default function FilterBar() {
 
       // Handle target value based on resets_target
       if (edge.resets_target) {
-        // Auto-select the only available option when exactly 1 exists
-        // and the filter has no built-in "All" option (include_all_option).
-        // When 0 or 2+ options exist, fall back to '' (user must choose).
-        const autoVal =
-            opts.length === 1 && !targetFilter.include_all_option
-                ? opts[0].value
-                : ''
+        let autoVal = ''
+        if (opts.length === 1 && !targetFilter.include_all_option) {
+          // Exactly 1 option, no "All" → auto-select it
+          autoVal = opts[0].value
+        } else if (
+          targetFilter.is_multiselect &&
+          opts.length > 1 &&
+          !targetFilter.include_all_option
+        ) {
+          // Multi-select with 2+ real options, no "All" → select ALL as CSV
+          autoVal = opts.map(o => o.value).filter(Boolean).join(',')
+        }
+        // else: 0 options or has include_all_option → reset to '' (user chooses)
         setPendingFilter(targetParam, autoVal)
         snapshot[targetParam] = autoVal
       } else {
