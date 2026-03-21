@@ -144,9 +144,27 @@ def _build_portal_ctx(page, user, app, kw):
         if eff_param:
             url_val  = (kw.get(eff_param) or '').strip()
             auto_val = hha_auto_fill.get(eff_param, '')
-            filter_values[f.id] = url_val or auto_val or f.default_value or ''
+            if url_val or auto_val:
+                filter_values[f.id] = url_val or auto_val
+            elif (f.default_strategy or 'static') != 'static':
+                filter_values[f.id] = '__DEFERRED__'
+            else:
+                filter_values[f.id] = f.default_value or ''
         else:
-            filter_values[f.id] = f.default_value or ''
+            if (f.default_strategy or 'static') != 'static':
+                filter_values[f.id] = '__DEFERRED__'
+            else:
+                filter_values[f.id] = f.default_value or ''
+
+    # ── Resolve deferred dynamic defaults ────────────────────────────────
+    deferred_ids = [fid for fid, val in filter_values.items()
+                    if val == '__DEFERRED__']
+    if deferred_ids:
+        for f in page_filters:
+            if f.id in deferred_ids:
+                pids = providers.ids if f.scope_to_user_hha and providers else None
+                opts = f.get_options(provider_ids=pids)
+                filter_values[f.id] = f.compute_default_value(opts)
 
     filter_values_by_name = {}
     for f in page_filters:
@@ -906,6 +924,13 @@ class PosterraWidgetAPI(http.Controller):
                 if edge['resets_target']:
                     if len(options) == 1 and not target_filter.include_all_option:
                         new_value = options[0]['value']
+                    elif (target_filter.is_multiselect
+                          and len(options) > 1
+                          and not target_filter.include_all_option):
+                        # Multi-select with 2+ options → select ALL as CSV
+                        new_value = ','.join(
+                            o['value'] for o in options if o.get('value')
+                        )
                     else:
                         new_value = ''
                     value_changed = (new_value != old_value)

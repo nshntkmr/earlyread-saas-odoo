@@ -564,10 +564,18 @@ class PosterraPortal(CustomerPortal):
                 # over any stale URL value that may have leaked from the client.
                 if f.auto_fill_from_hha and auto_val:
                     filter_values[f.id] = auto_val
+                elif url_val or auto_val:
+                    filter_values[f.id] = url_val or auto_val
+                elif (f.default_strategy or 'static') != 'static':
+                    # Dynamic default — needs options; defer to second pass
+                    filter_values[f.id] = '__DEFERRED__'
                 else:
-                    filter_values[f.id] = url_val or auto_val or f.default_value or ''
+                    filter_values[f.id] = f.default_value or ''
             else:
-                filter_values[f.id] = f.default_value or ''
+                if (f.default_strategy or 'static') != 'static':
+                    filter_values[f.id] = '__DEFERRED__'
+                else:
+                    filter_values[f.id] = f.default_value or ''
 
         # Geo context is NOT extracted separately — filter values already flow
         # through filter_values_by_name / sql_params to widgets and annotations
@@ -596,6 +604,12 @@ class PosterraPortal(CustomerPortal):
                 fval = filter_values.get(f.id, '')
                 if not fval and len(opts) == 1:
                     filter_values[f.id] = opts[0]['value']
+
+        # ── Resolve deferred dynamic defaults (need filter_options) ──────
+        for f in page_filters:
+            if filter_values.get(f.id) == '__DEFERRED__':
+                opts = filter_options.get(f.id, [])
+                filter_values[f.id] = f.compute_default_value(opts)
 
         filter_dep_map = {}
         for f in page_filters:
