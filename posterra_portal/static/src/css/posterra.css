@@ -1072,8 +1072,13 @@
     font-weight: 600;
 }
 
-/* ── Apply button ───────────────────────────────────────────────────── */
-.pv-ctx-apply-btn {
+/* ── Apply + Clear All buttons ─────────────────────────────────────── */
+.pv-ctx-apply-group {
+    display: flex;
+    gap: 8px;
+}
+.pv-ctx-apply-btn,
+.pv-ctx-clear-btn {
     height: 32px;
     padding: 0 16px;
     font-size: 13px;

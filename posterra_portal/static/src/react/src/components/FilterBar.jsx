@@ -330,6 +330,16 @@ export default function FilterBar() {
     }
   }, [useNewDeps, handleBatchCascade, handleLegacyCascade])
 
+  // ── Clear All handler ──────────────────────────────────────────────
+  const handleClearAll = useCallback(() => {
+    filters
+      .filter(f => f.is_visible !== false)
+      .forEach(f => {
+        const key = f.param_name || f.field_name
+        if (key) setPendingFilter(key, '')
+      })
+  }, [filters, setPendingFilter])
+
   if (!filters.length) return null
 
   return (
@@ -383,8 +393,16 @@ export default function FilterBar() {
         )
       })}
 
-      {/* ── Apply button ──────────────────────────────────────────────── */}
+      {/* ── Clear All + Apply buttons ────────────────────────────────── */}
       <div className="pv-ctx-filter-group pv-ctx-apply-group">
+        <button
+          type="button"
+          className="btn btn-outline-secondary pv-ctx-clear-btn"
+          id="ctx-clear-btn"
+          onClick={handleClearAll}
+        >
+          Clear All
+        </button>
         <button
           type="button"
           className="btn btn-primary pv-ctx-apply-btn"
