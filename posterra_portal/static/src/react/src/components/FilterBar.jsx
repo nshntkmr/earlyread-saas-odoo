@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import { useFilters } from '../state/FilterContext'
 import { apiFetch } from '../api/client'
-import { cascadeMultiUrl, cascadeUrl } from '../api/endpoints'
+import { cascadeMultiUrl, cascadeUrl, filtersResolveUrl } from '../api/endpoints'
 import MultiSelectDropdown from './MultiSelectDropdown'
 import SearchableSelect from './SearchableSelect'
 
@@ -243,14 +243,68 @@ export default function FilterBar() {
     }
   }, [sourceToTargets, targetToSources, filtersById, setPendingFilter, apiBase, accessToken, refreshToken])
 
-  // ── Unified handler: picks new or legacy path ──────────────────────────
+  // ── Batch cascade handler (single HTTP call) ─────────────────────────
+  const handleBatchCascade = useCallback(async (filter, newValue) => {
+    const paramKey = filter.param_name || filter.field_name
+    setPendingFilter(paramKey, newValue)
+
+    const pageId = config.page?.id
+    if (!pageId) {
+      console.warn('[CASCADE-BATCH] No page_id in config, falling back to graph cascade')
+      await handleGraphCascade(filter, newValue, null, null)
+      return
+    }
+
+    // Build current_values from pending state
+    const currentValues = { ...pendingRef.current, [paramKey]: newValue }
+
+    console.debug(`[CASCADE-BATCH] ▶ START: filter=${filter.name}(id=${filter.id}), value="${newValue}"`)
+
+    try {
+      const url = filtersResolveUrl(apiBase)
+      const data = await apiFetch(url, accessToken, {
+        method: 'POST',
+        body: JSON.stringify({
+          page_id: pageId,
+          changed_filter_id: filter.id,
+          changed_value: newValue,
+          current_values: currentValues,
+        }),
+      }, refreshToken)
+
+      const updated = data.updated_filters || {}
+      const filterCount = Object.keys(updated).length
+      console.debug(`[CASCADE-BATCH] ✓ ${filterCount} filters updated`)
+
+      // Apply all updates in one sweep
+      for (const [filterId, info] of Object.entries(updated)) {
+        // Update options
+        setDynamicOptions(prev => ({
+          ...prev,
+          [parseInt(filterId, 10)]: info.options || [],
+        }))
+        // Update value if changed
+        if (info.value_changed) {
+          setPendingFilter(info.param_name, info.new_value)
+        }
+      }
+
+      console.debug(`[CASCADE-BATCH] ◼ END: filter=${filter.name}`)
+    } catch (err) {
+      console.warn('[CASCADE-BATCH] ✗ Batch resolve failed, falling back to graph cascade:', err)
+      // Graceful fallback to the per-target cascade
+      await handleGraphCascade(filter, newValue, null, null)
+    }
+  }, [config, setPendingFilter, apiBase, accessToken, refreshToken, handleGraphCascade])
+
+  // ── Unified handler: picks batch → graph → legacy path ────────────────
   const handleFilterChange = useCallback(async (filter, newValue) => {
     if (useNewDeps) {
-      await handleGraphCascade(filter, newValue, null, null)
+      await handleBatchCascade(filter, newValue)
     } else {
       await handleLegacyCascade(filter, newValue)
     }
-  }, [useNewDeps, handleGraphCascade, handleLegacyCascade])
+  }, [useNewDeps, handleBatchCascade, handleLegacyCascade])
 
   if (!filters.length) return null
 

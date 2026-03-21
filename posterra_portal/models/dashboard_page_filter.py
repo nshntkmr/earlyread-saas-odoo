@@ -252,7 +252,7 @@ class DashboardPageFilter(models.Model):
         default=False,
         help='When ON, the portal dropdown allows selecting multiple values.\n'
              'Selected values are comma-separated in the URL (e.g. ?hha_state=Arkansas,Ohio).\n'
-             'Widget SQL should use WHERE col = ANY(%(param)s) instead of = %(param)s.',
+             'Widget SQL should use WHERE col IN %(param)s instead of = %(param)s.',
     )
     is_searchable = fields.Boolean(
         string='Searchable',

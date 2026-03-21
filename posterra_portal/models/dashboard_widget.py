@@ -633,6 +633,11 @@ class DashboardWidget(models.Model):
         if '{where_clause}' in sql:
             sql = sql.replace('{where_clause}', params.pop('_where_sql', '1=1'))
 
+        # Process [[...]] optional clauses — "All means omit" for manual SQL
+        if '[[' in sql:
+            from ..utils.filter_builder import resolve_optional_clauses
+            sql = resolve_optional_clauses(sql, params)
+
         # Strip block and line comments before keyword check
         sql_clean = re.sub(r'/\*.*?\*/', ' ', sql, flags=re.DOTALL)
         sql_clean = re.sub(r'--[^\n]*', ' ', sql_clean)

@@ -416,6 +416,19 @@ class PosterraPortal(CustomerPortal):
             else request.env['dashboard.page.filter']
         )
 
+        # ── 7b. Permalink resolution ─────────────────────────────────
+        # If ?state=<key> is in the URL, load the saved filter config
+        # and merge into kw (URL params override permalink values).
+        permalink_key = kw.pop('state', None)
+        if permalink_key:
+            saved_config = request.env['dashboard.filter.state'].sudo().load_state(
+                permalink_key.strip())
+            if saved_config:
+                # Permalink values are defaults; explicit URL params take priority
+                for k, v in saved_config.items():
+                    if k not in kw:
+                        kw[k] = v
+
         # ── 8. Provider resolution (generic — reads param from filter config) ──
         # Now that page_filters are loaded, we can dynamically discover which
         # URL param and field the Provider filter uses (no hardcoded field names).

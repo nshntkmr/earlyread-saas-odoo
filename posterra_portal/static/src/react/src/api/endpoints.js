@@ -51,3 +51,34 @@ export function cascadeMultiUrl(apiBase, filterId, constraints = {}, allValues =
   const qs = new URLSearchParams(params).toString()
   return `${apiBase}/filters/cascade/multi?${qs}`
 }
+
+/**
+ * Build the URL for the batch cascade resolve endpoint.
+ *
+ * @param {string} apiBase — e.g. "/api/v1"
+ * @returns {string}
+ */
+export function filtersResolveUrl(apiBase) {
+  return `${apiBase}/filters/resolve`
+}
+
+/**
+ * Build the URL for saving filter state (permalink).
+ *
+ * @param {string} apiBase — e.g. "/api/v1"
+ * @returns {string}
+ */
+export function filterStateSaveUrl(apiBase) {
+  return `${apiBase}/filter-state/save`
+}
+
+/**
+ * Build the URL for loading filter state by permalink key.
+ *
+ * @param {string} apiBase — e.g. "/api/v1"
+ * @param {string} key     — permalink token
+ * @returns {string}
+ */
+export function filterStateLoadUrl(apiBase, key) {
+  return `${apiBase}/filter-state/load?key=${encodeURIComponent(key)}`
+}

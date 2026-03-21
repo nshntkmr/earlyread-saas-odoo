@@ -180,15 +180,31 @@ def _build_portal_ctx(page, user, app, kw):
     current_hha_id = (kw.get(pf_param_name) or 'all').strip() if pf_param_name else 'all'
 
     # Convert multi-select params from CSV strings to tuples for psycopg2.
-    # psycopg2 adapts tuples to PostgreSQL arrays — ANY(%(param)s) works.
+    # psycopg2 adapts tuples to SQL tuple syntax — IN %(param)s works.
+    # When value is empty/all, use ('__all__',) sentinel so
+    # DashboardFilterBuilder and manual SQL can detect "no filter".
     multiselect_params = {
         (f.param_name or f.field_name)
         for f in page_filters if f.is_multiselect
     }
     sql_params = {}
     for key, val in filter_values_by_name.items():
-        if key in multiselect_params and val and val not in ('', 'all'):
-            sql_params[key] = tuple(v.strip() for v in val.split(',') if v.strip())
+        if key in multiselect_params:
+            if val and val not in ('', 'all'):
+                parts = tuple(v.strip() for v in val.split(',') if v.strip())
+                sql_params[key] = parts
+                # Helper params for single-value numeric selections
+                numeric = [v for v in parts if v.isdigit()]
+                if len(parts) == 1 and numeric:
+                    sql_params['_%s_single' % key] = int(numeric[0])
+                    sql_params['_%s_prior' % key] = int(numeric[0]) - 1
+                else:
+                    sql_params['_%s_single' % key] = None
+                    sql_params['_%s_prior' % key] = None
+            else:
+                sql_params[key] = ('__all__',)
+                sql_params['_%s_single' % key] = None
+                sql_params['_%s_prior' % key] = None
         else:
             sql_params[key] = val
 
@@ -682,3 +698,324 @@ class PosterraWidgetAPI(http.Controller):
             'filter_id': fid,
             'options':   options,
         })
+
+    # ------------------------------------------------------------------ #
+    # POST /api/v1/filters/resolve                                        #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/filters/resolve',
+        type='http',
+        auth='none',
+        methods=['POST', 'OPTIONS'],
+        csrf=False,
+        readonly=True,
+    )
+    def api_filters_resolve(self, **kw):
+        """Batch-resolve the full cascade DAG in a single round-trip.
+
+        Instead of the frontend making N sequential HTTP calls (one per
+        cascade tier), this endpoint accepts the changed filter + current
+        state and walks the entire dependency graph server-side.
+
+        Request body (JSON):
+            {
+              "page_id": <int>,
+              "changed_filter_id": <int>,
+              "changed_value": "<str>",
+              "current_values": { "<param_name>": "<value>", ... }
+            }
+
+        Response:
+            {
+              "updated_filters": {
+                "<filter_id>": {
+                  "param_name": "<str>",
+                  "options": [{"value":"...", "label":"..."}, ...],
+                  "new_value": "<str>",
+                  "value_changed": true|false
+                },
+                ...
+              }
+            }
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _json_response({})
+
+        try:
+            user, app = _get_api_user()
+        except ValueError as exc:
+            return _json_error(401, str(exc))
+
+        # Parse JSON body
+        try:
+            body = json.loads(request.httprequest.get_data(as_text=True) or '{}')
+        except json.JSONDecodeError as exc:
+            return _json_error(400, f'Invalid JSON body: {exc}')
+
+        page_id = body.get('page_id')
+        changed_filter_id = body.get('changed_filter_id')
+        changed_value = body.get('changed_value', '')
+        current_values = body.get('current_values', {})
+
+        if not page_id or not changed_filter_id:
+            return _json_error(400, 'page_id and changed_filter_id are required')
+
+        try:
+            page_id = int(page_id)
+            changed_filter_id = int(changed_filter_id)
+        except (ValueError, TypeError):
+            return _json_error(400, 'page_id and changed_filter_id must be integers')
+
+        # ── Load page and validate access ──────────────────────────────────
+        page = request.env['dashboard.page'].sudo().browse(page_id)
+        if not page.exists() or page.app_id.id != app.id:
+            return _json_error(404, 'Page not found or access denied')
+
+        # ── Load all dependencies for this page ────────────────────────────
+        deps = request.env['dashboard.filter.dependency'].sudo().search([
+            ('page_id', '=', page_id),
+        ])
+
+        # Build adjacency: source_id → [(target_id, edge)]
+        source_to_targets = {}
+        target_to_sources = {}
+        filters_on_page = {}
+
+        page_filters = page.filter_ids
+        for f in page_filters:
+            filters_on_page[f.id] = f
+
+        for dep in deps:
+            sid = dep.source_filter_id.id
+            tid = dep.target_filter_id.id
+            source_to_targets.setdefault(sid, []).append({
+                'target_id': tid,
+                'propagation': dep.propagation,
+                'resets_target': dep.resets_target,
+            })
+            target_to_sources.setdefault(tid, []).append({
+                'source_id': sid,
+                'source_param': dep.source_param,
+            })
+
+        # ── Update snapshot with changed value ──────────────────────────────
+        changed_filter = filters_on_page.get(changed_filter_id)
+        if not changed_filter:
+            return _json_error(404, f'Filter {changed_filter_id} not found on page')
+
+        snapshot = dict(current_values)
+        changed_param = changed_filter.param_name or changed_filter.field_name
+        snapshot[changed_param] = changed_value
+
+        # ── Walk DAG using BFS (Kahn's-inspired) ───────────────────────────
+        updated_filters = {}
+        visited = {changed_filter_id}
+        queue = [changed_filter_id]  # BFS queue
+
+        _logger.info(
+            '[RESOLVE] START: page=%s, changed=%s(id=%s), value="%s"',
+            page_id, changed_param, changed_filter_id, changed_value,
+        )
+
+        while queue:
+            current_id = queue.pop(0)
+            targets = source_to_targets.get(current_id, [])
+
+            for edge in targets:
+                tid = edge['target_id']
+                if tid in visited:
+                    continue  # cycle/revisit prevention
+
+                target_filter = filters_on_page.get(tid)
+                if not target_filter:
+                    continue
+
+                target_param = target_filter.param_name or target_filter.field_name
+
+                # Check optional propagation: skip if target has value
+                if edge['propagation'] == 'optional':
+                    current_target_val = snapshot.get(target_param, '')
+                    if current_target_val and current_target_val != 'all':
+                        continue
+
+                visited.add(tid)
+
+                # Build constraints from ALL sources of this target
+                sources = target_to_sources.get(tid, [])
+                constraint_values = {}
+                for src in sources:
+                    src_param = src['source_param']
+                    val = snapshot.get(src_param, '')
+                    if val and val != 'all':
+                        constraint_values[src['source_id']] = val
+
+                # Build all_filter_values from snapshot
+                all_filter_values = {
+                    k: v for k, v in snapshot.items()
+                    if v and v != 'all'
+                }
+
+                # Resolve provider_ids for scoped filters
+                provider_ids = None
+                if target_filter.scope_to_user_hha:
+                    accessible = _get_providers_for_user(user)
+                    provider_ids = accessible.ids or None
+
+                # Fetch options
+                try:
+                    options = target_filter.get_options(
+                        constraint_values=constraint_values,
+                        provider_ids=provider_ids,
+                        all_filter_values=all_filter_values,
+                    )
+                except Exception as exc:
+                    _logger.warning(
+                        '[RESOLVE] filter=%s(id=%s) get_options error: %s',
+                        target_param, tid, exc,
+                    )
+                    options = []
+
+                # Determine new value (same logic as FilterBar.jsx)
+                old_value = snapshot.get(target_param, '')
+                new_value = old_value
+                value_changed = False
+
+                if edge['resets_target']:
+                    if len(options) == 1 and not target_filter.include_all_option:
+                        new_value = options[0]['value']
+                    else:
+                        new_value = ''
+                    value_changed = (new_value != old_value)
+                else:
+                    # Keep value if still valid
+                    if old_value and options:
+                        valid_values = {o['value'] for o in options}
+                        if target_filter.is_multiselect and ',' in old_value:
+                            kept = [v for v in old_value.split(',')
+                                    if v.strip() in valid_values]
+                            pruned = ','.join(kept)
+                            if pruned != old_value:
+                                new_value = pruned
+                                value_changed = True
+                        else:
+                            if old_value not in valid_values:
+                                new_value = ''
+                                value_changed = True
+
+                snapshot[target_param] = new_value
+
+                updated_filters[str(tid)] = {
+                    'param_name': target_param,
+                    'options': options,
+                    'new_value': new_value,
+                    'value_changed': value_changed,
+                }
+
+                # Enqueue this target so its children get processed next
+                queue.append(tid)
+
+        _logger.info(
+            '[RESOLVE] END: updated %d filters: %s',
+            len(updated_filters),
+            [f'{v["param_name"]}={v["new_value"]}' for v in updated_filters.values()],
+        )
+
+        return _json_response({'updated_filters': updated_filters})
+
+    # ------------------------------------------------------------------ #
+    # POST /api/v1/filter-state/save                                      #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/filter-state/save',
+        type='http',
+        auth='none',
+        methods=['POST', 'OPTIONS'],
+        csrf=False,
+    )
+    def api_filter_state_save(self, **kw):
+        """Save filter state and return a short permalink key.
+
+        Request body (JSON):
+            {
+              "page_id": <int>,
+              "filter_config": { "<param_name>": "<value>", ... }
+            }
+
+        Response:
+            { "key": "a3f8b2c1d4e5" }
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _json_response({})
+
+        try:
+            user, app = _get_api_user()
+        except ValueError as exc:
+            return _json_error(401, str(exc))
+
+        try:
+            body = json.loads(request.httprequest.get_data(as_text=True) or '{}')
+        except json.JSONDecodeError as exc:
+            return _json_error(400, f'Invalid JSON body: {exc}')
+
+        page_id = body.get('page_id')
+        filter_config = body.get('filter_config', {})
+
+        if not page_id:
+            return _json_error(400, 'page_id is required')
+        if not isinstance(filter_config, dict):
+            return _json_error(400, 'filter_config must be a JSON object')
+
+        try:
+            page_id = int(page_id)
+        except (ValueError, TypeError):
+            return _json_error(400, 'page_id must be an integer')
+
+        # Validate page belongs to user's app
+        page = request.env['dashboard.page'].sudo().browse(page_id)
+        if not page.exists() or page.app_id.id != app.id:
+            return _json_error(404, 'Page not found or access denied')
+
+        key = request.env['dashboard.filter.state'].sudo().save_state(
+            page_id=page_id,
+            filter_config=filter_config,
+            user_id=user.id,
+        )
+
+        return _json_response({'key': key})
+
+    # ------------------------------------------------------------------ #
+    # GET /api/v1/filter-state/load                                       #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/filter-state/load',
+        type='http',
+        auth='none',
+        methods=['GET', 'OPTIONS'],
+        csrf=False,
+        readonly=True,
+    )
+    def api_filter_state_load(self, **kw):
+        """Load filter state by permalink key.
+
+        Query parameters:
+            key — the permalink token
+
+        Response:
+            { "filter_config": { "<param_name>": "<value>", ... } }
+            or { "filter_config": {} } if not found/expired.
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _json_response({})
+
+        try:
+            _get_api_user()
+        except ValueError as exc:
+            return _json_error(401, str(exc))
+
+        key = (kw.get('key') or '').strip()
+        if not key:
+            return _json_error(400, 'key is required')
+
+        config = request.env['dashboard.filter.state'].sudo().load_state(key)
+
+        return _json_response({'filter_config': config})

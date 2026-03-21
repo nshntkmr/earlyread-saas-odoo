@@ -11,6 +11,9 @@ The filter builder handles Categories A and B. Category C is fully manual.
 - If a filter value is None or empty, the clause is skipped entirely
 - Never write `IN NULL` or `IN ()` — the builder/controller prevents this
 - Always use `%(param)s` named parameters — never string interpolation
+- Use `[[ AND col IN %(param)s ]]` optional clauses in Category C SQL — the clause is
+  automatically removed when the param is empty, `'all'`, or `('__all__',)`
+- Prefer `WHERE TRUE [[ AND ... ]]` over sentinel checks like `'__all__' IN %(param)s`
 
 ---
 
@@ -354,8 +357,22 @@ or any SQL that doesn't map cleanly to a single MV with standard filters.
 - Exclude from {where_clause}: *(not applicable)*
 - Do NOT use `{where_clause}` in the SQL
 
-**Write all WHERE clauses manually using `IN %(param)s` for multi-select
-and `= %(param)s` for single-select.**
+**Use `[[...]]` optional clauses for "All means omit" behavior.**
+Wrap any filter clause in double brackets and it will be automatically removed
+when the referenced parameter is empty, `'all'`, or `('__all__',)`:
+
+```sql
+SELECT * FROM mv
+WHERE TRUE
+  [[ AND hha_state IN %(hha_state)s ]]
+  [[ AND ffs_ma = %(ffs_ma)s ]]
+```
+
+When `hha_state` is `('__all__',)`, the first clause disappears entirely.
+When `ffs_ma` is `'MA'`, the second clause stays. This eliminates the need
+for sentinel checks like `('__all__' IN %(param)s OR col IN %(param)s)`.
+
+For clauses that must ALWAYS apply (e.g. security scope), leave them outside brackets.
 
 ---
 
@@ -374,14 +391,16 @@ FROM (
     SUM(total_admits) AS total_admits,
     RANK() OVER (ORDER BY SUM(total_admits) DESC) AS rank
   FROM mv_hha_kpi_summary
-  WHERE hha_state IN %(hha_state)s
-    AND year::text IN %(year)s
-    AND (%(ffs_ma)s = '' OR LOWER(%(ffs_ma)s) = 'all' OR ffs_ma = %(ffs_ma)s)
+  WHERE TRUE
+    [[ AND hha_state IN %(hha_state)s ]]
+    [[ AND year::text IN %(year)s ]]
+    [[ AND ffs_ma = %(ffs_ma)s ]]
   GROUP BY hha_ccn, hha_name
 ) r
-WHERE r.hha_ccn IN %(hha_ccn)s
-   OR r.rank <= 10
+WHERE TRUE
+  [[ AND r.hha_ccn IN %(hha_ccn)s ]]
 ORDER BY r.rank
+LIMIT 10
 ```
 
 ---
@@ -397,14 +416,16 @@ SELECT
 FROM (
   SELECT hha_ccn, hha_name, SUM(total_admits) AS total_admits
   FROM mv_hha_kpi_summary
-  WHERE hha_state IN %(hha_state)s
-    AND year::text IN %(year)s
+  WHERE TRUE
+    [[ AND hha_state IN %(hha_state)s ]]
+    [[ AND year::text IN %(year)s ]]
   GROUP BY hha_ccn, hha_name
 ) a
 JOIN (
   SELECT hha_ccn, AVG(star_rating) AS star_rating
   FROM mv_hha_quality_summary
-  WHERE year::text IN %(year)s
+  WHERE TRUE
+    [[ AND year::text IN %(year)s ]]
   GROUP BY hha_ccn
 ) b ON a.hha_ccn = b.hha_ccn
 ```
@@ -419,9 +440,10 @@ SELECT
   ffs_ma,
   SUM(total_admits) AS value
 FROM mv_hha_kpi_summary
-WHERE hha_ccn IN %(hha_ccn)s
-  AND year::text IN %(year)s
-  AND (%(ffs_ma)s = '' OR LOWER(%(ffs_ma)s) = 'all' OR ffs_ma = %(ffs_ma)s)
+WHERE TRUE
+  [[ AND hha_ccn IN %(hha_ccn)s ]]
+  [[ AND year::text IN %(year)s ]]
+  [[ AND ffs_ma = %(ffs_ma)s ]]
 GROUP BY hha_state, ffs_ma
 ORDER BY hha_state, ffs_ma
 ```
@@ -471,7 +493,12 @@ In Category C manual SQL, check the filter's Multi-select toggle.
 
 ### Bug 7: Empty result with "All" selected
 **Wrong:** No sentinel check — WHERE clause filters everything out
-**Right:** Always check for `'__all__'` sentinel:
+**Preferred:** Use `[[...]]` optional clauses (clause disappears when "All"):
+```sql
+WHERE TRUE
+  [[ AND hha_ccn IN %(hha_ccn)s ]]
+```
+**Legacy fallback:** Check for `'__all__'` sentinel:
 ```sql
 ('__all__' IN %(hha_ccn)s OR hha_ccn IN %(hha_ccn)s)
 ```

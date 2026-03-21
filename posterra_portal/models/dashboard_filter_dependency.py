@@ -99,6 +99,56 @@ class DashboardFilterDependency(models.Model):
                 raise ValidationError(
                     'Dependency page_id must match the filters\' page.')
 
+    @api.constrains('source_filter_id', 'target_filter_id')
+    def _check_no_cycle(self):
+        """Validate the dependency graph remains a DAG (no cycles).
+
+        Uses DFS cycle detection on all edges for the same page.
+        Runs on every edge create/update to prevent circular cascades.
+        """
+        pages_to_check = set()
+        for rec in self:
+            if rec.page_id:
+                pages_to_check.add(rec.page_id.id)
+
+        for pid in pages_to_check:
+            all_edges = self.search([('page_id', '=', pid)])
+            # Build adjacency list: source → [target, ...]
+            adj = {}
+            for edge in all_edges:
+                sid = edge.source_filter_id.id
+                tid = edge.target_filter_id.id
+                adj.setdefault(sid, []).append(tid)
+
+            # DFS cycle detection
+            WHITE, GRAY, BLACK = 0, 1, 2
+            color = {}
+            for node in adj:
+                color[node] = WHITE
+            # Also add nodes that are only targets (no outgoing edges)
+            for targets in adj.values():
+                for t in targets:
+                    if t not in color:
+                        color[t] = WHITE
+
+            def _has_cycle(node):
+                color[node] = GRAY
+                for neighbor in adj.get(node, []):
+                    if color.get(neighbor, WHITE) == GRAY:
+                        return True  # back edge → cycle
+                    if color.get(neighbor, WHITE) == WHITE and _has_cycle(neighbor):
+                        return True
+                color[node] = BLACK
+                return False
+
+            for node in list(color):
+                if color[node] == WHITE:
+                    if _has_cycle(node):
+                        raise ValidationError(
+                            'Adding this dependency would create a circular '
+                            'cascade loop. Filter dependencies must form a '
+                            'directed acyclic graph (DAG).')
+
     @api.onchange('source_filter_id')
     def _onchange_source_filter(self):
         """Auto-fill page_id from source filter."""
