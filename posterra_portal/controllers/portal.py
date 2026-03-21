@@ -583,15 +583,29 @@ class PosterraPortal(CustomerPortal):
 
         accessible_provider_ids = providers.ids if providers else []
 
+        # Load dependency graph for constraint-aware option building
+        dep_records = request.env['dashboard.filter.dependency'].sudo().search(
+            [('page_id', '=', current_page.id)], order='sequence asc',
+        )
+
         filter_options = {}
         for f in page_filters:
             if f.manual_options or (f.model_id and f.field_id) or (f.schema_source_id and f.schema_column_id):
-                parent_val = None
-                if f.depends_on_filter_id and f.depends_on_filter_id.id in filter_values:
+                # Build constraint_values from incoming dependencies (new system)
+                constraint_values = {}
+                for d in dep_records:
+                    if d.target_filter_id.id == f.id:
+                        src_val = filter_values.get(d.source_filter_id.id) or ''
+                        if src_val:
+                            constraint_values[d.source_filter_id.id] = src_val
+                # Fall back to legacy depends_on_filter_id if no new deps
+                if not constraint_values and f.depends_on_filter_id:
                     parent_val = filter_values.get(f.depends_on_filter_id.id) or None
+                    if parent_val:
+                        constraint_values[f.depends_on_filter_id.id] = parent_val
                 pids = accessible_provider_ids if f.scope_to_user_hha else None
                 filter_options[f.id] = f.get_options(
-                    parent_value=parent_val,
+                    constraint_values=constraint_values or None,
                     provider_ids=pids,
                 )
 
