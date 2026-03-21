@@ -416,6 +416,20 @@ class PosterraPortal(CustomerPortal):
             else request.env['dashboard.page.filter']
         )
 
+        # ── 7b. Permalink resolution ─────────────────────────────────
+        # If ?state=<key> is in the URL, load the saved filter config
+        # and merge into kw (URL params override permalink values).
+        # Scoped by app_id to prevent cross-app state injection.
+        permalink_key = kw.pop('state', None)
+        if permalink_key:
+            saved_config = request.env['dashboard.filter.state'].sudo().load_state(
+                permalink_key.strip(), app_id=app.id)
+            if saved_config:
+                # Permalink values are defaults; explicit URL params take priority
+                for k, v in saved_config.items():
+                    if k not in kw:
+                        kw[k] = v
+
         # ── 8. Provider resolution (generic — reads param from filter config) ──
         # Now that page_filters are loaded, we can dynamically discover which
         # URL param and field the Provider filter uses (no hardcoded field names).
@@ -531,17 +545,16 @@ class PosterraPortal(CustomerPortal):
             else:
                 filter_values[f.id] = f.default_value or ''
 
-        # Derive geo context
+        # Derive geo context (config-driven via geo_role — no hardcoded param names)
         ctx_state  = ''
         ctx_county = ''
         ctx_cities = []
         for f in page_filters:
-            fn = f.param_name or f.field_name or ''
-            if fn == 'hha_state':
+            if f.geo_role == 'state':
                 ctx_state = filter_values.get(f.id, '')
-            elif fn == 'hha_county':
+            elif f.geo_role == 'county':
                 ctx_county = filter_values.get(f.id, '')
-            elif fn == 'hha_city':
+            elif f.geo_role == 'city':
                 raw = filter_values.get(f.id, '')
                 ctx_cities = [c.strip() for c in raw.split(',') if c.strip()]
 

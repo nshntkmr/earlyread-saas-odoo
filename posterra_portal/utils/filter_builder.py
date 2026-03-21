@@ -10,6 +10,46 @@ _IDENT_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 _ALL_SENTINEL = '__all__'
 _NUMERIC_TYPES = frozenset({'integer', 'float'})
 
+# ── Optional clause resolution ([[...]]) ─────────────────────────────────────
+_OPTIONAL_CLAUSE_RE = re.compile(r'\[\[(.*?)\]\]', re.DOTALL)
+_PARAM_REF_RE = re.compile(r'%\(([^)]+)\)s')
+
+
+def resolve_optional_clauses(sql, params):
+    """Process ``[[...]]`` optional clauses (Metabase-style).
+
+    A clause wrapped in ``[[ AND col IN %(param)s ]]`` is included only
+    when *every* ``%(param)s`` reference inside has a meaningful value.
+    "Meaningless" means: ``None``, empty string, ``'all'``, or a tuple/list
+    containing the ``'__all__'`` sentinel.
+
+    Example::
+
+        SELECT * FROM mv
+        WHERE TRUE
+          [[ AND hha_state IN %(hha_state)s ]]
+          [[ AND ffs_ma = %(ffs_ma)s ]]
+
+    When ``hha_state`` is ``('__all__',)`` the first clause disappears.
+    When ``ffs_ma`` is ``'MA'`` the second clause stays.
+    """
+    def _is_active(match):
+        clause_body = match.group(1)
+        param_names = _PARAM_REF_RE.findall(clause_body)
+        if not param_names:
+            return clause_body
+        for pname in param_names:
+            val = params.get(pname)
+            if val is None:
+                return ''
+            if isinstance(val, str) and (val == '' or val.lower() == 'all'):
+                return ''
+            if isinstance(val, (list, tuple)) and _ALL_SENTINEL in val:
+                return ''
+        return clause_body
+
+    return _OPTIONAL_CLAUSE_RE.sub(_is_active, sql)
+
 
 class DashboardFilterBuilder:
     """Build parameterised WHERE clauses from filter definitions.

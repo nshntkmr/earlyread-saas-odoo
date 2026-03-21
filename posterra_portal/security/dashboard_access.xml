@@ -140,6 +140,26 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 
+    <!-- ── dashboard.filter.state (permalink tokens) ───────────────────── -->
+    <record id="access_dashboard_filter_state_portal" model="ir.model.access">
+        <field name="name">dashboard.filter.state portal</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.filter.state')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_dashboard_filter_state_admin" model="ir.model.access">
+        <field name="name">dashboard.filter.state admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.filter.state')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
     <!-- ── hha.csv.import (wizard) ──────────────────────────────────────── -->
     <record id="access_hha_csv_import_admin" model="ir.model.access">
         <field name="name">hha.csv.import admin</field>

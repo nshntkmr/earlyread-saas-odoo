@@ -204,6 +204,11 @@ class DashboardPageSection(models.Model):
         if '{where_clause}' in sql:
             sql = sql.replace('{where_clause}', params.pop('_where_sql', '1=1'))
 
+        # Process [[...]] optional clauses — "All means omit" for manual SQL
+        if '[[' in sql:
+            from ..utils.filter_builder import resolve_optional_clauses
+            sql = resolve_optional_clauses(sql, params)
+
         sql_clean = re.sub(r'/\*.*?\*/', ' ', sql, flags=re.DOTALL)
         sql_clean = re.sub(r'--[^\n]*', ' ', sql_clean)
         first_word = sql_clean.strip().split()[0].upper() if sql_clean.strip() else ''

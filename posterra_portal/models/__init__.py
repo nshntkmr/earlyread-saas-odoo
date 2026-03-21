@@ -8,4 +8,5 @@ from . import dashboard_page_filter
 from . import dashboard_filter_dependency
 from . import dashboard_widget
 from . import dashboard_page_section
+from . import dashboard_filter_state
 from . import res_config_settings
