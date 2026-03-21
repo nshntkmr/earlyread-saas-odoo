@@ -148,17 +148,16 @@ def _build_portal_ctx(page, user, app, kw):
         else:
             filter_values[f.id] = f.default_value or ''
 
-    # ── Derive geo context ────────────────────────────────────────────────
+    # ── Derive geo context (config-driven via geo_role) ──────────────────
     ctx_state  = ''
     ctx_county = ''
     ctx_cities = []
     for f in page_filters:
-        fn = f.param_name or f.field_name or ''
-        if fn == 'hha_state':
+        if f.geo_role == 'state':
             ctx_state = filter_values.get(f.id, '')
-        elif fn == 'hha_county':
+        elif f.geo_role == 'county':
             ctx_county = filter_values.get(f.id, '')
-        elif fn == 'hha_city':
+        elif f.geo_role == 'city':
             raw = filter_values.get(f.id, '')
             ctx_cities = [c.strip() for c in raw.split(',') if c.strip()]
 
@@ -168,13 +167,10 @@ def _build_portal_ctx(page, user, app, kw):
         if key:
             filter_values_by_name[key] = filter_values.get(f.id, '')
 
-    # Derive current_hha_id from whichever param the Provider filter uses
+    # Derive current_hha_id from whichever param the Provider filter uses.
+    # Uses is_provider_selector (admin-configured) — never hardcoded model_name.
     pf_param_name = ''
-    _pf = page_filters.filtered(
-        lambda f: f.model_name == 'hha.provider'
-                  and f.is_visible
-                  and f.include_all_option
-    )
+    _pf = page_filters.filtered(lambda f: f.is_provider_selector)
     if _pf:
         pf_param_name = _pf[0].param_name or _pf[0].field_name or ''
     current_hha_id = (kw.get(pf_param_name) or 'all').strip() if pf_param_name else 'all'
@@ -976,6 +972,7 @@ class PosterraWidgetAPI(http.Controller):
             return _json_error(404, 'Page not found or access denied')
 
         key = request.env['dashboard.filter.state'].sudo().save_state(
+            app_id=app.id,
             page_id=page_id,
             filter_config=filter_config,
             user_id=user.id,
@@ -1008,7 +1005,7 @@ class PosterraWidgetAPI(http.Controller):
             return _json_response({})
 
         try:
-            _get_api_user()
+            user, app = _get_api_user()
         except ValueError as exc:
             return _json_error(401, str(exc))
 
@@ -1016,6 +1013,8 @@ class PosterraWidgetAPI(http.Controller):
         if not key:
             return _json_error(400, 'key is required')
 
-        config = request.env['dashboard.filter.state'].sudo().load_state(key)
+        # Scope by app_id to prevent cross-app state leakage
+        config = request.env['dashboard.filter.state'].sudo().load_state(
+            key, app_id=app.id)
 
         return _json_response({'filter_config': config})

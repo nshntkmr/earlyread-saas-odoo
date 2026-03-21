@@ -31,6 +31,13 @@ class DashboardFilterState(models.Model):
         default=lambda self: uuid.uuid4().hex[:12],
         help='Short URL-safe token used in the permalink URL.',
     )
+    app_id = fields.Many2one(
+        'saas.app',
+        required=True,
+        ondelete='cascade',
+        index=True,
+        help='App this state belongs to — used for access control scoping.',
+    )
     page_id = fields.Many2one(
         'dashboard.page',
         required=True,
@@ -63,10 +70,11 @@ class DashboardFilterState(models.Model):
     # ── Public API ─────────────────────────────────────────────────────────
 
     @api.model
-    def save_state(self, page_id, filter_config, user_id=None):
+    def save_state(self, app_id, page_id, filter_config, user_id=None):
         """Persist filter state and return the short permalink key.
 
         Args:
+            app_id: saas.app ID — required for access control scoping
             page_id: dashboard.page ID
             filter_config: dict of {param_name: value}
             user_id: optional res.users ID
@@ -75,29 +83,38 @@ class DashboardFilterState(models.Model):
             str: the permalink key (e.g. 'a3f8b2c1d4e5')
         """
         record = self.create({
+            'app_id': app_id,
             'page_id': page_id,
             'filter_config': filter_config,
             'user_id': user_id,
         })
         _logger.info(
-            '[PERMALINK] Saved state key=%s page=%s user=%s filters=%d',
-            record.key, page_id, user_id, len(filter_config),
+            '[PERMALINK] Saved state key=%s app=%s page=%s user=%s filters=%d',
+            record.key, app_id, page_id, user_id, len(filter_config),
         )
         return record.key
 
     @api.model
-    def load_state(self, key):
-        """Load filter state by permalink key.
+    def load_state(self, key, app_id=None):
+        """Load filter state by permalink key, scoped to an app.
+
+        Args:
+            key: permalink token string
+            app_id: saas.app ID — when provided, validates the state
+                belongs to this app (cross-app access prevention).
 
         Returns:
-            dict: filter_config or empty dict if not found/expired.
+            dict: filter_config or empty dict if not found/expired/wrong app.
         """
-        record = self.search([
+        domain = [
             ('key', '=', key),
             '|',
             ('expires_at', '=', False),
             ('expires_at', '>', fields.Datetime.now()),
-        ], limit=1)
+        ]
+        if app_id:
+            domain.insert(0, ('app_id', '=', app_id))
+        record = self.search(domain, limit=1)
         if record:
             return record.filter_config or {}
         return {}

@@ -238,6 +238,14 @@ class DashboardPageFilter(models.Model):
              'Only ONE filter per page should have this enabled.',
     )
 
+    geo_role = fields.Selection(
+        [('state', 'State'), ('county', 'County'), ('city', 'City')],
+        string='Geo Role',
+        help='When set, this filter provides geographic context for templates '
+             'and widgets. Admin configures which filter serves each role.\n'
+             'Replaces hardcoded param name matching (e.g. hha_state → state role).',
+    )
+
     is_visible = fields.Boolean(
         string='Visible in Portal',
         default=True,
