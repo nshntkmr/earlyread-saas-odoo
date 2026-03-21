@@ -658,6 +658,36 @@ class PosterraWidgetAPI(http.Controller):
             accessible = _get_providers_for_user(user)
             provider_ids = accessible.ids or None
 
+        # ── Strip stale downstream values from all_filter_values ─────────
+        # When a source filter changes (e.g. Provider), its resets_target
+        # edges mean the target values (State, County, City) are about to be
+        # reset.  Their OLD values must NOT constrain sibling option queries.
+        if all_filter_values and constraint_values:
+            # 1. Strip the target filter's own param (it's being refreshed)
+            target_param = f.param_name or f.field_name or ''
+            if target_param and target_param in all_filter_values:
+                all_filter_values = dict(all_filter_values)
+                del all_filter_values[target_param]
+
+            # 2. Strip params of all filters that are resets_target targets
+            #    of any source filter in constraints (they're being reset too)
+            source_ids = list(constraint_values.keys())
+            if source_ids:
+                reset_deps = request.env['dashboard.filter.dependency'].sudo().search([
+                    ('source_filter_id', 'in', source_ids),
+                    ('resets_target', '=', True),
+                ])
+                reset_params = set()
+                for dep in reset_deps:
+                    tp = dep.target_filter_id.param_name or dep.target_filter_id.field_name or ''
+                    if tp:
+                        reset_params.add(tp)
+                if reset_params:
+                    all_filter_values = {
+                        k: v for k, v in all_filter_values.items()
+                        if k not in reset_params
+                    }
+
         # ── Fetch options ─────────────────────────────────────────────────
         _logger.info(
             '[CASCADE-API] cascade/multi: target_filter=%s(id=%s), '
