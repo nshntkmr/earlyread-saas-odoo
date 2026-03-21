@@ -588,7 +588,22 @@ class PosterraPortal(CustomerPortal):
             [('page_id', '=', current_page.id)], order='sequence asc',
         )
 
+        # ── Early-resolve deferred defaults for ROOT filters (no parents) ────
+        # Root filters have no parent dependencies, so their options need no
+        # constraints.  Resolve them first so child filters can use their
+        # real values as constraints instead of the '__DEFERRED__' sentinel.
+        filters_that_are_targets = set()
+        for d in dep_records:
+            filters_that_are_targets.add(d.target_filter_id.id)
+
         filter_options = {}
+        for f in page_filters:
+            if filter_values.get(f.id) == '__DEFERRED__' and f.id not in filters_that_are_targets:
+                pids = accessible_provider_ids if f.scope_to_user_hha else None
+                root_opts = f.get_options(provider_ids=pids)
+                filter_options[f.id] = root_opts
+                filter_values[f.id] = f.compute_default_value(root_opts)
+
         for f in page_filters:
             if f.manual_options or (f.model_id and f.field_id) or (f.schema_source_id and f.schema_column_id):
                 # Build constraint_values from incoming dependencies (new system)
@@ -596,12 +611,12 @@ class PosterraPortal(CustomerPortal):
                 for d in dep_records:
                     if d.target_filter_id.id == f.id:
                         src_val = filter_values.get(d.source_filter_id.id) or ''
-                        if src_val:
+                        if src_val and src_val != '__DEFERRED__':
                             constraint_values[d.source_filter_id.id] = src_val
                 # Fall back to legacy depends_on_filter_id if no new deps
                 if not constraint_values and f.depends_on_filter_id:
                     parent_val = filter_values.get(f.depends_on_filter_id.id) or None
-                    if parent_val:
+                    if parent_val and parent_val != '__DEFERRED__':
                         constraint_values[f.depends_on_filter_id.id] = parent_val
                 pids = accessible_provider_ids if f.scope_to_user_hha else None
                 filter_options[f.id] = f.get_options(
