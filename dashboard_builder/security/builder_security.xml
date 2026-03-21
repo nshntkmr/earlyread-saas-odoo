@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Group: Dashboard Builder User ──────────────────────────── -->
+    <record id="group_dashboard_builder_user" model="res.groups">
+        <field name="name">Dashboard Builder User</field>
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]"/>
+        <field name="comment">Internal users who can view schema sources and widget definitions.</field>
+    </record>
+
+    <!-- ── Group: Dashboard Builder Admin ─────────────────────────── -->
+    <record id="group_dashboard_builder_admin" model="res.groups">
+        <field name="name">Dashboard Builder Admin</field>
+        <field name="implied_ids" eval="[Command.link(ref('group_dashboard_builder_user'))]"/>
+        <field name="comment">Administrators who can create/edit schema sources, discover columns, manage relations, and build widgets.</field>
+    </record>
+
+</odoo>

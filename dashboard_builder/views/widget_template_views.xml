@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         Widget Template — List View
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="view_widget_template_list" model="ir.ui.view">
+        <field name="name">dashboard.widget.template.list</field>
+        <field name="model">dashboard.widget.template</field>
+        <field name="arch" type="xml">
+            <list string="Widget Templates" editable="bottom">
+                <field name="name"/>
+                <field name="category"/>
+                <field name="description"/>
+                <field name="creates_count" string="# Widgets"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         Widget Template — Form View
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="view_widget_template_form" model="ir.ui.view">
+        <field name="name">dashboard.widget.template.form</field>
+        <field name="model">dashboard.widget.template</field>
+        <field name="arch" type="xml">
+            <form string="Widget Template">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Template Name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="category"/>
+                            <field name="creates_count"/>
+                        </group>
+                        <group>
+                            <field name="preview_image" widget="image" options="{'size': [200, 200]}"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description" placeholder="Short description of what this template creates…"/>
+                    </group>
+                    <notebook>
+                        <page string="Widget Configs (JSON)" name="configs">
+                            <field name="widget_configs"
+                                   widget="ace"
+                                   options="{'mode': 'json'}"
+                                   placeholder='[&#10;  {"chart_type": "kpi", "name": "My KPI", "col_span": "3", ...}&#10;]'/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         Widget Template — Action
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="action_widget_template" model="ir.actions.act_window">
+        <field name="name">Widget Templates</field>
+        <field name="res_model">dashboard.widget.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first widget template
+            </p>
+            <p>
+                Templates contain pre-built widget configurations that can be
+                applied to any dashboard page with a single click.
+            </p>
+        </field>
+    </record>
+
+</odoo>

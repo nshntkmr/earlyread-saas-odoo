@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        noupdate="1" — admin edits (label renames, reordering, deactivation)
+        persist across module upgrades.
+    -->
+    <data noupdate="1">
+
+        <record id="nav_section_my_hha" model="dashboard.nav.section">
+            <field name="name">MY HHA</field>
+            <field name="key">my_hha</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+        </record>
+
+        <record id="nav_section_portfolio" model="dashboard.nav.section">
+            <field name="name">PORTFOLIO</field>
+            <field name="key">portfolio</field>
+            <field name="sequence">20</field>
+            <field name="is_active">True</field>
+        </record>
+
+        <record id="nav_section_data_explorer" model="dashboard.nav.section">
+            <field name="name">DATA EXPLORER</field>
+            <field name="key">data_explorer</field>
+            <field name="sequence">30</field>
+            <field name="is_active">True</field>
+        </record>
+
+    </data>
+</odoo>

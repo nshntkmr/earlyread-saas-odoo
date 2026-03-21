@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python odoo-bin -u posterra_portal -d posterra --stop-after-init)",
+      "Bash(xargs grep -l \"frontend_layout\")",
+      "Bash(xargs grep -l \"website\")",
+      "Bash(test -d /c/Users/nisha/Odoo_Dev/posterra_portal/.claude)",
+      "Bash(test -d /c/Users/nisha/.claude/skills)",
+      "Bash(mkdir -p /c/Users/nisha/Odoo_Dev/dashboard_builder/static/description)",
+      "Read(//c/Users/nisha/Odoo_Dev/dashboard_builder//**)"
+    ]
+  }
+}

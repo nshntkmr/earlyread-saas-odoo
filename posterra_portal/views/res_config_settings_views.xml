@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.posterra</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="Posterra" name="posterra_portal"
+                     groups="posterra_portal.group_posterra_admin">
+                    <block title="Portal Access">
+                        <setting string="Scope Groups"
+                                 help="HHA access for portal users is configured via
+                                       Scope Groups. Go to Posterra → Configuration →
+                                       Scope Groups to create and manage access groups.">
+                            <div class="content-group">
+                                <div class="mt8 text-muted">
+                                    Portal users are assigned to Scope Groups which
+                                    determine which HHA providers they can access.
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

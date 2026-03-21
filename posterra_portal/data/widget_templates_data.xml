@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         Healthcare Widget Templates — WB-6
+         Each template stores a widget_configs JSON array. When "Use Template"
+         is clicked, each config object creates one dashboard.widget record.
+         ══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Template 1: Executive KPI Row ─────────────────────────────────── -->
+    <record id="tpl_executive_kpi_row" model="dashboard.widget.template">
+        <field name="name">Executive KPI Row</field>
+        <field name="description">5 KPI cards showing key HHA metrics: Total Admits, Avg Daily Census, Visits/Admit, Revenue/Visit, Quality Rating. Designed for the top of an overview page.</field>
+        <field name="category">kpi</field>
+        <field name="widget_configs">[
+  {
+    "chart_type": "kpi",
+    "name": "Total Admits",
+    "col_span": "3",
+    "query_sql": "SELECT SUM(total_admits) AS total_admits FROM mv_hha_kpi_summary WHERE hha_state = %(hha_state)s",
+    "x_column": "total_admits",
+    "kpi_format": "number",
+    "color_palette": "healthcare"
+  },
+  {
+    "chart_type": "kpi",
+    "name": "Avg Daily Census",
+    "col_span": "3",
+    "query_sql": "SELECT AVG(adc) AS adc FROM mv_hha_kpi_summary WHERE hha_state = %(hha_state)s",
+    "x_column": "adc",
+    "kpi_format": "decimal",
+    "color_palette": "healthcare"
+  },
+  {
+    "chart_type": "kpi",
+    "name": "Visits / Admit",
+    "col_span": "3",
+    "query_sql": "SELECT AVG(visits_per_admit) AS visits_per_admit FROM mv_hha_kpi_summary WHERE hha_state = %(hha_state)s",
+    "x_column": "visits_per_admit",
+    "kpi_format": "decimal",
+    "color_palette": "healthcare"
+  },
+  {
+    "chart_type": "kpi",
+    "name": "Revenue / Visit",
+    "col_span": "3",
+    "query_sql": "SELECT AVG(revenue_per_visit) AS revenue_per_visit FROM mv_hha_kpi_summary WHERE hha_state = %(hha_state)s",
+    "x_column": "revenue_per_visit",
+    "kpi_format": "currency",
+    "kpi_prefix": "$",
+    "color_palette": "healthcare"
+  },
+  {
+    "chart_type": "kpi",
+    "name": "Quality Rating",
+    "col_span": "3",
+    "query_sql": "SELECT AVG(quality_rating) AS quality_rating FROM mv_hha_kpi_summary WHERE hha_state = %(hha_state)s",
+    "x_column": "quality_rating",
+    "kpi_format": "decimal",
+    "kpi_suffix": "\u2605",
+    "color_palette": "healthcare"
+  }
+]</field>
+    </record>
+
+    <!-- ── Template 2: Payer Mix Trend ───────────────────────────────────── -->
+    <record id="tpl_payer_mix_trend" model="dashboard.widget.template">
+        <field name="name">Payer Mix Trend</field>
+        <field name="description">Stacked bar chart showing payer distribution over time. X-axis is year, series split by payer type (FFS, MA, Medicaid, etc.).</field>
+        <field name="category">trend</field>
+        <field name="widget_configs">[
+  {
+    "chart_type": "bar",
+    "name": "Payer Mix by Year",
+    "col_span": "12",
+    "chart_height": 400,
+    "query_sql": "SELECT year, payer_type, SUM(episode_count) AS episodes FROM mv_hha_payer_mix WHERE hha_state = %(hha_state)s GROUP BY year, payer_type ORDER BY year",
+    "x_column": "year",
+    "y_columns": "episodes",
+    "series_column": "payer_type",
+    "color_palette": "healthcare"
+  }
+]</field>
+    </record>
+
+    <!-- ── Template 3: Market Position Radar ─────────────────────────────── -->
+    <record id="tpl_market_position_radar" model="dashboard.widget.template">
+        <field name="name">Market Position Radar</field>
+        <field name="description">Radar/spider chart comparing 5 dimensions (Quality, Revenue, Outcomes, Timely Access, Volume) between your portfolio and state median.</field>
+        <field name="category">comparison</field>
+        <field name="widget_configs">[
+  {
+    "chart_type": "radar",
+    "name": "Market Position Radar",
+    "col_span": "6",
+    "chart_height": 400,
+    "query_sql": "SELECT dimension, your_score, state_median FROM mv_hha_market_position WHERE hha_name = %(hha_name)s",
+    "x_column": "dimension",
+    "y_columns": "your_score,state_median",
+    "color_palette": "healthcare"
+  }
+]</field>
+    </record>
+
+    <!-- ── Template 4: Peer Profile Table ────────────────────────────────── -->
+    <record id="tpl_peer_profile_table" model="dashboard.widget.template">
+        <field name="name">Peer Profile Table</field>
+        <field name="description">Ranked data table showing peer HHAs with key metrics: Admits, Market Share %, ADV Percentile, TCS Percentile. HHA Name column is linkable.</field>
+        <field name="category">ranking</field>
+        <field name="widget_configs">[
+  {
+    "chart_type": "table",
+    "name": "Peer HHA Rankings",
+    "col_span": "12",
+    "query_sql": "SELECT rank, hha_name, admits, mkt_share_pct, adv_percentile, tcs_percentile FROM mv_hha_peer_ranking WHERE hha_state = %(hha_state)s ORDER BY rank LIMIT 25",
+    "x_column": "hha_name",
+    "y_columns": "admits,mkt_share_pct,adv_percentile,tcs_percentile",
+    "click_action": "show_details",
+    "drill_detail_columns": "hha_name,hha_state,hha_county,admits,adc,quality_rating",
+    "color_palette": "healthcare"
+  }
+]</field>
+    </record>
+
+    <!-- ── Template 5: Market Operating Profile ──────────────────────────── -->
+    <record id="tpl_market_operating_profile" model="dashboard.widget.template">
+        <field name="name">Market Operating Profile</field>
+        <field name="description">3 gauge + KPI widgets showing operating archetypes: Access Driven Volume, Therapy Centric Stabilizer, High Acuity Specialist.</field>
+        <field name="category">profile</field>
+        <field name="widget_configs">[
+  {
+    "chart_type": "gauge_kpi",
+    "name": "Access Driven Volume",
+    "col_span": "4",
+    "chart_height": 350,
+    "query_sql": "SELECT adv_score, ffs_pct, ma_pct, ffs_pct_label, ma_pct_label, alert_text FROM mv_hha_operating_profile WHERE hha_name = %(hha_name)s AND archetype = 'ADV'",
+    "x_column": "adv_score",
+    "gauge_min": 0,
+    "gauge_max": 100,
+    "gauge_color_mode": "traffic_light",
+    "gauge_warn_threshold": 40,
+    "gauge_good_threshold": 70,
+    "gauge_sub_kpi_columns": "ffs_pct,ma_pct",
+    "gauge_sub_kpi_labels": "FFS,MA",
+    "gauge_sub_label_columns": "ffs_pct_label,ma_pct_label",
+    "gauge_alert_column": "alert_text",
+    "color_palette": "healthcare"
+  },
+  {
+    "chart_type": "gauge_kpi",
+    "name": "Therapy Centric Stabilizer",
+    "col_span": "4",
+    "chart_height": 350,
+    "query_sql": "SELECT tcs_score, therapy_pct, nursing_pct, therapy_pct_label, nursing_pct_label, alert_text FROM mv_hha_operating_profile WHERE hha_name = %(hha_name)s AND archetype = 'TCS'",
+    "x_column": "tcs_score",
+    "gauge_min": 0,
+    "gauge_max": 100,
+    "gauge_color_mode": "traffic_light",
+    "gauge_warn_threshold": 40,
+    "gauge_good_threshold": 70,
+    "gauge_sub_kpi_columns": "therapy_pct,nursing_pct",
+    "gauge_sub_kpi_labels": "Therapy,Nursing",
+    "gauge_sub_label_columns": "therapy_pct_label,nursing_pct_label",
+    "gauge_alert_column": "alert_text",
+    "color_palette": "healthcare"
+  },
+  {
+    "chart_type": "gauge_kpi",
+    "name": "High Acuity Specialist",
+    "col_span": "4",
+    "chart_height": 350,
+    "query_sql": "SELECT has_score, avg_visits, avg_los, avg_visits_label, avg_los_label, alert_text FROM mv_hha_operating_profile WHERE hha_name = %(hha_name)s AND archetype = 'HAS'",
+    "x_column": "has_score",
+    "gauge_min": 0,
+    "gauge_max": 100,
+    "gauge_color_mode": "traffic_light",
+    "gauge_warn_threshold": 40,
+    "gauge_good_threshold": 70,
+    "gauge_sub_kpi_columns": "avg_visits,avg_los",
+    "gauge_sub_kpi_labels": "Avg Visits,Avg LOS",
+    "gauge_sub_label_columns": "avg_visits_label,avg_los_label",
+    "gauge_alert_column": "alert_text",
+    "color_palette": "healthcare"
+  }
+]</field>
+    </record>
+
+    <!-- ── Template 6: Insights Banner ───────────────────────────────────── -->
+    <record id="tpl_insights_banner" model="dashboard.widget.template">
+        <field name="name">Insights Banner</field>
+        <field name="description">Insight panel with classification badge, 3 metric columns (pre/post comparison), and a narrative template. Ideal for top-of-page strategic context.</field>
+        <field name="category">overview</field>
+        <field name="widget_configs">[
+  {
+    "chart_type": "insight_panel",
+    "name": "Strategic Insight",
+    "col_span": "12",
+    "query_sql": "SELECT classification, metric1, metric2, metric3 FROM mv_hha_insights WHERE hha_name = %(hha_name)s LIMIT 1",
+    "metric1_label": "Pre-PDGM Avg (2017-19)",
+    "metric2_label": "Post-COVID Avg (2023-25)",
+    "metric3_label": "Drift",
+    "narrative_template": "%(hha_name)s in %(hha_state)s has a %(classification)s operating trajectory. The pre-PDGM therapy mix averaged %(metric1)s, shifting to %(metric2)s in the post-COVID era — a drift of %(metric3)s.",
+    "color_palette": "healthcare"
+  }
+]</field>
+    </record>
+
+</odoo>

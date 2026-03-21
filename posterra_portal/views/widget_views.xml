@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.widget — List view                                      -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_widget_list" model="ir.ui.view">
+        <field name="name">dashboard.widget.list</field>
+        <field name="model">dashboard.widget</field>
+        <field name="arch" type="xml">
+            <list string="Dashboard Widgets">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="definition_id" optional="show"/>
+                <field name="page_id"/>
+                <field name="tab_id"/>
+                <field name="chart_type"/>
+                <field name="col_span"/>
+                <field name="color_palette"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.widget — Form view                                      -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_widget_form" model="ir.ui.view">
+        <field name="name">dashboard.widget.form</field>
+        <field name="model">dashboard.widget</field>
+        <field name="arch" type="xml">
+            <form string="Dashboard Widget">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactive" bg_color="bg-danger"
+                            invisible="is_active"/>
+
+                    <!-- Library quick-fill: pick a definition to auto-populate -->
+                    <div class="alert alert-info" role="alert"
+                         style="margin-bottom: 12px;"
+                         invisible="definition_id">
+                        <strong>Tip:</strong> Select a widget from the Library below
+                        to auto-fill all settings. Or configure manually.
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="name" string="Widget Title"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Timely Access Gauge"/>
+                        </h1>
+                    </div>
+
+                    <!-- Main settings -->
+                    <group>
+                        <group string="Library &amp; Placement">
+                            <field name="definition_id"
+                                   placeholder="Pick from library to auto-fill..."
+                                   options="{'no_create': True}"/>
+                            <field name="page_id"/>
+                            <field name="tab_id"
+                                   domain="[('page_id','=',page_id)]"
+                                   placeholder="All tabs"/>
+                            <field name="sequence"/>
+                            <field name="is_active"/>
+                        </group>
+                        <group string="Display">
+                            <field name="chart_type"/>
+                            <field name="bar_stack"
+                                   invisible="chart_type != 'bar'"/>
+                            <field name="display_mode"
+                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
+                            <field name="kpi_layout"
+                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
+                            <field name="text_align"
+                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
+                            <field name="icon_name"
+                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
+                            <field name="icon_color"
+                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip') or icon_name == 'none'"/>
+                            <field name="icon_custom_color"
+                                   invisible="icon_color != 'custom'"
+                                   placeholder="#1e40af"/>
+                            <field name="icon_custom_bg"
+                                   invisible="icon_color != 'custom'"
+                                   placeholder="#dbeafe"/>
+                            <field name="col_span"/>
+                            <field name="width_pct"
+                                   placeholder="0 = use preset"
+                                   help="Custom width 1-100%. Overrides preset when set."/>
+                            <field name="max_width_pct"
+                                   placeholder="0 = no limit"
+                                   help="Max width 1-100%. Limits auto-scaling. 0 = no limit."/>
+                            <field name="chart_height"/>
+                            <field name="color_palette"/>
+                            <field name="color_custom_json"
+                                   invisible="color_palette != 'custom'"
+                                   placeholder='e.g. ["#FF5733","#33FF57","#3357FF","#9B59B6"]'/>
+                        </group>
+                        <group string="Typography">
+                            <field name="label_font_weight"/>
+                            <field name="label_color"/>
+                            <field name="value_font_weight"/>
+                            <field name="value_color"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+
+                        <!-- ─────────────────────────────── Query tab ──── -->
+                        <page string="Query" name="query">
+                            <group>
+                                <field name="query_type" widget="radio"/>
+                            </group>
+
+                            <!-- SQL sub-section -->
+                            <group string="SQL Query" invisible="query_type != 'sql'">
+                                <field name="schema_source_id"
+                                       placeholder="Select the MV or table this widget queries"/>
+                                <field name="where_clause_exclude"
+                                       placeholder="e.g. year  (comma-separated param names to exclude from {where_clause})"/>
+                                <field name="query_sql" widget="text"
+                                       placeholder="SELECT hha_state, COUNT(*) AS cnt FROM hha_provider WHERE hha_state = {hha_state} GROUP BY hha_state ORDER BY cnt DESC -- use {param_name} for filter values"
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                                <field name="x_column"
+                                       placeholder="e.g. hha_state  (X axis / label column)"/>
+                                <field name="y_columns"
+                                       placeholder="e.g. cnt  (comma-separated for multi-series)"/>
+                                <field name="series_column"
+                                       placeholder="e.g. payer_type  (optional split into series)"
+                                       invisible="chart_type not in ('bar','line','radar')"/>
+                            </group>
+
+                            <!-- ORM sub-section -->
+                            <group string="ORM Query" invisible="query_type != 'orm'">
+                                <field name="orm_model_id"/>
+                                <field name="orm_domain"
+                                       placeholder='[]'/>
+                                <field name="orm_groupby_field"
+                                       domain="[('model_id','=',orm_model_id)]"/>
+                                <field name="orm_measure_field"
+                                       domain="[('model_id','=',orm_model_id)]"/>
+                                <field name="orm_agg_func"/>
+                                <field name="orm_series_field"
+                                       domain="[('model_id','=',orm_model_id)]"/>
+                            </group>
+                        </page>
+
+                        <!-- ─────────────────────── Widget-type options ── -->
+                        <page string="Widget Options" name="widget_options">
+
+                            <!-- KPI / status_kpi -->
+                            <group string="KPI Options"
+                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip')">
+                                <field name="kpi_format"/>
+                                <field name="kpi_prefix" placeholder="e.g. $"/>
+                                <field name="kpi_suffix" placeholder="e.g. %"/>
+                                <field name="status_column"
+                                       invisible="chart_type != 'status_kpi'"
+                                       placeholder="e.g. status  (SQL column: up/down/retreated…)"/>
+                            </group>
+
+                            <!-- Gauge scale + color (gauge and gauge_kpi) -->
+                            <group string="Gauge Options"
+                                   invisible="chart_type not in ('gauge','gauge_kpi')">
+                                <field name="gauge_min" placeholder="0"/>
+                                <field name="gauge_max"
+                                       placeholder="100  (or 5 for a 1-5 star scale)"/>
+                                <field name="gauge_color_mode"/>
+                                <field name="gauge_warn_threshold"
+                                       placeholder="50"
+                                       invisible="gauge_color_mode != 'traffic_light'"/>
+                                <field name="gauge_good_threshold"
+                                       placeholder="70"
+                                       invisible="gauge_color_mode != 'traffic_light'"/>
+                            </group>
+
+                            <!-- Gauge KPI Breakdown (gauge_kpi only) -->
+                            <group string="Gauge KPI Breakdown"
+                                   invisible="chart_type != 'gauge_kpi'">
+                                <field name="gauge_sub_kpi_columns"
+                                       placeholder="e.g. ffs_val,ma_val"/>
+                                <field name="gauge_sub_kpi_labels"
+                                       placeholder="e.g. FFS,MA"/>
+                                <field name="gauge_sub_label_columns"
+                                       placeholder="e.g. ffs_pct_label,ma_pct_label  (optional sub-text)"/>
+                                <field name="gauge_alert_column"
+                                       placeholder="e.g. alert_msg  (SQL column for warning text)"/>
+                            </group>
+
+                            <!-- Battle card -->
+                            <group string="Battle Card Options"
+                                   invisible="chart_type != 'battle_card'">
+                                <field name="label_column"
+                                       placeholder="e.g. metric_name  (SQL column for row label)"/>
+                                <field name="you_column"
+                                       placeholder="e.g. you_value  (SQL column for Your value)"/>
+                                <field name="them_column"
+                                       placeholder="e.g. them_value  (SQL column for Their value)"/>
+                                <field name="competitor_name"
+                                       placeholder="e.g. UNITEDHEALTH"/>
+                                <field name="win_threshold"/>
+                            </group>
+
+                            <!-- Insight panel -->
+                            <group string="Insight Panel Options"
+                                   invisible="chart_type != 'insight_panel'">
+                                <field name="metric1_label"
+                                       placeholder="e.g. Pre-PDGM Avg (2017-19)"/>
+                                <field name="metric2_label"
+                                       placeholder="e.g. Post-COVID Avg (2023-25)"/>
+                                <field name="metric3_label"
+                                       placeholder="e.g. Drift"/>
+                                <field name="narrative_template" widget="text"
+                                       placeholder="{hha_name} in {hha_state} decreased their therapy mix after PDGM. This {classification} trajectory... (use Python %-format with key names)"
+                                       style="min-height: 100px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+
+                        </page>
+
+                        <!-- ──────────────────────────── Actions tab ──── -->
+                        <page string="Actions" name="actions">
+                            <group string="Click Action">
+                                <field name="click_action" widget="radio"/>
+                            </group>
+
+                            <!-- go_to_page fields -->
+                            <group string="Navigate To"
+                                   invisible="click_action != 'go_to_page'">
+                                <field name="action_page_key"
+                                       placeholder="e.g. physicians"/>
+                                <field name="action_tab_key"
+                                       placeholder="e.g. overview (optional)"/>
+                                <field name="action_pass_value_as"
+                                       placeholder="e.g. physician_name"/>
+                            </group>
+
+                            <!-- show_details fields -->
+                            <group string="Drill-Down"
+                                   invisible="click_action != 'show_details'">
+                                <field name="drill_detail_columns"
+                                       placeholder="e.g. hha_name,hha_state,total_admits"/>
+                            </group>
+
+                            <!-- open_url fields -->
+                            <group string="URL"
+                                   invisible="click_action != 'open_url'">
+                                <field name="action_url_template"
+                                       placeholder="e.g. /my/posterra/hha/{value}"/>
+                            </group>
+
+                            <!-- Column links (table widgets) -->
+                            <group string="Column Links (Table Widgets)"
+                                   invisible="chart_type != 'table'">
+                                <field name="column_link_config" widget="text"
+                                       placeholder='[{"column": "hha_name", "page_key": "hha_detail", "filter_param": "hha_ccn"}]'
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+
+                            <!-- Library link -->
+                            <group string="Library">
+                                <field name="definition_id"/>
+                                <field name="builder_config" widget="text"
+                                       readonly="1"
+                                       invisible="not builder_config"
+                                       style="font-family: monospace; min-height: 60px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+
+                        <!-- ──────────────────────── Annotations tab ──── -->
+                        <page string="Annotations" name="annotations">
+
+                            <!-- Labels (all widget types) -->
+                            <group string="Labels">
+                                <field name="subtitle"
+                                       placeholder="e.g. Data as of Q1 2025"/>
+                                <field name="footnote" widget="text"
+                                       placeholder="e.g. Source: CMS OASIS data"
+                                       style="min-height: 60px;"/>
+                            </group>
+
+                            <!-- Chart annotation -->
+                            <group string="Chart Annotation">
+                                <field name="annotation_type" widget="radio"/>
+                                <field name="annotation_text"
+                                       invisible="annotation_type == 'none'"
+                                       placeholder="e.g. MA at 34%  (use SQL interpolation in value)"/>
+                                <field name="annotation_value"
+                                       invisible="annotation_type != 'reference_line'"
+                                       placeholder="Static value (ignored if column set)"/>
+                                <field name="annotation_value_column"
+                                       invisible="annotation_type != 'reference_line'"
+                                       placeholder="e.g. ma_pct  (SQL column, overrides static value)"/>
+                            </group>
+
+                            <!-- Annotation SQL (optional separate query for computed values) -->
+                            <group string="Annotation SQL"
+                                   invisible="annotation_type == 'none'">
+                                <field name="annotation_query_sql" widget="text"
+                                       placeholder="Optional separate SQL for computed annotation values.&#10;Returns 1 row; columns available for interpolation."
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+
+                            <!-- Positioning (visible when annotation active) -->
+                            <group string="Positioning"
+                                   invisible="annotation_type == 'none'">
+                                <field name="annotation_position"/>
+                                <field name="annotation_x"
+                                       placeholder="0 = use grid preset"/>
+                                <field name="annotation_y"
+                                       placeholder="0 = use grid preset"/>
+                                <field name="annotation_align"/>
+                                <field name="annotation_font_size"/>
+                                <field name="annotation_color"
+                                       placeholder="#6b7280"/>
+                            </group>
+                        </page>
+
+                        <!-- ───────────────────── Patterns / Hatching tab ──── -->
+                        <page string="Patterns" name="patterns"
+                              invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel','kpi_strip')">
+                            <group string="Patterns / Hatching">
+                                <field name="pattern_style"/>
+                                <field name="pattern_column"
+                                       placeholder="e.g. is_projected  (SQL column: true/false)"/>
+                                <field name="pattern_series"
+                                       placeholder="e.g. Projected,Estimated  (comma-separated series names)"/>
+                                <field name="enable_aria_decal"/>
+                            </group>
+                        </page>
+
+                        <!-- ──────────────────────────── Advanced tab ──── -->
+                        <page string="Advanced" name="advanced">
+                            <group>
+                                <field name="echart_override" widget="text"
+                                       invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel')"
+                                       placeholder='{"title":{"text":"My Chart"},"yAxis":{"name":"Count"}}'
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.widget — Action                                         -->
+    <!-- ================================================================ -->
+    <record id="action_dashboard_widget" model="ir.actions.act_window">
+        <field name="name">Dashboard Widgets</field>
+        <field name="res_model">dashboard.widget</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'group_by': 'page_id'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No widgets yet.
+            </p>
+            <p>
+                Create widgets to populate the portal dashboard content area.
+                Each widget can be a chart (bar, line, pie, gauge, radar…),
+                a KPI card, a data table, a battle card, or an insight panel.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Menuitem: Configuration → Dashboard Widgets                       -->
+    <!-- ================================================================ -->
+    <menuitem id="menu_dashboard_widgets"
+              name="Dashboard Widgets"
+              parent="menu_posterra_config"
+              action="action_dashboard_widget"
+              sequence="6"/>
+
+</odoo>

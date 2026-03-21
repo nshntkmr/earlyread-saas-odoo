@@ -1,0 +1,616 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Geo filters (State / County / City) are seeded with noupdate="0" so the
+        model_id + field_id links to hha.provider are always populated on upgrade.
+
+        Year / Payer filters are seeded with noupdate="1" as structural stubs.
+        Admin must open each page form and set the Table + Column to point at
+        whatever data table holds the year/payer values for their dataset.
+    -->
+
+    <!-- ================================================================== -->
+    <!-- GEO FILTERS — auto-seeded from hha.provider fields (noupdate="0")  -->
+    <!-- ================================================================== -->
+    <data noupdate="0">
+
+        <!-- ── Overview ──────────────────────────────────────────────────── -->
+        <record id="filter_overview_provider" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'id')]"/>
+            <field name="label">Provider</field>
+            <field name="param_name">hha_id</field>
+            <field name="display_template">{hha_ccn} - {hha_brand_name}</field>
+            <field name="include_all_option" eval="True"/>
+            <field name="sequence">5</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="is_provider_selector" eval="True"/>
+        </record>
+        <record id="filter_overview_state" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_state')]"/>
+            <field name="label">State</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_overview_provider"/>
+        </record>
+        <record id="filter_overview_county" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_county')]"/>
+            <field name="label">County</field>
+            <field name="sequence">20</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_overview_state"/>
+        </record>
+        <record id="filter_overview_city" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_city')]"/>
+            <field name="label">Locations</field>
+            <field name="placeholder">All Locations</field>
+            <field name="sequence">30</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_overview_county"/>
+        </record>
+
+        <!-- ── Hospitals ──────────────────────────────────────────────────── -->
+        <record id="filter_hospitals_provider" model="dashboard.page.filter">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'id')]"/>
+            <field name="label">Provider</field>
+            <field name="param_name">hha_id</field>
+            <field name="display_template">{hha_ccn} - {hha_brand_name}</field>
+            <field name="include_all_option" eval="True"/>
+            <field name="sequence">5</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="is_provider_selector" eval="True"/>
+        </record>
+        <record id="filter_hospitals_state" model="dashboard.page.filter">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_state')]"/>
+            <field name="label">State</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_hospitals_provider"/>
+        </record>
+
+        <!-- ── Physicians ─────────────────────────────────────────────────── -->
+        <record id="filter_physicians_provider" model="dashboard.page.filter">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'id')]"/>
+            <field name="label">Provider</field>
+            <field name="param_name">hha_id</field>
+            <field name="display_template">{hha_ccn} - {hha_brand_name}</field>
+            <field name="include_all_option" eval="True"/>
+            <field name="sequence">5</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="is_provider_selector" eval="True"/>
+        </record>
+        <record id="filter_physicians_state" model="dashboard.page.filter">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_state')]"/>
+            <field name="label">State</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_physicians_provider"/>
+        </record>
+
+        <!-- ── Competitive Intel ──────────────────────────────────────────── -->
+        <record id="filter_competitive_provider" model="dashboard.page.filter">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'id')]"/>
+            <field name="label">Provider</field>
+            <field name="param_name">hha_id</field>
+            <field name="display_template">{hha_ccn} - {hha_brand_name}</field>
+            <field name="include_all_option" eval="True"/>
+            <field name="sequence">5</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="is_provider_selector" eval="True"/>
+        </record>
+        <record id="filter_competitive_state" model="dashboard.page.filter">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_state')]"/>
+            <field name="label">State</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_competitive_provider"/>
+        </record>
+
+        <!-- ── Market Threats ─────────────────────────────────────────────── -->
+        <record id="filter_mt_provider" model="dashboard.page.filter">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'id')]"/>
+            <field name="label">Provider</field>
+            <field name="param_name">hha_id</field>
+            <field name="display_template">{hha_ccn} - {hha_brand_name}</field>
+            <field name="include_all_option" eval="True"/>
+            <field name="sequence">5</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="is_provider_selector" eval="True"/>
+        </record>
+        <record id="filter_mt_state" model="dashboard.page.filter">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_state')]"/>
+            <field name="label">State</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_mt_provider"/>
+        </record>
+
+        <!-- ── Episodes ───────────────────────────────────────────────────── -->
+        <record id="filter_episodes_provider" model="dashboard.page.filter">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'id')]"/>
+            <field name="label">Provider</field>
+            <field name="param_name">hha_id</field>
+            <field name="display_template">{hha_ccn} - {hha_brand_name}</field>
+            <field name="include_all_option" eval="True"/>
+            <field name="sequence">5</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="is_provider_selector" eval="True"/>
+        </record>
+        <record id="filter_episodes_state" model="dashboard.page.filter">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_state')]"/>
+            <field name="label">State</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_episodes_provider"/>
+        </record>
+
+        <!-- ── Referral Sources ───────────────────────────────────────────── -->
+        <record id="filter_rs_provider" model="dashboard.page.filter">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'id')]"/>
+            <field name="label">Provider</field>
+            <field name="param_name">hha_id</field>
+            <field name="display_template">{hha_ccn} - {hha_brand_name}</field>
+            <field name="include_all_option" eval="True"/>
+            <field name="sequence">5</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="is_provider_selector" eval="True"/>
+        </record>
+        <record id="filter_rs_state" model="dashboard.page.filter">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_state')]"/>
+            <field name="label">State</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <field name="scope_to_user_hha" eval="True"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+            <field name="depends_on_filter_id" ref="filter_rs_provider"/>
+        </record>
+
+        <!-- ================================================================ -->
+        <!-- HIDDEN SQL CONTEXT FILTERS — auto-filled from selected HHA     -->
+        <!-- These inject provider fields into sql_params without showing   -->
+        <!-- in the portal filter bar.  Admin can add more via the UI.      -->
+        <!-- ================================================================ -->
+
+        <!-- ── Overview ──────────────────────────────────────────────────── -->
+        <record id="filter_overview_hha_name" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'domain_match_name')]"/>
+            <field name="label">HHA Name (SQL)</field>
+            <field name="param_name">hha_name</field>
+            <field name="sequence">900</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+        <record id="filter_overview_hha_ccn" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_ccn')]"/>
+            <field name="label">HHA CCN (SQL)</field>
+            <field name="sequence">901</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+
+        <!-- ── Hospitals ─────────────────────────────────────────────────── -->
+        <record id="filter_hospitals_hha_name" model="dashboard.page.filter">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'domain_match_name')]"/>
+            <field name="label">HHA Name (SQL)</field>
+            <field name="param_name">hha_name</field>
+            <field name="sequence">900</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+        <record id="filter_hospitals_hha_ccn" model="dashboard.page.filter">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_ccn')]"/>
+            <field name="label">HHA CCN (SQL)</field>
+            <field name="sequence">901</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+
+        <!-- ── Physicians ────────────────────────────────────────────────── -->
+        <record id="filter_physicians_hha_name" model="dashboard.page.filter">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'domain_match_name')]"/>
+            <field name="label">HHA Name (SQL)</field>
+            <field name="param_name">hha_name</field>
+            <field name="sequence">900</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+        <record id="filter_physicians_hha_ccn" model="dashboard.page.filter">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_ccn')]"/>
+            <field name="label">HHA CCN (SQL)</field>
+            <field name="sequence">901</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+
+        <!-- ── Competitive Intel ─────────────────────────────────────────── -->
+        <record id="filter_competitive_hha_name" model="dashboard.page.filter">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'domain_match_name')]"/>
+            <field name="label">HHA Name (SQL)</field>
+            <field name="param_name">hha_name</field>
+            <field name="sequence">900</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+        <record id="filter_competitive_hha_ccn" model="dashboard.page.filter">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_ccn')]"/>
+            <field name="label">HHA CCN (SQL)</field>
+            <field name="sequence">901</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+
+        <!-- ── Market Threats ────────────────────────────────────────────── -->
+        <record id="filter_mt_hha_name" model="dashboard.page.filter">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'domain_match_name')]"/>
+            <field name="label">HHA Name (SQL)</field>
+            <field name="param_name">hha_name</field>
+            <field name="sequence">900</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+        <record id="filter_mt_hha_ccn" model="dashboard.page.filter">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_ccn')]"/>
+            <field name="label">HHA CCN (SQL)</field>
+            <field name="sequence">901</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+
+        <!-- ── Episodes ──────────────────────────────────────────────────── -->
+        <record id="filter_episodes_hha_name" model="dashboard.page.filter">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'domain_match_name')]"/>
+            <field name="label">HHA Name (SQL)</field>
+            <field name="param_name">hha_name</field>
+            <field name="sequence">900</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+        <record id="filter_episodes_hha_ccn" model="dashboard.page.filter">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_ccn')]"/>
+            <field name="label">HHA CCN (SQL)</field>
+            <field name="sequence">901</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+
+        <!-- ── Referral Sources ──────────────────────────────────────────── -->
+        <record id="filter_rs_hha_name" model="dashboard.page.filter">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'domain_match_name')]"/>
+            <field name="label">HHA Name (SQL)</field>
+            <field name="param_name">hha_name</field>
+            <field name="sequence">900</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+        <record id="filter_rs_hha_ccn" model="dashboard.page.filter">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="model_id" model="ir.model"
+                   search="[('model', '=', 'hha.provider')]"/>
+            <field name="field_id" model="ir.model.fields"
+                   search="[('model', '=', 'hha.provider'), ('name', '=', 'hha_ccn')]"/>
+            <field name="label">HHA CCN (SQL)</field>
+            <field name="sequence">901</field>
+            <field name="is_active">True</field>
+            <field name="is_visible" eval="False"/>
+            <field name="auto_fill_from_hha" eval="True"/>
+        </record>
+
+    </data>
+
+    <!-- ================================================================== -->
+    <!-- YEAR / PAYER STUBS — admin sets Table + Column (noupdate="1")      -->
+    <!-- These filters appear in the admin form as "not yet configured".     -->
+    <!-- Admin: open the page → Context Filters tab → set Table + Column.   -->
+    <!-- ================================================================== -->
+    <data noupdate="1">
+
+        <!-- ── Overview ──────────────────────────────────────────────────── -->
+        <record id="filter_overview_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="label">Year</field>
+            <field name="sequence">40</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_overview_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_overview"/>
+            <field name="label">Payer</field>
+            <field name="sequence">50</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+        <!-- ── Hospitals ──────────────────────────────────────────────────── -->
+        <record id="filter_hospitals_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="label">Year</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_hospitals_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="label">Payer</field>
+            <field name="sequence">30</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+        <!-- ── Physicians ─────────────────────────────────────────────────── -->
+        <record id="filter_physicians_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="label">Year</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_physicians_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="label">Payer</field>
+            <field name="sequence">30</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+        <!-- ── Competitive Intel ──────────────────────────────────────────── -->
+        <record id="filter_competitive_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="label">Year</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+
+        <!-- ── Command Center ─────────────────────────────────────────────── -->
+        <record id="filter_cc_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_command_center"/>
+            <field name="label">Year</field>
+            <field name="sequence">10</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_cc_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_command_center"/>
+            <field name="label">Payer</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+        <!-- ── Leaderboard ────────────────────────────────────────────────── -->
+        <record id="filter_lb_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_leaderboard"/>
+            <field name="label">Year</field>
+            <field name="sequence">10</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_lb_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_leaderboard"/>
+            <field name="label">Payer</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+        <!-- ── Market Threats ─────────────────────────────────────────────── -->
+        <record id="filter_mt_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="label">Year</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+
+        <!-- ── Strategy ───────────────────────────────────────────────────── -->
+        <record id="filter_strategy_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_strategy"/>
+            <field name="label">Year</field>
+            <field name="sequence">10</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+
+        <!-- ── Reports ────────────────────────────────────────────────────── -->
+        <record id="filter_reports_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_reports"/>
+            <field name="label">Year</field>
+            <field name="sequence">10</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_reports_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_reports"/>
+            <field name="label">Payer</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+        <!-- ── Episodes ───────────────────────────────────────────────────── -->
+        <record id="filter_episodes_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="label">Year</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_episodes_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="label">Payer</field>
+            <field name="sequence">30</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+        <!-- ── Referral Sources ───────────────────────────────────────────── -->
+        <record id="filter_rs_year" model="dashboard.page.filter">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="label">Year</field>
+            <field name="sequence">20</field>
+            <field name="is_active">False</field>
+            <field name="default_value">2025</field>
+        </record>
+        <record id="filter_rs_payer" model="dashboard.page.filter">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="label">Payer</field>
+            <field name="sequence">30</field>
+            <field name="is_active">False</field>
+            <field name="default_value">all</field>
+        </record>
+
+    </data>
+
+</odoo>

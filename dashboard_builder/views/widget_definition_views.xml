@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         WIDGET DEFINITION — List View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_widget_definition_list" model="ir.ui.view">
+        <field name="name">dashboard.widget.definition.list</field>
+        <field name="model">dashboard.widget.definition</field>
+        <field name="arch" type="xml">
+            <list string="Widget Library">
+                <field name="name"/>
+                <field name="category"/>
+                <field name="chart_type"/>
+                <field name="data_mode"/>
+                <field name="default_col_span"/>
+                <field name="instance_count"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         WIDGET DEFINITION — Form View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_widget_definition_form" model="ir.ui.view">
+        <field name="name">dashboard.widget.definition.form</field>
+        <field name="model">dashboard.widget.definition</field>
+        <field name="arch" type="xml">
+            <form string="Widget Definition">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactive" bg_color="bg-danger"
+                            invisible="is_active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Widget Name"/>
+                        <h1>
+                            <field name="name"
+                                   placeholder="e.g. Top HHAs by Admits"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="Identity">
+                            <field name="category"/>
+                            <field name="description"
+                                   placeholder="What this widget shows..."/>
+                            <field name="is_active"/>
+                            <field name="instance_count"/>
+                        </group>
+                        <group string="Display">
+                            <field name="chart_type"/>
+                            <field name="bar_stack"
+                                   invisible="chart_type != 'bar'"/>
+                            <field name="default_col_span"/>
+                            <field name="chart_height"
+                                   invisible="chart_type in ('kpi','status_kpi','battle_card','insight_panel')"/>
+                            <field name="color_palette"
+                                   invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel')"/>
+                            <field name="color_custom_json"
+                                   invisible="color_palette != 'custom'"
+                                   placeholder='["#FF5733","#33FF57","#3357FF"]'/>
+                        </group>
+                    </group>
+
+                    <notebook>
+
+                        <!-- ─────────────────── Data Source tab ──── -->
+                        <page string="Data Source" name="data_source">
+                            <group>
+                                <field name="data_mode" widget="radio"/>
+                            </group>
+
+                            <!-- Visual mode -->
+                            <group string="Visual Builder Config"
+                                   invisible="data_mode != 'visual'">
+                                <field name="builder_config" widget="text"
+                                       placeholder='{"source_ids": [...], "columns": [...]}'
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                                <field name="generated_sql" widget="text"
+                                       readonly="1"
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+
+                            <!-- Custom SQL mode -->
+                            <group string="SQL Query"
+                                   invisible="data_mode != 'custom_sql'">
+                                <field name="query_sql" widget="text"
+                                       placeholder="SELECT ... FROM ... WHERE hha_state = :hha_state"
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                                <field name="x_column"
+                                       placeholder="e.g. hha_state"/>
+                                <field name="y_columns"
+                                       placeholder="e.g. total_admits,total_episodes"/>
+                                <field name="series_column"
+                                       placeholder="e.g. ffs_ma (optional)"/>
+                            </group>
+                        </page>
+
+                        <!-- ─────────────────── Actions tab ──── -->
+                        <page string="Actions" name="actions">
+                            <group string="Click Action">
+                                <field name="click_action" widget="radio"/>
+                            </group>
+
+                            <!-- go_to_page fields -->
+                            <group string="Navigate To"
+                                   invisible="click_action != 'go_to_page'">
+                                <field name="action_page_key"
+                                       placeholder="e.g. physicians"/>
+                                <field name="action_tab_key"
+                                       placeholder="e.g. overview (optional)"/>
+                                <field name="action_pass_value_as"
+                                       placeholder="e.g. physician_name"/>
+                            </group>
+
+                            <!-- show_details fields -->
+                            <group string="Drill-Down"
+                                   invisible="click_action != 'show_details'">
+                                <field name="drill_detail_columns"
+                                       placeholder="e.g. hha_name,hha_state,total_admits (leave empty for all)"/>
+                            </group>
+
+                            <!-- open_url fields -->
+                            <group string="URL"
+                                   invisible="click_action != 'open_url'">
+                                <field name="action_url_template"
+                                       placeholder="e.g. /my/posterra/hha/{value}"/>
+                            </group>
+
+                            <!-- Column links (table widgets) -->
+                            <group string="Column Links (Table Widgets)"
+                                   invisible="chart_type != 'table'">
+                                <field name="column_link_config" widget="text"
+                                       placeholder='[{"column": "hha_name", "page_key": "hha_detail", "filter_param": "hha_ccn"}]'
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+
+                        <!-- ──────────── Widget-specific Options tab ──── -->
+                        <page string="Widget Options" name="widget_options">
+                            <!-- KPI -->
+                            <group string="KPI Options"
+                                   invisible="chart_type not in ('kpi','status_kpi')">
+                                <field name="kpi_format"/>
+                                <field name="kpi_prefix" placeholder="e.g. $"/>
+                                <field name="kpi_suffix" placeholder="e.g. %"/>
+                            </group>
+
+                            <!-- Gauge -->
+                            <group string="Gauge Options"
+                                   invisible="chart_type not in ('gauge','gauge_kpi')">
+                                <field name="gauge_min"/>
+                                <field name="gauge_max"/>
+                                <field name="gauge_color_mode"/>
+                            </group>
+                        </page>
+
+                        <!-- ──────────── Advanced tab ──── -->
+                        <page string="Advanced" name="advanced">
+                            <group>
+                                <field name="echart_override" widget="text"
+                                       invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel')"
+                                       placeholder='{"title":{"text":"My Chart"}}'
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                            <group>
+                                <field name="preview_image" widget="image"
+                                       options="{'size': [200, 200]}"/>
+                            </group>
+                        </page>
+
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         WIDGET DEFINITION — Action
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="action_widget_definition" model="ir.actions.act_window">
+        <field name="name">Widget Library</field>
+        <field name="res_model">dashboard.widget.definition</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'group_by': 'category'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first widget definition
+            </p>
+            <p>
+                Widget definitions are reusable designs stored in the library.
+                They can be placed on multiple pages as widget instances.
+            </p>
+        </field>
+    </record>
+
+</odoo>

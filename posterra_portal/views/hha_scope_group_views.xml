@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Form View                                                     -->
+    <!-- ============================================================ -->
+    <record id="hha_scope_group_view_form" model="ir.ui.view">
+        <field name="name">hha.scope.group.form</field>
+        <field name="model">hha.scope.group</field>
+        <field name="arch" type="xml">
+            <form string="HHA Scope Group">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" type="object"
+                                name="action_resolve_providers"
+                                icon="fa-refresh"
+                                invisible="not auto_resolve">
+                            <field name="provider_count" widget="statinfo"
+                                   string="Providers"/>
+                        </button>
+                        <button class="oe_stat_button" icon="fa-users"
+                                type="object" name="action_view_users">
+                            <field name="user_count" widget="statinfo"
+                                   string="Users"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Elara Caring"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Match Configuration">
+                            <field name="match_value" placeholder="e.g. Elara Caring"/>
+                            <field name="match_mode"/>
+                            <field name="auto_resolve"/>
+                            <label for="match_field_ids"/>
+                            <field name="match_field_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="model_id"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="field_id"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </list>
+                            </field>
+                        </group>
+                        <group string="Info">
+                            <field name="provider_count"/>
+                            <field name="user_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Matched Providers" name="providers">
+                            <field name="provider_ids"
+                                   readonly="auto_resolve"
+                                   force_save="1">
+                                <list>
+                                    <field name="hha_ccn"/>
+                                    <field name="hha_name"/>
+                                    <field name="hha_brand_name"/>
+                                    <field name="hha_dba"/>
+                                    <field name="hha_state"/>
+                                    <field name="hha_county"/>
+                                    <field name="hha_city"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Assigned Users" name="users">
+                            <field name="partner_ids">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="email"/>
+                                    <field name="hha_provider_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- List View                                                     -->
+    <!-- ============================================================ -->
+    <record id="hha_scope_group_view_list" model="ir.ui.view">
+        <field name="name">hha.scope.group.list</field>
+        <field name="model">hha.scope.group</field>
+        <field name="arch" type="xml">
+            <list string="HHA Scope Groups">
+                <field name="name"/>
+                <field name="match_value"/>
+                <field name="match_mode"/>
+                <field name="provider_count"/>
+                <field name="user_count"/>
+                <field name="auto_resolve"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Search View                                                   -->
+    <!-- ============================================================ -->
+    <record id="hha_scope_group_view_search" model="ir.ui.view">
+        <field name="name">hha.scope.group.search</field>
+        <field name="model">hha.scope.group</field>
+        <field name="arch" type="xml">
+            <search string="Search Scope Groups">
+                <field name="name"/>
+                <field name="match_value"/>
+                <filter string="Auto Resolve" name="auto_resolve"
+                        domain="[('auto_resolve', '=', True)]"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Action                                                        -->
+    <!-- ============================================================ -->
+    <record id="action_hha_scope_group" model="ir.actions.act_window">
+        <field name="name">Scope Groups</field>
+        <field name="res_model">hha.scope.group</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create an HHA Scope Group
+            </p>
+            <p>
+                Scope groups determine which HHA providers a portal user can access.
+                Configure match fields and a value, then assign the group to users.
+            </p>
+        </field>
+    </record>
+
+</odoo>

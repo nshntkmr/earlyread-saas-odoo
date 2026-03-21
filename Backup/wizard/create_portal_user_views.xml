@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_posterra_create_portal_user_form" model="ir.ui.view">
+        <field name="name">posterra.create.portal.user.form</field>
+        <field name="model">posterra.create.portal.user</field>
+        <field name="arch" type="xml">
+            <form string="Create Portal Users">
+                <group>
+                    <field name="send_email"/>
+                </group>
+                <group>
+                    <field name="partner_ids" widget="many2many_tags"/>
+                </group>
+                <footer>
+                    <button name="action_create_portal_users" string="Create Users" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_posterra_create_portal_user" model="ir.actions.act_window">
+        <field name="name">Create Portal Users</field>
+        <field name="res_model">posterra.create.portal.user</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="base.model_res_partner"/>
+        <field name="binding_view_types">list,form</field>
+    </record>
+</odoo>

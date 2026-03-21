@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- BASE LAYOUT — Phase 4                                             -->
+    <!-- Minimal white-label layout. Routes use website=True so the       -->
+    <!-- website module injects the 'website' context variable required   -->
+    <!-- by the website override of web.frontend_layout. Chrome is        -->
+    <!-- suppressed by no_header + no_footer (web.frontend_layout uses    -->
+    <!-- t-if="not no_header/no_footer" guards on the header/footer).    -->
+    <!-- Assets (Bootstrap, FontAwesome, Odoo JS runtime) still load via  -->
+    <!-- web.assets_frontend through web.frontend_layout.                 -->
+    <!-- ================================================================ -->
+    <template id="base_layout" name="Posterra Base Layout">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <t t-set="no_copyright" t-value="True"/>
+            <t t-set="title" t-value="page_title or (app and app.name or 'Portal')"/>
+            <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/favicon.png'"/>
+            <t t-out="0"/>
+        </t>
+    </template>
+
+    <template id="dashboard" name="Posterra Dashboard">
+        <t t-call="posterra_portal.base_layout">
+
+            <!-- ============================================================ -->
+            <!-- TOP BAR — sticky, full-width                                  -->
+            <!-- App brand on left · User name + Sign Out on right            -->
+            <!-- ============================================================ -->
+            <div class="pv-topbar">
+                <div class="pv-topbar-left">
+                    <i class="fa fa-heartbeat"/>
+                    <span class="pv-topbar-brand-name" t-esc="app and app.name or 'Portal'"/>
+                    <t t-if="org_display_name">
+                        <span class="pv-topbar-sep">|</span>
+                        <span class="pv-topbar-org" t-esc="org_display_name"/>
+                    </t>
+                </div>
+                <div class="pv-topbar-right">
+                    <div class="pv-topbar-user">
+                        <i class="fa fa-user-circle pv-topbar-user-icon"/>
+                        <span t-esc="request.env.user.name"/>
+                    </div>
+                    <a t-attf-href="/web/session/logout?redirect=/my/#{app.app_key}/login"
+                       class="pv-topbar-logout-btn">
+                        <i class="fa fa-sign-out"/>
+                        <span>Sign Out</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- DASHBOARD — sidebar + main content                            -->
+            <!-- ============================================================ -->
+            <div class="pv-dashboard d-flex">
+
+                <!-- ============================================ -->
+                <!-- LEFT SIDEBAR — navigation only               -->
+                <!-- User/logout is in the top bar above          -->
+                <!-- ============================================ -->
+                <nav class="pv-sidebar d-none d-md-block">
+                    <div class="pv-sidebar-nav">
+                        <t t-foreach="sections_with_pages" t-as="sp">
+                            <div class="pv-sidebar-section-label">
+                                <t t-esc="sp['section'].name"/>
+                            </div>
+                            <t t-foreach="sp['pages']" t-as="page">
+                                <a t-attf-href="/my/#{app.app_key}/#{page.key}?hha_id=#{current_hha_id}"
+                                   t-attf-class="pv-sidebar-item #{current_page_key == page.key and 'active' or ''}">
+                                    <i t-attf-class="fa #{page.icon} pv-sidebar-icon"/>
+                                    <span t-esc="page.name"/>
+                                </a>
+                            </t>
+                        </t>
+                    </div>
+                </nav>
+
+                <!-- ============================================ -->
+                <!-- MAIN CONTENT AREA                            -->
+                <!-- ============================================ -->
+                <div class="pv-main flex-grow-1">
+
+                    <!-- Page header -->
+                    <div class="pv-page-header">
+                        <h2 class="pv-page-title mb-0">
+                            <i t-attf-class="fa #{current_page and current_page.icon or ''} me-2 text-primary"/>
+                            <t t-esc="current_page and current_page.name or 'Dashboard'"/>
+                            <span t-if="current_page and current_page.help_text"
+                                  class="pv-page-help-icon ms-2"
+                                  data-bs-toggle="tooltip"
+                                  t-att-title="current_page.help_text">
+                                <i class="fa fa-info-circle text-muted"/>
+                            </span>
+                        </h2>
+                        <small class="text-muted"
+                               t-if="current_page and current_page.subtitle"
+                               t-esc="current_page.subtitle"/>
+                        <small class="text-muted"
+                               t-if="not (current_page and current_page.subtitle)">Executive command center</small>
+                    </div>
+
+                    <!-- ============================================================ -->
+                    <!-- PAGE SECTIONS (comparison_bar / leaderboard_table)          -->
+                    <!-- Rendered server-side above the React app root.              -->
+                    <!-- section_data = {sec.id: sec.get_portal_data(portal_ctx)}   -->
+                    <!-- ============================================================ -->
+                    <t t-if="page_sections">
+                        <div class="pv-overview-sections">
+                            <t t-foreach="page_sections" t-as="section">
+                                <t t-set="sec_data" t-value="section_data.get(section.id, {})"/>
+                                <t t-if="not sec_data.get('error')">
+
+                                    <!-- ─── COMPARISON BAR ─────────────────────── -->
+                                    <t t-if="section.section_type == 'comparison_bar'">
+                                        <div class="pv-section">
+                                            <div class="pv-section-header">
+                                                <div class="pv-section-title">
+                                                    <i t-attf-class="fa #{section.icon or 'fa-bar-chart'} me-2"/>
+                                                    <t t-esc="section.name"/>
+                                                </div>
+                                                <span class="pv-section-tag"
+                                                      t-if="section.action_label"
+                                                      t-esc="section.action_label"/>
+                                            </div>
+                                            <div t-if="section.subtitle"
+                                                 class="pv-section-subtitle text-muted small"
+                                                 t-esc="section.subtitle"/>
+                                            <p t-if="section.description"
+                                               class="pv-section-desc text-muted small mb-2"
+                                               t-esc="section.description"/>
+                                            <div class="pv-si-cards">
+                                                <t t-foreach="sec_data.get('cards', [])" t-as="card">
+                                                    <div t-attf-class="pv-si-card #{card.get('status_class') == 'strong' and 'pv-si-card-active' or ''}">
+                                                        <div class="pv-si-card-header">
+                                                            <span class="pv-si-card-label"
+                                                                  t-esc="card.get('label', '')"/>
+                                                            <t t-if="card.get('status')">
+                                                                <span t-attf-class="pv-si-badge pv-si-badge-#{card.get('status_class', 'neutral')}"
+                                                                      t-esc="card.get('status', '')"/>
+                                                            </t>
+                                                        </div>
+                                                        <div class="pv-si-stat">
+                                                            <span class="pv-si-value"
+                                                                  t-esc="card.get('value', '')"/>
+                                                            <span class="pv-si-sublabel"
+                                                                  t-if="card.get('sublabel')"
+                                                                  t-esc="card.get('sublabel', '')"/>
+                                                        </div>
+                                                        <div class="pv-si-bar-track">
+                                                            <div t-attf-class="pv-si-bar-fill #{card.get('bar_color', 'pv-bar-blue')}"
+                                                                 t-attf-style="width: #{card.get('bar_pct', 0)}%"/>
+                                                        </div>
+                                                        <div class="pv-si-desc"
+                                                             t-if="card.get('desc')"
+                                                             t-esc="card.get('desc', '')"/>
+                                                    </div>
+                                                </t>
+                                            </div>
+                                            <div t-if="section.footnote"
+                                                 class="pv-section-footnote text-muted small mt-2 pt-2 border-top"
+                                                 t-esc="section.footnote"/>
+                                        </div>
+                                    </t>
+
+                                    <!-- ─── LEADERBOARD TABLE ──────────────────── -->
+                                    <t t-elif="section.section_type == 'leaderboard_table'">
+                                        <div class="pv-section">
+                                            <div class="pv-section-header">
+                                                <div class="pv-section-title">
+                                                    <i t-attf-class="fa #{section.icon or 'fa-trophy'} me-2"/>
+                                                    <t t-esc="section.name"/>
+                                                </div>
+                                                <span class="pv-section-tag"
+                                                      t-if="section.action_label"
+                                                      t-esc="section.action_label"/>
+                                            </div>
+                                            <div t-if="section.subtitle"
+                                                 class="pv-section-subtitle text-muted small"
+                                                 t-esc="section.subtitle"/>
+                                            <p t-if="section.description"
+                                               class="pv-section-desc text-muted small mb-2"
+                                               t-esc="section.description"/>
+                                            <div class="pv-ml-table-wrap">
+                                                <table class="pv-ml-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th class="pv-ml-th-rank">#</th>
+                                                            <th class="pv-ml-th-name"
+                                                                t-esc="sec_data.get('name_header', 'HHA Name')"/>
+                                                            <t t-foreach="sec_data.get('headers', [])" t-as="hdr">
+                                                                <th class="pv-ml-th-num" t-esc="hdr"/>
+                                                            </t>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <t t-foreach="sec_data.get('rows', [])" t-as="row">
+                                                            <tr t-attf-class="#{row.get('is_you') and 'pv-ml-you-row' or ''}">
+                                                                <td class="pv-ml-rank"
+                                                                    t-esc="row.get('rank', '')"/>
+                                                                <td class="pv-ml-name">
+                                                                    <t t-esc="row.get('name', '')"/>
+                                                                    <span class="pv-ml-you-badge ms-1"
+                                                                          t-if="row.get('is_you')">You</span>
+                                                                    <div class="pv-ml-sub"
+                                                                         t-if="row.get('sub_name')"
+                                                                         t-esc="row.get('sub_name', '')"/>
+                                                                </td>
+                                                                <t t-foreach="row.get('metrics', [])" t-as="metric">
+                                                                    <td t-attf-class="pv-ml-num #{metric.get('color_class', '')}"
+                                                                        t-esc="metric.get('val', '')"/>
+                                                                </t>
+                                                            </tr>
+                                                        </t>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div t-if="section.footnote"
+                                                 class="pv-section-footnote text-muted small mt-2 pt-2 border-top"
+                                                 t-esc="section.footnote"/>
+                                        </div>
+                                    </t>
+
+                                </t>
+                            </t>
+                        </div>
+                    </t>
+
+                    <!-- ============================================================ -->
+                    <!-- PHASE 7 — REACT APP ROOT                                    -->
+                    <!-- Filter bar, tab bar, and widget grid are rendered by React. -->
+                    <!-- Initial data embedded as JSON data-* attributes so React   -->
+                    <!-- mounts with zero API calls and no loading flash.            -->
+                    <!-- ============================================================ -->
+                    <div id="app-root"
+                         t-att-data-page-config="page_config_json"
+                         t-att-data-initial-widgets="initial_widget_data_json"
+                         data-api-base="/api/v1"
+                         t-att-data-access-token="portal_access_token"/>
+
+                    <!-- Page footnote -->
+                    <div t-if="current_page and current_page.footnote"
+                         class="pv-page-footnote mt-4 pt-3 border-top text-muted small">
+                        <t t-esc="current_page.footnote"/>
+                    </div>
+
+                </div><!-- /.pv-main -->
+            </div><!-- /.pv-dashboard -->
+
+        </t>
+    </template>
+
+</odoo>

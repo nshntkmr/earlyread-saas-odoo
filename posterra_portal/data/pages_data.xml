@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        noupdate="1" — admin edits (name changes, reordering, deactivation)
+        persist across module upgrades.
+    -->
+    <data noupdate="1">
+
+        <!-- ============================================================ -->
+        <!-- SECTION: MY HHA                                               -->
+        <!-- ============================================================ -->
+
+        <record id="page_overview" model="dashboard.page">
+            <field name="name">Overview</field>
+            <field name="key">overview</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_my_hha"/>
+            <field name="icon">fa-home</field>
+            <field name="sequence">10</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_overview_command_center" model="dashboard.page.tab">
+            <field name="page_id" ref="page_overview"/>
+            <field name="name">Command Center</field>
+            <field name="key">command_center</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_overview_insights" model="dashboard.page.tab">
+            <field name="page_id" ref="page_overview"/>
+            <field name="name">Insights</field>
+            <field name="key">insights</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_overview_quality" model="dashboard.page.tab">
+            <field name="page_id" ref="page_overview"/>
+            <field name="name">Quality</field>
+            <field name="key">quality</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ─── Hospitals ─────────────────────────────────────────────── -->
+        <record id="page_hospitals" model="dashboard.page">
+            <field name="name">Hospitals</field>
+            <field name="key">hospitals</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_my_hha"/>
+            <field name="icon">fa-hospital-o</field>
+            <field name="sequence">20</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_hospitals_performance" model="dashboard.page.tab">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="name">Performance</field>
+            <field name="key">performance</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_hospitals_timely_access" model="dashboard.page.tab">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="name">Timely Access</field>
+            <field name="key">timely_access</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_hospitals_quality_metrics" model="dashboard.page.tab">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="name">Quality Metrics</field>
+            <field name="key">quality_metrics</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="tab_hospitals_financial" model="dashboard.page.tab">
+            <field name="page_id" ref="page_hospitals"/>
+            <field name="name">Financial</field>
+            <field name="key">financial</field>
+            <field name="sequence">40</field>
+        </record>
+
+        <!-- ─── Physicians ────────────────────────────────────────────── -->
+        <record id="page_physicians" model="dashboard.page">
+            <field name="name">Physicians</field>
+            <field name="key">physicians</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_my_hha"/>
+            <field name="icon">fa-user-md</field>
+            <field name="sequence">30</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_physicians_referral_activity" model="dashboard.page.tab">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="name">Referral Activity</field>
+            <field name="key">referral_activity</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_physicians_outcomes" model="dashboard.page.tab">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="name">Outcomes</field>
+            <field name="key">outcomes</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_physicians_leakage" model="dashboard.page.tab">
+            <field name="page_id" ref="page_physicians"/>
+            <field name="name">Leakage</field>
+            <field name="key">leakage</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ─── Competitive Intel ─────────────────────────────────────── -->
+        <record id="page_competitive_intel" model="dashboard.page">
+            <field name="name">Competitive Intel</field>
+            <field name="key">competitive_intel</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_my_hha"/>
+            <field name="icon">fa-line-chart</field>
+            <field name="sequence">40</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_competitive_market_share" model="dashboard.page.tab">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="name">Market Share</field>
+            <field name="key">market_share</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_competitive_competitor_detail" model="dashboard.page.tab">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="name">Competitor Detail</field>
+            <field name="key">competitor_detail</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_competitive_trends" model="dashboard.page.tab">
+            <field name="page_id" ref="page_competitive_intel"/>
+            <field name="name">Trends</field>
+            <field name="key">trends</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- SECTION: PORTFOLIO                                            -->
+        <!-- ============================================================ -->
+
+        <record id="page_command_center" model="dashboard.page">
+            <field name="name">Command Center</field>
+            <field name="key">command_center</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_portfolio"/>
+            <field name="icon">fa-dashboard</field>
+            <field name="sequence">10</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_cc_operations" model="dashboard.page.tab">
+            <field name="page_id" ref="page_command_center"/>
+            <field name="name">Operations</field>
+            <field name="key">operations</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_cc_staffing" model="dashboard.page.tab">
+            <field name="page_id" ref="page_command_center"/>
+            <field name="name">Staffing</field>
+            <field name="key">staffing</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_cc_compliance" model="dashboard.page.tab">
+            <field name="page_id" ref="page_command_center"/>
+            <field name="name">Compliance</field>
+            <field name="key">compliance</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ─── Leaderboard ───────────────────────────────────────────── -->
+        <record id="page_leaderboard" model="dashboard.page">
+            <field name="name">Leaderboard</field>
+            <field name="key">leaderboard</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_portfolio"/>
+            <field name="icon">fa-trophy</field>
+            <field name="sequence">20</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_lb_overall_rank" model="dashboard.page.tab">
+            <field name="page_id" ref="page_leaderboard"/>
+            <field name="name">Overall Rank</field>
+            <field name="key">overall_rank</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_lb_by_metric" model="dashboard.page.tab">
+            <field name="page_id" ref="page_leaderboard"/>
+            <field name="name">By Metric</field>
+            <field name="key">by_metric</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_lb_trending" model="dashboard.page.tab">
+            <field name="page_id" ref="page_leaderboard"/>
+            <field name="name">Trending</field>
+            <field name="key">trending</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ─── Market Threats ────────────────────────────────────────── -->
+        <record id="page_market_threats" model="dashboard.page">
+            <field name="name">Market Threats</field>
+            <field name="key">market_threats</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_portfolio"/>
+            <field name="icon">fa-exclamation-triangle</field>
+            <field name="sequence">30</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_mt_active_threats" model="dashboard.page.tab">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="name">Active Threats</field>
+            <field name="key">active_threats</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_mt_watchlist" model="dashboard.page.tab">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="name">Watchlist</field>
+            <field name="key">watchlist</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_mt_history" model="dashboard.page.tab">
+            <field name="page_id" ref="page_market_threats"/>
+            <field name="name">History</field>
+            <field name="key">history</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ─── Strategy ──────────────────────────────────────────────── -->
+        <record id="page_strategy" model="dashboard.page">
+            <field name="name">Strategy</field>
+            <field name="key">strategy</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_portfolio"/>
+            <field name="icon">fa-compass</field>
+            <field name="sequence">40</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_strategy_goals" model="dashboard.page.tab">
+            <field name="page_id" ref="page_strategy"/>
+            <field name="name">Goals</field>
+            <field name="key">goals</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_strategy_initiatives" model="dashboard.page.tab">
+            <field name="page_id" ref="page_strategy"/>
+            <field name="name">Initiatives</field>
+            <field name="key">initiatives</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_strategy_timeline" model="dashboard.page.tab">
+            <field name="page_id" ref="page_strategy"/>
+            <field name="name">Timeline</field>
+            <field name="key">timeline</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- SECTION: DATA EXPLORER                                        -->
+        <!-- ============================================================ -->
+
+        <record id="page_reports" model="dashboard.page">
+            <field name="name">Reports</field>
+            <field name="key">reports</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_data_explorer"/>
+            <field name="icon">fa-file-text-o</field>
+            <field name="sequence">10</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_reports_builder" model="dashboard.page.tab">
+            <field name="page_id" ref="page_reports"/>
+            <field name="name">Builder</field>
+            <field name="key">builder</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_reports_saved" model="dashboard.page.tab">
+            <field name="page_id" ref="page_reports"/>
+            <field name="name">Saved Reports</field>
+            <field name="key">saved_reports</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_reports_scheduled" model="dashboard.page.tab">
+            <field name="page_id" ref="page_reports"/>
+            <field name="name">Scheduled</field>
+            <field name="key">scheduled</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- ─── Episodes ──────────────────────────────────────────────── -->
+        <record id="page_episodes" model="dashboard.page">
+            <field name="name">Episodes</field>
+            <field name="key">episodes</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_data_explorer"/>
+            <field name="icon">fa-list-alt</field>
+            <field name="sequence">20</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_episodes_overview" model="dashboard.page.tab">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="name">Overview</field>
+            <field name="key">overview</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_episodes_by_diagnosis" model="dashboard.page.tab">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="name">By Diagnosis</field>
+            <field name="key">by_diagnosis</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_episodes_outcomes" model="dashboard.page.tab">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="name">Outcomes</field>
+            <field name="key">outcomes</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="tab_episodes_costs" model="dashboard.page.tab">
+            <field name="page_id" ref="page_episodes"/>
+            <field name="name">Costs</field>
+            <field name="key">costs</field>
+            <field name="sequence">40</field>
+        </record>
+
+        <!-- ─── Referral Sources ──────────────────────────────────────── -->
+        <record id="page_referral_sources" model="dashboard.page">
+            <field name="name">Referral Sources</field>
+            <field name="key">referral_sources</field>
+            <field name="nav_section_id" ref="posterra_portal.nav_section_data_explorer"/>
+            <field name="icon">fa-share-alt</field>
+            <field name="sequence">30</field>
+            <field name="portal_type">hha</field>
+        </record>
+
+        <record id="tab_rs_by_source" model="dashboard.page.tab">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="name">By Source</field>
+            <field name="key">by_source</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tab_rs_trends" model="dashboard.page.tab">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="name">Trends</field>
+            <field name="key">trends</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tab_rs_leakage" model="dashboard.page.tab">
+            <field name="page_id" ref="page_referral_sources"/>
+            <field name="name">Leakage</field>
+            <field name="key">leakage</field>
+            <field name="sequence">30</field>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- BRANDED ERROR PAGES — Phase 4                                     -->
+    <!-- Override Odoo's http_routing error templates with Posterra brand. -->
+    <!-- 404, 403, generic fallback use full branded layout.              -->
+    <!-- 500 is text-only (cursor may be broken; cannot load assets).     -->
+    <!-- ================================================================ -->
+
+    <!-- 404 Not Found -->
+    <template id="posterra_404" inherit_id="http_routing.404" name="Posterra 404">
+        <xpath expr="//t[@t-call='web.frontend_layout']" position="replace">
+            <t t-call="web.frontend_layout">
+                <t t-set="no_header" t-value="True"/>
+                <t t-set="no_footer" t-value="True"/>
+                <t t-set="no_copyright" t-value="True"/>
+                <t t-set="title" t-value="'404 — Page Not Found | Posterra'"/>
+                <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/favicon.png'"/>
+
+                <div class="pv-error-page d-flex flex-column align-items-center justify-content-center">
+                    <div class="pv-error-brand">
+                        <i class="fa fa-heartbeat pv-error-logo-icon"/>
+                        <span class="pv-error-brand-name">Posterra</span>
+                    </div>
+                    <div class="pv-error-code">404</div>
+                    <h1 class="pv-error-title">Page Not Found</h1>
+                    <p class="pv-error-desc">
+                        The page you requested doesn't exist or you don't have access.
+                    </p>
+                    <a href="/my/posterra" class="btn btn-primary pv-error-btn">
+                        <i class="fa fa-home me-1"/>Go to Dashboard
+                    </a>
+                    <div class="pv-error-footer">Posterra &#169; 2026</div>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- 403 Access Denied -->
+    <template id="posterra_403" inherit_id="http_routing.403" name="Posterra 403">
+        <xpath expr="//t[@t-call='web.frontend_layout']" position="replace">
+            <t t-call="web.frontend_layout">
+                <t t-set="no_header" t-value="True"/>
+                <t t-set="no_footer" t-value="True"/>
+                <t t-set="no_copyright" t-value="True"/>
+                <t t-set="title" t-value="'403 — Access Denied | Posterra'"/>
+                <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/favicon.png'"/>
+
+                <div class="pv-error-page d-flex flex-column align-items-center justify-content-center">
+                    <div class="pv-error-brand">
+                        <i class="fa fa-heartbeat pv-error-logo-icon"/>
+                        <span class="pv-error-brand-name">Posterra</span>
+                    </div>
+                    <div class="pv-error-code">403</div>
+                    <h1 class="pv-error-title">Access Denied</h1>
+                    <p class="pv-error-desc">
+                        You do not have permission to view this page.
+                    </p>
+                    <a href="/my/posterra/login" class="btn btn-primary pv-error-btn">
+                        <i class="fa fa-sign-in me-1"/>Sign In
+                    </a>
+                    <div class="pv-error-footer">Posterra &#169; 2026</div>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- Generic 4xx fallback — used when no code-specific template exists (line 566 in ir_http.py) -->
+    <template id="posterra_4xx" inherit_id="http_routing.4xx" name="Posterra 4xx Error">
+        <xpath expr="//t[@t-call='web.frontend_layout']" position="replace">
+            <t t-call="web.frontend_layout">
+                <t t-set="no_header" t-value="True"/>
+                <t t-set="no_footer" t-value="True"/>
+                <t t-set="no_copyright" t-value="True"/>
+                <t t-set="title" t-value="(status_code | string) + ' Error | Posterra'"/>
+                <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/favicon.png'"/>
+
+                <div class="pv-error-page d-flex flex-column align-items-center justify-content-center">
+                    <div class="pv-error-brand">
+                        <i class="fa fa-heartbeat pv-error-logo-icon"/>
+                        <span class="pv-error-brand-name">Posterra</span>
+                    </div>
+                    <div class="pv-error-code">
+                        <t t-esc="status_code"/>
+                    </div>
+                    <h1 class="pv-error-title">
+                        <t t-esc="status_message"/>
+                    </h1>
+                    <p t-if="error_message" class="pv-error-desc">
+                        <t t-esc="error_message"/>
+                    </p>
+                    <a href="/my/posterra" class="btn btn-primary pv-error-btn">
+                        <i class="fa fa-home me-1"/>Go to Dashboard
+                    </a>
+                    <div class="pv-error-footer">Posterra &#169; 2026</div>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- Last-resort fallback (line 603 in ir_http.py — only reached if template rendering itself fails) -->
+    <template id="posterra_http_error" inherit_id="http_routing.http_error" name="Posterra Generic Error">
+        <xpath expr="//t[@t-call='web.frontend_layout']" position="replace">
+            <t t-call="web.frontend_layout">
+                <t t-set="no_header" t-value="True"/>
+                <t t-set="no_footer" t-value="True"/>
+                <t t-set="no_copyright" t-value="True"/>
+                <t t-set="title" t-value="(status_code | string) + ' Error | Posterra'"/>
+                <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/favicon.png'"/>
+
+                <div class="pv-error-page d-flex flex-column align-items-center justify-content-center">
+                    <div class="pv-error-brand">
+                        <i class="fa fa-heartbeat pv-error-logo-icon"/>
+                        <span class="pv-error-brand-name">Posterra</span>
+                    </div>
+                    <div class="pv-error-code">
+                        <t t-esc="status_code"/>
+                    </div>
+                    <h1 class="pv-error-title">
+                        <t t-esc="status_message"/>
+                    </h1>
+                    <p t-if="error_message" class="pv-error-desc">
+                        <t t-esc="error_message"/>
+                    </p>
+                    <a href="/my/posterra" class="btn btn-primary pv-error-btn">
+                        <i class="fa fa-home me-1"/>Go to Dashboard
+                    </a>
+                    <div class="pv-error-footer">Posterra &#169; 2026</div>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- 500 Server Error — text-only patch.
+         Odoo comment: "cursor can be broken during rendering, no theme style, no assets".
+         We only change the title and heading text — do NOT inject assets or CSS here. -->
+    <template id="posterra_500" inherit_id="http_routing.500" name="Posterra 500">
+        <xpath expr="//title" position="replace">
+            <title>Server Error — Posterra</title>
+        </xpath>
+    </template>
+
+</odoo>

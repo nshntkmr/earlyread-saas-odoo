@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_posterra_hha_provider" model="ir.ui.view">
+        <field name="name">res.partner.form.posterra.hha.provider</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Portal Access smart button in the button box -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_open_create_portal_user_wizard"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-user-plus"
+                        string="Portal Access"
+                        invisible="is_company"/>
+            </xpath>
+
+            <!-- HHA / Posterra fields after the Website field -->
+            <xpath expr="//sheet/group/group[2]/field[@name='website']" position="after">
+                <field name="hha_provider_id" options="{'no_create_edit': True}"/>
+                <field name="hha_scope_group_id" options="{'no_create_edit': True}"/>
+                <field name="portal_app_ids" widget="many2many_tags"
+                       options="{'no_create_edit': True}"
+                       string="Portal App Access"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

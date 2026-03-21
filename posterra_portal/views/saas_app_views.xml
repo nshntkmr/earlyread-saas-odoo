@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- saas.app — List view                                             -->
+    <!-- ================================================================ -->
+    <record id="view_saas_app_list" model="ir.ui.view">
+        <field name="name">saas.app.list</field>
+        <field name="model">saas.app</field>
+        <field name="arch" type="xml">
+            <list string="Applications">
+                <field name="name"/>
+                <field name="app_key"/>
+                <field name="access_mode"/>
+                <field name="page_count" string="# Pages"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- saas.app — Form view                                             -->
+    <!-- ================================================================ -->
+    <record id="view_saas_app_form" model="ir.ui.view">
+        <field name="name">saas.app.form</field>
+        <field name="model">saas.app</field>
+        <field name="arch" type="xml">
+            <form string="Application">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactive" bg_color="bg-danger"
+                            invisible="is_active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Application Name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Posterra"/>
+                        </h1>
+                    </div>
+
+                    <!-- Identity -->
+                    <group string="Identity">
+                        <group>
+                            <field name="app_key" placeholder="e.g. posterra"/>
+                            <field name="default_page_key" placeholder="e.g. overview"/>
+                            <field name="is_active"/>
+                        </group>
+                        <group>
+                            <field name="page_count" string="# Pages"/>
+                        </group>
+                    </group>
+
+                    <!-- Branding -->
+                    <group string="Branding">
+                        <group>
+                            <field name="tagline" placeholder="e.g. Healthcare Analytics Portal"/>
+                            <field name="primary_color" widget="color"/>
+                            <field name="login_bg_color" widget="color"/>
+                        </group>
+                        <group>
+                            <field name="logo" widget="image" options="{'size': [128, 128]}"/>
+                            <field name="favicon" widget="image" options="{'size': [32, 32]}"/>
+                        </group>
+                    </group>
+
+                    <!-- Access control -->
+                    <group string="Access Control">
+                        <group>
+                            <field name="access_mode"/>
+                            <field name="access_group_xmlid"
+                                   placeholder="e.g. posterra_portal.group_posterra_mssp_user"
+                                   invisible="access_mode != 'group'"/>
+                        </group>
+                    </group>
+
+                    <!-- Pages -->
+                    <notebook>
+                        <page string="Pages" name="pages">
+                            <field name="page_ids">
+                                <list string="Pages">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="key"/>
+                                    <field name="nav_section_id"/>
+                                    <field name="is_active"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Custom CSS" name="custom_css">
+                            <field name="custom_css" widget="ace"
+                                   options="{'mode': 'css'}"
+                                   placeholder="/* Extra CSS for this app's portal pages */"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- saas.app — Action                                                -->
+    <!-- ================================================================ -->
+    <record id="action_saas_app" model="ir.actions.act_window">
+        <field name="name">Applications</field>
+        <field name="res_model">saas.app</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No applications defined yet.
+            </p>
+            <p>
+                Create an application to enable a branded portal at
+                <code>/my/&lt;app_key&gt;/</code>.
+                Each app has its own pages, branding, and access rules.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Menuitem: Configuration → Apps  (sequence=1, first item)         -->
+    <!-- ================================================================ -->
+    <menuitem id="menu_saas_apps"
+              name="Apps"
+              parent="menu_posterra_config"
+              action="action_saas_app"
+              sequence="1"/>
+
+</odoo>

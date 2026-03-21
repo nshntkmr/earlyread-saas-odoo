@@ -1,0 +1,3 @@
+"id","name","model_id:id","group_id:id","perm_read","perm_write","perm_create","perm_unlink"
+"access_hha_provider_portal","hha.provider portal","model_hha_provider","posterra_portal.group_posterra_user",1,0,0,0
+"access_hha_provider_admin","hha.provider admin","model_hha_provider","posterra_portal.group_posterra_admin",1,1,1,1

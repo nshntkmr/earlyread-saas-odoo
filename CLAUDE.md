@@ -1,0 +1,222 @@
+# Posterra Platform — Developer Context
+
+## What This Is
+
+Multi-tenant healthcare analytics SaaS built on Odoo 19 CE + React + PostgreSQL.
+Multiple independent apps (Posterra HHA, MSSP, future: St. Johns, Parx MA, etc.) share one codebase.
+Each app has its own branding, login, data scope, pages, widgets, and filters — all admin-configurable, zero code.
+
+## Core Principle: No Hardcoding
+
+Every feature must be **config-driven** and work across any app, any page, any dataset.
+- Filter param names, field names, display templates — all read from DB records at runtime
+- Provider resolution uses the filter's own `param_name` and `field_name`, never hardcoded `hha_id` or `hha_ccn`
+- Widget SQL uses `%(param)s` placeholders filled from filter values — no hardcoded column names in controllers
+- New app = new `saas.app` record + filter/widget/page records. No Python changes.
+
+## Commands
+
+```bash
+# Start Odoo (from Odoo root, not this dir)
+python odoo-bin -c odoo.conf
+
+# React dev build (hot reload)
+cd posterra_portal/static/src/react && npm run dev
+
+# React production build
+cd posterra_portal/static/src/react && npm run build
+```
+
+## Architecture Overview
+
+```
+Browser URL: /my/<app_key>?<filter_params>&tab=<tab_key>
+     |
+     v
+portal.py (app_dashboard)
+  1. Resolve app from app_key
+  2. Access check (hha_provider mode OR group mode)
+  3. Load pages, nav, current page/tab
+  4. Load page_filters (per-page, from DB)
+  5. Generic provider resolution (reads filter config, no hardcoding)
+  6. Geo data from selected provider
+  7. Auto-fill geo filters from provider (auto_fill_from_hha)
+  8. Build filter_values, filter_options, sql_params
+  9. Execute widget SQL with sql_params
+  10. Render template with React data attributes
+     |
+     v
+React (main.jsx → App.jsx)
+  - TokenProvider (JWT auth)
+  - FilterProvider (filter state + URL sync)
+    - FilterBar (dropdowns + cascade logic)
+    - TabBar
+    - WidgetGrid (ECharts, KPIs, DataTables, etc.)
+```
+
+## Key Models
+
+| Model | Purpose |
+|-------|---------|
+| `saas.app` | App definition (Posterra, MSSP, etc.). `access_mode`: `hha_provider` or `group` |
+| `hha.provider` | Reference data: CCN, name, state, county, city. One record per HHA agency |
+| `dashboard.page` | A page within an app (Overview, Hospitals, etc.) |
+| `dashboard.page.filter` | Filter definition per page. Configures param_name, field, cascade, auto-fill |
+| `dashboard.filter.dependency` | Multi-directional cascade edges between filters |
+| `dashboard.widget` | Widget definition: SQL, chart type, layout position |
+| `dashboard.schema.source` | Materialized view / SQL view reference for filters and widgets |
+
+## Filter System — Complete Flow
+
+### Data Model
+
+Each `dashboard.page.filter` record defines ONE dropdown in the filter bar:
+
+```
+page_id          → which page this filter belongs to
+model_id/field_id → ORM source (e.g., hha.provider.hha_state)
+schema_source_id/schema_column_id → SQL source (materialized views)
+param_name       → URL parameter name (e.g., "hha_ccn", "hha_state", "year")
+field_name       → derived from field_id.name (stored, readonly)
+display_template → label format: "{hha_ccn} - {hha_brand_name}"
+include_all_option → prepend "All N items" option
+is_provider_selector → marks THIS filter as the Provider selector for provider resolution + auto-fill
+auto_fill_from_hha → auto-populate from selected provider on page load
+scope_to_user_hha → restrict options to user's accessible providers
+is_visible       → False = hidden SQL context param, not shown in UI
+is_multiselect   → allow multiple selections (CSV in URL)
+depends_on_filter_id → legacy single-parent cascade
+```
+
+### Cascade Dependencies (Multi-Directional)
+
+`dashboard.filter.dependency` records define cascade edges:
+
+```
+source_filter_id → "when this changes..."
+target_filter_id → "...refresh this filter's options"
+resets_target    → clear target value on source change
+propagation      → 'required' (always cascade) or 'optional' (skip if target has value)
+```
+
+### Provider Resolution (Generic — Step 8 in portal.py)
+
+```python
+# Find the Provider filter for this page (admin marks it via is_provider_selector)
+provider_filter = page_filters.filtered(
+    lambda f: f.is_provider_selector
+)
+# Read its param_name and field_name from the DB record
+pf_param = pf.param_name   # e.g., "hha_ccn" or "hha_id"
+pf_field = pf.field_name or pf.param_name or pf.schema_column_name  # fallback chain
+pf_value = kw.get(pf_param) # e.g., "017014"
+
+# Match against providers using the configured field
+if pf_field == 'id':
+    matched = providers.filtered(lambda p: p.id == int(pf_value))
+else:
+    matched = providers.filtered(lambda p: str(getattr(p, pf_field, '')) == pf_value)
+```
+
+**Why `is_provider_selector`**: Explicit admin toggle — no assumptions about `model_name`, `display_template`, or `include_all_option`. Works with both ORM and schema-source filters. Admin toggles it ON for exactly one filter per page.
+
+### Auto-Fill (Step 8.5 in portal.py)
+
+When `selected_provider` is resolved, filters with `auto_fill_from_hha=True` are populated:
+
+```python
+if selected_provider:
+    for f in page_filters:
+        if f.auto_fill_from_hha:
+            actual_field = f.field_name or f.param_name or f.schema_column_name or ''
+            param_key = f.param_name or f.field_name or ''
+            if actual_field and param_key and hasattr(selected_provider, actual_field):
+                val = getattr(selected_provider, actual_field, '')
+                hha_auto_fill[param_key] = str(val)
+```
+
+This fills State, County, City from the provider's record — no hardcoded field names.
+Works whether filters use ORM models (field_name) or schema sources (param_name/schema_column_name).
+
+### How Filter Values Reach React
+
+1. Server resolves `filter_values` dict (auto-fill + URL params + defaults)
+2. `_build_page_config_json()` puts resolved values into `default_value` for each filter
+3. React `FilterContext.buildDefaults()` reads `default_value`, then overrides with URL params
+4. Geo params NOT in URL → server-resolved auto-fill values persist
+5. After user clicks Apply → URL sync pushes all values to URL
+
+### Server-Side Auto-Select (Step 8.7 in portal.py)
+
+After `filter_options` are computed, filters with exactly 1 cascaded option (and no `include_all_option`) are auto-selected:
+
+```python
+for f in page_filters:
+    if not f.include_all_option and f.id in filter_options:
+        opts = filter_options[f.id]
+        if not filter_values.get(f.id, '') and len(opts) == 1:
+            filter_values[f.id] = opts[0]['value']
+```
+
+This handles multi-CCN URLs (e.g., `hha_ccn=A,B` where both share the same state → State auto-selected).
+
+### Client-Side Cascade (FilterBar.jsx)
+
+When user changes a dropdown:
+1. `handleGraphCascade()` fires
+2. For each dependent filter: fetch new options from `/api/v1/filters/cascade/multi`
+3. If `resets_target=True` AND exactly 1 option AND no `include_all_option`: auto-select that option
+4. If `resets_target=True` AND 0 or 2+ options: reset to `''` (user must choose)
+5. If `resets_target=False`: keep value if still valid in new options
+6. Recurse into children's children (Phase 2 picks up auto-selected values from snapshot)
+
+### SQL Parameter Flow
+
+```
+filter_values_by_name = {param_name: value} for all filters
+    ↓
+sql_params = same, but multiselect values converted to tuples
+    ↓
+widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `controllers/portal.py` | Main page controller. Provider resolution, filter values, widget execution, template render |
+| `controllers/widget_api.py` | API endpoints for widget data refresh + filter cascade. Has `_build_portal_ctx()` mirroring portal.py |
+| `models/dashboard_page_filter.py` | Filter model: `get_options()`, `_build_orm_domain_from_constraints()`, `_build_schema_where()` |
+| `models/dashboard_filter_dependency.py` | Cascade dependency edges between filters |
+| `models/dashboard_widget.py` | Widget model: SQL execution, data formatting |
+| `data/filters_data.xml` | Seed data for geo filters (State, County, City) per page |
+| `static/src/react/src/components/FilterBar.jsx` | React filter UI + cascade handler (`handleGraphCascade`) |
+| `static/src/react/src/state/FilterContext.jsx` | Filter state management, URL sync, Apply logic |
+| `static/src/react/src/main.jsx` | React entry point, reads `data-page-config` from DOM |
+| `views/dashboard_templates.xml` | QWeb template: embeds `page_config_json` as `data-*` attribute on `#app-root` |
+
+## Gotchas
+
+- **`hha_id` param removed from `app_dashboard()` signature** — all URL params now go to `**kw` for generic access. This was intentional to avoid Odoo capturing named params before `**kw`.
+- **`provider_map` keys are Odoo record IDs** (not CCNs). Built at portal.py step 9 but NOT passed to React — only used in template context.
+- **Hidden filters (`is_visible=False`)** are excluded from React state and URL by `FilterContext.jsx`. They are server-side SQL context only (e.g., hha_ccn, hha_name for widget SQL).
+- **`dep_is_hha_provider_id` check in `_build_schema_where()`** — only `True` when source filter has `field_name='id'`. When `field_name='hha_ccn'`, falls through to direct column matching (correct behavior).
+- **Cascade `resets_target` + auto-select** — when True AND exactly 1 option exists AND the filter has no `include_all_option`, the value is auto-selected (not cleared). When 2+ options exist, value resets to `''` (user must choose). This is the expected UX.
+- **`auto_fill_from_hha` only works server-side** — runs on page load when `selected_provider` is resolved. Client-side auto-select is handled by the cascade auto-select logic in `handleGraphCascade()`.
+- **`is_provider_selector` must be toggled ON** — admin must explicitly mark the Provider filter on each page. Without this, `selected_provider` will be `None` and auto-fill won't fire. Check this first when debugging "State shows All".
+- **Seed data in `filters_data.xml`** may show `param_name=hha_id` but DB records may have been updated to `hha_ccn` by admin. DB state is authoritative.
+- **Schema-source filters have empty `model_name`/`field_name`** — these are `related` fields from `model_id`/`field_id`. When admin switches a filter to use schema sources, `model_id` is cleared → `model_name` becomes empty. Never use `model_name == 'hha.provider'` to identify filters. Use `is_provider_selector` for the Provider filter. For field lookups, use fallback chain: `field_name or param_name or schema_column_name`.
+
+## Testing Checklist (Filter Changes)
+
+1. Load with single provider: `/my/posterra?hha_ccn=017014&year=2024,2023&ffs_ma=MA&tab=command_center`
+2. Verify State/County/City auto-populate from provider's geo data (not "All")
+3. Load with multi-provider CSV: `hha_ccn=017014,047114` → geo auto-selects if all share same state, else "All"
+4. Load without provider param (multi-provider user) → geo filters show "All"
+5. Single-provider user → geo filters auto-populate regardless of URL
+6. Change Provider dropdown → child filters auto-select if 1 option, reset if 2+
+7. Change State dropdown → Provider/County/City cascade correctly (bidirectional)
+8. Click Apply → URL updates with all filter values (including auto-selected geo)
+9. Widget data reflects correct sql_params (check browser network tab)
+10. Test on different pages (Overview, Hospitals, etc.) — each has its own filter set
+11. Verify `is_provider_selector` is ON for Provider filter in admin (Settings → Pages → Context Filters)

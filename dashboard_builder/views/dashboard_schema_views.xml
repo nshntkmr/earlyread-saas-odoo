@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         SCHEMA SOURCE — List View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_schema_source_list" model="ir.ui.view">
+        <field name="name">dashboard.schema.source.list</field>
+        <field name="model">dashboard.schema.source</field>
+        <field name="arch" type="xml">
+            <list string="Schema Sources">
+                <header>
+                    <button name="action_sync_materialized_views"
+                            string="Sync Materialized Views"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-refresh"/>
+                </header>
+                <field name="name"/>
+                <field name="table_name"/>
+                <field name="table_alias"/>
+                <field name="column_count"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         SCHEMA SOURCE — Form View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_schema_source_form" model="ir.ui.view">
+        <field name="name">dashboard.schema.source.form</field>
+        <field name="model">dashboard.schema.source</field>
+        <field name="arch" type="xml">
+            <form string="Schema Source">
+                <header>
+                    <button name="action_discover_columns"
+                            string="Discover Columns"
+                            type="object"
+                            class="btn-primary"
+                            icon="fa-search"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. HHA Providers"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="table_name"
+                                   placeholder="e.g. hha_provider"/>
+                            <field name="table_alias"
+                                   placeholder="e.g. p"/>
+                        </group>
+                        <group>
+                            <field name="column_count"/>
+                            <field name="is_active"/>
+                        </group>
+                    </group>
+                    <field name="description"
+                           placeholder="Description of this table and its purpose..."/>
+
+                    <notebook>
+                        <!-- ── Columns Tab ──────────────────────────── -->
+                        <page string="Columns" name="columns">
+                            <field name="column_ids">
+                                <list editable="bottom">
+                                    <field name="column_name"/>
+                                    <field name="display_name"/>
+                                    <field name="data_type"/>
+                                    <field name="is_measure"/>
+                                    <field name="is_dimension"/>
+                                    <field name="is_filterable"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- ── Relations Tab ────────────────────────── -->
+                        <page string="Relations" name="relations">
+                            <field name="relation_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="target_source_id"/>
+                                    <field name="join_type"/>
+                                    <field name="source_column"/>
+                                    <field name="target_column"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         SCHEMA SOURCE — Search View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_schema_source_search" model="ir.ui.view">
+        <field name="name">dashboard.schema.source.search</field>
+        <field name="model">dashboard.schema.source</field>
+        <field name="arch" type="xml">
+            <search string="Schema Source">
+                <field name="name" string="Display Name"/>
+                <field name="table_name" string="Table Name"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         SCHEMA SOURCE — Action
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="action_schema_source" model="ir.actions.act_window">
+        <field name="name">Schema Sources</field>
+        <field name="res_model">dashboard.schema.source</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_schema_source_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Register your first database table
+            </p>
+            <p>
+                Schema Sources define which database tables are available
+                for the Widget Builder. Click "Discover Columns" to
+                auto-detect columns from the database.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,16 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_schema_source_user,dashboard.schema.source user,model_dashboard_schema_source,group_dashboard_builder_user,1,0,0,0
+access_schema_source_admin,dashboard.schema.source admin,model_dashboard_schema_source,group_dashboard_builder_admin,1,1,1,1
+access_schema_source_system,dashboard.schema.source system,model_dashboard_schema_source,base.group_system,1,1,1,1
+access_schema_column_user,dashboard.schema.column user,model_dashboard_schema_column,group_dashboard_builder_user,1,0,0,0
+access_schema_column_admin,dashboard.schema.column admin,model_dashboard_schema_column,group_dashboard_builder_admin,1,1,1,1
+access_schema_column_system,dashboard.schema.column system,model_dashboard_schema_column,base.group_system,1,1,1,1
+access_schema_relation_user,dashboard.schema.relation user,model_dashboard_schema_relation,group_dashboard_builder_user,1,0,0,0
+access_schema_relation_admin,dashboard.schema.relation admin,model_dashboard_schema_relation,group_dashboard_builder_admin,1,1,1,1
+access_schema_relation_system,dashboard.schema.relation system,model_dashboard_schema_relation,base.group_system,1,1,1,1
+access_widget_def_user,dashboard.widget.definition user,model_dashboard_widget_definition,group_dashboard_builder_user,1,0,0,0
+access_widget_def_admin,dashboard.widget.definition admin,model_dashboard_widget_definition,group_dashboard_builder_admin,1,1,1,1
+access_widget_def_system,dashboard.widget.definition system,model_dashboard_widget_definition,base.group_system,1,1,1,1
+access_widget_tpl_user,dashboard.widget.template user,model_dashboard_widget_template,group_dashboard_builder_user,1,0,0,0
+access_widget_tpl_admin,dashboard.widget.template admin,model_dashboard_widget_template,group_dashboard_builder_admin,1,1,1,1
+access_widget_tpl_system,dashboard.widget.template system,model_dashboard_widget_template,base.group_system,1,1,1,1

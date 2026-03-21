@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs wc:*)",
+      "Bash(find /c/Users/nisha/Odoo_Dev -type f -name *.sql)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.nav.section — List view                                -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_nav_section_list" model="ir.ui.view">
+        <field name="name">dashboard.nav.section.list</field>
+        <field name="model">dashboard.nav.section</field>
+        <field name="arch" type="xml">
+            <list string="Nav Sections">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="key"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.nav.section — Form view                                -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_nav_section_form" model="ir.ui.view">
+        <field name="name">dashboard.nav.section.form</field>
+        <field name="model">dashboard.nav.section</field>
+        <field name="arch" type="xml">
+            <form string="Nav Section">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactive" bg_color="bg-danger"
+                            invisible="is_active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Section Label"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. MY HHA"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <field name="key" placeholder="e.g. my_hha"/>
+                        <field name="sequence"/>
+                        <field name="is_active"/>
+                    </group>
+                    <!-- Read-only list of pages that belong to this section -->
+                    <field name="page_ids" readonly="1">
+                        <list>
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="key"/>
+                            <field name="is_active"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.nav.section — Action                                   -->
+    <!-- ================================================================ -->
+    <record id="action_dashboard_nav_section" model="ir.actions.act_window">
+        <field name="name">Nav Sections</field>
+        <field name="res_model">dashboard.nav.section</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No sidebar sections yet.
+            </p>
+            <p>
+                Create a section (e.g. <b>MY HHA</b>) to group pages in the
+                portal sidebar. Reorder with the drag handle, or deactivate
+                to hide the entire group from users.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Menuitem: Configuration → Nav Sections                           -->
+    <!-- ================================================================ -->
+    <menuitem id="menu_dashboard_nav_sections"
+              name="Nav Sections"
+              parent="menu_posterra_config"
+              action="action_dashboard_nav_section"
+              sequence="3"/>
+
+</odoo>

@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page — List view                                        -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_page_list" model="ir.ui.view">
+        <field name="name">dashboard.page.list</field>
+        <field name="model">dashboard.page</field>
+        <field name="arch" type="xml">
+            <list string="Dashboard Pages">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="key"/>
+                <field name="nav_section_id"/>
+                <field name="app_id"/>
+                <field name="icon"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page — Form view                                        -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_page_form" model="ir.ui.view">
+        <field name="name">dashboard.page.form</field>
+        <field name="model">dashboard.page</field>
+        <field name="arch" type="xml">
+            <form string="Dashboard Page">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactive" bg_color="bg-danger"
+                            invisible="is_active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Page Name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Overview"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="key" placeholder="e.g. overview"/>
+                            <field name="nav_section_id"/>
+                            <field name="icon" placeholder="e.g. fa-home"/>
+                        </group>
+                        <group>
+                            <field name="app_id"/>
+                            <field name="sequence"/>
+                            <field name="is_active"/>
+                            <field name="group_ids" widget="many2many_tags"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Tabs" name="tabs">
+                            <field name="tab_ids">
+                                <list editable="bottom" string="Tabs">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="key"/>
+                                    <field name="is_active"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Context Filters" name="filters">
+                            <field name="filter_ids">
+                                <list editable="bottom" string="Filters">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="model_id"
+                                           string="Table"
+                                           placeholder="e.g. hha.provider"/>
+                                    <field name="field_id"
+                                           string="Column"
+                                           domain="[('model_id', '=', model_id), ('ttype', 'in', ['char', 'text', 'selection', 'integer', 'float', 'date', 'datetime', 'many2one'])]"
+                                           placeholder="Pick a column…"/>
+                                    <!-- Schema Source: alternative to Table/Column for MVs.
+                                         Admin picks a registered schema source, then a column
+                                         from its discovered column list.  Options are fetched
+                                         via raw SQL (SELECT DISTINCT) instead of ORM. -->
+                                    <field name="schema_source_id"
+                                           string="Schema Source"
+                                           placeholder="e.g. HHA KPI Summary (MV)"
+                                           optional="show"/>
+                                    <field name="schema_column_id"
+                                           string="Source Column"
+                                           domain="[('source_id', '=', schema_source_id)]"
+                                           placeholder="Pick a column…"
+                                           optional="show"/>
+                                    <field name="label"
+                                           placeholder="Override label (optional)"/>
+                                    <field name="default_value"
+                                           placeholder="Default value"/>
+                                    <field name="placeholder"
+                                           placeholder="e.g. All States"/>
+                                    <!-- URL Param: auto-filled from Column for DB-driven filters.
+                                         Must be set manually for manual-options filters (e.g. "year"). -->
+                                    <field name="param_name"
+                                           string="URL Param"
+                                           placeholder="e.g. year, payer"
+                                           optional="show"/>
+                                    <!-- Manual Options: one per line, overrides DB lookup.
+                                         Format: "value" or "value|Display Label"
+                                         Required for filters with no Table/Column (e.g. Year, Payer). -->
+                                    <field name="manual_options"
+                                           string="Manual Options"
+                                           placeholder="One per line, e.g.&#10;2023&#10;2024&#10;2025|Current Year"
+                                           optional="show"/>
+                                    <!-- Depends On: when parent changes, this filter resets.
+                                         Domain excludes self (prevent self-dependency).
+                                         Server constraint also blocks circular chains and
+                                         cross-page references. -->
+                                    <field name="depends_on_filter_id"
+                                           string="Depends On (Legacy)"
+                                           domain="[('page_id','=',parent.id),('id','!=',id)]"
+                                           placeholder="Use Dependencies tab"
+                                           optional="hide"
+                                           invisible="1"/>
+                                    <!-- Scope to User's HHAs: restrict options to the logged-in
+                                         user's accessible providers. Enable for State, County, City. -->
+                                    <field name="scope_to_user_hha"
+                                           string="HHA Scope"
+                                           optional="show"
+                                           widget="boolean_toggle"/>
+                                    <!-- HHA Scope Column: when using a schema source with HHA scoping,
+                                         pick the column that holds HHA CCN values (e.g. hha_ccn). -->
+                                    <field name="hha_scope_column_id"
+                                           string="HHA Scope Col"
+                                           invisible="not scope_to_user_hha or not schema_source_id"
+                                           required="scope_to_user_hha and schema_source_id"
+                                           options="{'no_create': True}"/>
+                                    <!-- Auto-fill from selected HHA: pre-populate this filter when
+                                         a single HHA is chosen from the top bar. -->
+                                    <field name="auto_fill_from_hha"
+                                           string="Auto-fill from HHA"
+                                           optional="show"
+                                           widget="boolean_toggle"/>
+                                    <field name="is_provider_selector"
+                                           string="Provider Selector"
+                                           optional="show"
+                                           widget="boolean_toggle"/>
+                                    <field name="is_visible"
+                                           string="Visible"
+                                           optional="show"
+                                           widget="boolean_toggle"/>
+                                    <!-- Display template: format composite labels for ID-based
+                                         filters, e.g. "{hha_ccn} - {hha_brand_name}" -->
+                                    <field name="display_template"
+                                           string="Display Template"
+                                           placeholder='e.g. {hha_ccn} - {hha_brand_name}'
+                                           optional="show"/>
+                                    <field name="display_template_source"
+                                           string="Template Source"
+                                           invisible="not display_template"
+                                           optional="show"/>
+                                    <!-- Include "All" option: prepend an "All N items" option
+                                         at the top of the dropdown. -->
+                                    <field name="include_all_option"
+                                           string='Include "All"'
+                                           optional="hide"
+                                           widget="boolean_toggle"/>
+                                    <field name="is_multiselect"
+                                           string="Multi-select"
+                                           optional="show"
+                                           widget="boolean_toggle"/>
+                                    <field name="is_searchable"
+                                           string="Searchable"
+                                           optional="show"
+                                           widget="boolean_toggle"/>
+                                    <field name="is_active"/>
+                                    <field name="is_required"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Filter Dependencies" name="filter_dependencies">
+                            <p class="text-muted">
+                                Configure how filters affect each other. Each row means:
+                                "When [source] changes, refresh [target]'s options."
+                                Add two rows for bidirectional relationships (A→B and B→A).
+                            </p>
+                            <field name="filter_dependency_ids">
+                                <list editable="bottom" string="Dependencies">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="page_id" column_invisible="1"/>
+                                    <field name="source_filter_id"
+                                           string="When this changes…"
+                                           domain="[('page_id','=',parent.id)]"
+                                           options="{'no_create': True}"/>
+                                    <field name="target_filter_id"
+                                           string="…refresh this"
+                                           domain="[('page_id','=',parent.id)]"
+                                           options="{'no_create': True}"/>
+                                    <field name="propagation"/>
+                                    <field name="resets_target"
+                                           string="Reset Value"
+                                           widget="boolean_toggle"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Widgets" name="widgets">
+                            <field name="widget_ids">
+                                <list editable="bottom" string="Widgets">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="tab_id"
+                                           domain="[('page_id','=',parent.id)]"
+                                           placeholder="All tabs"/>
+                                    <field name="chart_type"/>
+                                    <field name="col_span"/>
+                                    <field name="color_palette"/>
+                                    <field name="is_active"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Annotations" name="annotations">
+                            <group>
+                                <group>
+                                    <field name="subtitle"
+                                           placeholder="e.g. Executive command center"/>
+                                    <field name="help_text" widget="text"
+                                           placeholder="Tooltip text shown via info icon next to page title"
+                                           style="min-height: 60px;"/>
+                                </group>
+                                <group>
+                                    <field name="footnote" widget="text"
+                                           placeholder="e.g. Data sourced from CMS OASIS submissions"
+                                           style="min-height: 60px;"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page — Action                                           -->
+    <!-- ================================================================ -->
+    <record id="action_dashboard_page" model="ir.actions.act_window">
+        <field name="name">Dashboard Pages</field>
+        <field name="res_model">dashboard.page</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No dashboard pages yet.
+            </p>
+            <p>
+                Create pages to build the portal sidebar. Each page can have
+                tabs and context filters that are fully manageable from here.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Menuitem: Configuration → Dashboard Pages                         -->
+    <!-- ================================================================ -->
+    <menuitem id="menu_dashboard_pages"
+              name="Dashboard Pages"
+              parent="menu_posterra_config"
+              action="action_dashboard_page"
+              sequence="5"/>
+
+</odoo>

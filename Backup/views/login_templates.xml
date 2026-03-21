@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Override login layout: Posterra branding -->
+    <template id="login_layout_posterra" inherit_id="web.login_layout" name="Posterra Login Branding">
+        <!-- Replace the logo area with Posterra branding -->
+        <xpath expr="//div[hasclass('text-center','pb-3')]" position="replace">
+            <div class="text-center pb-3 border-bottom mb-4">
+                <div class="posterra-login-logo">
+                    <i class="fa fa-heartbeat" style="font-size: 48px; color: #0066cc;"/>
+                </div>
+                <h4 class="mt-2 mb-0" style="color: #0066cc; font-weight: 700;">Posterra</h4>
+                <p class="text-muted small mb-0">Healthcare Analytics Portal</p>
+            </div>
+        </xpath>
+        <!-- Replace the footer -->
+        <xpath expr="//div[hasclass('text-center','small','mt-4')]" position="replace">
+            <div class="text-center small mt-4 pt-3 border-top text-muted">
+                Posterra &amp;copy; 2026
+            </div>
+        </xpath>
+    </template>
+
+    <!-- Override login form: customize email hint -->
+    <template id="login_posterra" inherit_id="web.login" name="Posterra Login Fields">
+        <xpath expr="//label[@for='login']" position="replace">
+            <label for="login" class="form-label d-flex justify-content-between">
+                Email <small class="text-muted">(username@yourhha.com)</small>
+            </label>
+        </xpath>
+    </template>
+
+</odoo>

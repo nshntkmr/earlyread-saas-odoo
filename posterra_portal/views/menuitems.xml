@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Top-level menu -->
+    <menuitem id="menu_posterra_root"
+              name="Posterra"
+              web_icon="posterra_portal,static/description/icon.png"
+              groups="posterra_portal.group_posterra_admin"
+              sequence="100"/>
+
+    <!-- Submenu: Configuration -->
+    <menuitem id="menu_posterra_config"
+              name="Configuration"
+              parent="menu_posterra_root"
+              sequence="10"/>
+
+    <!-- Submenu: HHA Providers -->
+    <menuitem id="menu_hha_providers"
+              name="HHA Providers"
+              parent="menu_posterra_config"
+              action="action_hha_provider"
+              sequence="10"/>
+
+    <!-- Submenu: Scope Groups -->
+    <menuitem id="menu_hha_scope_groups"
+              name="Scope Groups"
+              parent="menu_posterra_config"
+              action="action_hha_scope_group"
+              sequence="15"/>
+
+    <!-- Submenu: Import CSV -->
+    <menuitem id="menu_hha_csv_import"
+              name="Import HHA CSV"
+              parent="menu_posterra_config"
+              action="action_hha_csv_import"
+              sequence="20"/>
+
+    <!-- Submenu: Create Portal User -->
+    <menuitem id="menu_create_portal_user"
+              name="Create Portal User"
+              parent="menu_posterra_config"
+              action="action_posterra_create_portal_user"
+              sequence="30"/>
+
+</odoo>

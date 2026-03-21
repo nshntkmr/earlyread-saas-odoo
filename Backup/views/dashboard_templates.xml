@@ -1,0 +1,877 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Redirect HHA users from /my to /my/posterra -->
+    <template id="portal_my_home_redirect" inherit_id="portal.portal_my_home">
+        <xpath expr="//div[hasclass('o_portal_my_home')]" position="before">
+            <t t-if="request.env['hha.provider'].find_by_email_domain(request.env.user.login)">
+                <script>
+                    // Redirect HHA portal users to Posterra dashboard
+                    window.location.replace('/my/posterra');
+                </script>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="dashboard" name="Posterra Dashboard">
+        <t t-call="portal.frontend_layout">
+            <t t-set="no_breadcrumbs" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="pv-dashboard d-flex" style="min-height: calc(100vh - 56px);">
+
+                <!-- ============================================ -->
+                <!-- LEFT SIDEBAR                                 -->
+                <!-- ============================================ -->
+                <nav class="pv-sidebar d-none d-md-block">
+                    <div class="pv-sidebar-header">
+                        <div class="pv-sidebar-brand">
+                            <i class="fa fa-heartbeat me-2"/>
+                            <span>Posterra</span>
+                        </div>
+                        <div class="pv-sidebar-provider" t-if="org_display_name">
+                            <t t-esc="org_display_name"/>
+                        </div>
+                    </div>
+                    <div class="pv-sidebar-nav">
+                        <t t-foreach="sidebar['sections']" t-as="section">
+                            <div class="pv-sidebar-section-label">
+                                <t t-esc="section['name']"/>
+                            </div>
+                            <t t-foreach="sidebar['pages']" t-as="page">
+                                <t t-if="page['section'] == section['key']">
+                                    <a t-attf-href="/my/posterra/#{page['key']}?hha_id=#{current_hha_id}"
+                                       t-attf-class="pv-sidebar-item #{current_page_key == page['key'] and 'active' or ''}">
+                                        <i t-attf-class="fa #{page['icon']} pv-sidebar-icon"/>
+                                        <span t-esc="page['name']"/>
+                                    </a>
+                                </t>
+                            </t>
+                        </t>
+                    </div>
+                </nav>
+
+                <!-- ============================================ -->
+                <!-- MAIN CONTENT AREA                            -->
+                <!-- ============================================ -->
+                <div class="pv-main flex-grow-1">
+
+                    <!-- ============================================================ -->
+                    <!-- HHA FILTER BAR                                               -->
+                    <!-- The org-name chip is always visible; clicking opens a        -->
+                    <!-- searchable dropdown listing every matched HHA as CCN-Name.   -->
+                    <!-- ============================================================ -->
+                    <div class="pv-filter-bar">
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+
+                            <!-- ── Organisation chip (always shows org name) ─────── -->
+                            <div class="dropdown pv-hha-selector-wrap" id="pv-hha-selector">
+                                <button class="pv-hha-chip dropdown-toggle"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <i class="fa fa-hospital-o"/>
+                                    <!-- Org name is the permanent chip label -->
+                                    <span class="pv-hha-chip-org">
+                                        <t t-esc="org_display_name or 'HHA'"/>
+                                    </span>
+                                    <!-- Count badge -->
+                                    <span class="pv-hha-count-badge">
+                                        <t t-esc="provider_count"/>
+                                        <t t-if="provider_count == 1"> HHA</t>
+                                        <t t-if="provider_count != 1"> HHAs</t>
+                                    </span>
+                                </button>
+
+                                <!-- Searchable dropdown ─────────────────────────── -->
+                                <div class="dropdown-menu pv-hha-dropdown" aria-labelledby="pv-hha-selector">
+
+                                    <!-- Search box -->
+                                    <div class="pv-hha-search-wrap">
+                                        <span class="pv-hha-search-icon">
+                                            <i class="fa fa-search"/>
+                                        </span>
+                                        <input type="text"
+                                               class="pv-hha-search-input"
+                                               id="pv-hha-search"
+                                               placeholder="Search by CCN or HHA name…"
+                                               autocomplete="off"/>
+                                    </div>
+
+                                    <div class="pv-hha-dropdown-header">
+                                        <span class="pv-hha-dropdown-org">
+                                            <t t-esc="org_display_name"/>
+                                        </span>
+                                        <span class="text-muted ms-1 small">
+                                            — <t t-esc="provider_count"/> HHA<t t-if="provider_count != 1">s</t>
+                                        </span>
+                                    </div>
+                                    <div class="pv-hha-dropdown-divider"/>
+
+                                    <!-- Scrollable list of HHA options -->
+                                    <div class="pv-hha-list" id="pv-hha-list">
+                                        <t t-foreach="selector_options" t-as="opt">
+                                            <a t-attf-href="/my/posterra/#{current_page_key}/#{current_tab_key}?hha_id=#{opt['id']}"
+                                               t-attf-class="pv-hha-option #{opt['selected'] and 'is-selected' or ''}"
+                                               t-att-data-label="opt['label']">
+                                                <span class="pv-hha-option-check">
+                                                    <i t-if="opt['selected']" class="fa fa-check"/>
+                                                </span>
+                                                <span class="pv-hha-option-label">
+                                                    <!-- "All N HHAs" row gets special styling -->
+                                                    <t t-if="opt['id'] == 'all'">
+                                                        <strong><t t-esc="opt['label']"/></strong>
+                                                    </t>
+                                                    <t t-if="opt['id'] != 'all'">
+                                                        <t t-esc="opt['label']"/>
+                                                    </t>
+                                                </span>
+                                            </a>
+                                        </t>
+                                        <!-- Empty-search message (hidden by default) -->
+                                        <div class="pv-hha-no-results d-none" id="pv-hha-no-results">
+                                            <i class="fa fa-search-minus me-1"/>
+                                            No HHAs match your search
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ── Active-selection pill (shows WHAT is selected) ── -->
+                            <t t-if="selected_provider">
+                                <!-- Single HHA selected -->
+                                <span class="pv-active-filter-pill">
+                                    <i class="fa fa-filter me-1"/>
+                                    <strong>
+                                        <t t-esc="selected_provider.hha_ccn"/> –
+                                        <t t-esc="selected_provider.hha_brand_name or selected_provider.hha_name"/>
+                                    </strong>
+                                    <a t-attf-href="/my/posterra/#{current_page_key}/#{current_tab_key}?hha_id=all"
+                                       class="pv-active-filter-clear" title="Clear filter">
+                                        <i class="fa fa-times"/>
+                                    </a>
+                                </span>
+                            </t>
+                            <t t-if="not selected_provider and provider_count > 1">
+                                <!-- All HHAs -->
+                                <span class="pv-filter-info-pill pv-filter-info-pill--all">
+                                    <i class="fa fa-th me-1"/>
+                                    All <t t-esc="provider_count"/> locations
+                                </span>
+                            </t>
+
+                            <!-- ── Extra info pills when a single HHA is selected ── -->
+                            <t t-if="selected_provider">
+                                <t t-if="selected_provider.hha_state">
+                                    <span class="pv-filter-info-pill">
+                                        <i class="fa fa-map-marker me-1"/>
+                                        <t t-esc="selected_provider.hha_state"/>
+                                        <t t-if="selected_provider.hha_county">, <t t-esc="selected_provider.hha_county"/></t>
+                                    </span>
+                                </t>
+                                <t t-if="selected_provider.hha_npi">
+                                    <span class="pv-filter-info-pill">
+                                        <i class="fa fa-barcode me-1"/>
+                                        NPI: <t t-esc="selected_provider.hha_npi"/>
+                                    </span>
+                                </t>
+                            </t>
+
+                            <!-- ── Live Data badge (right-aligned) ─────────────── -->
+                            <div class="ms-auto">
+                                <span class="pv-live-badge">
+                                    <span class="pv-live-dot"/>
+                                    Live Data
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Page header -->
+                    <div class="pv-page-header">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h2 class="pv-page-title mb-0">
+                                    <i t-attf-class="fa #{current_page['icon']} me-2 text-primary"/>
+                                    <t t-esc="current_page['name']"/>
+                                </h2>
+                                <small class="text-muted">Executive command center</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================================ -->
+                    <!-- CONTEXT FILTER BAR (Overview page only)                     -->
+                    <!-- State → County → Locations (cascading), Year, Payer         -->
+                    <!-- ============================================================ -->
+                    <t t-if="current_page_key == 'overview'">
+
+                        <!-- Embed geo data as JSON for JS consumption -->
+                        <script type="application/json" id="pv-ctx-geo-data"><t t-out="provider_geo_data_json"/></script>
+
+                        <div class="pv-ctx-filter-bar"
+                             t-att-data-hha-id="current_hha_id"
+                             t-att-data-page-key="current_page_key"
+                             t-att-data-tab-key="current_tab_key"
+                             t-att-data-state="ctx_state"
+                             t-att-data-county="ctx_county"
+                             t-att-data-locations="ctx_locations_str"
+                             t-att-data-year="ctx_year"
+                             t-att-data-payer="ctx_payer">
+
+                            <div class="pv-ctx-section-header mb-2">
+                                <i class="fa fa-sliders me-1"/>
+                                <span class="pv-ctx-section-label">Context Filters</span>
+                            </div>
+
+                            <div class="d-flex align-items-end flex-wrap gap-3">
+
+                                <!-- ── State ───────────────────────────────────── -->
+                                <div class="pv-ctx-filter-group">
+                                    <label class="pv-ctx-group-label" for="ctx-state-select">State</label>
+                                    <select class="pv-ctx-select" id="ctx-state-select">
+                                        <option value="">All States</option>
+                                        <t t-foreach="all_states" t-as="st">
+                                            <option t-att-value="st"
+                                                    t-att-selected="ctx_state == st">
+                                                <t t-esc="st"/>
+                                            </option>
+                                        </t>
+                                        <!-- Shown only when HHA State field is empty in DB -->
+                                        <t t-if="not all_states">
+                                            <option value="" disabled="1" style="color:#aaa;">
+                                                No state data — re-import CSV
+                                            </option>
+                                        </t>
+                                    </select>
+                                </div>
+
+                                <!-- ── County ──────────────────────────────────── -->
+                                <div class="pv-ctx-filter-group">
+                                    <label class="pv-ctx-group-label" for="ctx-county-select">County</label>
+                                    <select class="pv-ctx-select" id="ctx-county-select">
+                                        <option value="">All Counties</option>
+                                        <t t-foreach="counties_for_ctx" t-as="co">
+                                            <option t-att-value="co"
+                                                    t-att-selected="ctx_county == co">
+                                                <t t-esc="co"/>
+                                            </option>
+                                        </t>
+                                    </select>
+                                </div>
+
+                                <!-- ── Locations (multi-select dropdown) ───────── -->
+                                <div class="pv-ctx-filter-group">
+                                    <label class="pv-ctx-group-label">Locations</label>
+                                    <div class="dropdown" id="ctx-loc-dropdown">
+                                        <button class="pv-ctx-select pv-ctx-loc-btn dropdown-toggle"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside"
+                                                aria-expanded="false">
+                                            <span id="ctx-loc-summary">
+                                                <t t-if="ctx_cities">
+                                                    <t t-esc="len(ctx_cities)"/> selected
+                                                </t>
+                                                <t t-if="not ctx_cities">All Locations</t>
+                                            </span>
+                                        </button>
+                                        <div class="dropdown-menu pv-ctx-loc-menu">
+                                            <div class="pv-ctx-loc-search-wrap">
+                                                <i class="fa fa-search pv-ctx-loc-search-icon"/>
+                                                <input type="text"
+                                                       class="pv-ctx-loc-search"
+                                                       id="ctx-loc-search"
+                                                       placeholder="Search locations…"
+                                                       autocomplete="off"/>
+                                            </div>
+                                            <div class="pv-ctx-loc-list" id="ctx-loc-list">
+                                                <div class="pv-ctx-loc-empty" id="ctx-loc-empty">
+                                                    <i class="fa fa-map-marker me-1"/>
+                                                    Select a state to see locations
+                                                </div>
+                                            </div>
+                                            <div class="pv-ctx-loc-footer">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-link text-muted"
+                                                        id="ctx-loc-clear">Clear all</button>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary"
+                                                        id="ctx-loc-done">Done</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ── Separator ───────────────────────────────── -->
+                                <div class="pv-filter-sep" style="align-self:center; margin-bottom:2px;"/>
+
+                                <!-- ── Year ────────────────────────────────────── -->
+                                <div class="pv-ctx-filter-group">
+                                    <label class="pv-ctx-group-label" for="ctx-year-select">Year</label>
+                                    <select class="pv-ctx-select" id="ctx-year-select">
+                                        <option value="2023" t-att-selected="ctx_year == '2023'">2023</option>
+                                        <option value="2024" t-att-selected="ctx_year == '2024'">2024</option>
+                                        <option value="2025" t-att-selected="ctx_year == '2025'">2025</option>
+                                    </select>
+                                </div>
+
+                                <!-- ── Payer ─────────────────────────────────────── -->
+                                <div class="pv-ctx-filter-group">
+                                    <label class="pv-ctx-group-label" for="ctx-payer-select">Payer</label>
+                                    <select class="pv-ctx-select" id="ctx-payer-select">
+                                        <option value="all" t-att-selected="ctx_payer == 'all'">All Payers</option>
+                                        <option value="ffs" t-att-selected="ctx_payer == 'ffs'">FFS</option>
+                                        <option value="ma"  t-att-selected="ctx_payer == 'ma'">MA</option>
+                                    </select>
+                                </div>
+
+                                <!-- ── Apply button ─────────────────────────────── -->
+                                <div class="pv-ctx-filter-group">
+                                    <label class="pv-ctx-group-label">&#160;</label>
+                                    <button type="button"
+                                            class="btn btn-primary pv-ctx-apply-btn"
+                                            id="ctx-apply-btn">
+                                        <i class="fa fa-check me-1"/>Apply
+                                    </button>
+                                </div>
+
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- ============================================================ -->
+                    <!-- STRATEGIC IDENTITY + MARKET LEADERS (Overview only)         -->
+                    <!-- ============================================================ -->
+                    <t t-if="current_page_key == 'overview'">
+                    <div class="pv-overview-sections">
+
+                        <!-- ── Strategic Identity ──────────────────────────────── -->
+                        <div class="pv-section pv-si-section">
+                            <div class="pv-section-header">
+                                <span class="pv-section-title">
+                                    <i class="fa fa-star-o me-2"/>Strategic Identity
+                                </span>
+                                <span class="pv-section-tag">vs State HHAs</span>
+                            </div>
+                            <div class="pv-si-cards">
+
+                                <!-- Card 1: Access Driven Volume -->
+                                <div class="pv-si-card pv-si-card-active">
+                                    <div class="pv-si-card-header">
+                                        <span class="pv-si-card-label">ACCESS DRIVEN VOLUME</span>
+                                        <span class="pv-si-badge pv-si-badge-strong">Strong</span>
+                                    </div>
+                                    <div class="pv-si-stat">
+                                        <span class="pv-si-value">79%</span>
+                                        <span class="pv-si-sublabel">Primary</span>
+                                    </div>
+                                    <div class="pv-si-bar-track">
+                                        <div class="pv-si-bar-fill pv-bar-blue" style="width:79%"/>
+                                    </div>
+                                    <div class="pv-si-desc">Speed &amp; volume-focused care model</div>
+                                </div>
+
+                                <!-- Card 2: Therapy Centric Stabilizers -->
+                                <div class="pv-si-card">
+                                    <div class="pv-si-card-header">
+                                        <span class="pv-si-card-label">THERAPY CENTRIC STABILIZERS</span>
+                                        <span class="pv-si-badge pv-si-badge-moderate">Moderate</span>
+                                    </div>
+                                    <div class="pv-si-stat">
+                                        <span class="pv-si-value">64%</span>
+                                    </div>
+                                    <div class="pv-si-bar-track">
+                                        <div class="pv-si-bar-fill pv-bar-purple" style="width:64%"/>
+                                    </div>
+                                    <div class="pv-si-desc">Rehab &amp; therapy-intensive approach</div>
+                                </div>
+
+                                <!-- Card 3: High Acuity Specialists -->
+                                <div class="pv-si-card">
+                                    <div class="pv-si-card-header">
+                                        <span class="pv-si-card-label">HIGH ACUITY SPECIALISTS</span>
+                                        <span class="pv-si-badge pv-si-badge-strong">Strong</span>
+                                    </div>
+                                    <div class="pv-si-stat">
+                                        <span class="pv-si-value">79%</span>
+                                    </div>
+                                    <div class="pv-si-bar-track">
+                                        <div class="pv-si-bar-fill pv-bar-orange" style="width:79%"/>
+                                    </div>
+                                    <div class="pv-si-desc">Complex patient specialization</div>
+                                </div>
+
+                            </div><!-- /pv-si-cards -->
+                        </div><!-- /pv-si-section -->
+
+                        <!-- ── Market Leaders ───────────────────────────────────── -->
+                        <div class="pv-section pv-ml-section">
+                            <div class="pv-section-header">
+                                <span class="pv-section-title">
+                                    <i class="fa fa-trophy me-2"/>Market Leaders
+                                </span>
+                                <span class="pv-section-tag">All States</span>
+                            </div>
+
+                            <div class="pv-ml-table-wrap">
+                                <table class="pv-ml-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="pv-ml-th-rank">#</th>
+                                            <th class="pv-ml-th-name">HHA Name</th>
+                                            <th class="pv-ml-th-num">Admits</th>
+                                            <th class="pv-ml-th-num">ADC</th>
+                                            <th class="pv-ml-th-num">Mkt Share</th>
+                                            <th class="pv-ml-th-num">Timely Access</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="pv-ml-rank">1</td>
+                                            <td class="pv-ml-name">
+                                                MASS GENERAL BRIGHAM HOME CARE, INC.
+                                                <div class="pv-ml-sub">CCN 227207 · MASS GENERAL BRIGHAM INCORPORATED</div>
+                                            </td>
+                                            <td class="pv-ml-num">13,126</td>
+                                            <td class="pv-ml-num">1,401</td>
+                                            <td class="pv-ml-num">3.6%</td>
+                                            <td class="pv-ml-num pv-val-good">74%</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="pv-ml-rank">2</td>
+                                            <td class="pv-ml-name">
+                                                VISITING NURSE SERVICE OF NEW YORK HOME CARE II
+                                                <div class="pv-ml-sub">CCN 337098 · VISITING NURSE SERVICE OF NEW YORK</div>
+                                            </td>
+                                            <td class="pv-ml-num">11,585</td>
+                                            <td class="pv-ml-num">1,233</td>
+                                            <td class="pv-ml-num">3.1%</td>
+                                            <td class="pv-ml-num pv-val-warn">58%</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="pv-ml-rank">3</td>
+                                            <td class="pv-ml-name">
+                                                AMERICARE CERTIFIED SPECIAL SERVICES, INC.
+                                                <div class="pv-ml-sub">CCN 337290 · CARE MANAGEMENT INC.</div>
+                                            </td>
+                                            <td class="pv-ml-num">9,803</td>
+                                            <td class="pv-ml-num">1,384</td>
+                                            <td class="pv-ml-num">2.7%</td>
+                                            <td class="pv-ml-num pv-val-warn">57%</td>
+                                        </tr>
+                                        <!-- "You" row — highlighted -->
+                                        <tr class="pv-ml-you-row">
+                                            <td class="pv-ml-rank">
+                                                20
+                                                <i class="fa fa-star pv-ml-star ms-1"/>
+                                            </td>
+                                            <td class="pv-ml-name">
+                                                <t t-esc="(provider.hha_brand_name or provider.hha_name or 'YOUR HHA').upper()"/>
+                                                <span class="pv-ml-you-badge ms-2">You</span>
+                                                <div class="pv-ml-sub">
+                                                    CCN <t t-esc="provider.hha_ccn or '--'"/>
+                                                    <t t-if="provider.hha_name_owner">
+                                                        · <t t-esc="provider.hha_name_owner"/>
+                                                    </t>
+                                                </div>
+                                            </td>
+                                            <td class="pv-ml-num">4,477</td>
+                                            <td class="pv-ml-num">692</td>
+                                            <td class="pv-ml-num">1.2%</td>
+                                            <td class="pv-ml-num pv-val-bad">45%</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div><!-- /pv-ml-table-wrap -->
+                        </div><!-- /pv-ml-section -->
+
+                    </div><!-- /pv-overview-sections -->
+                    </t>
+
+                    <!-- Tab bar -->
+                    <div class="pv-tab-bar" t-if="tabs">
+                        <ul class="nav nav-tabs pv-tabs">
+                            <t t-foreach="tabs" t-as="tab">
+                                <li class="nav-item">
+                                    <a t-attf-href="/my/posterra/#{current_page_key}/#{tab['key']}?hha_id=#{current_hha_id}"
+                                       t-attf-class="nav-link #{current_tab_key == tab['key'] and 'active' or ''}">
+                                        <t t-esc="tab['name']"/>
+                                    </a>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
+
+                    <!-- Widget content area (placeholder) -->
+                    <div class="pv-content">
+                        <div class="pv-placeholder">
+                            <div class="pv-placeholder-icon">
+                                <i t-attf-class="fa #{current_page['icon']}" style="font-size: 48px; color: #ccc;"/>
+                            </div>
+                            <h4 class="text-muted mt-3">
+                                <t t-esc="current_page['name']"/>
+                                <t t-if="current_tab_name"> &gt; <t t-esc="current_tab_name"/></t>
+                            </h4>
+                            <p class="text-muted">Dashboard widgets will be rendered here.</p>
+                            <div class="row g-3 mt-3">
+                                <div class="col-md-3">
+                                    <div class="pv-widget-placeholder">
+                                        <div class="pv-widget-placeholder-label">KPI Tile</div>
+                                        <div class="pv-widget-placeholder-value">--</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="pv-widget-placeholder">
+                                        <div class="pv-widget-placeholder-label">KPI Tile</div>
+                                        <div class="pv-widget-placeholder-value">--</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="pv-widget-placeholder">
+                                        <div class="pv-widget-placeholder-label">KPI Tile</div>
+                                        <div class="pv-widget-placeholder-value">--</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="pv-widget-placeholder">
+                                        <div class="pv-widget-placeholder-label">KPI Tile</div>
+                                        <div class="pv-widget-placeholder-value">--</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="pv-widget-placeholder pv-widget-placeholder-lg">
+                                        <div class="pv-widget-placeholder-label">Chart Area</div>
+                                        <i class="fa fa-bar-chart" style="font-size: 36px; color: #ddd;"/>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="pv-widget-placeholder pv-widget-placeholder-lg">
+                                        <div class="pv-widget-placeholder-label">Chart Area</div>
+                                        <i class="fa fa-pie-chart" style="font-size: 36px; color: #ddd;"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- INLINE JS: live search inside the HHA dropdown               -->
+            <!-- ============================================================ -->
+            <script>
+            (function () {
+                'use strict';
+                document.addEventListener('DOMContentLoaded', function () {
+                    var searchInput = document.getElementById('pv-hha-search');
+                    var listEl      = document.getElementById('pv-hha-list');
+                    var noResults   = document.getElementById('pv-hha-no-results');
+                    var dropdownEl  = document.getElementById('pv-hha-selector');
+                    if (!searchInput || !listEl || !dropdownEl) return;
+
+                    // ── Prevent the search input from closing the dropdown ──────
+                    // Without data-bs-auto-close="outside", Bootstrap closes the
+                    // dropdown on ANY click inside it. We stop propagation on the
+                    // search wrap so typing/clicking in the box keeps it open.
+                    var searchWrap = searchInput.closest('.pv-hha-search-wrap');
+                    if (searchWrap) {
+                        searchWrap.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                        });
+                    }
+
+                    // ── Live filter ─────────────────────────────────────────────
+                    function getOptions() {
+                        return listEl.querySelectorAll('a.pv-hha-option');
+                    }
+
+                    searchInput.addEventListener('input', function () {
+                        var q = this.value.trim().toLowerCase();
+                        var visible = 0;
+                        getOptions().forEach(function (el) {
+                            var label = (el.getAttribute('data-label') || '').toLowerCase();
+                            var show  = !q || label.indexOf(q) !== -1;
+                            el.style.display = show ? '' : 'none';
+                            if (show) visible++;
+                        });
+                        noResults.classList.toggle('d-none', visible > 0);
+                    });
+
+                    // ── Close dropdown immediately when an HHA option is clicked ─
+                    // The page will navigate, but this gives instant visual feedback
+                    getOptions().forEach(function (el) {
+                        el.addEventListener('click', function () {
+                            var bsDropdown = bootstrap.Dropdown.getInstance(
+                                dropdownEl.querySelector('[data-bs-toggle="dropdown"]')
+                            );
+                            if (bsDropdown) bsDropdown.hide();
+                        });
+                    });
+
+                    // ── Reset search when dropdown closes ───────────────────────
+                    dropdownEl.addEventListener('hidden.bs.dropdown', function () {
+                        searchInput.value = '';
+                        getOptions().forEach(function (el) { el.style.display = ''; });
+                        noResults.classList.add('d-none');
+                    });
+
+                    // ── Auto-focus search when dropdown opens ───────────────────
+                    dropdownEl.addEventListener('shown.bs.dropdown', function () {
+                        searchInput.focus();
+                    });
+                });
+            })();
+
+            // ============================================================
+            // CONTEXT FILTER – cascading State → County → Locations
+            // ============================================================
+            (function () {
+                'use strict';
+                document.addEventListener('DOMContentLoaded', function () {
+
+                    var geoDataEl = document.getElementById('pv-ctx-geo-data');
+                    if (!geoDataEl) return;
+                    var geoData = {};
+                    try { geoData = JSON.parse(geoDataEl.textContent || '{}'); } catch (e) { return; }
+
+                    var filterBar    = document.querySelector('.pv-ctx-filter-bar');
+                    if (!filterBar) return;
+
+                    var stateSelect  = document.getElementById('ctx-state-select');
+                    var countySelect = document.getElementById('ctx-county-select');
+                    var yearSelect   = document.getElementById('ctx-year-select');
+                    var payerSelect  = document.getElementById('ctx-payer-select');
+                    var locList      = document.getElementById('ctx-loc-list');
+                    var locSummary   = document.getElementById('ctx-loc-summary');
+                    var locSearch    = document.getElementById('ctx-loc-search');
+                    var locEmpty     = document.getElementById('ctx-loc-empty');
+                    var locClear     = document.getElementById('ctx-loc-clear');
+                    var locDone      = document.getElementById('ctx-loc-done');
+                    var applyBtn     = document.getElementById('ctx-apply-btn');
+                    var locDropEl    = document.getElementById('ctx-loc-dropdown');
+
+                    if (!stateSelect || !countySelect || !locList) return;
+
+                    // Read server-rendered initial values from data attrs
+                    var initState   = filterBar.dataset.state     || '';
+                    var initCounty  = filterBar.dataset.county    || '';
+                    var initLocs    = filterBar.dataset.locations || '';
+                    var initHhaId   = filterBar.dataset.hhaId     || 'all';
+                    var initPageKey = filterBar.dataset.pageKey   || 'overview';
+                    var initTabKey  = filterBar.dataset.tabKey    || '';
+
+                    // Selected cities: Set of city name strings
+                    var selectedCities = new Set();
+                    if (initLocs) {
+                        initLocs.split(',').forEach(function (s) {
+                            s = s.trim();
+                            if (s) selectedCities.add(s);
+                        });
+                    }
+
+                    // ── Populate county select from geoData ──────────────────
+                    function populateCounties(state, selCounty) {
+                        countySelect.innerHTML = '<option value="">All Counties</option>';
+                        if (state &amp;&amp; geoData[state]) {
+                            Object.keys(geoData[state]).sort().forEach(function (co) {
+                                var opt = document.createElement('option');
+                                opt.value = co;
+                                opt.textContent = co || '(Unknown)';
+                                if (co === selCounty) opt.selected = true;
+                                countySelect.appendChild(opt);
+                            });
+                        }
+                    }
+
+                    // ── Get city list for state + county ─────────────────────
+                    // geoData structure: {state: {county: [city1, city2, ...]}}
+                    function getCities(state, county) {
+                        if (!state || !geoData[state]) return [];
+                        var cities = [];
+                        if (county &amp;&amp; geoData[state][county]) {
+                            cities = geoData[state][county].slice();
+                        } else {
+                            // All cities in the selected state
+                            var seen = {};
+                            Object.values(geoData[state]).forEach(function (arr) {
+                                arr.forEach(function (c) {
+                                    if (!seen[c]) { seen[c] = true; cities.push(c); }
+                                });
+                            });
+                            cities.sort();
+                        }
+                        return cities;
+                    }
+
+                    // ── Render city checkbox list ─────────────────────────────
+                    function renderLocList(state, county) {
+                        locList.innerHTML = '';
+                        var cities = getCities(state, county);
+
+                        if (!state) {
+                            locEmpty.textContent = 'Select a state to see locations';
+                            locEmpty.style.display = '';
+                            return;
+                        }
+                        if (cities.length === 0) {
+                            locEmpty.textContent = 'No locations found';
+                            locEmpty.style.display = '';
+                            return;
+                        }
+                        locEmpty.style.display = 'none';
+
+                        // "Select All" row
+                        locList.appendChild(makeLocItem(null, 'All Locations', true));
+
+                        cities.forEach(function (city) {
+                            locList.appendChild(makeLocItem(city, city, false));
+                        });
+
+                        updateAllCheckbox();
+                        updateLocSummary();
+                    }
+
+                    // city is a string (or null for "All"), label is display text
+                    function makeLocItem(city, label, isAll) {
+                        var item = document.createElement('label');
+                        item.className = 'pv-ctx-loc-item' + (isAll ? ' pv-ctx-loc-all' : '');
+                        item.setAttribute('data-label', label.toLowerCase());
+
+                        var cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.className = 'pv-ctx-loc-cb' + (isAll ? '' : ' pv-ctx-loc-ind');
+                        if (isAll) {
+                            cb.id = 'ctx-loc-cb-all';
+                        } else {
+                            cb.value = city;
+                            cb.checked = selectedCities.has(city);
+                        }
+
+                        var span = document.createElement('span');
+                        span.textContent = label;
+
+                        item.appendChild(cb);
+                        item.appendChild(span);
+                        return item;
+                    }
+
+                    function updateAllCheckbox() {
+                        var allCb = document.getElementById('ctx-loc-cb-all');
+                        if (!allCb) return;
+                        var indCbs = locList.querySelectorAll('.pv-ctx-loc-ind');
+                        var checked = Array.prototype.filter.call(indCbs, function (c) { return c.checked; }).length;
+                        allCb.checked = indCbs.length > 0 &amp;&amp; checked === indCbs.length;
+                        allCb.indeterminate = checked > 0 &amp;&amp; checked &lt; indCbs.length;
+                    }
+
+                    function updateLocSummary() {
+                        locSummary.textContent = selectedCities.size > 0
+                            ? selectedCities.size + ' selected'
+                            : 'All Locations';
+                    }
+
+                    // ── State change ──────────────────────────────────────────
+                    stateSelect.addEventListener('change', function () {
+                        selectedCities.clear();
+                        populateCounties(this.value, '');
+                        renderLocList(this.value, '');
+                    });
+
+                    // ── County change ─────────────────────────────────────────
+                    countySelect.addEventListener('change', function () {
+                        selectedCities.clear();
+                        renderLocList(stateSelect.value, this.value);
+                    });
+
+                    // ── Location checkbox clicks ──────────────────────────────
+                    locList.addEventListener('change', function (e) {
+                        var cb = e.target;
+                        if (!cb.classList.contains('pv-ctx-loc-cb')) return;
+
+                        if (cb.id === 'ctx-loc-cb-all') {
+                            locList.querySelectorAll('.pv-ctx-loc-ind').forEach(function (c) {
+                                c.checked = cb.checked;
+                                if (cb.checked) selectedCities.add(c.value);
+                                else selectedCities.delete(c.value);
+                            });
+                        } else {
+                            if (cb.checked) selectedCities.add(cb.value);
+                            else selectedCities.delete(cb.value);
+                            updateAllCheckbox();
+                        }
+                        updateLocSummary();
+                    });
+
+                    // ── Location search ───────────────────────────────────────
+                    if (locSearch) {
+                        var searchWrap = locSearch.closest('.pv-ctx-loc-search-wrap');
+                        if (searchWrap) {
+                            searchWrap.addEventListener('click', function (e) { e.stopPropagation(); });
+                        }
+                        locSearch.addEventListener('input', function () {
+                            var q = this.value.trim().toLowerCase();
+                            locList.querySelectorAll('.pv-ctx-loc-item:not(.pv-ctx-loc-all)').forEach(function (item) {
+                                var lbl = item.getAttribute('data-label') || '';
+                                item.style.display = !q || lbl.indexOf(q) !== -1 ? '' : 'none';
+                            });
+                        });
+                    }
+
+                    // ── Clear all locations ───────────────────────────────────
+                    if (locClear) {
+                        locClear.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            selectedCities.clear();
+                            locList.querySelectorAll('.pv-ctx-loc-ind').forEach(function (c) { c.checked = false; });
+                            updateAllCheckbox();
+                            updateLocSummary();
+                        });
+                    }
+
+                    // ── Done closes the location dropdown ─────────────────────
+                    if (locDone &amp;&amp; locDropEl) {
+                        locDone.addEventListener('click', function () {
+                            var bsDrop = bootstrap.Dropdown.getInstance(
+                                locDropEl.querySelector('[data-bs-toggle="dropdown"]')
+                            );
+                            if (bsDrop) bsDrop.hide();
+                        });
+                    }
+
+                    // ── Build apply URL ───────────────────────────────────────
+                    function buildUrl() {
+                        var state    = stateSelect.value;
+                        var county   = countySelect.value;
+                        var year     = yearSelect  ? yearSelect.value  : '2025';
+                        var payer    = payerSelect ? payerSelect.value : 'all';
+                        var cityStr  = Array.from(selectedCities).join(',');
+                        var params   = new URLSearchParams();
+                        params.set('hha_id', initHhaId);
+                        if (state)   params.set('ctx_state',     state);
+                        if (county)  params.set('ctx_county',    county);
+                        if (cityStr) params.set('ctx_locations', cityStr);
+                        if (year  !== '2025') params.set('ctx_year',  year);
+                        if (payer !== 'all')  params.set('ctx_payer', payer);
+                        var tabPart = initTabKey ? '/' + initTabKey : '';
+                        return '/my/posterra/' + initPageKey + tabPart + '?' + params.toString();
+                    }
+
+                    // ── Apply button ──────────────────────────────────────────
+                    if (applyBtn) {
+                        applyBtn.addEventListener('click', function () {
+                            window.location.href = buildUrl();
+                        });
+                    }
+
+                    // ── Initialise on page load ───────────────────────────────
+                    populateCounties(initState, initCounty);
+                    renderLocList(initState, initCounty);
+                });
+            })();
+            </script>
+
+        </t>
+    </template>
+
+</odoo>

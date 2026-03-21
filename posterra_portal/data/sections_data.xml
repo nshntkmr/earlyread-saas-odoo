@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        noupdate="1" — admin edits (name changes, SQL updates, reordering,
+        deactivation) persist across module upgrades.
+
+        These seed records reproduce the layout that was previously hard-coded
+        in dashboard_templates.xml.  Admins should replace the placeholder SQL
+        with real queries once the underlying tables are wired up.
+    -->
+    <data noupdate="1">
+
+        <!-- ================================================================ -->
+        <!-- Overview page — Strategic Identity (comparison_bar)              -->
+        <!-- ================================================================ -->
+        <record id="section_overview_strategic_identity" model="dashboard.page.section">
+            <field name="page_id" ref="page_overview"/>
+            <field name="name">Strategic Identity</field>
+            <field name="icon">fa-star-o</field>
+            <field name="action_label">vs State HHAs</field>
+            <field name="section_type">comparison_bar</field>
+            <field name="sequence">10</field>
+            <field name="is_active">True</field>
+            <!-- Column mapping -->
+            <field name="cb_label_col">label</field>
+            <field name="cb_value_col">value</field>
+            <field name="cb_status_col">status</field>
+            <field name="cb_desc_col">description</field>
+            <field name="cb_sublabel_col">sublabel</field>
+            <!--
+                Placeholder SQL — reproduces the previously hard-coded values.
+                Replace with a real query, e.g.:
+                    SELECT metric_name AS label,
+                           score       AS value,
+                           status_band AS status,
+                           description AS description,
+                           category    AS sublabel
+                    FROM   hha_strategic_identity_mv
+                    WHERE  hha_ccn = %(hha_name)s
+            -->
+            <field name="query_sql">SELECT 'ACCESS DRIVEN VOLUME'              AS label,
+       79                                   AS value,
+       'Strong'                             AS status,
+       'Speed &amp; volume-focused care model'   AS description,
+       'Primary'                            AS sublabel
+UNION ALL
+SELECT 'THERAPY CENTRIC STABILIZERS',
+       64,
+       'Moderate',
+       'Rehab &amp; therapy-intensive approach',
+       NULL
+UNION ALL
+SELECT 'HIGH ACUITY SPECIALISTS',
+       79,
+       'Strong',
+       'Complex patient specialization',
+       NULL</field>
+        </record>
+
+        <!-- ================================================================ -->
+        <!-- Overview page — Market Leaders (leaderboard_table)               -->
+        <!-- ================================================================ -->
+        <record id="section_overview_market_leaders" model="dashboard.page.section">
+            <field name="page_id" ref="page_overview"/>
+            <field name="name">Market Leaders</field>
+            <field name="icon">fa-trophy</field>
+            <field name="action_label">All States</field>
+            <field name="section_type">leaderboard_table</field>
+            <field name="sequence">20</field>
+            <field name="is_active">True</field>
+            <!-- Column mapping -->
+            <field name="lt_rank_col">rank</field>
+            <field name="lt_name_col">hha_name</field>
+            <field name="lt_sub_name_cols">sub_info</field>
+            <field name="lt_display_cols">admits,adc,mkt_share,timely_access</field>
+            <field name="lt_display_labels">Admits,ADC,Mkt Share,Timely Access</field>
+            <field name="lt_you_col">is_you</field>
+            <field name="lt_color_col">timely_access</field>
+            <field name="lt_good_threshold">70</field>
+            <field name="lt_warn_threshold">50</field>
+            <!--
+                Placeholder SQL — reproduces the previously hard-coded values.
+                Replace with a real query, e.g.:
+                    SELECT RANK() OVER (ORDER BY admits DESC)    AS rank,
+                           hha_name,
+                           'CCN ' || hha_ccn || ' · ' || owner  AS sub_info,
+                           admits, adc, mkt_share, timely_access,
+                           CASE WHEN hha_ccn = %(hha_name)s THEN 1 ELSE 0 END AS is_you
+                    FROM   hha_market_leaders_mv
+                    WHERE  hha_state = %(hha_state)s
+                    ORDER BY rank
+                    LIMIT 25
+            -->
+            <field name="query_sql">SELECT 1                                                     AS rank,
+       'MASS GENERAL BRIGHAM HOME CARE, INC.'              AS hha_name,
+       'CCN 227207 · MASS GENERAL BRIGHAM INCORPORATED'    AS sub_info,
+       13126                                               AS admits,
+       1401                                                AS adc,
+       '3.6%%'                                             AS mkt_share,
+       74                                                  AS timely_access,
+       0                                                   AS is_you
+UNION ALL
+SELECT 2,
+       'VISITING NURSE SERVICE OF NEW YORK HOME CARE II',
+       'CCN 337098 · VISITING NURSE SERVICE OF NEW YORK',
+       11585, 1233, '3.1%%', 58, 0
+UNION ALL
+SELECT 3,
+       'AMERICARE CERTIFIED SPECIAL SERVICES, INC.',
+       'CCN 337290 · CARE MANAGEMENT INC.',
+       9803, 1384, '2.7%%', 57, 0
+UNION ALL
+SELECT 20,
+       'YOUR HHA (replace with real SQL)',
+       '-- update query_sql in backend --',
+       4477, 692, '1.2%%', 45, 1</field>
+        </record>
+
+    </data>
+</odoo>

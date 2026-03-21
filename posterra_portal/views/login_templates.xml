@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Strip website chrome from /web/login.
+         website.login_layout (priority=20) replaces web.frontend_layout with
+         website.layout, which adds the full website navbar + footer.
+         We override it at priority=30 to swap back to web.frontend_layout
+         with no_header + no_footer so the login card renders without chrome. -->
+    <template id="posterra_website_login_layout" inherit_id="website.login_layout"
+              priority="30" name="Posterra — Strip Login Chrome">
+        <xpath expr="//t[@t-call='website.layout']" position="replace">
+            <t t-call="web.frontend_layout">
+                <t t-set="no_header" t-value="True"/>
+                <t t-set="no_footer" t-value="True"/>
+                <t t-set="no_copyright" t-value="True"/>
+                <div class="oe_website_login_container" t-out="0"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- Posterra branding injected into web.login (the form template).
+         We target web.login rather than web.login_layout because
+         website.login_layout (priority=20) replaces the entire card structure
+         in web.login_layout — including the logo div we used to target.
+         The oe_login_form element in web.login is a stable anchor that
+         survives all outer-layout overrides. -->
+    <template id="login_layout_posterra" inherit_id="web.login" name="Posterra Login Branding">
+        <!-- Brand header: injected above the login form -->
+        <xpath expr="//form[@role='form']" position="before">
+            <div class="text-center pb-3 border-bottom mb-4">
+                <div class="posterra-login-logo">
+                    <i class="fa fa-heartbeat" style="font-size: 48px; color: #0066cc;"/>
+                </div>
+                <h4 class="mt-2 mb-0" style="color: #0066cc; font-weight: 700;">Posterra</h4>
+                <p class="text-muted small mb-0">Healthcare Analytics Portal</p>
+            </div>
+        </xpath>
+        <!-- Brand footer: injected below the login form -->
+        <xpath expr="//form[@role='form']" position="after">
+            <div class="text-center small mt-4 pt-3 border-top text-muted">
+                Posterra &#169; 2026
+            </div>
+        </xpath>
+    </template>
+
+    <!-- Override login form: customize email hint -->
+    <template id="login_posterra" inherit_id="web.login" name="Posterra Login Fields">
+        <xpath expr="//label[@for='login']" position="replace">
+            <label for="login" class="form-label d-flex justify-content-between">
+                Email <small class="text-muted">(username@yourhha.com)</small>
+            </label>
+        </xpath>
+    </template>
+
+    <!-- ================================================================ -->
+    <!-- STANDALONE BRANDED LOGIN — Phase 4                                -->
+    <!-- Served at /my/<app_key>/login by PosterraPortal.posterra_login.  -->
+    <!-- Does NOT inherit web.login — completely independent form.         -->
+    <!-- Calls web.frontend_layout directly with no_header + no_footer.   -->
+    <!-- ================================================================ -->
+    <template id="login" name="Posterra Custom Login">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <t t-set="no_copyright" t-value="True"/>
+            <t t-set="title" t-value="'Posterra — Sign In'"/>
+            <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/favicon.png'"/>
+            <t t-set="body_classname" t-value="'pv-login-page'"/>
+
+            <div class="pv-login-wrapper d-flex align-items-center justify-content-center">
+                <div class="pv-login-card">
+
+                    <!-- Brand header -->
+                    <div class="pv-login-brand text-center">
+                        <i class="fa fa-heartbeat pv-login-logo-icon"/>
+                        <h1 class="pv-login-title">Posterra</h1>
+                        <p class="pv-login-subtitle">Healthcare Analytics Portal</p>
+                    </div>
+
+                    <!-- Error / message alerts -->
+                    <div t-if="error" class="alert alert-danger" role="alert">
+                        <t t-esc="error"/>
+                    </div>
+                    <div t-if="message" class="alert alert-success" role="status">
+                        <t t-esc="message"/>
+                    </div>
+
+                    <!-- Login form — POST back to the same URL -->
+                    <form method="POST" t-att-action="login_url" class="pv-login-form">
+                        <input type="hidden" name="csrf_token"
+                               t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="redirect"
+                               t-att-value="redirect or ''"/>
+
+                        <div class="mb-3">
+                            <label for="pv-login" class="form-label">
+                                Email
+                                <small class="text-muted ms-1">(username@yourhha.com)</small>
+                            </label>
+                            <input type="email"
+                                   id="pv-login"
+                                   name="login"
+                                   t-att-value="login_val or ''"
+                                   class="form-control"
+                                   placeholder="Enter your email"
+                                   required="required"
+                                   autocapitalize="off"
+                                   autocomplete="username"
+                                   autofocus="autofocus"/>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="pv-password" class="form-label">Password</label>
+                            <div class="input-group">
+                                <input type="password"
+                                       id="pv-password"
+                                       name="password"
+                                       class="form-control"
+                                       placeholder="Enter your password"
+                                       required="required"
+                                       autocomplete="current-password"
+                                       maxlength="4096"/>
+                                <button type="button"
+                                        class="btn btn-outline-secondary pv-login-show-pw"
+                                        title="Show/hide password">
+                                    <i class="fa fa-eye"/>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary pv-login-btn">
+                                <i class="fa fa-sign-in me-1"/>Sign In
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="pv-login-footer text-center mt-4">
+                        Posterra &#169; 2026
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Password show/hide toggle — self-contained, no external deps -->
+            <script type="text/javascript">
+                (function () {
+                    'use strict';
+                    document.addEventListener('DOMContentLoaded', function () {
+                        var btn = document.querySelector('.pv-login-show-pw');
+                        var inp = document.getElementById('pv-password');
+                        if (btn &amp;&amp; inp) {
+                            btn.addEventListener('click', function () {
+                                inp.type = inp.type === 'password' ? 'text' : 'password';
+                                var icon = btn.querySelector('.fa');
+                                if (icon) {
+                                    icon.className = inp.type === 'password'
+                                        ? 'fa fa-eye' : 'fa fa-eye-slash';
+                                }
+                            });
+                        }
+                    });
+                })();
+            </script>
+        </t>
+    </template>
+
+</odoo>

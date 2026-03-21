@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!--
+        Seed data for the saas.app registry (Phase 5).
+        noupdate="1" — these records are only created on first install.
+        Existing records are never overwritten during upgrade so admin
+        customisations (colours, logos, taglines) are preserved.
+
+        post_init_hook in __init__.py populates dashboard.page.app_id
+        by mapping portal_type → app for all pages that have no app_id yet.
+    -->
+
+    <record id="app_posterra" model="saas.app">
+        <field name="name">Posterra</field>
+        <field name="app_key">posterra</field>
+        <field name="default_page_key">overview</field>
+        <field name="access_mode">hha_provider</field>
+        <field name="primary_color">#0066cc</field>
+        <field name="tagline">Healthcare Analytics Portal</field>
+        <field name="is_active" eval="True"/>
+    </record>
+
+    <record id="app_mssp" model="saas.app">
+        <field name="name">MSSP Portal</field>
+        <field name="app_key">mssp</field>
+        <field name="default_page_key">mssp_overview</field>
+        <field name="access_mode">group</field>
+        <field name="access_group_xmlid">posterra_portal.group_posterra_mssp_user</field>
+        <field name="is_active" eval="True"/>
+    </record>
+
+</odoo>

@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hha_provider_tree" model="ir.ui.view">
+        <field name="name">hha.provider.list</field>
+        <field name="model">hha.provider</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="hha_name"/>
+                <field name="hha_ccn"/>
+                <field name="hha_dba"/>
+                <field name="hha_city"/>
+                <field name="hha_county"/>
+                <field name="hha_state"/>
+                <field name="domain_match_name" string="Email Match Name" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_hha_provider_search" model="ir.ui.view">
+        <field name="name">hha.provider.search</field>
+        <field name="model">hha.provider</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="hha_name"   string="Provider Name"/>
+                <field name="hha_ccn"/>
+                <field name="hha_city"   string="City"/>
+                <field name="hha_county" string="County"/>
+                <field name="hha_state"  string="State"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_hha_provider_form" model="ir.ui.view">
+        <field name="name">hha.provider.form</field>
+        <field name="model">hha.provider</field>
+        <field name="arch" type="xml">
+            <form string="HHA Provider">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="hha_name" placeholder="HHA Name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="hha_ccn"/>
+                            <field name="hha_dba"/>
+                            <field name="hha_brand_name"/>
+                            <field name="hha_npi"/>
+                        </group>
+                        <group>
+                            <field name="hha_address"/>
+                            <field name="hha_city"/>
+                            <field name="hha_county"/>
+                            <field name="hha_state"/>
+                            <field name="hha_state_cd"/>
+                            <field name="hha_zip"/>
+                            <field name="domain_match_name" string="Email Match Name" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Associated Users">
+                            <field name="partner_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="email"/>
+                                    <field name="is_posterra_user"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Add HHA Provider field to Contact form -->
+    <record id="view_partner_form_hha" model="ir.ui.view">
+        <field name="name">res.partner.form.hha</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <field name="company_id" position="after">
+                <field name="hha_provider_id"
+                       options="{'no_create': False, 'no_quick_create': False}"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Add HHA Provider field to User form -->
+    <record id="view_users_form_hha" model="ir.ui.view">
+        <field name="name">res.users.form.hha</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <field name="company_id" position="after">
+                <field name="hha_provider_id" readonly="1"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="action_hha_provider" model="ir.actions.act_window">
+        <field name="name">HHA Providers</field>
+        <field name="res_model">hha.provider</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_hha_provider_search"/>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Server Action: Check Geographic Data                              -->
+    <!-- Shows how many records have / are missing hha_state/county/city  -->
+    <!-- ================================================================ -->
+    <record id="action_check_geo_data" model="ir.actions.server">
+        <field name="name">Check Geographic Data</field>
+        <field name="model_id" ref="posterra_portal.model_hha_provider"/>
+        <field name="binding_model_id" ref="posterra_portal.model_hha_provider"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+all_records = env['hha.provider'].search([])
+total       = len(all_records)
+has_state   = len(all_records.filtered(lambda r: r.hha_state))
+has_county  = len(all_records.filtered(lambda r: r.hha_county))
+has_city    = len(all_records.filtered(lambda r: r.hha_city))
+
+sample_lines = []
+for r in all_records[:5]:
+    sample_lines.append("  CCN %s | State=%r | County=%r | City=%r" % (
+        r.hha_ccn, r.hha_state, r.hha_county, r.hha_city
+    ))
+
+raise UserError(
+    "Geographic Data Report — %d total records\n\n"
+    "  With hha_state  : %d  (missing: %d)\n"
+    "  With hha_county : %d  (missing: %d)\n"
+    "  With hha_city   : %d  (missing: %d)\n\n"
+    "Sample (first 5 records):\n%s\n\n"
+    "If all fields show '' or None → re-import CSV with 'Update Existing Records' checked."
+    % (total,
+       has_state,  total - has_state,
+       has_county, total - has_county,
+       has_city,   total - has_city,
+       "\n".join(sample_lines))
+)
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Server Action: Recompute Domain Match Name                        -->
+    <!-- Appears in the Action menu of the HHA Provider list/form view.   -->
+    <!-- Admins can click this any time the matching logic changes or      -->
+    <!-- after a bulk CSV import to refresh all stored domain_match_name   -->
+    <!-- values without needing shell access.                              -->
+    <!-- ================================================================ -->
+    <record id="action_recompute_domain_match" model="ir.actions.server">
+        <field name="name">Recompute Email Match Names</field>
+        <field name="model_id" ref="posterra_portal.model_hha_provider"/>
+        <field name="binding_model_id" ref="posterra_portal.model_hha_provider"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+records = env['hha.provider'].search([])
+records.invalidate_recordset(['domain_match_name'])
+records._compute_domain_match_name()
+raise UserError(
+    "Done — recomputed domain_match_name for %d HHA provider(s).\n\n"
+    "Rule applied: HHA DBA (if set) → HHA Name." % len(records)
+)
+        </field>
+    </record>
+
+</odoo>

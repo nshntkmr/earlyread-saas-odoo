@@ -1,0 +1,11 @@
+"id","name","model_id:id","group_id:id","perm_read","perm_write","perm_create","perm_unlink"
+"access_hha_provider_portal","hha.provider portal","model_hha_provider","posterra_portal.group_posterra_user",1,0,0,0
+"access_hha_provider_admin","hha.provider admin","model_hha_provider","posterra_portal.group_posterra_admin",1,1,1,1
+"access_dashboard_page_section_portal","dashboard.page.section portal","model_dashboard_page_section","posterra_portal.group_posterra_user",1,0,0,0
+"access_dashboard_page_section_admin","dashboard.page.section admin","model_dashboard_page_section","posterra_portal.group_posterra_admin",1,1,1,1
+"access_dashboard_nav_section_portal","dashboard.nav.section portal","model_dashboard_nav_section","posterra_portal.group_posterra_user",1,0,0,0
+"access_dashboard_nav_section_admin","dashboard.nav.section admin","model_dashboard_nav_section","posterra_portal.group_posterra_admin",1,1,1,1
+"access_hha_scope_group_portal","hha.scope.group portal","model_hha_scope_group","posterra_portal.group_posterra_user",1,0,0,0
+"access_hha_scope_group_admin","hha.scope.group admin","model_hha_scope_group","posterra_portal.group_posterra_admin",1,1,1,1
+"access_hha_scope_group_match_field_portal","hha.scope.group.match.field portal","model_hha_scope_group_match_field","posterra_portal.group_posterra_user",1,0,0,0
+"access_hha_scope_group_match_field_admin","hha.scope.group.match.field admin","model_hha_scope_group_match_field","posterra_portal.group_posterra_admin",1,1,1,1

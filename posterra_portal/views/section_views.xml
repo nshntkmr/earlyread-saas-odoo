@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.section — List view                               -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_page_section_list" model="ir.ui.view">
+        <field name="name">dashboard.page.section.list</field>
+        <field name="model">dashboard.page.section</field>
+        <field name="arch" type="xml">
+            <list string="Page Sections">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="page_id"/>
+                <field name="section_type"/>
+                <field name="action_label"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.section — Form view                               -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_page_section_form" model="ir.ui.view">
+        <field name="name">dashboard.page.section.form</field>
+        <field name="model">dashboard.page.section</field>
+        <field name="arch" type="xml">
+            <form string="Page Section">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactive" bg_color="bg-danger"
+                            invisible="is_active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Section Title"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Strategic Identity"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="Placement">
+                            <field name="page_id"/>
+                            <field name="sequence"/>
+                            <field name="is_active"/>
+                        </group>
+                        <group string="Header">
+                            <field name="icon"
+                                   placeholder="fa-star-o  (any Font Awesome 4 class)"/>
+                            <field name="action_label"
+                                   placeholder="e.g. vs State HHAs  (static badge, optional)"/>
+                            <field name="section_type"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group string="Annotations">
+                            <field name="subtitle"
+                                   placeholder="e.g. Compared against state median"/>
+                            <field name="description" widget="text"
+                                   placeholder="Explanatory text shown below the section header"
+                                   style="min-height: 60px;"/>
+                            <field name="footnote" widget="text"
+                                   placeholder="e.g. Source: CMS Compare data CY2024"
+                                   style="min-height: 60px;"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+
+                        <!-- ─────────────────────────────── Query tab ──── -->
+                        <page string="Query" name="query">
+                            <group>
+                                <field name="schema_source_id"
+                                       placeholder="Select the MV or table this section queries"/>
+                                <field name="where_clause_exclude"
+                                       placeholder="e.g. year  (comma-separated param names to exclude)"/>
+                                <field name="query_sql" widget="text"
+                                       placeholder="SELECT metric_name AS label, score AS value, status, description FROM my_table WHERE hha_state = {hha_state} -- use {param_name} for filter values"
+                                       style="font-family: monospace; min-height: 140px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+
+                        <!-- ──────────────────── Column Mapping tab ──── -->
+                        <page string="Column Mapping" name="columns">
+
+                            <!-- Comparison Bar columns -->
+                            <group string="Comparison Bar Columns"
+                                   invisible="section_type != 'comparison_bar'">
+                                <field name="cb_label_col"
+                                       placeholder="e.g. metric_name  (card heading)"/>
+                                <field name="cb_value_col"
+                                       placeholder="e.g. score  (0-100, sets bar width)"/>
+                                <field name="cb_status_col"
+                                       placeholder="e.g. status  (Strong/Moderate/Weak/Neutral)"/>
+                                <field name="cb_desc_col"
+                                       placeholder="e.g. description  (small text at card bottom)"/>
+                                <field name="cb_sublabel_col"
+                                       placeholder="e.g. category  (optional sub-label beside value)"/>
+                            </group>
+
+                            <!-- Leaderboard Table columns -->
+                            <group string="Leaderboard Table Columns"
+                                   invisible="section_type != 'leaderboard_table'">
+                                <field name="lt_rank_col"
+                                       placeholder="e.g. rank"/>
+                                <field name="lt_name_col"
+                                       placeholder="e.g. hha_name  (primary name column)"/>
+                                <field name="lt_sub_name_cols"
+                                       placeholder="e.g. sub_info  (comma-sep, shown below name)"/>
+                                <field name="lt_display_cols"
+                                       placeholder="e.g. admits,adc,mkt_share,timely_access"/>
+                                <field name="lt_display_labels"
+                                       placeholder="e.g. Admits,ADC,Mkt Share,Timely Access"/>
+                                <field name="lt_you_col"
+                                       placeholder="e.g. is_you  (returns 1 for highlighted row)"/>
+                                <field name="lt_color_col"
+                                       placeholder="e.g. timely_access  (color-coded by thresholds)"/>
+                                <field name="lt_good_threshold"
+                                       placeholder="70"/>
+                                <field name="lt_warn_threshold"
+                                       placeholder="50"/>
+                            </group>
+
+                        </page>
+
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.section — Action                                  -->
+    <!-- ================================================================ -->
+    <record id="action_dashboard_page_section" model="ir.actions.act_window">
+        <field name="name">Page Sections</field>
+        <field name="res_model">dashboard.page.section</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'group_by': 'page_id'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No page sections yet.
+            </p>
+            <p>
+                Page sections appear above the tab bar on a portal page.
+                Use <b>Comparison Bar</b> to show KPI cards with progress bars,
+                or <b>Leaderboard Table</b> to show a ranked table with a
+                highlighted "You" row.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Menuitem: Configuration → Page Sections                          -->
+    <!-- ================================================================ -->
+    <menuitem id="menu_dashboard_page_sections"
+              name="Page Sections"
+              parent="menu_posterra_config"
+              action="action_dashboard_page_section"
+              sequence="5"/>
+
+</odoo>

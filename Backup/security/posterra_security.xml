@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Group: Posterra Portal User (implies portal) -->
+    <record id="group_posterra_user" model="res.groups">
+        <field name="name">Posterra Portal User</field>
+        <field name="implied_ids" eval="[Command.link(ref('base.group_portal'))]"/>
+        <field name="comment">Portal users who can access the Posterra dashboard. They can only view their own HHA data.</field>
+    </record>
+
+    <!-- Group: Posterra Admin (internal users) -->
+    <record id="group_posterra_admin" model="res.groups">
+        <field name="name">Posterra Admin</field>
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]"/>
+        <field name="comment">Internal users who manage HHA provider data, import CSVs, and administer portal users.</field>
+    </record>
+
+    <!-- Record Rule: Portal users can read HHA providers (filtering by email domain is done in controllers) -->
+    <record id="rule_hha_provider_portal_own" model="ir.rule">
+        <field name="name">HHA Provider: Portal users read access</field>
+        <field name="model_id" ref="model_hha_provider"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[Command.link(ref('group_posterra_user'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- Record Rule: Admins see all HHA providers -->
+    <record id="rule_hha_provider_admin_all" model="ir.rule">
+        <field name="name">HHA Provider: Admins see all</field>
+        <field name="model_id" ref="model_hha_provider"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[Command.link(ref('group_posterra_admin'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+</odoo>

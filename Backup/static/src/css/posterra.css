@@ -1,0 +1,1067 @@
+/* ========================================================================
+   Posterra Portal - CSS Styles
+   ======================================================================== */
+
+/* --- CSS Variables --- */
+:root {
+    --pv-primary: #0066cc;
+    --pv-primary-dark: #004d99;
+    --pv-sidebar-bg: #1a1f2e;
+    --pv-sidebar-hover: #252b3d;
+    --pv-sidebar-active: #0066cc;
+    --pv-sidebar-text: #a0aec0;
+    --pv-sidebar-text-active: #ffffff;
+    --pv-sidebar-width: 240px;
+    --pv-header-bg: #ffffff;
+    --pv-content-bg: #f4f6f9;
+}
+
+/* --- Dashboard Layout --- */
+.pv-dashboard {
+    min-height: calc(100vh - 56px);
+    background-color: var(--pv-content-bg);
+}
+
+/* --- Sidebar --- */
+.pv-sidebar {
+    width: var(--pv-sidebar-width);
+    min-width: var(--pv-sidebar-width);
+    background-color: var(--pv-sidebar-bg);
+    color: var(--pv-sidebar-text);
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
+.pv-sidebar-header {
+    padding: 20px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pv-sidebar-brand {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--pv-sidebar-text-active);
+    margin-bottom: 4px;
+}
+
+.pv-sidebar-brand .fa {
+    color: var(--pv-primary);
+}
+
+.pv-sidebar-provider {
+    font-size: 12px;
+    color: var(--pv-sidebar-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pv-sidebar-nav {
+    padding: 8px 0;
+}
+
+.pv-sidebar-section-label {
+    padding: 16px 16px 4px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(160, 174, 192, 0.6);
+}
+
+.pv-sidebar-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    color: var(--pv-sidebar-text);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.15s ease;
+    border-left: 3px solid transparent;
+}
+
+.pv-sidebar-item:hover {
+    background-color: var(--pv-sidebar-hover);
+    color: var(--pv-sidebar-text-active);
+    text-decoration: none;
+}
+
+.pv-sidebar-item.active {
+    background-color: rgba(0, 102, 204, 0.15);
+    color: var(--pv-sidebar-text-active);
+    border-left-color: var(--pv-sidebar-active);
+    font-weight: 500;
+}
+
+.pv-sidebar-icon {
+    width: 20px;
+    text-align: center;
+    margin-right: 10px;
+    font-size: 14px;
+}
+
+/* --- Main Content Area --- */
+.pv-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* prevent flex overflow */
+}
+
+.pv-page-header {
+    background-color: var(--pv-header-bg);
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.pv-page-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1a202c;
+}
+
+/* --- Tab Bar --- */
+.pv-tab-bar {
+    background-color: var(--pv-header-bg);
+    padding: 0 24px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.pv-tabs .nav-link {
+    color: #718096;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.pv-tabs .nav-link:hover {
+    color: var(--pv-primary);
+    border-bottom-color: rgba(0, 102, 204, 0.3);
+}
+
+.pv-tabs .nav-link.active {
+    color: var(--pv-primary);
+    border-bottom-color: var(--pv-primary);
+    background: transparent;
+}
+
+/* --- Content Area --- */
+.pv-content {
+    padding: 24px;
+    flex-grow: 1;
+}
+
+/* --- Placeholder Widgets --- */
+.pv-placeholder {
+    text-align: center;
+    padding: 40px 20px 20px;
+}
+
+.pv-placeholder-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #edf2f7;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pv-widget-placeholder {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.pv-widget-placeholder-lg {
+    min-height: 180px;
+}
+
+.pv-widget-placeholder-label {
+    font-size: 12px;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.pv-widget-placeholder-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #cbd5e0;
+}
+
+/* ========================================================================
+   HHA FILTER BAR
+   ======================================================================== */
+
+.pv-filter-bar {
+    background-color: var(--pv-header-bg);
+    padding: 10px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    min-height: 52px;
+}
+
+/* ── Org chip (always shows org name as label) ─────────────────────── */
+.pv-hha-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #e8f0fe;
+    color: #1a56db;
+    border: 1.5px solid #c3d3fa;
+    border-radius: 20px;
+    padding: 5px 12px 5px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+    line-height: 1.4;
+}
+
+.pv-hha-chip:hover,
+.pv-hha-chip:focus,
+.pv-hha-chip.show {
+    background-color: #d0e2fc;
+    border-color: #1a56db;
+    color: #1a56db;
+    outline: none;
+    box-shadow: none;
+}
+
+/* Org name text inside the chip */
+.pv-hha-chip-org {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Count badge inside the chip */
+.pv-hha-count-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #1a56db;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 7px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+/* ── Dropdown panel ────────────────────────────────────────────────── */
+/*
+ * IMPORTANT: do NOT set display here.
+ * Bootstrap's .dropdown-menu uses "display: none" to hide and adds .show
+ * to reveal it. If we set "display: flex" on the base rule it overrides
+ * Bootstrap's hide and the panel stays visible even after clicking outside.
+ * We apply flex layout only on .show (see rule below).
+ */
+.pv-hha-dropdown {
+    min-width: 380px;
+    max-height: 440px;
+    overflow: hidden;          /* children handle their own overflow */
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
+    border: 1px solid #e2e8f0;
+    padding: 0;
+}
+
+/* Apply flex column layout only when Bootstrap has opened the menu */
+.pv-hha-dropdown.show {
+    display: flex !important;
+    flex-direction: column;
+}
+
+/* Search row */
+.pv-hha-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid #f0f4f8;
+    flex-shrink: 0;
+}
+
+.pv-hha-search-icon {
+    color: #a0aec0;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.pv-hha-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    color: #2d3748;
+    background: transparent;
+    padding: 0;
+}
+
+.pv-hha-search-input::placeholder {
+    color: #a0aec0;
+}
+
+/* Header row inside dropdown */
+.pv-hha-dropdown-header {
+    padding: 6px 14px 4px;
+    flex-shrink: 0;
+}
+
+.pv-hha-dropdown-org {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #718096;
+}
+
+.pv-hha-dropdown-divider {
+    height: 1px;
+    background: #f0f4f8;
+    margin: 2px 0;
+    flex-shrink: 0;
+}
+
+/* Scrollable list */
+.pv-hha-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px 0;
+}
+
+/* Each option anchor */
+.pv-hha-option {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #2d3748;
+    text-decoration: none;
+    transition: background 0.1s;
+    cursor: pointer;
+}
+
+.pv-hha-option:hover {
+    background-color: #f0f4ff;
+    color: #1a56db;
+    text-decoration: none;
+}
+
+.pv-hha-option.is-selected {
+    background-color: #e8f0fe;
+    color: #1a56db;
+}
+
+/* Check column – fixed 24px so labels align */
+.pv-hha-option-check {
+    width: 24px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: #1a56db;
+}
+
+.pv-hha-option-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* "All N HHAs" row – slight top border to separate from list */
+.pv-hha-option:first-child {
+    border-bottom: 1px solid #f0f4f8;
+    margin-bottom: 2px;
+}
+
+/* Empty search result message */
+.pv-hha-no-results {
+    padding: 14px;
+    text-align: center;
+    font-size: 13px;
+    color: #a0aec0;
+}
+
+/* ── Active-filter pill (shows the SELECTED HHA with × to clear) ───── */
+.pv-active-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #fffbeb;
+    color: #92400e;
+    border: 1.5px solid #fcd34d;
+    border-radius: 14px;
+    padding: 3px 8px 3px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.pv-active-filter-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fcd34d;
+    color: #92400e;
+    font-size: 9px;
+    text-decoration: none;
+    transition: background 0.1s;
+    flex-shrink: 0;
+}
+
+.pv-active-filter-clear:hover {
+    background: #f59e0b;
+    color: #fff;
+    text-decoration: none;
+}
+
+/* ── Info pills (state, NPI etc.) ──────────────────────────────────── */
+.pv-filter-info-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background-color: #f7fafc;
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.pv-filter-info-pill--all {
+    background-color: #f0fff4;
+    border-color: #9ae6b4;
+    color: #276749;
+}
+
+/* ── Vertical separator ────────────────────────────────────────────── */
+.pv-filter-sep {
+    width: 1px;
+    height: 22px;
+    background: #e2e8f0;
+    flex-shrink: 0;
+}
+
+/* ── Live Data pulsing badge ───────────────────────────────────────── */
+.pv-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #f0fff4;
+    color: #276749;
+    border: 1px solid #9ae6b4;
+    border-radius: 14px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pv-live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background-color: #38a169;
+    border-radius: 50%;
+    animation: pv-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pv-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* --- Live Data Badge (legacy) --- */
+.pv-live-indicator .badge {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+}
+
+/* ========================================================================
+   CONTEXT FILTER BAR  (Overview page — State / County / Locations / Year / Payer)
+   ======================================================================== */
+
+.pv-ctx-filter-bar {
+    background-color: var(--pv-header-bg);
+    padding: 10px 24px 14px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.pv-ctx-section-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pv-ctx-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #718096;
+}
+
+/* ── Individual filter group (label + control) ──────────────────────── */
+.pv-ctx-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.pv-ctx-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* ── Select controls (State, County) ────────────────────────────────── */
+.pv-ctx-select {
+    height: 32px;
+    padding: 4px 10px;
+    font-size: 13px;
+    color: #2d3748;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+    min-width: 130px;
+    transition: border-color 0.15s;
+    appearance: auto;
+}
+
+.pv-ctx-select:hover,
+.pv-ctx-select:focus {
+    border-color: var(--pv-primary);
+}
+
+/* ── Locations dropdown button ──────────────────────────────────────── */
+.pv-ctx-loc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 160px;
+    text-align: left;
+    white-space: nowrap;
+    background-color: #ffffff;
+    color: #2d3748;
+    font-size: 13px;
+}
+
+.pv-ctx-loc-btn::after {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* ── Locations dropdown menu ────────────────────────────────────────── */
+/*
+ * Same Bootstrap display:none fix as the HHA dropdown.
+ * Do NOT put display here — only on .show.
+ */
+.pv-ctx-loc-menu {
+    min-width: 320px;
+    max-height: 380px;
+    padding: 0;
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.pv-ctx-loc-menu.show {
+    display: flex !important;
+    flex-direction: column;
+}
+
+/* Search row */
+.pv-ctx-loc-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f4f8;
+    flex-shrink: 0;
+}
+
+.pv-ctx-loc-search-icon {
+    color: #a0aec0;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.pv-ctx-loc-search {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    color: #2d3748;
+    background: transparent;
+    padding: 0;
+}
+
+.pv-ctx-loc-search::placeholder {
+    color: #a0aec0;
+}
+
+/* Scrollable list */
+.pv-ctx-loc-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px 0;
+    min-height: 60px;
+}
+
+/* Empty / placeholder message */
+.pv-ctx-loc-empty {
+    padding: 14px;
+    text-align: center;
+    font-size: 13px;
+    color: #a0aec0;
+}
+
+/* Each checkbox row */
+.pv-ctx-loc-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #2d3748;
+    cursor: pointer;
+    margin: 0;
+    font-weight: normal;
+    transition: background 0.1s;
+    user-select: none;
+}
+
+.pv-ctx-loc-item:hover {
+    background-color: #f0f4ff;
+}
+
+.pv-ctx-loc-item.pv-ctx-loc-all {
+    font-weight: 600;
+    border-bottom: 1px solid #f0f4f8;
+    margin-bottom: 2px;
+}
+
+.pv-ctx-loc-cb {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--pv-primary);
+    cursor: pointer;
+}
+
+/* Footer with Clear / Done */
+.pv-ctx-loc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 6px 12px;
+    border-top: 1px solid #f0f4f8;
+    flex-shrink: 0;
+}
+
+/* ── Year / Payer segmented pill groups ─────────────────────────────── */
+.pv-ctx-pill-group {
+    display: inline-flex;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.pv-ctx-pill {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #4a5568;
+    background: #ffffff;
+    border: none;
+    border-right: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.pv-ctx-pill:last-child {
+    border-right: none;
+}
+
+.pv-ctx-pill:hover {
+    background: #f0f4ff;
+    color: var(--pv-primary);
+}
+
+.pv-ctx-pill.active {
+    background: var(--pv-primary);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* ── Apply button ───────────────────────────────────────────────────── */
+.pv-ctx-apply-btn {
+    height: 32px;
+    padding: 0 16px;
+    font-size: 13px;
+    border-radius: 6px;
+}
+
+/* ========================================================================
+   OVERVIEW PAGE — STRATEGIC IDENTITY + MARKET LEADERS
+   ======================================================================== */
+
+.pv-overview-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* ── Shared section shell ───────────────────────────────────────────── */
+.pv-section {
+    background: #ffffff;
+    border-bottom: 1px solid #edf2f7;
+    padding: 16px 24px 20px;
+}
+
+.pv-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.pv-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #2d3748;
+    letter-spacing: 0.2px;
+}
+
+.pv-section-title .fa {
+    color: #f6ad55;
+}
+
+.pv-section-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: #718096;
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 2px 10px;
+}
+
+/* ── STRATEGIC IDENTITY cards ───────────────────────────────────────── */
+.pv-si-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.pv-si-card {
+    background: #f7fafc;
+    border: 1px solid #e8f0fe;
+    border-radius: 10px;
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pv-si-card.pv-si-card-active {
+    background: #ebf4ff;
+    border-color: #bee3f8;
+}
+
+.pv-si-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pv-si-card-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #4a5568;
+    line-height: 1.3;
+    flex: 1;
+}
+
+/* Strength badges */
+.pv-si-badge {
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 2px 7px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.pv-si-badge-strong {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+.pv-si-badge-moderate {
+    background: #feebc8;
+    color: #7b341e;
+}
+
+.pv-si-badge-weak {
+    background: #fed7d7;
+    color: #9b2c2c;
+}
+
+/* Stat value */
+.pv-si-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.pv-si-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #2d3748;
+    line-height: 1;
+}
+
+.pv-si-sublabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: #3182ce;
+}
+
+/* Progress bar */
+.pv-si-bar-track {
+    height: 5px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.pv-si-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+.pv-bar-blue   { background: #3182ce; }
+.pv-bar-purple { background: #805ad5; }
+.pv-bar-orange { background: #ed8936; }
+.pv-bar-green  { background: #38a169; }
+.pv-bar-red    { background: #e53e3e; }
+
+/* Description */
+.pv-si-desc {
+    font-size: 11px;
+    color: #718096;
+    line-height: 1.4;
+}
+
+/* ── MARKET LEADERS table ───────────────────────────────────────────── */
+.pv-ml-table-wrap {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid #edf2f7;
+}
+
+.pv-ml-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pv-ml-table thead tr {
+    background: #f7fafc;
+    border-bottom: 2px solid #edf2f7;
+}
+
+.pv-ml-table th {
+    padding: 9px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #718096;
+    white-space: nowrap;
+}
+
+.pv-ml-th-rank { width: 48px; text-align: center; }
+.pv-ml-th-name { text-align: left; }
+.pv-ml-th-num  { text-align: right; }
+
+.pv-ml-table tbody tr {
+    border-bottom: 1px solid #f0f4f8;
+    transition: background 0.1s;
+}
+
+.pv-ml-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.pv-ml-table tbody tr:hover {
+    background: #f7fafc;
+}
+
+.pv-ml-rank {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4a5568;
+    padding: 10px 8px;
+    white-space: nowrap;
+}
+
+.pv-ml-name {
+    padding: 10px 14px;
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 13px;
+}
+
+.pv-ml-sub {
+    font-size: 10px;
+    font-weight: 400;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
+}
+
+.pv-ml-num {
+    text-align: right;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #4a5568;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Value colouring */
+.pv-val-good { color: #38a169; font-weight: 700; }
+.pv-val-warn { color: #dd6b20; font-weight: 700; }
+.pv-val-bad  { color: #e53e3e; font-weight: 700; }
+
+/* "You" row highlight */
+.pv-ml-you-row {
+    background: #fffbeb !important;
+}
+
+.pv-ml-you-row:hover {
+    background: #fef9c3 !important;
+}
+
+.pv-ml-star {
+    color: #f6ad55;
+    font-size: 11px;
+}
+
+.pv-ml-you-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    background: #c6f6d5;
+    color: #276749;
+    border-radius: 4px;
+    padding: 1px 6px;
+    vertical-align: middle;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .pv-si-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Responsive: Mobile sidebar toggle --- */
+@media (max-width: 767.98px) {
+    .pv-sidebar {
+        position: fixed;
+        left: -var(--pv-sidebar-width);
+        z-index: 1050;
+        transition: left 0.3s ease;
+    }
+
+    .pv-sidebar.show {
+        left: 0;
+    }
+
+    .pv-page-header {
+        padding: 16px;
+    }
+
+    .pv-tab-bar {
+        padding: 0 16px;
+        overflow-x: auto;
+    }
+
+    .pv-tabs {
+        flex-wrap: nowrap;
+    }
+
+    .pv-content {
+        padding: 16px;
+    }
+
+    .pv-filter-bar {
+        padding: 8px 16px;
+        overflow-x: auto;
+    }
+
+    .pv-hha-chip-org {
+        max-width: 120px;
+    }
+
+    .pv-hha-dropdown {
+        min-width: 280px;
+    }
+
+    .pv-active-filter-pill {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .pv-ctx-filter-bar {
+        padding: 8px 16px 12px;
+        overflow-x: auto;
+    }
+
+    .pv-ctx-loc-menu {
+        min-width: 260px;
+    }
+}

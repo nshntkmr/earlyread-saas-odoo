@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Root Menu ────────────────────────────────────────────────── -->
+    <menuitem id="menu_dashboard_builder_root"
+              name="Dashboard Builder"
+              sequence="90"
+              web_icon="dashboard_builder,static/description/icon.png"/>
+
+    <!-- ── Configuration Sub-menu ───────────────────────────────────── -->
+    <menuitem id="menu_dashboard_builder_config"
+              name="Configuration"
+              parent="menu_dashboard_builder_root"
+              sequence="90"/>
+
+    <!-- ── Widget Library ───────────────────────────────────────────── -->
+    <menuitem id="menu_widget_library"
+              name="Widget Library"
+              parent="menu_dashboard_builder_root"
+              action="action_widget_definition"
+              sequence="10"/>
+
+    <!-- ── Widget Templates ───────────────────────────────────────── -->
+    <menuitem id="menu_widget_templates"
+              name="Templates"
+              parent="menu_dashboard_builder_root"
+              action="action_widget_template"
+              sequence="20"/>
+
+    <!-- ── Schema Sources ───────────────────────────────────────────── -->
+    <menuitem id="menu_schema_sources"
+              name="Schema Sources"
+              parent="menu_dashboard_builder_config"
+              action="action_schema_source"
+              sequence="10"/>
+
+</odoo>

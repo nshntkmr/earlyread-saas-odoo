@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        ACL for Phase 0 models: dashboard.page, dashboard.page.tab, dashboard.page.filter.
+
+        We use  model= + search=  rather than  ref="model_dashboard_page"  because
+        ir.model.data xmlids for brand-new models are not yet committed when the
+        ir.model.access.csv is processed during the same upgrade cycle.
+        Searching ir.model by its 'model' field (technical name) is always safe.
+    -->
+
+    <!-- ── dashboard.page ──────────────────────────────────────────────── -->
+    <record id="access_dashboard_page_portal" model="ir.model.access">
+        <field name="name">dashboard.page portal</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.page')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_dashboard_page_admin" model="ir.model.access">
+        <field name="name">dashboard.page admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.page')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ── dashboard.page.tab ──────────────────────────────────────────── -->
+    <record id="access_dashboard_page_tab_portal" model="ir.model.access">
+        <field name="name">dashboard.page.tab portal</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.page.tab')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_dashboard_page_tab_admin" model="ir.model.access">
+        <field name="name">dashboard.page.tab admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.page.tab')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ── dashboard.filter.dependency ─────────────────────────────────── -->
+    <record id="access_dashboard_filter_dependency_portal" model="ir.model.access">
+        <field name="name">dashboard.filter.dependency portal</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.filter.dependency')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_dashboard_filter_dependency_admin" model="ir.model.access">
+        <field name="name">dashboard.filter.dependency admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.filter.dependency')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ── dashboard.page.filter ───────────────────────────────────────── -->
+    <record id="access_dashboard_page_filter_portal" model="ir.model.access">
+        <field name="name">dashboard.page.filter portal</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.page.filter')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_dashboard_page_filter_admin" model="ir.model.access">
+        <field name="name">dashboard.page.filter admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.page.filter')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ── saas.app ─────────────────────────────────────────────────────── -->
+    <record id="access_saas_app_portal" model="ir.model.access">
+        <field name="name">saas.app portal</field>
+        <field name="model_id" model="ir.model" search="[('model','=','saas.app')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_saas_app_admin" model="ir.model.access">
+        <field name="name">saas.app admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','saas.app')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ── dashboard.widget ────────────────────────────────────────────── -->
+    <record id="access_dashboard_widget_portal" model="ir.model.access">
+        <field name="name">dashboard.widget portal</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.widget')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_dashboard_widget_admin" model="ir.model.access">
+        <field name="name">dashboard.widget admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.widget')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ── posterra.create.portal.user (wizard) ─────────────────────────── -->
+    <record id="access_posterra_create_portal_user_admin" model="ir.model.access">
+        <field name="name">posterra.create.portal.user admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','posterra.create.portal.user')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ── hha.csv.import (wizard) ──────────────────────────────────────── -->
+    <record id="access_hha_csv_import_admin" model="ir.model.access">
+        <field name="name">hha.csv.import admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','hha.csv.import')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+</odoo>

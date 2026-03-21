@@ -1,0 +1,891 @@
+**PRACTICE VANTAGE DASHBOARD**
+
+Complete Implementation Plan for Odoo 19
+
+Multi-Page, Multi-Tab Healthcare Analytics Dashboard
+
+ApexCharts + Leaflet.js + gridstack.js + Odoo 19 Owl Framework
+
+25 Million Rows \| 500+ Concurrent Users \| Enterprise-Grade
+
+February 2026
+
+1\. Complete Dashboard Sitemap
+
+The Practice Vantage interface consists of three navigation sections in
+the left sidebar, each containing multiple pages. Every page can have
+multiple tabs, and each tab contains its own set of dashboard widgets.
+This section maps the entire system.
+
+1.1 Sidebar Navigation Structure
+
+Based on the screenshot, the left sidebar is organized into three groups
+with 11 total pages:
+
+  ------------- ------------- ------------------------ ---------------------
+  **Section**   **Page**      **Description**          **Primary Data**
+
+  MY HHA        Overview      Executive command center Aggregate KPIs across
+                              (landing page)           all hospitals
+
+  MY HHA        Hospitals     Hospital-level           Per-hospital stats,
+                              performance drill-down   rankings, trends
+
+  MY HHA        Physicians    Physician-level          Per-physician
+                              analytics                referral and outcome
+                                                       data
+
+  MY HHA        Competitive   Market positioning and   Market share,
+                Intel         competitor analysis      competitor volumes
+
+  PORTFOLIO     Command       Operational dashboard    Cross-practice
+                Center        for portfolio managers   operational KPIs
+
+  PORTFOLIO     Leaderboard   Practice rankings and    Ranked scorecards by
+                              performance tiers        practice
+
+  PORTFOLIO     Market        Competitive threat       Competitor activity,
+                Threats       analysis and alerts      market shifts
+
+  PORTFOLIO     Strategy      Strategic planning and   Goal attainment,
+                              goal tracking            initiative progress
+
+  DATA EXPLORER Reports       Ad-hoc report builder    Custom queries,
+                              with filters             exportable data
+
+  DATA EXPLORER Episodes      Episode-of-care          Episode duration,
+                              analytics                outcomes, costs
+
+  DATA EXPLORER Referral      Referral source analysis Referral volume by
+                Sources       and trends               source type
+  ------------- ------------- ------------------------ ---------------------
+
+1.2 Tab Structure Per Page
+
+Each page has its own set of tabs. The Overview page shows three tabs:
+Command Center, Insights, and Quality. Below is the estimated tab
+structure for all pages:
+
+  ------------- --------------- --------------- --------------- -----------
+  **Page**      **Tab 1**       **Tab 2**       **Tab 3**       **Tab 4**
+
+  Overview      Command Center  Insights        Quality         ---
+
+  Hospitals     Performance     Timely Access   Quality Metrics Financial
+
+  Physicians    Referral        Outcomes        Leakage         ---
+                Activity                                        
+
+  Competitive   Market Share    Competitor      Trends          ---
+  Intel                         Detail                          
+
+  Command       Operations      Staffing        Compliance      ---
+  Center                                                        
+
+  Leaderboard   Overall Rank    By Metric       Trending        ---
+
+  Market        Active Threats  Watchlist       History         ---
+  Threats                                                       
+
+  Strategy      Goals           Initiatives     Timeline        ---
+
+  Reports       Builder         Saved Reports   Scheduled       ---
+
+  Episodes      Overview        By Diagnosis    Outcomes        Costs
+
+  Referral      By Source       Trends          Leakage         ---
+  Sources                                                       
+  ------------- --------------- --------------- --------------- -----------
+
+1.3 Overview Page --- Command Center Tab (Deep Breakdown)
+
+This is the page visible in the screenshot. It contains the following
+widget components from top to bottom:
+
+  -------- ------------------------ -------------- --------------- -------------
+  **\#**   **Widget**               **Type**       **Library**     **Click
+                                                                   Behavior**
+
+  1        AI Insight Banner (\"Are Text + Alert   HTML/CSS        None
+           We Winning?\")                                          (read-only
+                                                                   insight)
+
+  2        Alert Bar (red warning)  Alert Banner   HTML/CSS        Click to
+                                                                   expand
+                                                                   details
+
+  3        Timely Access Gauge      Half-circle    ApexCharts      Click →
+           (47.2%)                  gauge          radialBar       Timely Access
+                                                                   detail page
+
+  4        FFS / MA / IP breakdown  Stat row with  HTML/CSS        Click badge →
+                                    badges                         filter by
+                                                                   payer type
+
+  5        Admits: 62,058           Stat Tile      HTML/CSS        Click →
+                                                                   Admits detail
+                                                                   table
+
+  6        Avg Daily Census: 8,215  Stat Tile      HTML/CSS        Click →
+                                                                   Census trend
+                                                                   chart
+
+  7        Market Share: 2.1%       Stat Tile      HTML/CSS        Click →
+                                                                   Competitive
+                                                                   Intel page
+
+  8        Position: Top Quartile   Stat Tile      HTML/CSS        Click →
+                                                                   Leaderboard
+                                                                   page
+
+  9        Demand Section           Section card   Mixed           Container for
+                                                                   sub-widgets
+
+  9a       Referral Growth: +33%    KPI with trend HTML/CSS        Click →
+                                                                   Referral
+                                                                   Sources page
+
+  9b       Source Mix (PHY/IP/SNF   Horizontal bar ApexCharts bar  Click bar →
+           bars)                    chart                          filter by
+                                                                   source
+
+  10       Execution Section        Section card   Mixed           Container for
+                                                                   sub-widgets
+
+  10a      Timely Access            Multi-KPI row  HTML/CSS        Click →
+           (47%/47%/0%)                                            Timely Access
+                                                                   detail
+
+  10b      Leakage: 8%              KPI with       HTML/CSS        Click →
+                                    detail text                    Leakage
+                                                                   analysis page
+  -------- ------------------------ -------------- --------------- -------------
+
+2\. System Architecture
+
+The system is built on three layers: data (PostgreSQL + materialized
+views), backend (Odoo 19 models + controllers), and frontend (Owl
+components + charting libraries). The architecture supports both
+internal backend access and external portal access for 500+ users.
+
+2.1 Technology Stack
+
+  ------------- ------------------- ------------------------ -------------
+  **Layer**     **Technology**      **Purpose**              **License**
+
+  Database      PostgreSQL 16+      Partitioned tables,      Open Source
+                                    materialized views, BRIN 
+                                    indexes                  
+
+  Backend       Odoo 19 (Community  ORM, controllers, access LGPL /
+                or Enterprise)      control, portal, cron    Proprietary
+
+  Frontend      Odoo Owl 2.x        Reactive components,     LGPL
+  Framework                         state management,        
+                                    lifecycle                
+
+  Charts        ApexCharts 4.x      Gauge, bar, line,        MIT
+                                    heatmap, funnel,         
+                                    treemap, donut, radar    
+
+  Maps          Leaflet.js 1.9      US state choropleth,     BSD-2
+                                    facility location maps   
+
+  Layout Editor gridstack.js 10.x   Admin drag-and-drop      MIT
+                                    widget positioning       
+
+  AI Insights   OpenAI GPT-4 API    Natural language insight API /
+                (or Odoo 19 AI App) generation from KPI data Proprietary
+
+  Caching       Redis               Session store, ORM       BSD-3
+                                    cache, dashboard data    
+                                    cache                    
+
+  Connection    PgBouncer           Transaction-mode         ISC
+  Pool                              connection pooling for   
+                                    500+ users               
+  ------------- ------------------- ------------------------ -------------
+
+2.2 Component Architecture (Owl Component Tree)
+
+Every page in the dashboard is rendered by a single root Owl component
+that assembles sub-components. The structure is consistent across all 11
+pages:
+
+> PracticeVantageDashboard (root --- registered as client action +
+> portal component)
+>
+> ├─ SidebarNav (11 nav items, grouped into 3 sections, active state
+> tracking)
+>
+> ├─ PageHeader (page title, subtitle, Live Data indicator)
+>
+> ├─ FilterBar
+>
+> │ ├─ FilterChip (\"Bayada Health\" --- primary entity chip, removable)
+>
+> │ ├─ DropdownFilter × 3 (All States, All Locations, Year)
+>
+> │ └─ FilterApplyButton (triggers data refresh across all widgets)
+>
+> ├─ TabBar (dynamic tabs per page, loaded from dashboard.page.tab
+> config)
+>
+> ├─ TabContent (lazy-loaded --- only active tab renders widgets)
+>
+> │ ├─ GridStackContainer (admin: draggable/resizable; portal: fixed
+> layout)
+>
+> │ │ ├─ WidgetWrapper × N (reads config from dashboard.widget.config)
+>
+> │ │ │ ├─ StatTile (value, label, trend arrow, sparkline)
+>
+> │ │ │ ├─ GaugeChart (ApexCharts radialBar, half-circle)
+>
+> │ │ │ ├─ BarChart / LineChart / HeatMap / Funnel / Donut
+>
+> │ │ │ ├─ USMapChart (Leaflet choropleth)
+>
+> │ │ │ ├─ DataTable (sortable, clickable rows → drill-down)
+>
+> │ │ │ ├─ AIInsightTile (cached LLM-generated text)
+>
+> │ │ │ └─ SectionCard (\"Demand\" / \"Execution\" grouping container)
+>
+> │ │ └─ AddWidgetButton (admin only → opens WidgetPicker modal)
+>
+> │ └─ EmptyState (shown when tab has no widgets configured)
+>
+> └─ FooterBar (last refresh timestamp, manual refresh button)
+
+2.3 Multi-Page Navigation Architecture
+
+Navigation between pages does NOT reload the browser. The SidebarNav
+component updates a reactive state variable (currentPageKey), which
+triggers the TabBar and TabContent to re-render with the new page\'s
+configuration. This is a single-page application pattern within the Odoo
+portal.
+
+-   Each sidebar item maps to a dashboard.page record (e.g.,
+    key=\"overview\", key=\"hospitals\")
+
+-   Clicking a sidebar item calls this.state.currentPageKey =
+    \"hospitals\"
+
+-   The TabBar component reacts to the page change and loads tabs from
+    the config model
+
+-   The TabContent component lazy-loads only the active tab\'s widgets
+
+-   URL updates via history.pushState for bookmarkable deep links:
+    /my/practice-vantage/hospitals/performance
+
+-   Browser back/forward works via popstate listener in the root
+    component
+
+3\. Odoo Data Models
+
+The system requires two categories of models: configuration models
+(defining what the dashboard shows) and data models (holding the
+healthcare analytics data). Configuration models are Studio-editable;
+data models use \_auto = False to point at PostgreSQL materialized
+views.
+
+3.1 Configuration Models (Studio-Editable)
+
+**dashboard.page --- Defines each page in the sidebar**
+
+  ------------------ --------------------- -------------------------------
+  **Field**          **Type**              **Purpose**
+
+  name               Char                  Display name (e.g.,
+                                           \"Overview\", \"Hospitals\")
+
+  key                Char (indexed)        URL-safe key (e.g.,
+                                           \"overview\", \"hospitals\")
+
+  section            Selection             MY_HHA / PORTFOLIO /
+                                           DATA_EXPLORER
+
+  icon               Char                  Icon class (e.g., \"fa-home\",
+                                           \"fa-hospital-o\")
+
+  sequence           Integer               Sort order in sidebar
+
+  group_ids          Many2many →           Which user groups can see this
+                     res.groups            page
+
+  is_active          Boolean               Enable/disable without deleting
+  ------------------ --------------------- -------------------------------
+
+**dashboard.page.tab --- Defines tabs within each page**
+
+  ------------------ ------------------------ ----------------------------
+  **Field**          **Type**                 **Purpose**
+
+  name               Char                     Tab label (e.g., \"Command
+                                              Center\", \"Insights\")
+
+  key                Char                     URL-safe key for deep
+                                              linking
+
+  page_id            Many2one →               Parent page
+                     dashboard.page           
+
+  sequence           Integer                  Tab order (left to right)
+
+  icon               Char                     Optional tab icon
+  ------------------ ------------------------ ----------------------------
+
+**dashboard.widget.config --- Defines each widget on a tab**
+
+  -------------------- -------------------- --------------------------------
+  **Field**            **Type**             **Purpose**
+
+  name                 Char                 Widget title (e.g., \"Timely
+                                            Access\")
+
+  tab_id               Many2one →           Which tab this widget belongs to
+                       dashboard.page.tab   
+
+  widget_type          Selection            stat_tile / gauge / bar / line /
+                                            heatmap / us_map / funnel /
+                                            donut / table / ai_insight /
+                                            section_card
+
+  data_source          Char                 Method name on data model (e.g.,
+                                            \"get_admits_data\")
+
+  data_model           Char                 Odoo model name (e.g.,
+                                            \"healthcare.claims.summary\")
+
+  measure_field        Char                 Primary measure field name
+
+  target_value         Float                Target/goal value (for gauges)
+
+  color_good /         Char                 Hex color codes for conditional
+  color_bad                                 formatting
+
+  drilldown_route      Char                 Portal URL pattern for
+                                            click-through navigation
+
+  drilldown_page_key   Char                 Target page key for internal
+                                            navigation
+
+  grid_x / grid_y      Integer              Position on gridstack grid
+
+  grid_w / grid_h      Integer              Width and height in grid units
+
+  sequence             Integer              Render order within the tab
+
+  parent_widget_id     Many2one (self)      For widgets inside section cards
+
+  refresh_interval     Integer              Auto-refresh interval in seconds
+                                            (0 = manual only)
+  -------------------- -------------------- --------------------------------
+
+**dashboard.layout --- Saves admin layout customizations**
+
+  ------------------ ------------------------ ----------------------------
+  **Field**          **Type**                 **Purpose**
+
+  name               Char                     Layout name (e.g.,
+                                              \"Default\", \"Compact\")
+
+  tab_id             Many2one →               Which tab this layout
+                     dashboard.page.tab       applies to
+
+  layout_json        Json                     gridstack serialized
+                                              positions for all widgets
+
+  is_default         Boolean                  Default layout for this tab
+
+  group_ids          Many2many → res.groups   Role-based layout variants
+  ------------------ ------------------------ ----------------------------
+
+**dashboard.ai.insight --- Cached AI-generated insights**
+
+  --------------------- ------------------------- ---------------------------
+  **Field**             **Type**                  **Purpose**
+
+  widget_config_id      Many2one →                Which widget this insight
+                        dashboard.widget.config   is for
+
+  partner_id            Many2one → res.partner    Practice-specific insight
+
+  insight_text          Text                      Generated insight paragraph
+
+  generated_at          Datetime                  When the insight was
+                                                  generated
+
+  prompt_hash           Char                      Hash of input data to
+                                                  detect staleness
+
+  model_used            Char                      Which LLM model was used
+  --------------------- ------------------------- ---------------------------
+
+3.2 Healthcare Data Models (\_auto = False)
+
+These models point at PostgreSQL materialized views. They do not create
+or manage database tables. Odoo reads from them, but all data management
+happens at the SQL level.
+
+  ----------------------------- --------------------------- ------------------------- ------------
+  **Model Name**                **PostgreSQL Source**       **Key Fields**            **Refresh
+                                                                                      Cycle**
+
+  healthcare.claims.summary     mv_claims_monthly_summary   month, service_category,  Every 6
+                                                            claim_count, total_paid,  hours
+                                                            denial_rate,              
+                                                            unique_patients           
+
+  healthcare.provider.stats     mv_provider_performance     provider_id, quarter,     Nightly
+                                                            total_claims, total_paid, 
+                                                            denial_rate,              
+                                                            avg_response_days         
+
+  healthcare.daily.trends       mv_daily_trends             date, metric_type,        Hourly
+                                                            metric_value, yoy_change  
+
+  healthcare.referral.sources   mv_referral_sources         source_type, source_id,   Every 6
+                                                            referral_count,           hours
+                                                            conversion_rate,          
+                                                            growth_pct                
+
+  healthcare.market.share       mv_market_share             region, hha_share_pct,    Weekly
+                                                            competitor_shares_json,   
+                                                            position_rank             
+
+  healthcare.episode.stats      mv_episode_stats            diagnosis_group,          Nightly
+                                                            avg_duration, avg_cost,   
+                                                            outcome_score             
+  ----------------------------- --------------------------- ------------------------- ------------
+
+4\. Widget Rendering: Chart-by-Chart Implementation
+
+Each widget_type maps to a specific Owl component that wraps a charting
+library. The WidgetWrapper component reads the config and dynamically
+instantiates the correct renderer.
+
+4.1 Widget Type to Component Mapping
+
+  ----------------- ---------------- ---------------- -----------------------
+  **widget_type**   **Owl            **Library**      **Key Config Fields**
+                    Component**                       
+
+  stat_tile         StatTile         Pure HTML/CSS    measure_field,
+                                                      target_value,
+                                                      color_good, color_bad,
+                                                      drilldown_route
+
+  gauge             GaugeChart       ApexCharts       measure_field,
+                                     radialBar        target_value (max),
+                                                      startAngle, endAngle
+
+  bar               BarChart         ApexCharts bar   measure_field,
+                                                      group_by_field,
+                                                      horizontal (bool)
+
+  line              LineChart        ApexCharts       measure_field,
+                                     line/area        time_field, show_area
+                                                      (bool)
+
+  heatmap           HeatMapChart     ApexCharts       x_field, y_field,
+                                     heatmap          value_field,
+                                                      color_ranges
+
+  us_map            USMapChart       Leaflet.js       region_field,
+                                     choropleth       value_field,
+                                                      geojson_url
+
+  funnel            FunnelChart      ApexCharts       stage_field,
+                                     funnel           value_field
+
+  donut             DonutChart       ApexCharts donut category_field,
+                                                      value_field
+
+  table             DataTable        Pure HTML/Owl    columns_json,
+                                                      sort_field,
+                                                      drilldown_route
+
+  ai_insight        AIInsightTile    HTML + LLM API   prompt_template,
+                                                      data_source,
+                                                      cache_ttl_hours
+
+  section_card      SectionCard      Pure HTML/CSS    title, subtitle,
+                                                      child_widget_ids
+  ----------------- ---------------- ---------------- -----------------------
+
+4.2 Click-Through Drill-Down System
+
+Every widget supports two types of click actions, configured per widget
+via the config model:
+
+**Type 1: Internal Navigation (page-to-page)**
+
+The widget fires an event that the root component handles by updating
+currentPageKey and optionally currentTabKey. Example: clicking the
+Market Share stat tile navigates to the Competitive Intel page, Market
+Share tab.
+
+**Type 2: External Navigation (to a detail URL)**
+
+The widget navigates to a new portal route with the clicked entity\'s
+ID. Example: clicking a physician name in a data table navigates to
+/my/practice-vantage/physician/1234. The detail page is a separate
+portal controller with its own Owl components.
+
+**Type 3: Filter Application (chart element click)**
+
+Clicking a bar, slice, or map region applies a filter to all widgets on
+the current tab. Example: clicking the \"PHY\" bar in Source Mix adds
+source_type=PHY to the global filter state, and all other widgets
+re-render with this filter applied. This is implemented via a shared
+FilterState service injected into all widget components.
+
+5\. AI Insights System
+
+The \"Are We Winning?\" banner and other AI-generated text tiles are
+powered by a server-side insight generation pipeline. Insights are NOT
+generated on every page load --- they are pre-computed and cached.
+
+5.1 How AI Insights Work
+
+1.  A nightly cron job (ir.cron) runs for each practice with active AI
+    insight widgets.
+
+2.  For each widget, the job queries the relevant materialized view and
+    assembles key metrics into a structured context.
+
+3.  A prompt template (stored in
+    dashboard.widget.config.prompt_template) is filled with the metrics.
+    Example: \"Analyze this HHA\'s Q4 performance: {admits} admits
+    ({admits_yoy_pct}% YoY), {denial_rate}% denial rate (target:
+    {denial_target}%), timely access at {timely_access_pct}%. In 2-3
+    sentences, identify the most critical issue and its business
+    impact.\"
+
+4.  The completed prompt is sent to OpenAI GPT-4 (via API) or Odoo 19\'s
+    native ai.agent model (Enterprise).
+
+5.  The response is stored in dashboard.ai.insight with a 24-hour TTL
+    and a hash of the input data.
+
+6.  On page load, the AIInsightTile component fetches the cached
+    insight. If the cache is stale (data changed since last generation),
+    a background refresh is triggered.
+
+5.2 Cost Estimation for AI Insights
+
+With 500 practices, each having approximately 5 AI insight widgets
+refreshed nightly:
+
+  ---------------------------- ------------------------------------------
+  **Metric**                   **Value**
+
+  Prompts per night            2,500 (500 practices × 5 widgets)
+
+  Avg input tokens per prompt  \~400 tokens
+
+  Avg output tokens per        \~150 tokens
+  response                     
+
+  Total tokens per night       \~1,375,000
+
+  GPT-4o cost estimate         \~\$4-8/night (\$120-240/month)
+
+  GPT-4o-mini cost estimate    \~\$0.40-0.80/night (\$12-24/month)
+
+  Odoo 19 AI App (Enterprise)  Included with Enterprise license (uses
+                               your own API key)
+  ---------------------------- ------------------------------------------
+
+Recommendation: Use GPT-4o-mini for routine nightly batch generation and
+GPT-4o for on-demand deep-dive insights requested by users. This keeps
+costs under \$50/month while maintaining quality.
+
+6\. Admin-Editable Layout System
+
+The admin layout editor uses gridstack.js to allow non-technical
+administrators to rearrange, resize, add, and remove dashboard widgets
+from the browser. This section covers how it integrates with the Odoo 19
+Owl framework.
+
+6.1 How the Layout Editor Works
+
+1.  Admin logs into the backend and navigates to a dashboard page.
+
+2.  An \"Edit Layout\" toggle button appears (visible only to users in
+    group_dashboard_admin).
+
+3.  Clicking it enables gridstack\'s drag-and-drop mode. Widgets show
+    resize handles and drag handles.
+
+4.  Admin can drag widgets to new positions, resize them by dragging
+    edges, or remove them via an \"×\" button.
+
+5.  An \"Add Widget\" button opens a modal with the widget picker:
+    choose type, data source, and initial config.
+
+6.  Clicking \"Save Layout\" serializes the gridstack state to JSON and
+    saves it to dashboard.layout.
+
+7.  Portal users always see the saved layout (gridstack in static/locked
+    mode).
+
+6.2 Layout Scope: What Admins Can and Cannot Edit
+
+  ----------------------------------- -----------------------------------
+  **Editable by Admin (No Code)**     **Requires Developer**
+
+  Widget position (x, y) on the grid  New widget_type (new Owl component)
+
+  Widget size (width, height)         New data source endpoint
+
+  Add/remove widgets from a tab       Portal page HTML structure
+
+  Change which chart type a widget    Custom CSS themes
+  uses                                
+
+  Set widget title, subtitle, colors  New sidebar sections or pages
+
+  Configure drill-down target (page   Chart library upgrades
+  or URL)                             
+
+  Set refresh intervals per widget    Database schema changes
+
+  Reorder tabs within a page          Authentication and security rules
+
+  Toggle AI insight on/off per widget Performance optimization
+  ----------------------------------- -----------------------------------
+
+7\. Data Pipeline: CSV to Dashboard
+
+This section covers the complete data flow from raw CSV files to
+rendered dashboard widgets. The pipeline runs once for initial load and
+then incrementally for updates.
+
+7.1 Initial Load Pipeline
+
+1.  Stage CSVs to an UNLOGGED table using PostgreSQL COPY command (\~3-5
+    minutes for 25M rows).
+
+2.  Cast and insert into the partitioned healthcare_claims table
+    (partitioned by month).
+
+3.  Create BRIN indexes on date columns and B-tree indexes on
+    categorical filters.
+
+4.  Create materialized views (mv_claims_monthly_summary,
+    mv_provider_performance, mv_daily_trends, etc.).
+
+5.  Create unique indexes on materialized views to enable CONCURRENT
+    refresh.
+
+6.  Register unmanaged Odoo models (\_auto = False) pointing at each
+    materialized view.
+
+7.  Verify Odoo can read the models via the backend form/list views.
+
+8.  Configure ir.cron jobs to refresh materialized views on schedule.
+
+7.2 Incremental Update Pipeline
+
+When new CSV files arrive (daily or weekly):
+
+1.  New CSVs are staged to the UNLOGGED table.
+
+2.  An upsert operation (INSERT \... ON CONFLICT) merges new/updated
+    claims into healthcare_claims.
+
+3.  Materialized views are refreshed concurrently (non-blocking) via
+    pg_cron or Odoo ir.cron.
+
+4.  Dashboard.ai.insight records are flagged as stale (prompt_hash no
+    longer matches current data).
+
+5.  The nightly AI cron regenerates stale insights.
+
+7.3 Query Performance Targets
+
+  --------------------- ---------------------- ------------ --------------------
+  **Query Type**        **Source**             **Target     **Strategy**
+                                               Latency**    
+
+  Dashboard page load   Materialized views     \< 200ms     Single JSON-RPC call
+  (all widgets)                                total        returning all widget
+                                                            data
+
+  Filter change         Materialized views     \< 150ms     Parameterized SQL on
+  (re-render)                                               pre-aggregated data
+
+  Drill-down page load  Partitioned table + MV \< 500ms     Partition pruning +
+                                                            targeted indexes
+
+  AI insight fetch      dashboard.ai.insight   \< 50ms      Pre-computed, cached
+                        cache                               in Odoo ORM
+
+  Ad-hoc report (Data   Partitioned table      \< 3 seconds Direct SQL with BRIN
+  Explorer)                                                 index, LIMIT 1000
+  --------------------- ---------------------- ------------ --------------------
+
+8\. Portal Delivery for 500+ External Users
+
+The dashboard is served to external practice users via the Odoo 19
+portal system. Each practice sees only their own data, enforced by
+record rules and controller-level filtering.
+
+8.1 Portal Route Structure
+
+  ----------------------------------------------- ---------------------- -------------------------
+  **URL Pattern**                                 **Controller Method**  **What It Renders**
+
+  /my/practice-vantage                            dashboard()            Main dashboard SPA (loads
+                                                                         root Owl component)
+
+  /my/practice-vantage/\<page_key\>               dashboard(page_key)    Deep link to specific
+                                                                         page (e.g., /hospitals)
+
+  /my/practice-vantage/\<page_key\>/\<tab_key\>   dashboard(page_key,    Deep link to specific tab
+                                                  tab_key)               
+
+  /my/practice-vantage/physician/\<id\>           physician_detail(id)   Physician detail page
+                                                                         (drill-down target)
+
+  /my/practice-vantage/hospital/\<id\>            hospital_detail(id)    Hospital detail page
+                                                                         (drill-down target)
+
+  /my/practice-vantage/api/widget_data            widget_data()          Data endpoint for all
+                                                  \[JSON-RPC\]           widgets on current tab
+
+  /my/practice-vantage/api/ai_insight             ai_insight()           Fetches cached AI insight
+                                                  \[JSON-RPC\]           for a widget
+  ----------------------------------------------- ---------------------- -------------------------
+
+8.2 Security: Multi-Tenancy Record Rules
+
+Every data model has a record rule ensuring practices can only see their
+own data:
+
+-   Rule name: \"Practice Own Data\"
+
+-   Domain: \[(\"partner_id\", \"=\", user.partner_id.id)\]
+
+-   Groups: group_practice_portal_user
+
+-   Applied to: All healthcare.\* models
+
+Regional managers get a broader rule: \[(\"region_id\", \"in\",
+user.partner_id.region_ids.ids)\]. Healthcare admins (internal) have no
+domain restriction.
+
+9\. Implementation Timeline
+
+The project is divided into 7 phases over 20-24 weeks. Each phase
+produces a deployable increment that can be demonstrated to
+stakeholders.
+
+  ------------------ ----------- ----------------------------------- -----------
+  **Phase**          **Weeks**   **Deliverables**                    **Hours**
+
+  1\. Data           1-3         PostgreSQL schema, partitions,      80-100
+  Foundation                     materialized views, COPY pipeline,  
+                                 unmanaged Odoo models, ir.cron      
+                                 refresh jobs                        
+
+  2\. Core Dashboard 4-7         Owl component tree (SidebarNav,     120-160
+  Framework                      FilterBar, TabBar, TabContent,      
+                                 GridStackContainer, WidgetWrapper), 
+                                 portal controller, URL routing      
+
+  3\. Widget Library 8-10        StatTile, GaugeChart, BarChart,     80-120
+  (Phase 1)                      LineChart, DonutChart, DataTable    
+                                 components with ApexCharts          
+                                 integration                         
+
+  4\. Widget Library 11-13       HeatMap, FunnelChart, USMapChart    80-120
+  (Phase 2)                      (Leaflet), SectionCard,             
+                                 AIInsightTile, drill-down click     
+                                 handlers                            
+
+  5\. Admin Layout   14-16       gridstack.js integration,           60-80
+  Editor                         WidgetPicker modal, layout          
+                                 save/load, role-based layouts       
+
+  6\. AI Insights    16-18       OpenAI integration, prompt          60-80
+  System                         templates, nightly batch cron,      
+                                 insight caching, staleness          
+                                 detection                           
+
+  7\. Scaling,       19-22       PgBouncer setup, Redis caching,     80-120
+  Security, Launch               record rules, HIPAA audit, load     
+                                 testing (500 concurrent), UAT       
+  ------------------ ----------- ----------------------------------- -----------
+
+9.1 Cost Summary
+
+  ------------------------- ---------------------- ----------------------
+  **Cost Category**         **Community Edition**  **Enterprise Edition**
+
+  Development (560-780 hrs  \$39,200 - \$54,600    \$39,200 - \$54,600
+  @ \$70/hr)                                       
+
+  Charting libraries        \$0 (all MIT/BSD)      \$0 (all MIT/BSD)
+
+  Odoo license (15 admin    \$0                    €3,600 - €5,600/yr
+  users/yr)                                        
+
+  OpenAI API (monthly)      \$50 - \$240/mo        \$50 - \$240/mo (or
+                                                   use native AI app)
+
+  Hosting (VPS/cloud,       \$200 - \$500/mo       \$200 - \$500/mo (or
+  monthly)                                         Odoo.sh)
+
+  **Total Year 1**          **\$42,200 -           **\$46,500 -
+                            \$63,480**             \$70,280**
+  ------------------------- ---------------------- ----------------------
+
+10\. Key Decisions to Make Now
+
+  -------------- ------------------ ------------------- --------------------
+  **Decision**   **Option A**       **Option B**        **Recommendation**
+
+  Odoo Edition   Community (free,   Enterprise (AI app, Enterprise if budget
+                 full Owl access)   Studio, Odoo.sh,    allows --- native AI
+                                    support)            and support are
+                                                        valuable at 500+
+                                                        users
+
+  AI Provider    Direct OpenAI API  Odoo 19 native AI   Start with direct
+                 integration        app (Enterprise)    API (works on both
+                                                        editions); migrate
+                                                        to native AI app if
+                                                        on Enterprise
+
+  Hosting        Self-hosted Docker Odoo.sh (managed,   Odoo.sh for
+                 (VPS)              Enterprise only)    simplicity if
+                                                        Enterprise; Docker
+                                                        on AWS/GCP if
+                                                        Community
+
+  Chart Library  ApexCharts         Chart.js (lighter,  ApexCharts ---
+                 (comprehensive)    fewer types)        covers gauge,
+                                                        heatmap, funnel,
+                                                        treemap in one
+                                                        library
+
+  Map Library    Leaflet.js (open   Mapbox GL (paid,    Leaflet.js --- free,
+                 source)            more polished)      well-documented,
+                                                        sufficient for US
+                                                        state choropleth
+
+  Layout Editor  gridstack.js (MIT, Muuri (MIT, more    gridstack.js ---
+                 6KB)               features)           specifically
+                                                        designed for
+                                                        dashboard grids,
+                                                        simpler API
+
+  AI Insight     All 11 pages,      Only Overview + key Start with
+  Scope          every tab          pages               Overview + top 3
+                                                        pages; expand based
+                                                        on user feedback
