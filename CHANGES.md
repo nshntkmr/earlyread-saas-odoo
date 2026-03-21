@@ -175,27 +175,25 @@ Audit revealed cross-app isolation gaps and hardcoded field names. All fixed:
 | `api_filter_state_load` no app check | CRITICAL | Now passes `app_id=app.id` |
 | Portal permalink no app check | CRITICAL | Now passes `app_id=app.id` |
 | `model_name == 'hha.provider'` hardcoded | MEDIUM | Replaced with `is_provider_selector` flag |
-| Geo param names hardcoded (`hha_state`, etc.) | MEDIUM | New `geo_role` selection field on filter model |
+| Geo context extraction hardcoded | MEDIUM | **Removed entirely** — geo values flow through `filter_values_by_name` via param_name |
 
-### New Field: `geo_role` on `dashboard.page.filter`
+### Geo Context Simplification
 
-| Value | Purpose |
-|-------|---------|
-| `state` | This filter provides state-level geo context |
-| `county` | This filter provides county-level geo context |
-| `city` | This filter provides city-level geo context |
-| *(empty)* | Not a geo filter |
+Previously, `ctx_state`/`ctx_county`/`ctx_cities` were extracted in a separate loop and passed to widget annotations.
+This was redundant — `filter_values_by_name` already contains all filter values keyed by `param_name`.
+Widget annotation templates like `%(hha_state)s` work because `hha_state` IS the param_name, and it's already in `filter_values_by_name`.
 
-Admin configures `geo_role` in Settings → Pages → Context Filters. Controllers read `f.geo_role` instead of checking `f.param_name == 'hha_state'`. Works for any app regardless of param naming.
+**Removed:** `geo_role` field, `ctx_state`/`ctx_county`/`ctx_cities` extraction blocks, template value passing.
+**No admin configuration needed** — geo filter values flow automatically through the standard filter→sql_params pipeline.
 
 ### Files
 | File | What Changed |
 |------|-------------|
 | `models/dashboard_filter_state.py` | Added `app_id` field, updated `save_state()`/`load_state()` |
-| `controllers/widget_api.py` | App-scoped load, `is_provider_selector` lookup, `geo_role` context |
-| `controllers/portal.py` | App-scoped permalink, `geo_role` geo context |
-| `models/dashboard_page_filter.py` | New `geo_role` selection field |
-| `data/filters_data.xml` | Set `geo_role` on seed geo filters |
+| `controllers/widget_api.py` | App-scoped load, `is_provider_selector` lookup, removed geo extraction |
+| `controllers/portal.py` | App-scoped permalink, removed geo extraction |
+| `models/dashboard_page_filter.py` | Removed `geo_role` field (unnecessary) |
+| `data/filters_data.xml` | Removed `geo_role` values from seed data |
 
 ---
 
@@ -258,5 +256,5 @@ These should be addressed in a separate PR focused on making the provider model 
 ### Multi-Tenant Isolation
 - [ ] Cross-app permalink key → empty config
 - [ ] JWT from App A cannot load App B's filter state
-- [ ] `geo_role` drives template context (not hardcoded param names)
+- [ ] Widget annotations get geo values via `filter_values_by_name` (no special extraction)
 - [ ] `is_provider_selector` identifies provider filter (not `model_name`)

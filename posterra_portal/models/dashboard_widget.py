@@ -557,9 +557,8 @@ class DashboardWidget(models.Model):
         """Execute this widget's query and return a render-ready dict.
 
         portal_ctx keys:
-            sql_params              — dict{field_name: value} for SQL %(x)s params
-            filter_values_by_name   — dict{field_name: value} for narrative template
-            ctx_state / ctx_county  — geo strings
+            sql_params              — dict{param_name: value} for SQL %(x)s params
+            filter_values_by_name   — dict{param_name: value} for narrative/annotation templates
             selected_hha            — hha.provider recordset or empty
         """
         self.ensure_one()
@@ -1412,9 +1411,7 @@ class DashboardWidget(models.Model):
         # Layer 2: all active filter values keyed by field_name
         template_vars.update(portal_ctx.get('filter_values_by_name', {}))
 
-        # Layer 3: explicit geo + HHA display name
-        template_vars['hha_state']  = portal_ctx.get('ctx_state', '')
-        template_vars['hha_county'] = portal_ctx.get('ctx_county', '')
+        # Layer 3: HHA display name (geo values already in filter_values_by_name)
         hha = portal_ctx.get('selected_hha')
         if hha:
             template_vars['hha_name'] = (
@@ -1443,8 +1440,8 @@ class DashboardWidget(models.Model):
           1. Main chart query first row (cols/rows)
           2. Annotation SQL query (annotation_query_sql) — if set, its columns
              override same-named columns from the main query
-          3. Active filter values (by field_name)
-          4. Geo context + HHA name
+          3. Active filter values (by param_name from filter_values_by_name)
+          4. HHA display name
         """
         # Layer 1: main chart query first row
         template_vars = {}
@@ -1468,9 +1465,7 @@ class DashboardWidget(models.Model):
         # Layer 3: filter values
         template_vars.update(portal_ctx.get('filter_values_by_name', {}))
 
-        # Layer 4: geo + HHA context
-        template_vars['hha_state'] = portal_ctx.get('ctx_state', '')
-        template_vars['hha_county'] = portal_ctx.get('ctx_county', '')
+        # Layer 4: HHA display name (geo values already in filter_values_by_name above)
         hha = portal_ctx.get('selected_hha')
         if hha:
             template_vars['hha_name'] = (
