@@ -353,6 +353,9 @@ export default function FilterBar() {
         const key = f.param_name || f.field_name
         if (key) setPendingFilter(key, '')
       })
+    // Reset dynamic options so dropdowns fall back to the original
+    // unfiltered server options (filter.options from page load).
+    setDynamicOptions({})
   }, [filters, setPendingFilter])
 
   if (!filters.length) return null
