@@ -220,6 +220,10 @@ When user changes a dropdown:
 
 The same auto-select logic is mirrored server-side in `api_filters_resolve` (widget_api.py) for batch cascade resolution.
 
+### Clear All (FilterBar.jsx)
+
+Resets all visible filters to empty and clears `dynamicOptions` so dropdowns revert to the full unfiltered option lists from page load. Does NOT trigger cascade — user must click Apply after clearing.
+
 ### SQL Parameter Flow
 
 ```
@@ -257,6 +261,7 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 - **`is_provider_selector` must be toggled ON** — admin must explicitly mark the Provider filter on each page. Without this, `selected_provider` will be `None` and auto-fill won't fire. Check this first when debugging "State shows All".
 - **Seed data in `filters_data.xml`** may show `param_name=hha_id` but DB records may have been updated to `hha_ccn` by admin. DB state is authoritative.
 - **`portal.py` filter_options must use `dashboard.filter.dependency` graph** — the options loop at step 11 uses `dep_records` (new multi-directional dependency system) to build `constraint_values` for each filter, NOT the legacy `depends_on_filter_id` field. Both `portal.py` and `widget_api.py` (`_build_portal_ctx`) must use the same pattern. If only legacy `depends_on_filter_id` is checked, filters whose dependencies are defined via the Filter Dependencies tab (new system) will get empty options on first page load. When a parent filter has no value (null/empty), the child filter should still show ALL available options (unfiltered), never empty.
+- **Clear All must reset `dynamicOptions`** — clearing filter values alone is not enough. Without resetting `dynamicOptions`, dropdowns still show narrowed cascaded option lists instead of the full server-provided options. Both `setPendingFilter(key, '')` AND `setDynamicOptions({})` are required.
 - **Schema-source filters have empty `model_name`/`field_name`** — these are `related` fields from `model_id`/`field_id`. When admin switches a filter to use schema sources, `model_id` is cleared → `model_name` becomes empty. Never use `model_name == 'hha.provider'` to identify filters. Use `is_provider_selector` for the Provider filter. For field lookups, use fallback chain: `field_name or param_name or schema_column_name`.
 
 ## Testing Checklist (Filter Changes)
@@ -292,3 +297,8 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 22. URL param `?year=2022` with `default_strategy=latest` → URL wins (loads 2022, not latest)
 23. Single-provider user with `auto_fill_from_hha=True` → auto-fill wins over default_strategy
 24. Admin UI: Default Strategy dropdown visible in Settings → Pages → Context Filters (4 options)
+
+### Clear All + Apply
+25. Click Clear All → all dropdowns reset to empty, option lists show full unfiltered options
+26. After Clear All, click Apply → URL has no filter params (clean state)
+27. After Clear All, select State=TX → cascade fills Provider/County/City → click Apply → URL has all 4 params
