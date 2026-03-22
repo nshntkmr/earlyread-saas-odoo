@@ -836,17 +836,31 @@ class PosterraWidgetAPI(http.Controller):
         changed_param = changed_filter.param_name or changed_filter.field_name
         snapshot[changed_param] = changed_value
 
-        # Pre-clear targets with resets_target=True so that stale values
-        # don't leak into all_filter_values as sibling WHERE constraints.
-        # Without this, changing Provider would send old State/County/City
-        # values, artificially restricting cascade results.
-        for edge in source_to_targets.get(changed_filter_id, []):
-            if edge['resets_target']:
-                tf = filters_on_page.get(edge['target_id'])
-                if tf:
-                    tp = tf.param_name or tf.field_name
-                    if tp and snapshot.get(tp):
-                        snapshot[tp] = ''
+        # Pre-clear ALL reachable filters with resets_target=True, not just
+        # direct targets.  In bidirectional/cyclic graphs, a filter reachable
+        # through a chain of edges would otherwise contribute stale constraint
+        # values (e.g., switching from a CA to TX provider would still see
+        # County=LA and City=Burbank when refreshing State's options).
+        to_clear = set()
+        clear_seen = {changed_filter_id}
+        clear_stack = [changed_filter_id]
+        while clear_stack:
+            node_id = clear_stack.pop()
+            for edge in source_to_targets.get(node_id, []):
+                tid = edge['target_id']
+                if tid in clear_seen:
+                    continue
+                clear_seen.add(tid)
+                if edge['resets_target']:
+                    to_clear.add(tid)
+                clear_stack.append(tid)  # keep walking even if this edge doesn't reset
+
+        for tid in to_clear:
+            tf = filters_on_page.get(tid)
+            if tf:
+                tp = tf.param_name or tf.field_name
+                if tp and snapshot.get(tp):
+                    snapshot[tp] = ''
 
         # ── Walk DAG using BFS (Kahn's-inspired) ───────────────────────────
         updated_filters = {}
@@ -952,14 +966,9 @@ class PosterraWidgetAPI(http.Controller):
 
                 snapshot[target_param] = new_value
 
-                # Pre-clear this target's own reset-targets too (recursive)
-                for child_edge in source_to_targets.get(tid, []):
-                    if child_edge['resets_target']:
-                        child_f = filters_on_page.get(child_edge['target_id'])
-                        if child_f:
-                            child_p = child_f.param_name or child_f.field_name
-                            if child_p and snapshot.get(child_p):
-                                snapshot[child_p] = ''
+                # NOTE: Per-target child pre-clear removed — the upfront
+                # full graph walk above already cleared all reachable targets
+                # with resets_target=True before the BFS loop started.
 
                 updated_filters[str(tid)] = {
                     'param_name': target_param,

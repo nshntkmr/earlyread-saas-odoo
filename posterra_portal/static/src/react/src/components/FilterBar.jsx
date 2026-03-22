@@ -125,18 +125,33 @@ export default function FilterBar() {
 
     const targets = sourceToTargets.get(filter.id) || []
 
-    // Pre-clear targets with resets_target=True in the snapshot so that
-    // allValues sent to the cascade API never includes stale values for
-    // filters about to be reset. Without this, changing Provider would
-    // send the old State/County/City values as sibling WHERE constraints,
-    // artificially restricting the cascade results.
-    for (const edge of targets) {
-      if (edge.resets_target) {
-        const tf = filtersById.get(edge.targetId)
+    // Pre-clear ALL reachable filters with resets_target=True, not just
+    // direct targets.  In bidirectional/cyclic graphs, a filter reachable
+    // through a chain of edges would otherwise contribute stale constraint
+    // values (e.g., switching from a CA to TX provider would still see
+    // County=LA and City=Burbank when refreshing State's options).
+    // This walk runs ONLY on the root call — recursive calls reuse the
+    // already-cleared snapshot.
+    if (isRoot) {
+      const toReset = new Set()
+      const seen = new Set([filter.id])
+      const stack = [filter.id]
+      while (stack.length > 0) {
+        const nodeId = stack.pop()
+        const edges = sourceToTargets.get(nodeId) || []
+        for (const edge of edges) {
+          if (seen.has(edge.targetId)) continue
+          seen.add(edge.targetId)
+          if (edge.resets_target) toReset.add(edge.targetId)
+          stack.push(edge.targetId)  // keep walking even if this edge doesn't reset
+        }
+      }
+      for (const resetId of toReset) {
+        const tf = filtersById.get(resetId)
         if (tf) {
-          const tp = edge.targetParam || tf.param_name || tf.field_name
+          const tp = tf.param_name || tf.field_name
           if (tp && snapshot[tp]) {
-            console.debug(`[CASCADE]   pre-clear stale target: ${tp} (was "${snapshot[tp]}")`)
+            console.debug(`[CASCADE]   pre-clear reachable target: ${tp} (was "${snapshot[tp]}")`)
             snapshot[tp] = ''
           }
         }
