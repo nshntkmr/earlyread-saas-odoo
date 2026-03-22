@@ -592,6 +592,12 @@ class PosterraPortal(CustomerPortal):
         # Root filters have no parent dependencies, so their options need no
         # constraints.  Resolve them first so child filters can use their
         # real values as constraints instead of the '__DEFERRED__' sentinel.
+        #
+        # NOTE: In bidirectional (cyclic) dependency graphs, ALL filters are
+        # targets, so this loop resolves zero filters.  This is correct — on
+        # first login all constraints are '__DEFERRED__' (skipped by the main
+        # filter_options loop below), so every filter gets unfiltered options,
+        # and compute_default_value() runs in the post-loop phase.
         filters_that_are_targets = set()
         for d in dep_records:
             filters_that_are_targets.add(d.target_filter_id.id)

@@ -101,24 +101,26 @@ resets_target    → clear target value on source change
 propagation      → 'required' (always cascade) or 'optional' (skip if target has value)
 ```
 
-### Dependency Graph (DAG)
+### Dependency Graph (Cycles Allowed)
 
-Filter dependencies form a **directed acyclic graph** — cycles are rejected at save time.
+Filter dependencies form a **general directed graph** — bidirectional/cyclic edges are allowed (e.g., Provider ↔ State). Self-loops are still rejected.
 
-**Cycle detection** (`dashboard_filter_dependency.py`): DFS with 3-color marking (WHITE/GRAY/BLACK). A GRAY→GRAY back-edge means cycle → `ValidationError`. Runs on every edge create/update.
+**Circuit breaker:** The visited set at every runtime layer prevents infinite loops. When a filter is already in the visited set, traversal stops — each filter is processed exactly once per cascade event.
+
+**Pre-clear on cascade:** Before traversing, a full graph walk finds ALL reachable filters with `resets_target=True` and clears their stale values in the snapshot. This prevents filters from being constrained by sibling values that are about to be reset (e.g., switching from a CA to TX provider won't see stale County=LA when refreshing State).
 
 **Traversal by layer:**
 
 | Layer | Algorithm | File | Key Detail |
 |-------|-----------|------|------------|
-| DB save | DFS cycle detection | `dashboard_filter_dependency.py:_check_no_cycle` | Enforces DAG constraint |
-| Server page load | Implicit topo order (roots first) | `portal.py` step 8 | Root filters (in-degree 0) resolved before children |
-| Server cascade API | BFS (Kahn's-inspired) | `widget_api.py:api_filters_resolve` | Single HTTP call resolves full cascade |
-| Client cascade | Recursive DFS + visited set | `FilterBar.jsx:handleGraphCascade` | Two-phase: fetch all targets, then recurse |
+| DB save | Self-loop + same-page checks only | `dashboard_filter_dependency.py` | Cycles allowed; visited set is the runtime guard |
+| Server page load | Implicit topo order (roots first) | `portal.py` step 8 | In bidirectional graphs, no root filters → all deferred defaults resolve in post-loop phase |
+| Server cascade API | BFS + visited set | `widget_api.py:api_filters_resolve` | Full graph pre-clear, then single HTTP call resolves cascade |
+| Client cascade | Recursive DFS + visited set | `FilterBar.jsx:handleGraphCascade` | Full graph pre-clear, two-phase: fetch all targets, then recurse |
 
-**Root filter = in-degree 0** — identified by checking which filter IDs never appear as `target_filter_id` in any dependency edge. These are resolved first so their values are available as constraints for child filters (critical for deferred defaults).
+**Root filter = in-degree 0** — identified by checking which filter IDs never appear as `target_filter_id` in any dependency edge. In bidirectional graphs, all filters are targets → no root filters → early resolution phase is a no-op. This is correct: on first login, `__DEFERRED__` values are skipped as constraints, so every filter gets unfiltered options.
 
-**Visited sets at every layer** — even though the DB enforces DAG, all runtime traversals carry a visited set to prevent re-processing nodes reachable via multiple paths (diamond dependencies).
+**Visited sets at every layer** — all runtime traversals carry a visited set to prevent re-processing nodes reachable via multiple paths (diamond dependencies or cycles).
 
 ### Provider Resolution (Generic — Step 8 in portal.py)
 
