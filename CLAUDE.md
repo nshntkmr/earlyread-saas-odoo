@@ -101,6 +101,25 @@ resets_target    → clear target value on source change
 propagation      → 'required' (always cascade) or 'optional' (skip if target has value)
 ```
 
+### Dependency Graph (DAG)
+
+Filter dependencies form a **directed acyclic graph** — cycles are rejected at save time.
+
+**Cycle detection** (`dashboard_filter_dependency.py`): DFS with 3-color marking (WHITE/GRAY/BLACK). A GRAY→GRAY back-edge means cycle → `ValidationError`. Runs on every edge create/update.
+
+**Traversal by layer:**
+
+| Layer | Algorithm | File | Key Detail |
+|-------|-----------|------|------------|
+| DB save | DFS cycle detection | `dashboard_filter_dependency.py:_check_no_cycle` | Enforces DAG constraint |
+| Server page load | Implicit topo order (roots first) | `portal.py` step 8 | Root filters (in-degree 0) resolved before children |
+| Server cascade API | BFS (Kahn's-inspired) | `widget_api.py:api_filters_resolve` | Single HTTP call resolves full cascade |
+| Client cascade | Recursive DFS + visited set | `FilterBar.jsx:handleGraphCascade` | Two-phase: fetch all targets, then recurse |
+
+**Root filter = in-degree 0** — identified by checking which filter IDs never appear as `target_filter_id` in any dependency edge. These are resolved first so their values are available as constraints for child filters (critical for deferred defaults).
+
+**Visited sets at every layer** — even though the DB enforces DAG, all runtime traversals carry a visited set to prevent re-processing nodes reachable via multiple paths (diamond dependencies).
+
 ### Provider Resolution (Generic — Step 8 in portal.py)
 
 ```python
