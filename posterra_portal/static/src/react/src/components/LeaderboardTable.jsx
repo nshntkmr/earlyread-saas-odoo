@@ -33,7 +33,7 @@ export default function LeaderboardTable({ data }) {
                 }
               >
                 <td className="pv-ml-rank">
-                  {isPinned ? '...' : row.rank}
+                  {row.rank}
                 </td>
                 <td className="pv-ml-name">
                   {row.name}
