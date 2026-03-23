@@ -461,7 +461,7 @@ class DesignerAPI(http.Controller):
         type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
     )
     def templates_list(self, **kw):
-        """List widget templates."""
+        """List widget templates with slot info for parameterized templates."""
         try:
             _require_admin()
         except ValueError as e:
@@ -470,19 +470,51 @@ class DesignerAPI(http.Controller):
         templates = request.env['dashboard.widget.template'].sudo().search(
             [], order='category, name')
 
-        return _json_response([{
-            'id': t.id,
-            'name': t.name,
-            'description': t.description or '',
-            'category': t.category,
-        } for t in templates])
+        result = []
+        for t in templates:
+            item = {
+                'id': t.id,
+                'name': t.name,
+                'description': t.description or '',
+                'category': t.category,
+                'template_mode': t.template_mode or 'legacy_json',
+                'chart_type': t.chart_type or '',
+                'creates_count': t.creates_count,
+            }
+            if t.template_mode == 'parameterized':
+                item['slots'] = [{
+                    'slot_name': s.slot_name,
+                    'label': s.label,
+                    'slot_type': s.slot_type,
+                    'column_filter': s.column_filter or 'any',
+                    'required': s.required,
+                    'default_value': s.default_value or '',
+                    'help_text': s.help_text or '',
+                } for s in t.slot_ids.sorted('sequence')]
+                try:
+                    item['multi_instance_configs'] = json.loads(
+                        t.multi_instance_configs or '[]')
+                except (json.JSONDecodeError, TypeError):
+                    item['multi_instance_configs'] = []
+                item['sql_pattern'] = t.sql_pattern or ''
+                item['title_pattern'] = t.title_pattern or ''
+                item['col_span'] = t.col_span or '6'
+                item['chart_height'] = t.chart_height or 350
+                item['color_palette'] = t.color_palette or 'healthcare'
+                item['kpi_format'] = t.kpi_format or 'number'
+                item['kpi_prefix'] = t.kpi_prefix or ''
+                item['kpi_suffix'] = t.kpi_suffix or ''
+                item['where_clause_exclude'] = t.where_clause_exclude or ''
+            result.append(item)
+
+        return _json_response(result)
 
     @http.route(
         '/dashboard/designer/api/templates/<int:tpl_id>/use',
         type='http', auth='user', methods=['POST'], csrf=False,
     )
     def template_use(self, tpl_id, **kw):
-        """Use a template to create widget definitions."""
+        """Use a template to create widgets. Supports both legacy and parameterized."""
         try:
             _require_admin()
         except ValueError as e:
@@ -500,8 +532,20 @@ class DesignerAPI(http.Controller):
             return _json_error(400, 'page_id is required')
 
         try:
-            widget_ids = tpl.action_use_template(page_id, tab_id)
+            if tpl.template_mode == 'parameterized':
+                schema_source_id = body.get('schema_source_id')
+                slot_mappings = body.get('slot_mappings', {})
+                instances = body.get('instances')
+                if not schema_source_id:
+                    return _json_error(400, 'schema_source_id is required for parameterized templates')
+                widget_ids = tpl.action_use_parameterized(
+                    page_id, tab_id, schema_source_id,
+                    slot_mappings, instances)
+            else:
+                widget_ids = tpl.action_use_template(page_id, tab_id)
             return _json_response({'widget_ids': widget_ids})
+        except ValueError as e:
+            return _json_error(400, str(e))
         except Exception as e:
             _logger.exception("Template use error")
             return _json_error(500, f'Template failed: {e}')

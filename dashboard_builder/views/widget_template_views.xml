@@ -8,9 +8,11 @@
         <field name="name">dashboard.widget.template.list</field>
         <field name="model">dashboard.widget.template</field>
         <field name="arch" type="xml">
-            <list string="Widget Templates" editable="bottom">
+            <list string="Widget Templates">
                 <field name="name"/>
+                <field name="template_mode"/>
                 <field name="category"/>
+                <field name="chart_type"/>
                 <field name="description"/>
                 <field name="creates_count" string="# Widgets"/>
             </list>
@@ -31,6 +33,7 @@
                     </div>
                     <group>
                         <group>
+                            <field name="template_mode" widget="radio"/>
                             <field name="category"/>
                             <field name="creates_count"/>
                         </group>
@@ -41,12 +44,77 @@
                     <group>
                         <field name="description" placeholder="Short description of what this template creates…"/>
                     </group>
+
+                    <!-- ── Parameterized mode ─────────────────────────── -->
+                    <group invisible="template_mode != 'parameterized'">
+                        <group string="Widget Defaults">
+                            <field name="chart_type"/>
+                            <field name="col_span"/>
+                            <field name="chart_height"/>
+                            <field name="color_palette"/>
+                        </group>
+                        <group string="KPI Formatting">
+                            <field name="kpi_format"/>
+                            <field name="kpi_prefix" placeholder="e.g. $"/>
+                            <field name="kpi_suffix" placeholder="e.g. %"/>
+                        </group>
+                    </group>
+
                     <notebook>
-                        <page string="Widget Configs (JSON)" name="configs">
+                        <!-- ─── Legacy JSON tab ───────────────────────── -->
+                        <page string="Widget Configs (JSON)" name="configs"
+                              invisible="template_mode != 'legacy_json'">
                             <field name="widget_configs"
                                    widget="ace"
                                    options="{'mode': 'json'}"
                                    placeholder='[&#10;  {"chart_type": "kpi", "name": "My KPI", "col_span": "3", ...}&#10;]'/>
+                        </page>
+
+                        <!-- ─── SQL Pattern tab ───────────────────────── -->
+                        <page string="SQL Pattern" name="sql_pattern"
+                              invisible="template_mode != 'parameterized'">
+                            <group>
+                                <field name="title_pattern"
+                                       placeholder="e.g. Total {{metric_label}}"/>
+                                <field name="where_clause_exclude"
+                                       placeholder="e.g. year,hha_state  (comma-separated)"/>
+                            </group>
+                            <field name="sql_pattern"
+                                   widget="ace"
+                                   options="{'mode': 'sql'}"
+                                   placeholder="SELECT SUM({{metric_column}}) AS value&#10;FROM {{schema_table}}&#10;WHERE {where_clause}"
+                                   nolabel="1"/>
+                        </page>
+
+                        <!-- ─── Slots tab ─────────────────────────────── -->
+                        <page string="Slots" name="slots"
+                              invisible="template_mode != 'parameterized'">
+                            <field name="slot_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="slot_name"/>
+                                    <field name="label"/>
+                                    <field name="slot_type"/>
+                                    <field name="column_filter"
+                                           invisible="slot_type != 'column'"/>
+                                    <field name="required"/>
+                                    <field name="default_value"/>
+                                    <field name="help_text"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- ─── Multi-Instance tab ────────────────────── -->
+                        <page string="Multi-Instance" name="multi_instance"
+                              invisible="template_mode != 'parameterized'">
+                            <div class="text-muted mb-2">
+                                JSON array — each object creates one widget.
+                                Keys must match slot names.
+                            </div>
+                            <field name="multi_instance_configs"
+                                   widget="ace"
+                                   options="{'mode': 'json'}"
+                                   placeholder='[&#10;  {"metric_column": "total_admits", "metric_label": "Total Admits"},&#10;  {"metric_column": "total_hha_days", "metric_label": "HHA Days"}&#10;]'/>
                         </page>
                     </notebook>
                 </sheet>
