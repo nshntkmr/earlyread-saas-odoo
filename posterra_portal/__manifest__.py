@@ -49,6 +49,7 @@
         'views/menuitems.xml',
         'views/login_templates.xml',
         'views/error_templates.xml',       # Phase 4: branded error pages (404/403/500)
+        'views/dashboard_builder_ext_views.xml',
         'views/dashboard_templates.xml',
     ],
     'assets': {

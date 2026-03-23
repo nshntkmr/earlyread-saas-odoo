@@ -56,10 +56,6 @@ class DashboardSchemaSource(models.Model):
     table_alias  = fields.Char(string='SQL Alias', size=5)
     description  = fields.Text(string='Description')
     is_active    = fields.Boolean(default=True)
-    app_ids      = fields.Many2many(
-        'saas.app', 'schema_source_app_rel', 'source_id', 'app_id',
-        string='Available in Apps',
-        help='Leave empty for global availability. Set to restrict to specific apps.')
     column_ids   = fields.One2many(
         'dashboard.schema.column', 'source_id', string='Columns')
     relation_ids = fields.One2many(
