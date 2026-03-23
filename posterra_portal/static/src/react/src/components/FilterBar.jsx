@@ -411,16 +411,8 @@ export default function FilterBar() {
         )
       })}
 
-      {/* ── Clear All + Apply buttons ────────────────────────────────── */}
+      {/* ── Apply + Clear All buttons ────────────────────────────────── */}
       <div className="pv-ctx-filter-group pv-ctx-apply-group">
-        <button
-          type="button"
-          className="btn btn-outline-secondary pv-ctx-clear-btn"
-          id="ctx-clear-btn"
-          onClick={handleClearAll}
-        >
-          Clear All
-        </button>
         <button
           type="button"
           className="btn btn-primary pv-ctx-apply-btn"
@@ -428,6 +420,14 @@ export default function FilterBar() {
           onClick={applyFilters}
         >
           Apply
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline-secondary pv-ctx-clear-btn"
+          id="ctx-clear-btn"
+          onClick={handleClearAll}
+        >
+          Clear All
         </button>
       </div>
     </div>
