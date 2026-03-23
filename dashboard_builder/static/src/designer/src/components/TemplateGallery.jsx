@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { designerFetch } from '../api/client'
 import { templatesUrl, templateUseUrl } from '../api/endpoints'
+import TemplateConfigPanel from './TemplateConfigPanel'
 
 const CHART_ICONS = {
   bar: 'fa-bar-chart', line: 'fa-line-chart', pie: 'fa-pie-chart',
@@ -8,17 +9,21 @@ const CHART_ICONS = {
   kpi: 'fa-hashtag', status_kpi: 'fa-arrow-up', table: 'fa-table',
   scatter: 'fa-braille', heatmap: 'fa-th', battle_card: 'fa-columns',
   insight_panel: 'fa-lightbulb-o', gauge_kpi: 'fa-dashboard',
+  kpi_strip: 'fa-ellipsis-h',
 }
 
 /**
- * TemplateGallery — Browse and use pre-built widget templates.
- * Using a template creates one or more widget definitions in the library.
+ * TemplateGallery — Browse and configure widget templates.
+ *
+ * Parameterized templates → inline TemplateConfigPanel expands below the card.
+ * Legacy JSON templates → immediate creation (old behavior).
  */
-export default function TemplateGallery({ apiBase }) {
+export default function TemplateGallery({ apiBase, appContext, onUseTemplate }) {
   const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
-  const [using, setUsing] = useState(null) // template id being used
-  const [result, setResult] = useState(null) // last use result
+  const [using, setUsing] = useState(null)
+  const [result, setResult] = useState(null)
+  const [editingId, setEditingId] = useState(null) // template id being configured
 
   useEffect(() => {
     loadTemplates()
@@ -36,21 +41,46 @@ export default function TemplateGallery({ apiBase }) {
     }
   }
 
-  const handleUse = async (tmpl) => {
+  /** Legacy JSON template: immediate create */
+  const handleUseLegacy = async (tmpl) => {
+    const pageId = appContext?.page?.id
+    if (!pageId) {
+      setResult({ error: 'Please select an App and Page in the context bar first.' })
+      return
+    }
     setUsing(tmpl.id)
     setResult(null)
     try {
+      const body = { page_id: pageId, tab_id: appContext?.tab?.id }
       const data = await designerFetch(templateUseUrl(apiBase, tmpl.id), {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       })
-      setResult({ templateName: tmpl.name, definitions: data.definitions || [] })
+      const count = (data.widget_ids || []).length
+      setResult({ templateName: tmpl.name, count })
     } catch (err) {
-      console.error('Failed to use template:', err)
       setResult({ error: err.message })
     } finally {
       setUsing(null)
     }
+  }
+
+  const handleUse = (tmpl) => {
+    if (tmpl.template_mode === 'parameterized') {
+      handleUseLegacy(tmpl) // For now, same flow — config panel does the real work
+    } else {
+      handleUseLegacy(tmpl)
+    }
+  }
+
+  const handleEdit = (tmpl) => {
+    setEditingId(editingId === tmpl.id ? null : tmpl.id) // toggle
+    setResult(null)
+  }
+
+  const handleConfigCreated = (res) => {
+    setEditingId(null)
+    setResult(res)
   }
 
   return (
@@ -58,7 +88,7 @@ export default function TemplateGallery({ apiBase }) {
       <div className="dd-page-header">
         <h1 className="dd-page-title">Widget Templates</h1>
         <p className="dd-page-subtitle">
-          Pre-built widget patterns — use a template to create definitions in your library.
+          Pre-built widget patterns — configure and place on any dashboard page.
         </p>
       </div>
 
@@ -66,13 +96,9 @@ export default function TemplateGallery({ apiBase }) {
       {result && !result.error && (
         <div className="dd-result-banner dd-result-banner--success">
           <i className="fa fa-check-circle me-2" />
-          Created {result.definitions.length} definition{result.definitions.length !== 1 ? 's' : ''} from
+          Created {result.count} widget{result.count !== 1 ? 's' : ''} from
           "{result.templateName}" — check the Widget Library.
-          <button
-            type="button"
-            className="dd-result-dismiss"
-            onClick={() => setResult(null)}
-          >
+          <button type="button" className="dd-result-dismiss" onClick={() => setResult(null)}>
             <i className="fa fa-times" />
           </button>
         </div>
@@ -81,11 +107,7 @@ export default function TemplateGallery({ apiBase }) {
         <div className="dd-result-banner dd-result-banner--error">
           <i className="fa fa-exclamation-triangle me-2" />
           {result.error}
-          <button
-            type="button"
-            className="dd-result-dismiss"
-            onClick={() => setResult(null)}
-          >
+          <button type="button" className="dd-result-dismiss" onClick={() => setResult(null)}>
             <i className="fa fa-times" />
           </button>
         </div>
@@ -103,43 +125,82 @@ export default function TemplateGallery({ apiBase }) {
           <p>No templates available.</p>
         </div>
       ) : (
-        <div className="dd-def-grid">
-          {templates.map(tmpl => (
-            <div key={tmpl.id} className="dd-def-card dd-tmpl-card">
-              <div className="dd-def-card-icon">
-                <i className={`fa ${CHART_ICONS[tmpl.chart_type] || 'fa-cube'}`} />
-              </div>
-              <div className="dd-def-card-body">
-                <h3 className="dd-def-name">{tmpl.name}</h3>
-                <p className="dd-def-desc">{tmpl.description || `${tmpl.chart_type} template`}</p>
-                <div className="dd-def-meta">
-                  <span className="dd-badge dd-badge--type">{tmpl.chart_type}</span>
-                  {tmpl.category && (
-                    <span className="dd-badge dd-badge--cat">{tmpl.category}</span>
-                  )}
-                </div>
-              </div>
-              <div className="dd-def-card-actions">
-                <button
-                  type="button"
-                  className="wb-btn wb-btn--primary wb-btn--sm"
-                  onClick={() => handleUse(tmpl)}
-                  disabled={using === tmpl.id}
+        <div className="dd-def-grid" style={{ gridTemplateColumns: '1fr' }}>
+          {templates.map(tmpl => {
+            const isEditing = editingId === tmpl.id
+
+            return (
+              <div key={tmpl.id}>
+                {/* Card */}
+                <div
+                  className="dd-def-card dd-tmpl-card"
+                  style={{
+                    borderRadius: isEditing ? '12px 12px 0 0' : 12,
+                    borderBottom: isEditing ? '1px dashed #cbd5e1' : undefined,
+                  }}
                 >
-                  {using === tmpl.id ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-1" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fa fa-magic me-1" /> Use Template
-                    </>
-                  )}
-                </button>
+                  <div className="dd-def-card-icon">
+                    <i className={`fa ${CHART_ICONS[tmpl.chart_type] || 'fa-cube'}`} />
+                  </div>
+                  <div className="dd-def-card-body">
+                    <h3 className="dd-def-name">{tmpl.name}</h3>
+                    <p className="dd-def-desc">{tmpl.description || `${tmpl.chart_type || 'widget'} template`}</p>
+                    <div className="dd-def-meta">
+                      {tmpl.chart_type && (
+                        <span className="dd-badge dd-badge--type">{tmpl.chart_type}</span>
+                      )}
+                      {tmpl.category && (
+                        <span className="dd-badge dd-badge--cat">{tmpl.category}</span>
+                      )}
+                      {tmpl.creates_count > 1 && (
+                        <span className="dd-badge" style={{ background: '#fef3c7', color: '#92400e' }}>
+                          Creates {tmpl.creates_count}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="dd-def-card-actions" style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className={`wb-btn wb-btn--sm ${isEditing ? 'wb-btn--primary' : 'wb-btn--outline'}`}
+                      onClick={() => handleEdit(tmpl)}
+                    >
+                      <i className={`fa ${isEditing ? 'fa-chevron-up' : 'fa-pencil'} me-1`} />
+                      {isEditing ? 'Close' : 'Edit'}
+                    </button>
+                    <button
+                      type="button"
+                      className="wb-btn wb-btn--primary wb-btn--sm"
+                      onClick={() => handleUse(tmpl)}
+                      disabled={using === tmpl.id}
+                    >
+                      {using === tmpl.id ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-1" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa fa-magic me-1" /> Use Template
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline Config Panel */}
+                {isEditing && (
+                  <TemplateConfigPanel
+                    template={tmpl}
+                    apiBase={apiBase}
+                    appContext={appContext}
+                    onCreated={handleConfigCreated}
+                    onClose={() => setEditingId(null)}
+                  />
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

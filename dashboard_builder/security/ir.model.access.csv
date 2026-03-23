@@ -14,3 +14,6 @@ access_widget_def_system,dashboard.widget.definition system,model_dashboard_widg
 access_widget_tpl_user,dashboard.widget.template user,model_dashboard_widget_template,group_dashboard_builder_user,1,0,0,0
 access_widget_tpl_admin,dashboard.widget.template admin,model_dashboard_widget_template,group_dashboard_builder_admin,1,1,1,1
 access_widget_tpl_system,dashboard.widget.template system,model_dashboard_widget_template,base.group_system,1,1,1,1
+access_widget_tpl_slot_user,dashboard.widget.template.slot user,model_dashboard_widget_template_slot,group_dashboard_builder_user,1,0,0,0
+access_widget_tpl_slot_admin,dashboard.widget.template.slot admin,model_dashboard_widget_template_slot,group_dashboard_builder_admin,1,1,1,1
+access_widget_tpl_slot_system,dashboard.widget.template.slot system,model_dashboard_widget_template_slot,base.group_system,1,1,1,1
