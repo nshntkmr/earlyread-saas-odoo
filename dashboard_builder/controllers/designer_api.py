@@ -51,8 +51,14 @@ class DesignerAPI(http.Controller):
         except ValueError as e:
             return _json_error(403, str(e))
 
+        source_domain = [('is_active', '=', True)]
+        if kw.get('app_id'):
+            app_id = int(kw['app_id'])
+            source_domain.append('|')
+            source_domain.append(('app_ids', '=', False))
+            source_domain.append(('app_ids', 'in', [app_id]))
         sources = request.env['dashboard.schema.source'].sudo().search(
-            [('is_active', '=', True)], order='name asc')
+            source_domain, order='name asc')
 
         return _json_response([{
             'id': s.id,
@@ -197,6 +203,12 @@ class DesignerAPI(http.Controller):
             domain.append(('category', '=', kw['category']))
         if kw.get('search'):
             domain.append(('name', 'ilike', kw['search']))
+        if kw.get('app_id'):
+            # Show definitions scoped to this app OR global (no app_ids set)
+            app_id = int(kw['app_id'])
+            domain.append('|')
+            domain.append(('app_ids', '=', False))
+            domain.append(('app_ids', 'in', [app_id]))
 
         defs = request.env['dashboard.widget.definition'].sudo().search(
             domain, order='category, name')
@@ -209,6 +221,7 @@ class DesignerAPI(http.Controller):
             'chart_type': d.chart_type,
             'instance_count': d.instance_count,
             'data_mode': d.data_mode,
+            'app_names': [a.name for a in d.app_ids] if d.app_ids else [],
         } for d in defs])
 
     @http.route(
@@ -331,6 +344,10 @@ class DesignerAPI(http.Controller):
             if body.get('echart_override'):
                 def_vals['echart_override'] = body['echart_override']
 
+            # App scoping
+            if body.get('app_ids'):
+                def_vals['app_ids'] = [(6, 0, body['app_ids'])]
+
             definition = request.env['dashboard.widget.definition'].sudo().create(def_vals)
 
             return _json_response({
@@ -396,6 +413,9 @@ class DesignerAPI(http.Controller):
                 update_vals['generated_sql'] = qb.build_select_query(config)
             else:
                 update_vals['builder_config'] = config or ''
+
+        if 'app_ids' in body:
+            update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]
 
         try:
             defn.write(update_vals)
@@ -484,6 +504,52 @@ class DesignerAPI(http.Controller):
         except Exception as e:
             _logger.exception("Template use error")
             return _json_error(500, f'Template failed: {e}')
+
+    # =========================================================================
+    # PAGE FILTER ENDPOINTS (for designer preview with real filters)
+    # =========================================================================
+
+    @http.route(
+        '/dashboard/designer/api/pages/<int:page_id>/filters',
+        type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
+    )
+    def page_filters(self, page_id, **kw):
+        """Return filter definitions + options for a page (designer preview)."""
+        try:
+            _require_admin()
+        except ValueError as e:
+            return _json_error(403, str(e))
+
+        try:
+            PageFilter = request.env['dashboard.page.filter'].sudo()
+            filters = PageFilter.search(
+                [('page_id', '=', page_id), ('is_active', '=', True)],
+                order='sequence asc')
+
+            result = []
+            for f in filters:
+                try:
+                    options = f.get_options()
+                except Exception:
+                    options = []
+
+                result.append({
+                    'id': f.id,
+                    'param_name': f.param_name or '',
+                    'label': f.display_name or f.param_name or '',
+                    'field_name': f.field_name or '',
+                    'is_visible': f.is_visible,
+                    'is_multiselect': f.is_multiselect,
+                    'include_all_option': f.include_all_option,
+                    'default_value': f.default_value or '',
+                    'options': options if isinstance(options, list) else [],
+                })
+            return _json_response(result)
+        except KeyError:
+            return _json_response([])
+        except Exception as e:
+            _logger.exception("Page filters error")
+            return _json_error(500, f'Failed to load page filters: {e}')
 
     # =========================================================================
     # APP & PAGE ENDPOINTS (graceful when posterra_portal not installed)

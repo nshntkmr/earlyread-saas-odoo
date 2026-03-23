@@ -23,7 +23,7 @@ const CATEGORIES = [
 /**
  * WidgetLibrary — Browsable grid of widget definitions.
  */
-export default function WidgetLibrary({ apiBase, onCreate, onEdit }) {
+export default function WidgetLibrary({ apiBase, appContext, onCreate, onEdit }) {
   const [definitions, setDefinitions] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -32,7 +32,7 @@ export default function WidgetLibrary({ apiBase, onCreate, onEdit }) {
 
   useEffect(() => {
     loadLibrary()
-  }, [category, apiBase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [category, apiBase, appContext?.app?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadLibrary = async () => {
     setLoading(true)
@@ -40,6 +40,7 @@ export default function WidgetLibrary({ apiBase, onCreate, onEdit }) {
       const params = {}
       if (category) params.category = category
       if (search) params.search = search
+      if (appContext?.app?.id) params.app_id = appContext.app.id
       const data = await designerFetch(libraryUrl(apiBase, params))
       setDefinitions(data)
     } catch (err) {
@@ -136,6 +137,13 @@ export default function WidgetLibrary({ apiBase, onCreate, onEdit }) {
                 <div className="dd-def-meta">
                   <span className="dd-badge dd-badge--type">{def.chart_type}</span>
                   <span className="dd-badge dd-badge--cat">{def.category}</span>
+                  {def.app_names && def.app_names.length > 0 ? (
+                    def.app_names.map(name => (
+                      <span key={name} className="dd-badge dd-badge--app">{name}</span>
+                    ))
+                  ) : (
+                    <span className="dd-badge dd-badge--app-global">All Apps</span>
+                  )}
                   {def.instance_count > 0 && (
                     <span className="dd-badge dd-badge--count">
                       {def.instance_count} instance{def.instance_count !== 1 ? 's' : ''}

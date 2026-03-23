@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { designerFetch } from '../../api/client'
-import { previewUrl } from '../../api/endpoints'
+import { previewUrl, pageFiltersUrl } from '../../api/endpoints'
 
 /**
  * Step 2 (Custom SQL mode): Write raw SQL with test query.
@@ -8,31 +8,49 @@ import { previewUrl } from '../../api/endpoints'
  * Auto-detects %(param_name)s placeholders from the SQL and shows input
  * fields for each so admins can enter test values before running preview.
  *
+ * When appContext has a page selected, shows the page's actual filter
+ * param_names as insert pills (instead of hardcoded COMMON_PARAMS).
+ *
  * Props:
- *   sql              — current SQL text
- *   xColumn          — X-axis column name
- *   yColumns         — comma-separated Y column names
- *   seriesColumn     — optional series column
- *   testResult       — {columns, rows, error} or null
- *   onUpdate         — ({sql, xColumn, yColumns, seriesColumn, testResult}) => void
- *   apiBase          — string
+ *   sql, xColumn, yColumns, seriesColumn, testResult, testParams, onUpdate, apiBase
+ *   appContext  — { app, page, tab } | null — from AppContextBar
  */
 export default function CustomSqlEditor({
   sql, xColumn, yColumns, seriesColumn, testResult,
-  testParams = {}, onUpdate, apiBase,
+  testParams = {}, onUpdate, apiBase, appContext = null,
 }) {
   const [testing, setTesting] = useState(false)
+  const [pageParams, setPageParams] = useState([])
 
-  // Propagate test param changes to parent state (so LivePreview can use them)
+  // Load page filter param names when page context changes
+  useEffect(() => {
+    if (!appContext?.page?.id) {
+      setPageParams([])
+      return
+    }
+    designerFetch(pageFiltersUrl(apiBase, appContext.page.id))
+      .then(filters => {
+        setPageParams(
+          filters
+            .filter(f => f.param_name)
+            .map(f => ({ param: f.param_name, label: f.label || f.param_name }))
+        )
+      })
+      .catch(() => setPageParams([]))
+  }, [apiBase, appContext?.page?.id])
+
   const setTestParam = useCallback((key, value) => {
     onUpdate({ testParams: { ...testParams, [key]: value } })
   }, [testParams, onUpdate])
 
-  // Common params for quick-insert pills
-  const COMMON_PARAMS = [
-    'hha_state', 'hha_county', 'hha_city', 'hha_id',
-    'hha_ccn', 'hha_name', 'year', 'ffs_ma',
-  ]
+  // Insert pills: page filter params when context is set, otherwise auto-detected from SQL
+  const insertPills = useMemo(() => {
+    if (pageParams.length > 0) return pageParams
+    // Fallback: auto-detect unique params from SQL
+    if (!sql) return []
+    const matches = [...sql.matchAll(/%\((\w+)\)s/g)]
+    return [...new Set(matches.map(m => m[1]))].map(p => ({ param: p, label: p }))
+  }, [pageParams, sql])
 
   // Auto-extract %(param_name)s placeholders from SQL (deduplicated, in order)
   const detectedParams = useMemo(() => {
@@ -44,7 +62,6 @@ export default function CustomSqlEditor({
   const runTest = async () => {
     setTesting(true)
     try {
-      // Build params dict from test inputs for all detected placeholders
       const params = {}
       for (const p of detectedParams) {
         params[p] = testParams[p] || ''
@@ -81,21 +98,33 @@ export default function CustomSqlEditor({
         />
       </div>
 
-      {/* Available params — quick-insert pills */}
+      {/* Available params — quick-insert pills (dynamic from page context or SQL) */}
       <div className="wb-field-group">
-        <label className="wb-label">Insert Filter Param</label>
+        <label className="wb-label">
+          Insert Filter Param
+          {pageParams.length > 0 && (
+            <span className="wb-hint-inline"> (from {appContext.page.name} filters)</span>
+          )}
+        </label>
         <div className="wb-param-pills">
-          {COMMON_PARAMS.map(p => (
+          {insertPills.map(p => (
             <button
-              key={p}
+              key={p.param}
               type="button"
               className="wb-pill"
-              onClick={() => insertParam(p)}
-              title={`Insert %(${p})s`}
+              onClick={() => insertParam(p.param)}
+              title={`Insert %(${p.param})s`}
             >
-              %({p})s
+              %({p.param})s
             </button>
           ))}
+          {insertPills.length === 0 && (
+            <span className="wb-hint">
+              {appContext?.page
+                ? 'No filters found for this page.'
+                : 'Select a page in the Context bar to see available params, or type SQL with %(param)s placeholders.'}
+            </span>
+          )}
         </div>
       </div>
 

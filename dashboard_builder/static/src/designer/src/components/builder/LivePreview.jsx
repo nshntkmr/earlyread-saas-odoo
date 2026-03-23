@@ -1,30 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react'
 import * as echarts from 'echarts'
 import { designerFetch } from '../../api/client'
-import { previewUrl } from '../../api/endpoints'
+import { previewUrl, libraryPlaceUrl } from '../../api/endpoints'
+import PageFilterPanel from './PageFilterPanel'
 
 /**
- * Step 6: Live Preview + Save.
+ * Step 5: Live Preview + Save.
  *
- * Designer version — no pages endpoint (placement is done via AppPagePicker after save).
+ * When appContext has a page selected, shows real filter dropdowns
+ * from the page's filter definitions. Otherwise falls back to manual test params.
  *
  * Props:
- *   builderState   — full useReducer state (chartType, dataMode, sources, columns, etc.)
- *   generatedSql   — SQL string from preview API (set after first preview)
- *   onSqlGenerated — (sql) => void — propagate generated SQL back up
- *   onSave         — () => void — trigger save
+ *   builderState   — full useReducer state
+ *   generatedSql   — SQL string from preview API
+ *   onSqlGenerated — (sql) => void
+ *   onSave         — () => Promise — trigger save, returns { id } on success
  *   saving         — boolean
  *   apiBase        — string
+ *   appContext     — { app, page, tab } | null
  */
 export default function LivePreview({
   builderState, generatedSql, onSqlGenerated,
-  onSave, saving, apiBase,
+  onSave, saving, apiBase, appContext = null,
 }) {
   const [previewData, setPreviewData] = useState(null)
   const [previewError, setPreviewError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [filterValues, setFilterValues] = useState({})
+  const [placing, setPlacing] = useState(false)
+  const [placeSuccess, setPlaceSuccess] = useState(false)
   const chartRef = useRef(null)
   const containerRef = useRef(null)
+
+  const hasPageContext = !!appContext?.page?.id
 
   // Init ECharts
   useEffect(() => {
@@ -54,7 +62,7 @@ export default function LivePreview({
     setLoading(true)
     setPreviewError(null)
     try {
-      const body = buildPreviewPayload(builderState)
+      const body = buildPreviewPayload(builderState, hasPageContext ? filterValues : null)
       const result = await designerFetch(previewUrl(apiBase), {
         method: 'POST',
         body: JSON.stringify(body),
@@ -68,9 +76,47 @@ export default function LivePreview({
     }
   }
 
+  const handleSaveAndPlace = async () => {
+    if (!appContext?.page) return
+    setPlacing(true)
+    try {
+      // First save (onSave returns the created definition)
+      const result = await onSave()
+      if (!result?.id) {
+        setPlacing(false)
+        return
+      }
+      // Then place on the selected page/tab
+      await designerFetch(libraryPlaceUrl(apiBase, result.id), {
+        method: 'POST',
+        body: JSON.stringify({
+          page_id: appContext.page.id,
+          tab_id: appContext.tab?.id || null,
+        }),
+      })
+      setPlaceSuccess(true)
+    } catch (err) {
+      setPreviewError(err.message || 'Save & Place failed')
+    } finally {
+      setPlacing(false)
+    }
+  }
+
   return (
     <div>
       <h3 className="wb-step-title">Preview & Save</h3>
+
+      {/* Page filter dropdowns (when app context has a page) */}
+      {hasPageContext && (
+        <div className="wb-field-group">
+          <PageFilterPanel
+            pageId={appContext.page.id}
+            apiBase={apiBase}
+            values={filterValues}
+            onChange={setFilterValues}
+          />
+        </div>
+      )}
 
       {/* Preview button */}
       <div className="wb-field-group">
@@ -163,21 +209,32 @@ export default function LivePreview({
         </div>
       )}
 
-      {/* Note: In designer, placement is done via AppPagePicker after saving */}
+      {/* Placement hint */}
       <div className="wb-section">
         <p className="wb-hint">
           <i className="fa fa-info-circle me-1" />
-          After saving, you can place this widget on any app's dashboard.
+          {hasPageContext
+            ? `You can save & place directly on ${appContext.page.name}${appContext.tab ? ` → ${appContext.tab.name}` : ''}.`
+            : 'After saving, you can place this widget on any app\'s dashboard.'}
         </p>
       </div>
 
-      {/* Save button */}
+      {/* Place success message */}
+      {placeSuccess && (
+        <div className="wb-place-success">
+          <i className="fa fa-check-circle me-1" />
+          Widget saved and placed on <strong>{appContext?.page?.name}</strong>
+          {appContext?.tab && <> → <strong>{appContext.tab.name}</strong></>}!
+        </div>
+      )}
+
+      {/* Save buttons */}
       <div className="wb-save-row">
         <button
           type="button"
           className="wb-btn wb-btn--success wb-btn--lg"
           onClick={onSave}
-          disabled={saving}
+          disabled={saving || placing}
         >
           {saving ? (
             <><span className="spinner-border spinner-border-sm me-1" /> Saving…</>
@@ -185,6 +242,27 @@ export default function LivePreview({
             <><i className="fa fa-check me-1" /> Save to Library</>
           )}
         </button>
+
+        {/* Save & Place shortcut */}
+        {hasPageContext && !placeSuccess && (
+          <button
+            type="button"
+            className="wb-btn wb-btn--primary wb-btn--lg"
+            onClick={handleSaveAndPlace}
+            disabled={saving || placing}
+            style={{ marginLeft: '12px' }}
+          >
+            {placing ? (
+              <><span className="spinner-border spinner-border-sm me-1" /> Placing…</>
+            ) : (
+              <>
+                <i className="fa fa-external-link me-1" />
+                Save & Place on {appContext.page.name}
+                {appContext.tab && ` → ${appContext.tab.name}`}
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -192,13 +270,9 @@ export default function LivePreview({
 
 /**
  * Build the preview payload from builder state.
- *
- * Backend expects:
- *   mode='custom_sql' → { sql: '...' }
- *   mode='visual'     → { config: { source_ids, columns, filters, ... } }
+ * When pageFilterValues is provided, uses those as params instead of manual testParams.
  */
-function buildPreviewPayload(state) {
-  // Common widget config for the preview formatter
+function buildPreviewPayload(state, pageFilterValues) {
   const isCustomSql = state.dataMode === 'custom_sql'
   const widgetConfig = {
     x_column: isCustomSql ? (state.customSql?.xColumn || '') : (state.xColumn || ''),
@@ -212,12 +286,18 @@ function buildPreviewPayload(state) {
   }
 
   if (isCustomSql) {
-    // Include test param values so the preview can execute parameterised SQL
     const sql = state.customSql?.sql || ''
     const testParams = state.customSql?.testParams || {}
+
+    // Use page filter values if available, otherwise fall back to manual test params
     const params = {}
     for (const m of sql.matchAll(/%\((\w+)\)s/g)) {
-      params[m[1]] = testParams[m[1]] || ''
+      const paramName = m[1]
+      if (pageFilterValues && paramName in pageFilterValues) {
+        params[paramName] = pageFilterValues[paramName]
+      } else {
+        params[paramName] = testParams[paramName] || ''
+      }
     }
     return {
       mode: 'custom_sql',
@@ -228,7 +308,7 @@ function buildPreviewPayload(state) {
     }
   }
 
-  // Visual mode — build config dict matching QueryBuilder.build_select_query()
+  // Visual mode
   const columns = (state.columns || []).map(c => ({
     source_id: c.source_id,
     column: c.column,
@@ -238,14 +318,12 @@ function buildPreviewPayload(state) {
 
   const sourceIds = (state.sources || []).map(s => s.id)
 
-  // Build group_by from x_column if present
   const groupBy = []
   if (state.xColumn) {
     const src = state.sources?.[0]
     if (src) groupBy.push({ source_id: src.id, column: state.xColumn })
   }
 
-  // Build order_by
   const orderBy = []
   if (state.orderBy) {
     orderBy.push({ alias: state.orderBy, dir: 'ASC' })
@@ -263,5 +341,6 @@ function buildPreviewPayload(state) {
       order_by: orderBy,
       limit: state.limit ? parseInt(state.limit, 10) : null,
     },
+    params: pageFilterValues || {},
   }
 }
