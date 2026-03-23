@@ -163,6 +163,44 @@ def _build_initial_widgets_json(widgets, widget_data):
     return json.dumps(result, default=str)
 
 
+def _build_initial_sections_json(page_sections, section_data):
+    """Serialise section config + initial data as JSON for React."""
+    result = {}
+    for sec in page_sections:
+        sd = section_data.get(sec.id, {})
+        # Build scope config
+        scope = {'mode': sec.scope_mode or 'none'}
+        if sec.scope_mode == 'dependent' and sec.scope_filter_id:
+            pf = sec.scope_filter_id
+            scope['filter_param'] = pf.param_name or pf.field_name or ''
+            scope['filter_id'] = pf.id
+            scope['label'] = sec.scope_label or pf.display_label or pf.field_name or ''
+            scope['default_value'] = sec.scope_default_value or ''
+            scope['param_name'] = pf.param_name or pf.field_name or ''
+            scope['options'] = []  # React reads from pageConfig.filters
+        elif sec.scope_mode == 'independent':
+            scope['label'] = sec.scope_label or sec.scope_value_column or ''
+            scope['default_value'] = sec.scope_default_value or ''
+            scope['param_name'] = sec.scope_param_name or ''
+            scope['options'] = sec.get_scope_options()
+        result[str(sec.id)] = {
+            'id':           sec.id,
+            'name':         sec.name,
+            'icon':         sec.icon or 'fa-star-o',
+            'section_type': sec.section_type,
+            'tab_key':      sec.tab_id.key if sec.tab_id else '',
+            'action_label': sec.action_label or '',
+            'subtitle':     sec.subtitle or '',
+            'description':  sec.description or '',
+            'footnote':     sec.footnote or '',
+            'max_rows':     sec.max_rows or 0,
+            'sequence':     sec.sequence,
+            'scope':        scope,
+            'data':         sd,
+        }
+    return json.dumps(result, default=str)
+
+
 def _get_providers_for_user(user):
     """Find HHA providers for a portal user.
 
@@ -722,6 +760,7 @@ class PosterraPortal(CustomerPortal):
             filter_values=filter_values,
         )
         initial_widget_data_json = _build_initial_widgets_json(widgets, widget_data)
+        initial_sections_json = _build_initial_sections_json(page_sections, section_data)
 
         # ── 12. Render ─────────────────────────────────────────────────
         values = self._prepare_portal_layout_values()
@@ -763,6 +802,7 @@ class PosterraPortal(CustomerPortal):
             'portal_access_token':      portal_access_token,
             'page_config_json':         page_config_json,
             'initial_widget_data_json': initial_widget_data_json,
+            'initial_sections_json':    initial_sections_json,
             # is_admin removed — admin controls are in Odoo backend, not portal
         })
         return request.render('posterra_portal.dashboard', values)

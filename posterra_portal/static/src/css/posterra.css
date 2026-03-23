@@ -1130,6 +1130,37 @@
     padding: 2px 10px;
 }
 
+/* ── Scope dropdown (replaces static badge when scope_mode != none) ── */
+.pv-scope-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.pv-scope-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #718096;
+}
+.pv-scope-select {
+    font-size: 11px;
+    font-weight: 600;
+    color: #718096;
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 2px 10px;
+    cursor: pointer;
+    outline: none;
+}
+.pv-scope-select:focus {
+    border-color: #4299e1;
+}
+
+/* ── Pinned "You" row separator ──────────────────────────────────── */
+.pv-ml-pinned-row td {
+    border-top: 2px dashed #cbd5e0;
+}
+
 /* ── STRATEGIC IDENTITY cards ───────────────────────────────────────── */
 .pv-si-cards {
     display: grid;

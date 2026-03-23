@@ -14,7 +14,9 @@
                 <field name="page_id"/>
                 <field name="tab_id" optional="show"/>
                 <field name="section_type"/>
-                <field name="action_label"/>
+                <field name="scope_mode" optional="show"/>
+                <field name="max_rows" optional="hide"/>
+                <field name="action_label" optional="hide"/>
                 <field name="is_active"/>
             </list>
         </field>
@@ -49,8 +51,11 @@
                             <field name="icon"
                                    placeholder="fa-star-o  (any Font Awesome 4 class)"/>
                             <field name="action_label"
-                                   placeholder="e.g. vs State HHAs  (static badge, optional)"/>
+                                   placeholder="e.g. vs State HHAs  (static badge, optional)"
+                                   invisible="scope_mode != 'none'"/>
                             <field name="section_type"/>
+                            <field name="max_rows"
+                                   placeholder="0 = show all"/>
                         </group>
                     </group>
 
@@ -80,6 +85,36 @@
                                        placeholder="SELECT metric_name AS label, score AS value, status, description FROM my_table WHERE hha_state = {hha_state} -- use {param_name} for filter values"
                                        style="font-family: monospace; min-height: 140px;"
                                        nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+
+                        <!-- ───────────────── Scoping Dropdown tab ──── -->
+                        <page string="Scoping Dropdown" name="scoping">
+                            <group>
+                                <field name="scope_mode"/>
+                            </group>
+                            <group invisible="scope_mode == 'none'"
+                                   string="Dropdown Settings">
+                                <field name="scope_label"
+                                       placeholder="e.g. State  (label shown on dropdown)"/>
+                                <field name="scope_default_value"
+                                       placeholder="e.g. All  (initial value; blank = auto)"/>
+                            </group>
+                            <group invisible="scope_mode != 'dependent'"
+                                   string="Linked Page Filter">
+                                <field name="scope_filter_id"
+                                       placeholder="Select the page filter this dropdown mirrors"/>
+                            </group>
+                            <group invisible="scope_mode != 'independent'"
+                                   string="Custom Schema Source">
+                                <field name="scope_schema_source_id"
+                                       placeholder="Select the MV or table for dropdown options"/>
+                                <field name="scope_value_column"
+                                       placeholder="e.g. hha_state"/>
+                                <field name="scope_label_column"
+                                       placeholder="e.g. state_name  (optional, falls back to value)"/>
+                                <field name="scope_param_name"
+                                       placeholder="e.g. scope_state  (used in SQL as %(scope_state)s)"/>
                             </group>
                         </page>
 
