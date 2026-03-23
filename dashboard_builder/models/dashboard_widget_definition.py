@@ -17,6 +17,10 @@ class DashboardWidgetDefinition(models.Model):
     # ── Identity ─────────────────────────────────────────────────────────────
     name           = fields.Char(required=True, string='Widget Name')
     description    = fields.Text(string='Description')
+    app_ids        = fields.Many2many(
+        'saas.app', 'widget_def_app_rel', 'definition_id', 'app_id',
+        string='Available in Apps',
+        help='Leave empty for global availability. Set to restrict to specific apps.')
     category       = fields.Selection([
         ('kpi',         'KPI Cards'),
         ('chart',       'Charts'),

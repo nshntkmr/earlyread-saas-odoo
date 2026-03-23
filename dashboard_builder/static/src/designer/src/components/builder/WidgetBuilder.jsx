@@ -162,7 +162,7 @@ function reducer(state, action) {
  *   editId           — number|null — if set, loads this definition for editing
  */
 export default function WidgetBuilder({
-  isOpen, onClose, onWidgetCreated, apiBase, editId = null,
+  isOpen, onClose, onWidgetCreated, apiBase, editId = null, appContext = null,
 }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [saving, setSaving] = useState(false)
@@ -188,13 +188,11 @@ export default function WidgetBuilder({
       const payload = buildCreatePayload(state)
       let result
       if (editId) {
-        // Update existing definition
         result = await designerFetch(libraryDetailUrl(apiBase, editId), {
           method: 'PUT',
           body: JSON.stringify(payload),
         })
       } else {
-        // Create new definition
         result = await designerFetch(libraryCreateUrl(apiBase), {
           method: 'POST',
           body: JSON.stringify(payload),
@@ -202,8 +200,10 @@ export default function WidgetBuilder({
       }
       onWidgetCreated?.(result)
       dispatch({ type: 'RESET' })
+      return result
     } catch (err) {
       setSaveError(err.message || 'Save failed')
+      return null
     } finally {
       setSaving(false)
     }
@@ -333,6 +333,7 @@ export default function WidgetBuilder({
                   testParams={state.customSql.testParams}
                   onUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
                   apiBase={apiBase}
+                  appContext={appContext}
                 />
               )}
             </div>
@@ -385,6 +386,7 @@ export default function WidgetBuilder({
               onSave={handleSave}
               saving={saving}
               apiBase={apiBase}
+              appContext={appContext}
             />
           )}
         </div>
