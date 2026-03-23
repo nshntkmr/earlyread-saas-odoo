@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add app_ids to Schema Source form -->
+    <record id="view_schema_source_form_app_ids" model="ir.ui.view">
+        <field name="name">dashboard.schema.source.form.app_ids</field>
+        <field name="model">dashboard.schema.source</field>
+        <field name="inherit_id" ref="dashboard_builder.view_schema_source_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='is_active']" position="before">
+                <field name="app_ids" widget="many2many_tags"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Add app_ids to Widget Definition form -->
+    <record id="view_widget_definition_form_app_ids" model="ir.ui.view">
+        <field name="name">dashboard.widget.definition.form.app_ids</field>
+        <field name="model">dashboard.widget.definition</field>
+        <field name="inherit_id" ref="dashboard_builder.view_widget_definition_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='is_active']" position="before">
+                <field name="app_ids" widget="many2many_tags"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

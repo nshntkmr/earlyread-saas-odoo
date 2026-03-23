@@ -52,7 +52,7 @@ class DesignerAPI(http.Controller):
             return _json_error(403, str(e))
 
         source_domain = [('is_active', '=', True)]
-        if kw.get('app_id'):
+        if kw.get('app_id') and 'app_ids' in request.env['dashboard.schema.source']._fields:
             app_id = int(kw['app_id'])
             source_domain.append('|')
             source_domain.append(('app_ids', '=', False))
@@ -203,7 +203,8 @@ class DesignerAPI(http.Controller):
             domain.append(('category', '=', kw['category']))
         if kw.get('search'):
             domain.append(('name', 'ilike', kw['search']))
-        if kw.get('app_id'):
+        has_app_ids = 'app_ids' in request.env['dashboard.widget.definition']._fields
+        if kw.get('app_id') and has_app_ids:
             # Show definitions scoped to this app OR global (no app_ids set)
             app_id = int(kw['app_id'])
             domain.append('|')
@@ -221,7 +222,7 @@ class DesignerAPI(http.Controller):
             'chart_type': d.chart_type,
             'instance_count': d.instance_count,
             'data_mode': d.data_mode,
-            'app_names': [a.name for a in d.app_ids] if d.app_ids else [],
+            'app_names': [a.name for a in d.app_ids] if has_app_ids and d.app_ids else [],
         } for d in defs])
 
     @http.route(
@@ -344,8 +345,8 @@ class DesignerAPI(http.Controller):
             if body.get('echart_override'):
                 def_vals['echart_override'] = body['echart_override']
 
-            # App scoping
-            if body.get('app_ids'):
+            # App scoping (field added by posterra_portal via _inherit)
+            if body.get('app_ids') and 'app_ids' in request.env['dashboard.widget.definition']._fields:
                 def_vals['app_ids'] = [(6, 0, body['app_ids'])]
 
             definition = request.env['dashboard.widget.definition'].sudo().create(def_vals)
@@ -414,7 +415,7 @@ class DesignerAPI(http.Controller):
             else:
                 update_vals['builder_config'] = config or ''
 
-        if 'app_ids' in body:
+        if 'app_ids' in body and 'app_ids' in request.env['dashboard.widget.definition']._fields:
             update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]
 
         try:
