@@ -223,9 +223,23 @@ class DashboardPageSection(models.Model):
         if _BLOCKED_KEYWORDS.search(sql_clean):
             raise ValueError('SQL contains a disallowed keyword (DML/DDL not permitted).')
 
+        # Convert tuple/list params to comma-separated strings.
+        # portal.py converts multiselect values to tuples for psycopg2 ANY(),
+        # but section SQL uses string_to_array(%(param)s, ',') expecting CSV.
+        safe_params = {}
+        for k, v in params.items():
+            if isinstance(v, (list, tuple)):
+                safe_params[k] = ','.join(str(item) for item in v)
+            else:
+                safe_params[k] = v
+        # Fill missing keys with None to avoid KeyError
+        for m in re.finditer(r'%\(([^)]+)\)s', sql):
+            if m.group(1) not in safe_params:
+                safe_params[m.group(1)] = None
+
         # Use a savepoint so a failed query doesn't poison the whole transaction
         with self.env.cr.savepoint():
-            self.env.cr.execute(sql, dict(params))
+            self.env.cr.execute(sql, safe_params)
             cols = [desc[0] for desc in self.env.cr.description] if self.env.cr.description else []
             rows = self.env.cr.fetchall()
             return cols, rows
