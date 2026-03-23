@@ -28,3 +28,4 @@ export const templateUseUrl  = (base, id) => `${base}/templates/${id}/use`
 // ── Apps & Pages ──────────────────────────────────────────────────────────────
 export const appsUrl       = (base) => `${base}/apps`
 export const appPagesUrl   = (base, appId) => `${base}/apps/${appId}/pages`
+export const pageFiltersUrl = (base, pageId) => `${base}/pages/${pageId}/filters`

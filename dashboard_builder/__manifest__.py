@@ -16,7 +16,7 @@
     """,
     'author': 'Posterra',
     'website': 'https://posterra.com',
-    'depends': ['base'],
+    'depends': ['base', 'posterra_portal'],
     'data': [
         'security/builder_security.xml',
         'security/ir.model.access.csv',

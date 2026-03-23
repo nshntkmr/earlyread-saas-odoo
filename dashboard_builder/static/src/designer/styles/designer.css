@@ -1636,3 +1636,151 @@
 .dd-wizard-dot--done {
     background: var(--dd-success);
 }
+
+/* ==========================================================================
+   APP CONTEXT BAR
+   ========================================================================== */
+
+.dd-main-wrapper {
+    flex: 1;
+    margin-left: var(--dd-sidebar-width);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.dd-main-wrapper .dd-main {
+    margin-left: 0;
+}
+
+.dd-context-bar {
+    background: #fff;
+    border-bottom: 1px solid var(--dd-gray-200);
+    padding: 8px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+.dd-context-bar-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 1200px;
+}
+
+.dd-context-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--dd-gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.dd-context-select {
+    padding: 4px 8px;
+    border: 1px solid var(--dd-gray-300);
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+    color: var(--dd-gray-700);
+    min-width: 120px;
+    cursor: pointer;
+}
+
+.dd-context-select:focus {
+    outline: none;
+    border-color: var(--dd-primary);
+    box-shadow: 0 0 0 2px rgba(37,99,235,.15);
+}
+
+.dd-context-sep {
+    font-size: 10px;
+    color: var(--dd-gray-400);
+}
+
+.dd-context-clear {
+    background: none;
+    border: none;
+    color: var(--dd-gray-400);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.dd-context-clear:hover {
+    color: var(--dd-danger);
+    background: var(--dd-gray-100);
+}
+
+/* ==========================================================================
+   APP BADGES IN LIBRARY
+   ========================================================================== */
+
+.dd-badge--app {
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.dd-badge--app-global {
+    background: var(--dd-gray-100);
+    color: var(--dd-gray-500);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+/* ==========================================================================
+   PAGE FILTER PANEL (designer preview)
+   ========================================================================== */
+
+.wb-filter-panel {
+    background: var(--dd-gray-50);
+    border: 1px solid var(--dd-gray-200);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+}
+
+.wb-filter-panel--error {
+    border-color: var(--dd-danger);
+    color: var(--dd-danger);
+}
+
+.wb-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.wb-filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wb-hint-inline {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--dd-gray-400);
+    margin-left: 4px;
+}
+
+/* Save & Place success */
+.wb-place-success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 14px;
+}
