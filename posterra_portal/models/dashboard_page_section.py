@@ -61,6 +61,41 @@ class DashboardPageSection(models.Model):
         ('leaderboard_table', 'Leaderboard Table (ranked rows)'),
     ], required=True, default='comparison_bar', string='Section Type')
 
+    # ── Scoping Dropdown ──────────────────────────────────────────────────
+    scope_mode = fields.Selection([
+        ('none',        'No Dropdown'),
+        ('dependent',   'Linked to Page Filter'),
+        ('independent', 'Custom Schema Source'),
+    ], default='none', string='Scope Mode',
+        help='Controls the section-level scoping dropdown.\n'
+             'Dependent: mirrors a page filter\'s options.\n'
+             'Independent: custom dropdown from a schema source.')
+
+    scope_filter_id = fields.Many2one(
+        'dashboard.page.filter', string='Linked Filter',
+        ondelete='set null', domain="[('page_id', '=', page_id)]",
+        help='Dropdown mirrors this page filter\'s options and current value.')
+
+    scope_schema_source_id = fields.Many2one(
+        'dashboard.schema.source', string='Scope Source',
+        ondelete='set null',
+        help='MV/table to query for custom dropdown options.')
+    scope_value_column = fields.Char(string='Value Column',
+        help='Column for option value (e.g., hha_state)')
+    scope_label_column = fields.Char(string='Label Column',
+        help='Column for option label. Falls back to value column if blank.')
+    scope_param_name = fields.Char(string='SQL Param Name',
+        help='Param name used in section SQL as %%(param)s for the scoped value.')
+
+    scope_label = fields.Char(string='Dropdown Label',
+        help='Label shown on the dropdown (e.g., "State").')
+    scope_default_value = fields.Char(string='Default Scope',
+        help='Initial dropdown value. Blank = use filter value (dependent) or first option.')
+
+    # ── Row Limit ───────────────────────────────────────────────────────
+    max_rows = fields.Integer(default=0, string='Max Rows',
+        help='Limit displayed rows (0 = show all). "You" row is always shown.')
+
     # ── Annotations ────────────────────────────────────────────────────────
     subtitle    = fields.Char(string='Subtitle',
         help='Displayed below the section title')
@@ -150,18 +185,55 @@ class DashboardPageSection(models.Model):
         return res
 
     # =========================================================================
+    # Scope options (independent mode)
+    # =========================================================================
+
+    def get_scope_options(self):
+        """Return [{value, label}] for independent-mode scoping dropdown."""
+        self.ensure_one()
+        if self.scope_mode != 'independent' or not self.scope_schema_source_id:
+            return []
+        val_col = (self.scope_value_column or '').strip()
+        if not val_col:
+            return []
+        lbl_col = (self.scope_label_column or '').strip() or val_col
+        table = self.scope_schema_source_id.source_name
+        if not table:
+            return []
+        sql = f'SELECT DISTINCT {val_col}'
+        if lbl_col != val_col:
+            sql += f', {lbl_col}'
+        sql += f' FROM {table} WHERE {val_col} IS NOT NULL ORDER BY 1'
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute(sql)
+                rows = self.env.cr.fetchall()
+        except Exception as exc:
+            _logger.warning('get_scope_options error section=%s: %s', self.id, exc)
+            return []
+        if lbl_col != val_col:
+            return [{'value': str(r[0]), 'label': str(r[1] or r[0])} for r in rows]
+        return [{'value': str(r[0]), 'label': str(r[0])} for r in rows]
+
+    # =========================================================================
     # Public entry point — called by controller
     # =========================================================================
 
-    def get_portal_data(self, portal_ctx):
+    def get_portal_data(self, portal_ctx, scope_overrides=None):
         """Execute the SQL query and return a render-ready dict.
 
         portal_ctx keys:
             sql_params — dict{field_name: value} for SQL %(x)s params
+        scope_overrides:
+            Optional dict {param_name: value} for section-level scoping.
+            Merged into sql_params before execution (overrides page filters
+            for this section only).
         """
         self.ensure_one()
         try:
-            sql_params = portal_ctx.get('sql_params', {})
+            sql_params = dict(portal_ctx.get('sql_params', {}))
+            if scope_overrides:
+                sql_params.update(scope_overrides)
             if '{where_clause}' in (self.query_sql or ''):
                 from ..utils.filter_builder import DashboardFilterBuilder
                 source_columns = {
@@ -185,9 +257,11 @@ class DashboardPageSection(models.Model):
             else:
                 cols, rows = self._execute_sql(sql_params)
             if self.section_type == 'comparison_bar':
-                return self._build_comparison_bar(cols, rows)
+                data = self._build_comparison_bar(cols, rows)
+                return self._apply_row_limit(data)
             elif self.section_type == 'leaderboard_table':
-                return self._build_leaderboard(cols, rows)
+                data = self._build_leaderboard(cols, rows)
+                return self._apply_row_limit(data)
         except Exception as exc:
             _logger.warning(
                 'dashboard.page.section %s get_portal_data error: %s', self.id, exc)
@@ -377,3 +451,40 @@ class DashboardPageSection(models.Model):
             'headers':     headers,
             'rows':        table_rows,
         }
+
+    # =========================================================================
+    # Row limit with "You" pinning
+    # =========================================================================
+
+    def _apply_row_limit(self, data):
+        """Truncate rows/cards to max_rows, always keeping the 'You' row."""
+        if not self.max_rows or self.max_rows <= 0:
+            return data
+
+        if self.section_type == 'comparison_bar':
+            cards = data.get('cards', [])
+            if len(cards) > self.max_rows:
+                data['cards'] = cards[:self.max_rows]
+            return data
+
+        if self.section_type == 'leaderboard_table':
+            all_rows = data.get('rows', [])
+            if len(all_rows) <= self.max_rows:
+                return data
+            limited = []
+            you_row = None
+            for row in all_rows:
+                if row.get('is_you'):
+                    you_row = row
+                if len(limited) < self.max_rows:
+                    if row.get('is_you'):
+                        you_row = None  # already in the limited set
+                    limited.append(row)
+            # Pin "You" row at the bottom if it was beyond the limit
+            if you_row:
+                you_row['pinned'] = True
+                limited.append(you_row)
+            data['rows'] = limited
+            return data
+
+        return data

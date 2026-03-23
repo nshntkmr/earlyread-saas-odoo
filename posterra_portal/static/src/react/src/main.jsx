@@ -9,12 +9,15 @@ if (rootEl) {
   let initialWidgets = {}
   try { pageConfig    = JSON.parse(rootEl.dataset.pageConfig    || '{}') } catch (e) { console.error('pageConfig parse error', e) }
   try { initialWidgets = JSON.parse(rootEl.dataset.initialWidgets || '{}') } catch (e) { console.error('initialWidgets parse error', e) }
+  let initialSections = {}
+  try { initialSections = JSON.parse(rootEl.dataset.initialSections || '{}') } catch (e) { console.error('initialSections parse error', e) }
 
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
       <App
         pageConfig={pageConfig}
         initialWidgets={initialWidgets}
+        initialSections={initialSections}
         apiBase={rootEl.dataset.apiBase || '/api/v1'}
         accessToken={rootEl.dataset.accessToken || ''}
       />

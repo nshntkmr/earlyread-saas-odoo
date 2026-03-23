@@ -2,7 +2,7 @@ import React from 'react'
 import { TokenProvider } from './state/TokenManager'
 import { FilterProvider } from './state/FilterContext'
 import FilterBar from './components/FilterBar'
-import SectionHost from './components/SectionHost'
+import SectionGrid from './components/SectionGrid'
 import TabBar from './components/TabBar'
 import WidgetGrid from './components/WidgetGrid'
 
@@ -12,10 +12,11 @@ import WidgetGrid from './components/WidgetGrid'
  * Props come from main.jsx (parsed from data-* attributes on #app-root):
  *   pageConfig      — { app, page, tabs, filters, filter_dep_map, current_tab_key }
  *   initialWidgets  — { "<widgetId>": { id, chart_type, tab_key, col_span, height, name, data } }
+ *   initialSections — { "<sectionId>": { id, name, section_type, scope, data, ... } }
  *   apiBase         — "/api/v1"
  *   accessToken     — JWT access token for API calls
  */
-export default function App({ pageConfig, initialWidgets, apiBase, accessToken }) {
+export default function App({ pageConfig, initialWidgets, initialSections, apiBase, accessToken }) {
   const appKey = pageConfig?.app?.key || ''
 
   return (
@@ -25,9 +26,9 @@ export default function App({ pageConfig, initialWidgets, apiBase, accessToken }
         apiBase={apiBase}
       >
         <FilterBar />
-        <SectionHost placement="page-level" />
+        <SectionGrid placement="page-level" initialSections={initialSections} apiBase={apiBase} />
         <TabBar />
-        <SectionHost placement="tab-level" />
+        <SectionGrid placement="tab-level" initialSections={initialSections} apiBase={apiBase} />
         <WidgetGrid initialWidgets={initialWidgets} />
       </FilterProvider>
     </TokenProvider>

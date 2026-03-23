@@ -519,6 +519,72 @@ class PosterraWidgetAPI(http.Controller):
         })
 
     # ------------------------------------------------------------------ #
+    # GET /api/v1/section/<section_id>/data                                #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/section/<int:section_id>/data',
+        type='http',
+        auth='none',
+        methods=['GET', 'OPTIONS'],
+        csrf=False,
+        readonly=True,
+    )
+    def api_section_data(self, section_id, **kw):
+        """Return computed data for a section with optional scope override.
+
+        Query parameters should match the page's filter field names plus an
+        optional scope param (e.g. ?hha_state=Texas&year=2024).
+
+        Response shape:
+            {
+              "section_id": <int>,
+              "section_type": "<type>",
+              "data": { ... }
+            }
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _json_response({})
+
+        try:
+            user, app = _get_api_user()
+        except ValueError as exc:
+            return _json_error(401, str(exc))
+
+        section = request.env['dashboard.page.section'].sudo().browse(section_id)
+        if not section.exists() or not section.is_active:
+            return _json_error(404, f'Section {section_id} not found or inactive')
+
+        if section.page_id.app_id.id != app.id:
+            return _json_error(403, 'Section does not belong to your app')
+
+        try:
+            portal_ctx = _build_portal_ctx(section.page_id, user, app, kw)
+        except Exception as exc:
+            _logger.warning('api_section_data: portal_ctx error section=%s: %s', section_id, exc)
+            return _json_error(500, f'Context build error: {exc}')
+
+        # Extract scope override — the scope param is passed as a regular
+        # query param alongside page filters.  The section's scope_param_name
+        # (or linked filter's param_name) determines which param to override.
+        scope_overrides = None
+        if section.scope_mode == 'dependent' and section.scope_filter_id:
+            pname = section.scope_filter_id.param_name or section.scope_filter_id.field_name
+            if pname and kw.get(pname):
+                scope_overrides = {pname: kw[pname]}
+        elif section.scope_mode == 'independent' and section.scope_param_name:
+            pname = section.scope_param_name
+            if pname and kw.get(pname):
+                scope_overrides = {pname: kw[pname]}
+
+        data = section.get_portal_data(portal_ctx, scope_overrides=scope_overrides)
+
+        return _json_response({
+            'section_id':   section.id,
+            'section_type': section.section_type,
+            'data':         data,
+        })
+
+    # ------------------------------------------------------------------ #
     # GET /api/v1/filters/cascade                                         #
     # ------------------------------------------------------------------ #
     @http.route(
