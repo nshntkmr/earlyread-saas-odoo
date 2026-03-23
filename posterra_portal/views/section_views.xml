@@ -114,7 +114,7 @@
                                 <field name="scope_label_column"
                                        placeholder="e.g. state_name  (optional, falls back to value)"/>
                                 <field name="scope_param_name"
-                                       placeholder="e.g. scope_state  (used in SQL as %(scope_state)s)"/>
+                                       placeholder="e.g. scope_state  (the SQL param name for this dropdown)"/>
                             </group>
                         </page>
 
