@@ -44,7 +44,6 @@
                             <field name="category"/>
                             <field name="description"
                                    placeholder="What this widget shows..."/>
-                            <field name="app_ids" widget="many2many_tags"/>
                             <field name="is_active"/>
                             <field name="instance_count"/>
                         </group>
