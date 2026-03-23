@@ -1074,15 +1074,17 @@
 
 /* ── Apply + Clear All buttons ─────────────────────────────────────── */
 .pv-ctx-apply-group {
-    display: flex;
-    gap: 8px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
 }
 .pv-ctx-apply-btn,
 .pv-ctx-clear-btn {
     height: 32px;
-    padding: 0 16px;
+    padding: 0 14px;
     font-size: 13px;
     border-radius: 6px;
+    white-space: nowrap;
 }
 
 /* ========================================================================
