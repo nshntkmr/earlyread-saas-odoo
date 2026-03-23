@@ -601,13 +601,13 @@ class DesignerAPI(http.Controller):
                     tab_recs = request.env['dashboard.page.tab'].sudo().search(
                         [('page_id', '=', p.id), ('is_active', '=', True)],
                         order='sequence asc')
-                    tabs = [{'id': t.id, 'key': t.tab_key, 'name': t.name} for t in tab_recs]
+                    tabs = [{'id': t.id, 'key': t.key, 'name': t.name} for t in tab_recs]
                 except KeyError:
                     pass
 
                 data.append({
                     'id': p.id,
-                    'key': p.page_key,
+                    'key': p.key,
                     'name': p.name,
                     'tabs': tabs,
                 })
