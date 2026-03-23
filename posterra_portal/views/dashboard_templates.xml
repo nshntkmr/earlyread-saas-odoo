@@ -102,19 +102,32 @@
                     </div>
 
                     <!-- ============================================================ -->
-                    <!-- PAGE SECTIONS (comparison_bar / leaderboard_table)          -->
-                    <!-- Rendered server-side above the React app root.              -->
-                    <!-- section_data = {sec.id: sec.get_portal_data(portal_ctx)}   -->
+                    <!-- REACT APP ROOT                                              -->
+                    <!-- Filter bar, tab bar, sections, and widget grid rendered by  -->
+                    <!-- React.  Sections are server-rendered in a hidden container  -->
+                    <!-- below and relocated into React's tree by SectionHost.jsx.   -->
                     <!-- ============================================================ -->
-                    <t t-if="page_sections">
-                        <div class="pv-overview-sections">
+                    <div id="app-root"
+                         t-att-data-page-config="page_config_json"
+                         t-att-data-initial-widgets="initial_widget_data_json"
+                         data-api-base="/api/v1"
+                         t-att-data-access-token="portal_access_token"/>
+
+                    <!-- ============================================================ -->
+                    <!-- PAGE SECTIONS (hidden source — relocated by React)           -->
+                    <!-- Sections with no tab_id go between FilterBar and TabBar.    -->
+                    <!-- Sections with a tab_id show only on that tab.               -->
+                    <!-- ============================================================ -->
+                    <div id="sections-source" style="display:none">
+                        <t t-if="page_sections">
                             <t t-foreach="page_sections" t-as="section">
                                 <t t-set="sec_data" t-value="section_data.get(section.id, {})"/>
                                 <t t-if="not sec_data.get('error')">
 
                                     <!-- ─── COMPARISON BAR ─────────────────────── -->
                                     <t t-if="section.section_type == 'comparison_bar'">
-                                        <div class="pv-section">
+                                        <div class="pv-section"
+                                             t-att-data-tab-key="section.tab_id.key or ''">
                                             <div class="pv-section-header">
                                                 <div class="pv-section-title">
                                                     <i t-attf-class="fa #{section.icon or 'fa-bar-chart'} me-2"/>
@@ -166,7 +179,8 @@
 
                                     <!-- ─── LEADERBOARD TABLE ──────────────────── -->
                                     <t t-elif="section.section_type == 'leaderboard_table'">
-                                        <div class="pv-section">
+                                        <div class="pv-section"
+                                             t-att-data-tab-key="section.tab_id.key or ''">
                                             <div class="pv-section-header">
                                                 <div class="pv-section-title">
                                                     <i t-attf-class="fa #{section.icon or 'fa-trophy'} me-2"/>
@@ -224,20 +238,8 @@
 
                                 </t>
                             </t>
-                        </div>
-                    </t>
-
-                    <!-- ============================================================ -->
-                    <!-- PHASE 7 — REACT APP ROOT                                    -->
-                    <!-- Filter bar, tab bar, and widget grid are rendered by React. -->
-                    <!-- Initial data embedded as JSON data-* attributes so React   -->
-                    <!-- mounts with zero API calls and no loading flash.            -->
-                    <!-- ============================================================ -->
-                    <div id="app-root"
-                         t-att-data-page-config="page_config_json"
-                         t-att-data-initial-widgets="initial_widget_data_json"
-                         data-api-base="/api/v1"
-                         t-att-data-access-token="portal_access_token"/>
+                        </t>
+                    </div>
 
                     <!-- Page footnote -->
                     <div t-if="current_page and current_page.footnote"

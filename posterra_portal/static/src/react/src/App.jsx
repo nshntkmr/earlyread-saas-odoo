@@ -2,6 +2,7 @@ import React from 'react'
 import { TokenProvider } from './state/TokenManager'
 import { FilterProvider } from './state/FilterContext'
 import FilterBar from './components/FilterBar'
+import SectionHost from './components/SectionHost'
 import TabBar from './components/TabBar'
 import WidgetGrid from './components/WidgetGrid'
 
@@ -24,7 +25,9 @@ export default function App({ pageConfig, initialWidgets, apiBase, accessToken }
         apiBase={apiBase}
       >
         <FilterBar />
+        <SectionHost placement="page-level" />
         <TabBar />
+        <SectionHost placement="tab-level" />
         <WidgetGrid initialWidgets={initialWidgets} />
       </FilterProvider>
     </TokenProvider>

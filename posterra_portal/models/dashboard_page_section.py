@@ -39,6 +39,11 @@ class DashboardPageSection(models.Model):
     # ── Placement ─────────────────────────────────────────────────────────────
     page_id   = fields.Many2one(
         'dashboard.page', required=True, ondelete='cascade', string='Page')
+    tab_id    = fields.Many2one(
+        'dashboard.page.tab', string='Tab', ondelete='set null',
+        domain="[('page_id', '=', page_id)]",
+        help='Show only on this tab (below the tab bar). '
+             'Leave empty to show above all tabs (between filters and tabs).')
     sequence  = fields.Integer(default=10)
     is_active = fields.Boolean(default=True)
 

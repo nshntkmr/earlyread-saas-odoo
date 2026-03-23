@@ -12,6 +12,7 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="page_id"/>
+                <field name="tab_id" optional="show"/>
                 <field name="section_type"/>
                 <field name="action_label"/>
                 <field name="is_active"/>
@@ -40,6 +41,7 @@
                     <group>
                         <group string="Placement">
                             <field name="page_id"/>
+                            <field name="tab_id"/>
                             <field name="sequence"/>
                             <field name="is_active"/>
                         </group>
