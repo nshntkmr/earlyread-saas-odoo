@@ -308,26 +308,64 @@ function buildPreviewPayload(state, pageFilterValues) {
     }
   }
 
-  // Visual mode
-  const columns = (state.columns || []).map(c => ({
-    source_id: c.source_id,
-    column: c.column,
-    agg: c.agg || null,
-    alias: c.alias || null,
-  }))
+  // Visual mode — build columns from ColumnMapper's {x, y, series} structure
+  const colState = state.columns || {}
+  const columns = []
+
+  // X dimension column (no aggregation)
+  if (colState.x && colState.x.column) {
+    columns.push({
+      source_id: colState.x.source_id,
+      column: colState.x.column,
+      agg: null,
+      alias: colState.x.alias || colState.x.column,
+    })
+  }
+
+  // Y measure columns (with aggregation)
+  for (const yc of (colState.y || [])) {
+    if (yc.column) {
+      columns.push({
+        source_id: yc.source_id,
+        column: yc.column,
+        agg: yc.agg || 'sum',
+        alias: yc.alias || yc.column,
+      })
+    }
+  }
 
   const sourceIds = (state.sources || []).map(s => s.id)
 
   const groupBy = []
-  if (state.xColumn) {
-    const src = state.sources?.[0]
-    if (src) groupBy.push({ source_id: src.id, column: state.xColumn })
+  // Group by X column
+  if (colState.x && colState.x.column) {
+    groupBy.push({ source_id: colState.x.source_id, column: colState.x.column })
   }
 
+  // Series break column as GROUP BY + added to SELECT
+  const seriesCol = colState.series
+  if (seriesCol && seriesCol.column) {
+    columns.push({
+      source_id: seriesCol.source_id,
+      column: seriesCol.column,
+      agg: null,
+      alias: seriesCol.alias || seriesCol.column,
+    })
+    groupBy.push({ source_id: seriesCol.source_id, column: seriesCol.column })
+  }
+
+  // Build order by
   const orderBy = []
   if (state.orderBy) {
-    orderBy.push({ alias: state.orderBy, dir: 'ASC' })
+    const dir = state.orderByDir || 'ASC'
+    orderBy.push({ alias: state.orderBy, dir })
   }
+
+  // Build y_columns for widget_config (needed by preview_formatter)
+  const yColNames = (colState.y || []).map(c => c.alias || c.column).filter(Boolean).join(',')
+  widgetConfig.y_columns = yColNames
+  widgetConfig.x_column = colState.x?.alias || colState.x?.column || ''
+  widgetConfig.series_column = seriesCol?.alias || seriesCol?.column || ''
 
   return {
     mode: 'visual',
