@@ -781,6 +781,8 @@ def _build_widget_vals_from_definition(defn, body):
     vals['x_column'] = defn.x_column or ''
     vals['y_columns'] = defn.y_columns or ''
     vals['series_column'] = defn.series_column or ''
+    if defn.schema_source_id:
+        vals['schema_source_id'] = defn.schema_source_id.id
 
     # KPI fields
     if defn.chart_type in ('kpi', 'status_kpi'):
