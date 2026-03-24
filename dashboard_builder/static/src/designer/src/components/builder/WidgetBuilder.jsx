@@ -334,7 +334,7 @@ export default function WidgetBuilder({
                 <div className="wb-mode-toggle">
                   <button
                     type="button"
-                    className={`wb-btn ${state.dataMode === 'visual' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
+                    className={`wb-btn ${(state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'visual' })}
                   >
                     <i className="fa fa-mouse-pointer me-1" /> Visual Builder
@@ -349,7 +349,7 @@ export default function WidgetBuilder({
                 </div>
               </div>
 
-              {state.dataMode === 'visual' ? (
+              {(state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
                 <TableJoinBuilder
                   sources={state.sources}
                   joins={state.joins}
@@ -377,7 +377,7 @@ export default function WidgetBuilder({
 
           {/* Step 3: Columns (visual mode) */}
           {state.step === 2 && (
-            state.dataMode === 'visual' ? (
+            (state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
               <ColumnMapper
                 sources={state.sources}
                 columns={state.columns}
