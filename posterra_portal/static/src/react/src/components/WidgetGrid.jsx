@@ -69,6 +69,19 @@ export default function WidgetGrid({ initialWidgets }) {
     const visibleWidgets = Object.values(widgetData).filter(w =>
       !currentTabKey || !w.tab_key || w.tab_key === currentTabKey
     )
+
+    // Mark non-visible (other-tab) widgets as deferred so they re-fetch
+    // with new filter values when the user switches to that tab
+    setWidgetData(prev => {
+      const updated = { ...prev }
+      Object.values(updated).forEach(w => {
+        if (w.tab_key && w.tab_key !== currentTabKey) {
+          updated[String(w.id)] = { ...w, data: { _deferred: true } }
+        }
+      })
+      return updated
+    })
+
     if (!visibleWidgets.length) return
 
     // Mark all visible widgets as loading
@@ -93,6 +106,39 @@ export default function WidgetGrid({ initialWidgets }) {
       }
     })
   }, [filterValues]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Lazy-load deferred widgets when switching tabs ────────────────────────
+  // Server sends _deferred: true for non-current-tab widgets (no SQL executed).
+  // When user clicks a new tab, fetch those widgets via per-widget API.
+  // Once fetched, they stay cached — switching back is instant.
+  useEffect(() => {
+    if (!currentTabKey) return
+    const deferredWidgets = Object.values(widgetData).filter(w =>
+      w.tab_key === currentTabKey && w.data && w.data._deferred
+    )
+    if (!deferredWidgets.length) return
+
+    // Mark deferred widgets as loading
+    const loadingMap = {}
+    deferredWidgets.forEach(w => { loadingMap[w.id] = true })
+    setLoading(prev => ({ ...prev, ...loadingMap }))
+
+    // Fetch each deferred widget in parallel
+    deferredWidgets.forEach(async (w) => {
+      try {
+        const url = widgetDataUrl(apiBase, w.id, filterValues)
+        const result = await apiFetch(url, accessToken, {}, refreshToken)
+        setWidgetData(prev => ({
+          ...prev,
+          [String(w.id)]: { ...prev[String(w.id)], data: result.data },
+        }))
+      } catch (err) {
+        setErrors(prev => ({ ...prev, [w.id]: err.message || 'Failed to load' }))
+      } finally {
+        setLoading(prev => ({ ...prev, [w.id]: false }))
+      }
+    })
+  }, [currentTabKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Click action handler ──────────────────────────────────────────────────
   const handleWidgetClick = useCallback((widget, clickData) => {
