@@ -195,21 +195,32 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
 
     if chart_type in ('bar', 'line'):
         option['legend'] = {}
-        x_data = [str(col_val(r, x_col) or '') for r in rows]
-        option['xAxis'] = {'type': 'category', 'data': x_data}
         option['yAxis'] = {'type': 'value'}
 
         if series_col and series_col in col_idx:
-            series_map = {}
+            # Series break: group rows by x category, then by series value
+            # Ensures each series has one data point per unique x category
+            categories = []
+            seen_cats = set()
+            series_map = {}  # {series_name: {category: value}}
             for r in rows:
+                cat = str(col_val(r, x_col) or '')
+                if cat not in seen_cats:
+                    categories.append(cat)
+                    seen_cats.add(cat)
                 sv = str(col_val(r, series_col) or 'Other')
                 yv = col_val(r, y_col_list[0]) if y_col_list else 0
-                series_map.setdefault(sv, []).append(yv or 0)
+                series_map.setdefault(sv, {})[cat] = yv or 0
+
+            option['xAxis'] = {'type': 'category', 'data': categories}
             option['series'] = [
-                {'name': sv, 'type': chart_type, 'data': vals}
-                for sv, vals in series_map.items()
+                {'name': sv, 'type': chart_type,
+                 'data': [cat_vals.get(cat, 0) for cat in categories]}
+                for sv, cat_vals in series_map.items()
             ]
         else:
+            x_data = [str(col_val(r, x_col) or '') for r in rows]
+            option['xAxis'] = {'type': 'category', 'data': x_data}
             option['series'] = [
                 {'name': yc, 'type': chart_type, 'data': [col_val(r, yc) or 0 for r in rows]}
                 for yc in y_col_list
