@@ -57,6 +57,15 @@ BAR_FLAGS = [
         'help': 'Display numeric value on each bar.',
     },
     {
+        'flag': 'show_percent_in_label',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Show Percentage in Label',
+        'help': 'Append percentage to value label: e.g. "2,484 (42.9%)". '
+                'Percentage is auto-calculated from total across all categories.',
+        'show_when': {'show_labels': True},
+    },
+    {
         'flag': 'label_position',
         'type': 'select',
         'default': 'top',
@@ -68,6 +77,31 @@ BAR_FLAGS = [
             {'value': 'outside', 'label': 'Outside'},
         ],
         'show_when': {'show_labels': True},
+    },
+    {
+        'flag': 'color_mode',
+        'type': 'select',
+        'default': 'by_series',
+        'label': 'Color Mode',
+        'help': 'How bars are colored. By Series = one color per series (grouped/stacked). '
+                'By Category = each category gets a different color (best for single-series).',
+        'options': [
+            {'value': 'by_series', 'label': 'By Series (default)'},
+            {'value': 'by_category', 'label': 'By Category'},
+        ],
+    },
+    {
+        'flag': 'number_format',
+        'type': 'select',
+        'default': 'auto',
+        'label': 'Number Format',
+        'help': 'How values are formatted on labels and tooltips.',
+        'options': [
+            {'value': 'auto', 'label': 'Auto'},
+            {'value': 'comma', 'label': 'Comma (1,234)'},
+            {'value': 'compact', 'label': 'Compact (1.2K)'},
+            {'value': 'percent', 'label': 'Percent (42.9%)'},
+        ],
     },
     {
         'flag': 'sort',

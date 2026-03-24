@@ -797,6 +797,7 @@ class DashboardWidget(models.Model):
             stack          = vc.get('stack', self.bar_stack) if ct == 'bar' else False
             stack_mode     = vc.get('stack_mode', 'absolute')
             show_labels    = vc.get('show_labels', False)
+            show_pct_label = vc.get('show_percent_in_label', False)
             label_position = vc.get('label_position', 'top')
             sort_mode      = vc.get('sort', 'none')
             vc_limit       = vc.get('limit', 0)
@@ -805,6 +806,8 @@ class DashboardWidget(models.Model):
             bar_gap        = vc.get('bar_gap', '30%')
             target_line    = vc.get('target_line')
             target_label   = vc.get('target_label', '')
+            color_mode     = vc.get('color_mode', 'by_series')
+            number_format  = vc.get('number_format', 'auto')
 
             option['tooltip']['trigger'] = 'axis'
             option['legend'] = {}
@@ -903,6 +906,64 @@ class DashboardWidget(models.Model):
                     pos = 'right'
                 for s in option.get('series', []):
                     s['label'] = {'show': True, 'position': pos}
+
+                # ── Percent in label: "2,484 (42.9%)" ────────────────
+                if show_pct_label and ct == 'bar':
+                    # Compute grand total across all series and categories
+                    grand_total = 0
+                    for s in option.get('series', []):
+                        grand_total += sum(v or 0 for v in s.get('data', []))
+
+                    if grand_total > 0:
+                        for s in option.get('series', []):
+                            # Build formatter data with pct pre-computed
+                            new_data = []
+                            for v in s.get('data', []):
+                                val = v or 0
+                                pct = round(val / grand_total * 100, 1)
+                                new_data.append({
+                                    'value': val,
+                                    'label': {
+                                        'show': True,
+                                        'position': pos,
+                                        'formatter': f'{{c}} ({pct}%)',
+                                    },
+                                })
+                            s['data'] = new_data
+
+                # ── Number formatting (comma thousands) ───────────────
+                if number_format == 'comma' and not show_pct_label:
+                    for s in option.get('series', []):
+                        new_data = []
+                        for v in s.get('data', []):
+                            val = v or 0
+                            new_data.append({
+                                'value': val,
+                                'label': {
+                                    'show': True,
+                                    'position': pos,
+                                    'formatter': '{c:,}' if isinstance(val, (int, float)) else str(val),
+                                },
+                            })
+                        s['data'] = new_data
+
+            # ── Color by category ─────────────────────────────────────
+            if ct == 'bar' and color_mode == 'by_category':
+                # Assign a different color to each bar within a series
+                palette = self._get_palette_colors()
+                for s in option.get('series', []):
+                    colored_data = []
+                    for i, v in enumerate(s.get('data', [])):
+                        color = palette[i % len(palette)] if palette else None
+                        if isinstance(v, dict):
+                            v.setdefault('itemStyle', {})['color'] = color
+                            colored_data.append(v)
+                        else:
+                            colored_data.append({
+                                'value': v,
+                                'itemStyle': {'color': color},
+                            })
+                    s['data'] = colored_data
 
             # ── Axis label visibility ──────────────────────────────────
             if not show_axis_labels:
