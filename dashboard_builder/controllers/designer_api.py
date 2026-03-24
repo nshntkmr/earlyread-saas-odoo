@@ -170,16 +170,27 @@ class DesignerAPI(http.Controller):
             from ..services.query_builder import QueryBuilder
             qb = QueryBuilder(request.env)
 
+            # Normalize params: lists → comma-separated strings, booleans → strings
+            raw_params = body.get('params', {})
+            params = {}
+            for k, v in raw_params.items():
+                if isinstance(v, list):
+                    params[k] = ','.join(str(i) for i in v) if v else ''
+                elif isinstance(v, bool):
+                    params[k] = str(v).lower()
+                else:
+                    params[k] = v if v is not None else ''
+
             if mode == 'custom_sql':
                 sql = body.get('sql', '')
                 is_valid, err = qb.validate_query(sql)
                 if not is_valid:
                     return _json_error(400, f'Invalid SQL: {err}')
-                columns, rows = qb.execute_preview(sql, body.get('params', {}))
+                columns, rows = qb.execute_preview(sql, params)
             else:
                 config = body.get('config', {})
                 sql = qb.build_select_query(config)
-                columns, rows = qb.execute_preview(sql, body.get('params', {}))
+                columns, rows = qb.execute_preview(sql, params)
 
             rows_list = [list(row) for row in rows]
 
