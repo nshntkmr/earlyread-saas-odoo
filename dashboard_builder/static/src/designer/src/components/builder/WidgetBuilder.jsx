@@ -134,7 +134,7 @@ function reducer(state, action) {
         ...initialState,
         step: 0,
         chartType: d.chart_type || 'bar',
-        dataMode: d.data_mode || 'custom_sql',
+        dataMode: (d.data_mode === 'visual' || d.data_mode === 'visual_builder' || bc.sources?.length) ? 'visual_builder' : (d.data_mode || 'custom_sql'),
         customSql: {
           sql: d.query_sql || '',
           xColumn: d.x_column || '',
@@ -144,7 +144,7 @@ function reducer(state, action) {
         },
         // Visual builder state from builder_config
         sources: bc.sources || [],
-        columns: d.data_mode === 'visual' ? restoredColumns : {},
+        columns: (d.data_mode === 'visual' || d.data_mode === 'visual_builder' || bc.sources?.length) ? restoredColumns : {},
         xColumn: d.x_column || '',
         seriesColumn: d.series_column || '',
         filters: bc.filters || [],
