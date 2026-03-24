@@ -442,6 +442,13 @@ class DashboardWidget(models.Model):
         help='Enable ECharts accessibility decal patterns on all series.\n'
              'Adds distinct visual patterns for colorblind-friendly charts.')
 
+    # ── Visual Config (chart-specific flags from React builder) ─────────
+    visual_config = fields.Text(
+        string='Visual Config',
+        help='JSON object with chart-specific visual flags.\n'
+             'Written by the React builder. Overrides dedicated fields when present.\n'
+             'Example: {"orientation": "horizontal", "stack": true, "show_labels": true}')
+
     # ── Bar chart options ────────────────────────────────────────────────
     bar_stack = fields.Boolean(
         string='Stack Bars', default=False,
@@ -529,6 +536,8 @@ class DashboardWidget(models.Model):
         self.drill_detail_columns = defn.drill_detail_columns
         # Bar options
         self.bar_stack = defn.bar_stack
+        # Visual config (chart-specific flags from builder)
+        self.visual_config = defn.visual_config
         # Advanced
         self.echart_override = defn.echart_override
         # Store builder config for reference
@@ -776,10 +785,31 @@ class DashboardWidget(models.Model):
         ct = self.chart_type
 
         if ct in ('bar', 'line'):
+            # ── Read visual_config flags (backward-compatible) ─────────
+            vc = {}
+            if self.visual_config:
+                try:
+                    vc = json.loads(self.visual_config) or {}
+                except (json.JSONDecodeError, TypeError):
+                    vc = {}
+
+            orientation    = vc.get('orientation', 'vertical')
+            stack          = vc.get('stack', self.bar_stack) if ct == 'bar' else False
+            stack_mode     = vc.get('stack_mode', 'absolute')
+            show_labels    = vc.get('show_labels', False)
+            label_position = vc.get('label_position', 'top')
+            sort_mode      = vc.get('sort', 'none')
+            vc_limit       = vc.get('limit', 0)
+            show_axis_labels = vc.get('show_axis_labels', True)
+            bar_width      = vc.get('bar_width')
+            bar_gap        = vc.get('bar_gap', '30%')
+            target_line    = vc.get('target_line')
+            target_label   = vc.get('target_label', '')
+
             option['tooltip']['trigger'] = 'axis'
             option['legend'] = {}
-            option['yAxis'] = {'type': 'value'}
 
+            # ── Build series data (unchanged logic) ────────────────────
             if series_col and series_col in col_idx:
                 # Build unique ordered x values (deduplicated)
                 seen_x = set()
@@ -816,10 +846,88 @@ class DashboardWidget(models.Model):
                     for yc in y_col_list
                 ]
 
-            # Inject stack property for stacked bar charts
-            if ct == 'bar' and self.bar_stack:
+            # ── Sort categories ────────────────────────────────────────
+            if sort_mode != 'none' and option.get('xAxis', {}).get('data'):
+                x_vals = option['xAxis']['data']
+                all_series = option.get('series', [])
+                if all_series:
+                    # Zip categories with all series data for coordinated sort
+                    zipped = list(zip(x_vals, *[s['data'] for s in all_series]))
+                    if sort_mode == 'value_desc':
+                        zipped.sort(key=lambda p: (p[1] or 0), reverse=True)
+                    elif sort_mode == 'value_asc':
+                        zipped.sort(key=lambda p: (p[1] or 0))
+                    elif sort_mode == 'alpha_asc':
+                        zipped.sort(key=lambda p: str(p[0]).lower())
+                    elif sort_mode == 'alpha_desc':
+                        zipped.sort(key=lambda p: str(p[0]).lower(), reverse=True)
+                    option['xAxis']['data'] = [p[0] for p in zipped]
+                    for i, s in enumerate(all_series):
+                        s['data'] = [p[i + 1] for p in zipped]
+
+            # ── Limit categories ───────────────────────────────────────
+            if vc_limit and vc_limit > 0 and option.get('xAxis', {}).get('data'):
+                option['xAxis']['data'] = option['xAxis']['data'][:vc_limit]
+                for s in option.get('series', []):
+                    s['data'] = s['data'][:vc_limit]
+
+            # ── Stack ──────────────────────────────────────────────────
+            if ct == 'bar' and stack:
                 for s in option.get('series', []):
                     s['stack'] = 'total'
+
+            # ── Percent stacking ───────────────────────────────────────
+            if ct == 'bar' and stack and stack_mode == 'percent':
+                x_count = len(option.get('xAxis', {}).get('data', []))
+                for idx in range(x_count):
+                    total = sum(
+                        (s['data'][idx] or 0) for s in option.get('series', [])
+                        if idx < len(s['data']))
+                    if total:
+                        for s in option.get('series', []):
+                            if idx < len(s['data']):
+                                s['data'][idx] = round(
+                                    (s['data'][idx] or 0) / total * 100, 1)
+
+            # ── Orientation (horizontal = swap axes) ───────────────────
+            if ct == 'bar' and orientation == 'horizontal':
+                option['yAxis'] = option.pop('xAxis')
+                option['xAxis'] = {'type': 'value'}
+            else:
+                option['yAxis'] = {'type': 'value'}
+
+            # ── Value labels on bars ───────────────────────────────────
+            if show_labels:
+                pos = label_position
+                if ct == 'bar' and orientation == 'horizontal' and pos == 'top':
+                    pos = 'right'
+                for s in option.get('series', []):
+                    s['label'] = {'show': True, 'position': pos}
+
+            # ── Axis label visibility ──────────────────────────────────
+            if not show_axis_labels:
+                for axis_key in ('xAxis', 'yAxis'):
+                    if axis_key in option:
+                        option[axis_key].setdefault('axisLabel', {})['show'] = False
+
+            # ── Bar width / gap ────────────────────────────────────────
+            if ct == 'bar':
+                if bar_width:
+                    for s in option.get('series', []):
+                        s['barWidth'] = bar_width
+                if bar_gap != '30%':
+                    for s in option.get('series', []):
+                        s['barGap'] = bar_gap
+
+            # ── Target / reference line ────────────────────────────────
+            if target_line is not None and option.get('series'):
+                axis_key = 'yAxis' if orientation == 'vertical' else 'xAxis'
+                option['series'][0].setdefault('markLine', {
+                    'silent': True,
+                    'data': [{axis_key: target_line,
+                              'label': {'formatter': target_label or str(target_line)}}],
+                    'lineStyle': {'type': 'dashed', 'color': '#ef4444'},
+                })
 
         elif ct in ('pie', 'donut'):
             pie_data = [

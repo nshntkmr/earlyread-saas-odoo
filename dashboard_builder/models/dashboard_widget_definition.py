@@ -107,6 +107,12 @@ class DashboardWidgetDefinition(models.Model):
         ('traffic_light', 'Traffic Light'),
     ], default='single')
 
+    # ── Visual Config (chart-specific flags from React builder) ─────────────
+    visual_config = fields.Text(
+        string='Visual Config',
+        help='JSON object with chart-specific visual flags from the builder.\n'
+             'Example: {"orientation": "horizontal", "stack": true}')
+
     # ── Bar chart options ────────────────────────────────────────────────────
     bar_stack = fields.Boolean(
         string='Stack Bars', default=False,

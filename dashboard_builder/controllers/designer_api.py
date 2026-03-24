@@ -101,6 +101,25 @@ class DesignerAPI(http.Controller):
         })
 
     @http.route(
+        '/dashboard/designer/api/chart-flags/<string:chart_type>',
+        type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
+    )
+    def chart_flags(self, chart_type, **kw):
+        """Return visual config flag schema for a chart type.
+
+        The React builder uses this to dynamically render chart-specific
+        controls (checkboxes, dropdowns, number inputs). Flags are pure
+        rendering instructions — no column names, params, or app references.
+        """
+        try:
+            _require_admin()
+        except ValueError as e:
+            return _json_error(403, str(e))
+
+        from ..services.chart_flags import get_flags_for_chart
+        return _json_response(get_flags_for_chart(chart_type))
+
+    @http.route(
         '/dashboard/designer/api/sources/<int:source_id>/relations',
         type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
     )
@@ -268,6 +287,7 @@ class DesignerAPI(http.Controller):
             'kpi_prefix': defn.kpi_prefix or '',
             'kpi_suffix': defn.kpi_suffix or '',
             'echart_override': defn.echart_override or '',
+            'visual_config': defn.visual_config or '',
             'instance_count': defn.instance_count,
         })
 
@@ -345,6 +365,11 @@ class DesignerAPI(http.Controller):
             if body.get('echart_override'):
                 def_vals['echart_override'] = body['echart_override']
 
+            # Visual config (chart-specific flags from builder UI)
+            if body.get('visual_config'):
+                vc = body['visual_config']
+                def_vals['visual_config'] = vc if isinstance(vc, str) else json.dumps(vc)
+
             # App scoping (field added by posterra_portal via _inherit)
             if body.get('app_ids') and 'app_ids' in request.env['dashboard.widget.definition']._fields:
                 def_vals['app_ids'] = [(6, 0, body['app_ids'])]
@@ -414,6 +439,11 @@ class DesignerAPI(http.Controller):
                 update_vals['generated_sql'] = qb.build_select_query(config)
             else:
                 update_vals['builder_config'] = config or ''
+
+        # Visual config (chart-specific flags from builder UI)
+        if 'visual_config' in body:
+            vc = body['visual_config']
+            update_vals['visual_config'] = vc if isinstance(vc, str) else json.dumps(vc)
 
         if 'app_ids' in body and 'app_ids' in request.env['dashboard.widget.definition']._fields:
             update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]
