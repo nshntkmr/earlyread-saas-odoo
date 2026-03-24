@@ -1027,6 +1027,18 @@
     cursor: pointer;
 }
 
+/* --- Flag info icon tooltip --- */
+.wb-flag-info {
+    color: #9ca3af;
+    font-size: 13px;
+    cursor: help;
+    margin-left: 2px;
+    transition: color 0.15s;
+}
+.wb-flag-info:hover {
+    color: #3b82f6;
+}
+
 /* --- Click Action radio --- */
 .wb-action-radio {
     display: flex;
