@@ -65,7 +65,7 @@ class QueryBuilder:
     # PUBLIC API
     # =========================================================================
 
-    def build_select_query(self, config, multiselect_params=None):
+    def build_select_query(self, config, multiselect_params=None, save_mode=False):
         """Build a SELECT query from structured config.
 
         Config schema:
@@ -159,48 +159,55 @@ class QueryBuilder:
         multiselect_params = multiselect_params or set()
 
         # ── Build WHERE clause ───────────────────────────────────────────────
-        where_parts = []
-        for flt in filters:
-            sid = flt['source_id']
-            col_name = flt['column']
-            op = flt.get('op', '=').upper()
-            param = flt.get('param', col_name)
+        if save_mode:
+            # Save mode: use {where_clause} placeholder.
+            # At runtime, DashboardFilterBuilder generates the WHERE dynamically
+            # handling multiselect/single-select, type casting, and __all__ sentinel.
+            where_clause = 'WHERE {where_clause}'
+        else:
+            # Preview mode: build explicit WHERE with [[optional clauses]]
+            where_parts = []
+            for flt in filters:
+                sid = flt['source_id']
+                col_name = flt['column']
+                op = flt.get('op', '=').upper()
+                param = flt.get('param', col_name)
 
-            if op not in _VALID_OPS:
-                raise ValueError(
-                    f"Invalid filter operator '{op}'. "
-                    f"Allowed: {', '.join(sorted(_VALID_OPS))}")
+                if op not in _VALID_OPS:
+                    raise ValueError(
+                        f"Invalid filter operator '{op}'. "
+                        f"Allowed: {', '.join(sorted(_VALID_OPS))}")
 
-            qualified = f'{alias_map[sid]}.{_safe_ident(col_name)}'
-            is_multi = param in multiselect_params
-            col_type = col_type_map.get((sid, col_name), 'text')
+                qualified = f'{alias_map[sid]}.{_safe_ident(col_name)}'
+                is_multi = param in multiselect_params
+                col_type = col_type_map.get((sid, col_name), 'text')
 
-            if is_multi:
-                # Multiselect: wrap in [[optional clause]] so __all__
-                # sentinel suppresses the clause. Cast numeric columns
-                # to text since tuple values are always strings.
-                col_ref = f'{qualified}::text' if col_type in _NUMERIC_TYPES else qualified
-                where_parts.append(f'[[AND {col_ref} IN %({param})s]]')
-            elif op in ('IN', 'NOT IN'):
-                # Admin explicitly chose IN/NOT IN operator
-                where_parts.append(f'{qualified} {op} %({param})s')
-            else:
-                # Single-select: standard = / != / > / < etc.
-                where_parts.append(f'{qualified} {op} %({param})s')
+                if is_multi:
+                    # Multiselect: wrap in [[optional clause]] so __all__
+                    # sentinel suppresses the clause. Cast numeric columns
+                    # to text since tuple values are always strings.
+                    col_ref = f'{qualified}::text' if col_type in _NUMERIC_TYPES else qualified
+                    where_parts.append(f'[[AND {col_ref} IN %({param})s]]')
+                elif op in ('IN', 'NOT IN'):
+                    # Admin explicitly chose IN/NOT IN operator
+                    where_parts.append(f'{qualified} {op} %({param})s')
+                else:
+                    # Single-select: standard = / != / > / < etc.
+                    where_parts.append(f'{qualified} {op} %({param})s')
 
-        where_clause = ''
-        if where_parts:
-            # Separate standard clauses from [[optional]] clauses
-            standard = [p for p in where_parts if not p.startswith('[[')]
-            optional = [p for p in where_parts if p.startswith('[[')]
-            parts = []
-            if standard:
-                parts.append('WHERE ' + ' AND '.join(standard))
-            elif optional:
-                parts.append('WHERE TRUE')
-            if optional:
-                parts.extend('  ' + clause for clause in optional)
-            where_clause = '\n'.join(parts)
+            where_clause = ''
+            if where_parts:
+                # Separate standard clauses from [[optional]] clauses
+                standard = [p for p in where_parts if not p.startswith('[[')]
+                optional = [p for p in where_parts if p.startswith('[[')]
+                parts = []
+                if standard:
+                    parts.append('WHERE ' + ' AND '.join(standard))
+                elif optional:
+                    parts.append('WHERE TRUE')
+                if optional:
+                    parts.extend('  ' + clause for clause in optional)
+                where_clause = '\n'.join(parts)
 
         # ── Build GROUP BY clause ────────────────────────────────────────────
         group_parts = []

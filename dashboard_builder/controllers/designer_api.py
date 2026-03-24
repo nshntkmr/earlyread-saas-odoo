@@ -390,8 +390,8 @@ class DesignerAPI(http.Controller):
 
                 from ..services.query_builder import QueryBuilder
                 qb = QueryBuilder(request.env)
-                if isinstance(config, dict) and config:
-                    def_vals['generated_sql'] = qb.build_select_query(config)
+                if isinstance(config, dict) and config.get('source_ids'):
+                    def_vals['generated_sql'] = qb.build_select_query(config, save_mode=True)
 
             # KPI fields
             if chart_type in ('kpi', 'status_kpi'):
@@ -481,9 +481,10 @@ class DesignerAPI(http.Controller):
             config = body['builder_config']
             if isinstance(config, dict):
                 update_vals['builder_config'] = json.dumps(config)
-                from ..services.query_builder import QueryBuilder
-                qb = QueryBuilder(request.env)
-                update_vals['generated_sql'] = qb.build_select_query(config)
+                if config.get('source_ids'):
+                    from ..services.query_builder import QueryBuilder
+                    qb = QueryBuilder(request.env)
+                    update_vals['generated_sql'] = qb.build_select_query(config, save_mode=True)
             else:
                 update_vals['builder_config'] = config or ''
 
