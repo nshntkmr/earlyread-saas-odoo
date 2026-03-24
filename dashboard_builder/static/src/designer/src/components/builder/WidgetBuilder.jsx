@@ -403,6 +403,7 @@ export default function WidgetBuilder({
               saving={saving}
               apiBase={apiBase}
               appContext={appContext}
+              onAppearanceChange={v => dispatch({ type: 'SET_APPEARANCE', value: v })}
             />
           )}
         </div>

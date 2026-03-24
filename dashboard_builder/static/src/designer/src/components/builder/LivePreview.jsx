@@ -22,6 +22,7 @@ import PageFilterPanel from './PageFilterPanel'
 export default function LivePreview({
   builderState, generatedSql, onSqlGenerated,
   onSave, saving, apiBase, appContext = null,
+  onAppearanceChange = null,
 }) {
   const [previewData, setPreviewData] = useState(null)
   const [previewError, setPreviewError] = useState(null)
@@ -113,6 +114,22 @@ export default function LivePreview({
   return (
     <div>
       <h3 className="wb-step-title">Preview & Save</h3>
+
+      {/* Widget name */}
+      <div className="wb-field-group" style={{ marginBottom: 16 }}>
+        <label className="wb-field-label">Widget Name <span style={{ color: '#ef4444' }}>*</span></label>
+        <input
+          type="text"
+          className="wb-input"
+          value={builderState.appearance?.title || ''}
+          placeholder="e.g. Total Admits by Year, Revenue/Visit Trend"
+          onChange={e => {
+            if (onAppearanceChange) {
+              onAppearanceChange({ ...builderState.appearance, title: e.target.value })
+            }
+          }}
+        />
+      </div>
 
       {/* Page filter dropdowns (when app context has a page) */}
       {hasPageContext && (
