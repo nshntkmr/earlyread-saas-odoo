@@ -1,6 +1,6 @@
 import React, { useReducer, useState, useCallback, useEffect } from 'react'
 import { designerFetch } from '../../api/client'
-import { libraryCreateUrl, libraryDetailUrl } from '../../api/endpoints'
+import { libraryCreateUrl, libraryDetailUrl, sourceDetailUrl } from '../../api/endpoints'
 
 // Step components
 import ChartTypePicker    from './ChartTypePicker'
@@ -211,6 +211,30 @@ export default function WidgetBuilder({
       .catch(err => setSaveError(`Failed to load: ${err.message}`))
       .finally(() => setLoadingEdit(false))
   }, [editId, isOpen, apiBase])
+
+  // Auto-fetch column metadata for sources restored from builder_config.
+  // builder_config stores only {id, alias} — no columns array.
+  // ColumnMapper needs the full column list to render dropdown options.
+  useEffect(() => {
+    if (!state.sources || state.sources.length === 0) return
+    const needsFetch = state.sources.some(s => !s.columns || s.columns.length === 0)
+    if (!needsFetch) return
+
+    Promise.all(
+      state.sources.map(async (src) => {
+        if (src.columns && src.columns.length > 0) return src
+        try {
+          const detail = await designerFetch(sourceDetailUrl(apiBase, src.id))
+          return { ...src, columns: detail.columns || [], name: detail.name || src.name }
+        } catch (err) {
+          console.error(`Failed to fetch columns for source ${src.id}:`, err)
+          return src
+        }
+      })
+    ).then(enrichedSources => {
+      dispatch({ type: 'SET_SOURCES', value: enrichedSources })
+    })
+  }, [state.sources.length, apiBase])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
