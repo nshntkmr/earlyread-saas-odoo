@@ -116,6 +116,20 @@ function reducer(state, action) {
       return { ...state, generatedSql: action.value }
     case 'LOAD_DEFINITION': {
       const d = action.value
+      // Parse builder_config to restore visual builder state (sources, columns, filters, etc.)
+      let bc = {}
+      try {
+        bc = d.builder_config ? (typeof d.builder_config === 'string' ? JSON.parse(d.builder_config) : d.builder_config) : {}
+      } catch { bc = {} }
+
+      // Restore column mappings from builder_config
+      const bcColumns = bc.columns || []
+      const restoredColumns = {
+        x: bcColumns.find(c => c.axis === 'x') || null,
+        y: bcColumns.filter(c => c.axis === 'y') || [],
+        series: bcColumns.find(c => c.axis === 'series') || null,
+      }
+
       return {
         ...initialState,
         step: 0,
@@ -128,8 +142,14 @@ function reducer(state, action) {
           seriesColumn: d.series_column || '',
           testResult: null,
         },
+        // Visual builder state from builder_config
+        sources: bc.sources || [],
+        columns: d.data_mode === 'visual' ? restoredColumns : {},
         xColumn: d.x_column || '',
         seriesColumn: d.series_column || '',
+        filters: bc.filters || [],
+        orderBy: bc.order_by || '',
+        limit: bc.limit || null,
         clickAction: d.click_action || 'none',
         actionPageKey: d.action_page_key || '',
         actionTabKey: d.action_tab_key || '',
@@ -518,20 +538,33 @@ function buildCreatePayload(state) {
     })
   }
 
+  const sources = (state.sources || []).map(s => ({
+    id: s.id,
+    alias: s.alias || null,
+  }))
+  const filters = state.filters || []
+  const orderBy = state.orderBy || ''
+  const limit = state.limit || null
+
   return {
     ...base,
-    sources: (state.sources || []).map(s => ({
-      id: s.id,
-      alias: s.alias || null,
-    })),
+    sources,
     joins: state.joins || [],
     columns: flatColumns,
     x_column: colState.x?.alias || colState.x?.column || '',
     y_columns: (colState.y || []).map(c => c.alias || c.column).filter(Boolean).join(','),
     series_column: seriesCol?.alias || seriesCol?.column || '',
-    filters: state.filters || [],
-    order_by: state.orderBy || '',
-    limit: state.limit || null,
+    filters,
+    order_by: orderBy,
+    limit,
     generated_sql: state.generatedSql || '',
+    // Bundle visual builder state for edit/reload later
+    builder_config: {
+      sources,
+      columns: flatColumns,
+      filters,
+      order_by: orderBy,
+      limit,
+    },
   }
 }
