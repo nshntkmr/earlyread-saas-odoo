@@ -199,7 +199,7 @@ class DesignerAPI(http.Controller):
                         (f.param_name or f.field_name)
                         for f in page_filters if f.is_multiselect
                     }
-                    from posterra_portal.utils.sql_params import build_sql_params
+                    from odoo.addons.posterra_portal.utils.sql_params import build_sql_params
                     params = build_sql_params(normalized, multiselect_params)
                 except Exception as e:
                     _logger.warning(
@@ -216,10 +216,15 @@ class DesignerAPI(http.Controller):
                 is_valid, err = qb.validate_query(sql)
                 if not is_valid:
                     return _json_error(400, f'Invalid SQL: {err}')
+                _logger.info('Preview [custom_sql] params: %s', params)
+                _logger.info('Preview [custom_sql] SQL: %s', sql)
                 columns, rows = qb.execute_preview(sql, params)
             else:
                 config = body.get('config', {})
                 sql = qb.build_select_query(config, multiselect_params=multiselect_params)
+                _logger.info('Preview [visual] multiselect_params: %s', multiselect_params)
+                _logger.info('Preview [visual] params: %s', params)
+                _logger.info('Preview [visual] SQL: %s', sql)
                 columns, rows = qb.execute_preview(sql, params)
 
             rows_list = [list(row) for row in rows]
@@ -228,7 +233,8 @@ class DesignerAPI(http.Controller):
             from ..services.preview_formatter import format_preview
             chart_type = body.get('chart_type', 'table')
             widget_config = body.get('widget_config', {})
-            formatted = format_preview(chart_type, columns, rows_list, widget_config)
+            visual_config = widget_config.get('visual_config', {})
+            formatted = format_preview(chart_type, columns, rows_list, widget_config, visual_config)
 
             return _json_response({
                 'sql': sql,
