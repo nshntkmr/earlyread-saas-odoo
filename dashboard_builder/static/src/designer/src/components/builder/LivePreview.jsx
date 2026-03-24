@@ -63,6 +63,11 @@ export default function LivePreview({
     setPreviewError(null)
     try {
       const body = buildPreviewPayload(builderState, hasPageContext ? filterValues : null)
+      // Pass page_id so preview endpoint can load filter metadata
+      // (multiselect awareness, _year_single/_year_prior helpers)
+      if (hasPageContext && appContext?.page?.id) {
+        body.page_id = appContext.page.id
+      }
       const result = await designerFetch(previewUrl(apiBase), {
         method: 'POST',
         body: JSON.stringify(body),

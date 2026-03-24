@@ -181,33 +181,12 @@ def _build_portal_ctx(page, user, app, kw):
     current_hha_id = (kw.get(pf_param_name) or 'all').strip() if pf_param_name else 'all'
 
     # Convert multi-select params from CSV strings to tuples for psycopg2.
-    # psycopg2 adapts tuples to SQL tuple syntax — IN %(param)s works.
-    # When value is empty/all, use ('__all__',) sentinel so
-    # DashboardFilterBuilder and manual SQL can detect "no filter".
+    from ..utils.sql_params import build_sql_params
     multiselect_params = {
         (f.param_name or f.field_name)
         for f in page_filters if f.is_multiselect
     }
-    sql_params = {}
-    for key, val in filter_values_by_name.items():
-        if key in multiselect_params:
-            if val and val not in ('', 'all'):
-                parts = tuple(v.strip() for v in val.split(',') if v.strip())
-                sql_params[key] = parts
-                # Helper params for single-value numeric selections
-                numeric = [v for v in parts if v.isdigit()]
-                if len(parts) == 1 and numeric:
-                    sql_params['_%s_single' % key] = int(numeric[0])
-                    sql_params['_%s_prior' % key] = int(numeric[0]) - 1
-                else:
-                    sql_params['_%s_single' % key] = None
-                    sql_params['_%s_prior' % key] = None
-            else:
-                sql_params[key] = ('__all__',)
-                sql_params['_%s_single' % key] = None
-                sql_params['_%s_prior' % key] = None
-        else:
-            sql_params[key] = val
+    sql_params = build_sql_params(filter_values_by_name, multiselect_params)
 
     return {
         'selected_hha':          selected_provider,

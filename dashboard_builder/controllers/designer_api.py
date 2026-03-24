@@ -170,16 +170,44 @@ class DesignerAPI(http.Controller):
             from ..services.query_builder import QueryBuilder
             qb = QueryBuilder(request.env)
 
-            # Normalize params: lists → comma-separated strings, booleans → strings
+            # ── Normalize raw params from JSON ─────────────────────────
+            # JavaScript may send lists (multi-select), booleans, or nulls.
+            # First pass: coerce everything to strings (CSV for lists).
             raw_params = body.get('params', {})
-            params = {}
+            normalized = {}
             for k, v in raw_params.items():
                 if isinstance(v, list):
-                    params[k] = ','.join(str(i) for i in v) if v else ''
+                    normalized[k] = ','.join(str(i) for i in v) if v else ''
                 elif isinstance(v, bool):
-                    params[k] = str(v).lower()
+                    normalized[k] = str(v).lower()
                 else:
-                    params[k] = v if v is not None else ''
+                    normalized[k] = v if v is not None else ''
+
+            # ── Filter-aware conversion (when page context available) ──
+            # Uses the same build_sql_params() as portal.py and widget_api.py
+            # so preview params match runtime params exactly.
+            page_id = body.get('page_id')
+            if page_id:
+                try:
+                    PageFilter = request.env['dashboard.page.filter'].sudo()
+                    page_filters = PageFilter.search([
+                        ('page_id', '=', int(page_id)),
+                        ('is_active', '=', True),
+                    ])
+                    multiselect_params = {
+                        (f.param_name or f.field_name)
+                        for f in page_filters if f.is_multiselect
+                    }
+                    from posterra_portal.utils.sql_params import build_sql_params
+                    params = build_sql_params(normalized, multiselect_params)
+                except Exception as e:
+                    _logger.warning(
+                        'Preview: filter-aware param build failed (page_id=%s): %s. '
+                        'Falling back to string params.', page_id, e)
+                    params = normalized
+            else:
+                # No page context — use plain string params (safety net)
+                params = normalized
 
             if mode == 'custom_sql':
                 sql = body.get('sql', '')
