@@ -701,31 +701,12 @@ class PosterraPortal(CustomerPortal):
                 filter_values_by_name[key] = filter_values.get(f.id, '')
 
         # Convert multi-select params from CSV strings to tuples for psycopg2.
+        from ..utils.sql_params import build_sql_params
         multiselect_params = {
             (f.param_name or f.field_name)
             for f in page_filters if f.is_multiselect
         }
-        sql_params = {}
-        for key, val in filter_values_by_name.items():
-            if key in multiselect_params:
-                if val and val not in ('', 'all'):
-                    parts = tuple(v.strip() for v in val.split(',') if v.strip())
-                    sql_params[key] = parts
-                    # Helper params for single-value numeric selections
-                    # (e.g. year → _year_single / _year_prior)
-                    numeric = [v for v in parts if v.isdigit()]
-                    if len(parts) == 1 and numeric:
-                        sql_params['_%s_single' % key] = int(numeric[0])
-                        sql_params['_%s_prior' % key] = int(numeric[0]) - 1
-                    else:
-                        sql_params['_%s_single' % key] = None
-                        sql_params['_%s_prior' % key] = None
-                else:
-                    sql_params[key] = ('__all__',)
-                    sql_params['_%s_single' % key] = None
-                    sql_params['_%s_prior' % key] = None
-            else:
-                sql_params[key] = val
+        sql_params = build_sql_params(filter_values_by_name, multiselect_params)
 
         portal_ctx = {
             'selected_hha':          selected_provider,
