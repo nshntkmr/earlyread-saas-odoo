@@ -560,13 +560,24 @@ function buildCreatePayload(state) {
     generated_sql: state.generatedSql || '',
     // Bundle visual builder state for edit/reload later
     // source_ids is what QueryBuilder needs; sources is what the React builder needs to restore
-    builder_config: {
-      sources,
-      source_ids: sources.map(s => s.id),
-      columns: flatColumns,
-      filters,
-      order_by: orderBy,
-      limit,
-    },
+    builder_config: (() => {
+      // Build group_by from x_column + series_column (same logic as preview)
+      const groupBy = []
+      if (colState.x && colState.x.column) {
+        groupBy.push({ source_id: colState.x.source_id, column: colState.x.column })
+      }
+      if (seriesCol && seriesCol.column) {
+        groupBy.push({ source_id: seriesCol.source_id, column: seriesCol.column })
+      }
+      return {
+        sources,
+        source_ids: sources.map(s => s.id),
+        columns: flatColumns,
+        filters,
+        group_by: groupBy,
+        order_by: orderBy,
+        limit,
+      }
+    })(),
   }
 }
