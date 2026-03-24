@@ -397,7 +397,7 @@ class QueryBuilder:
             # Resolve [[optional clauses]] — same as filter_builder
             exec_sql = sql
             if '[[' in exec_sql:
-                from posterra_portal.utils.filter_builder import resolve_optional_clauses
+                from odoo.addons.posterra_portal.utils.filter_builder import resolve_optional_clauses
                 exec_sql = resolve_optional_clauses(exec_sql, params)
 
             # Apply limit if not already in the SQL
