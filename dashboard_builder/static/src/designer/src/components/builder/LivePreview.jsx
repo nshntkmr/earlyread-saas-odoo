@@ -25,6 +25,7 @@ export default function LivePreview({
 }) {
   const [previewData, setPreviewData] = useState(null)
   const [previewError, setPreviewError] = useState(null)
+  const [previewCounter, setPreviewCounter] = useState(0)
   const [loading, setLoading] = useState(false)
   const [filterValues, setFilterValues] = useState({})
   const [placing, setPlacing] = useState(false)
@@ -47,11 +48,12 @@ export default function LivePreview({
     }
   }, [])
 
-  // Update chart when preview data arrives
+  // Update chart when preview data arrives — counter ensures re-render
   useEffect(() => {
     if (!chartRef.current || !previewData?.echart_option) return
+    chartRef.current.clear()
     chartRef.current.setOption(previewData.echart_option, { notMerge: true })
-  }, [previewData])
+  }, [previewData, previewCounter])
 
   const isChart = ['bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'gauge'].includes(
     builderState.chartType
@@ -73,6 +75,7 @@ export default function LivePreview({
         body: JSON.stringify(body),
       })
       setPreviewData(result)
+      setPreviewCounter(c => c + 1)
       if (result.sql) onSqlGenerated(result.sql)
     } catch (err) {
       setPreviewError(err.message || 'Preview failed')
