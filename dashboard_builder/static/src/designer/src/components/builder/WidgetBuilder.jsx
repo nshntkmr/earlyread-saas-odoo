@@ -482,7 +482,41 @@ function buildCreatePayload(state) {
     }
   }
 
-  // Visual mode
+  // Visual mode — build columns from ColumnMapper's {x, y, series} structure
+  const colState = state.columns || {}
+  const flatColumns = []
+
+  if (colState.x && colState.x.column) {
+    flatColumns.push({
+      source_id: colState.x.source_id,
+      column: colState.x.column,
+      agg: null,
+      alias: colState.x.alias || colState.x.column,
+      axis: 'x',
+    })
+  }
+  for (const yc of (colState.y || [])) {
+    if (yc.column) {
+      flatColumns.push({
+        source_id: yc.source_id,
+        column: yc.column,
+        agg: yc.agg || 'sum',
+        alias: yc.alias || yc.column,
+        axis: 'y',
+      })
+    }
+  }
+  const seriesCol = colState.series
+  if (seriesCol && seriesCol.column) {
+    flatColumns.push({
+      source_id: seriesCol.source_id,
+      column: seriesCol.column,
+      agg: null,
+      alias: seriesCol.alias || seriesCol.column,
+      axis: 'series',
+    })
+  }
+
   return {
     ...base,
     sources: (state.sources || []).map(s => ({
@@ -490,15 +524,10 @@ function buildCreatePayload(state) {
       alias: s.alias || null,
     })),
     joins: state.joins || [],
-    columns: (state.columns || []).map(c => ({
-      source_id: c.source_id,
-      column: c.column,
-      agg: c.agg || null,
-      alias: c.alias || null,
-      axis: c.axis || 'y',
-    })),
-    x_column: state.xColumn || '',
-    series_column: state.seriesColumn || '',
+    columns: flatColumns,
+    x_column: colState.x?.alias || colState.x?.column || '',
+    y_columns: (colState.y || []).map(c => c.alias || c.column).filter(Boolean).join(','),
+    series_column: seriesCol?.alias || seriesCol?.column || '',
     filters: state.filters || [],
     order_by: state.orderBy || '',
     limit: state.limit || null,
