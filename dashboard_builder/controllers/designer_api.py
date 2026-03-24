@@ -388,6 +388,19 @@ class DesignerAPI(http.Controller):
                 else:
                     def_vals['builder_config'] = config or ''
 
+                # Set column mappings from body (same fields as custom_sql)
+                def_vals['x_column'] = body.get('x_column', '')
+                def_vals['y_columns'] = body.get('y_columns', '')
+                def_vals['series_column'] = body.get('series_column', '')
+
+                # Set schema_source from the first source in config
+                if isinstance(config, dict) and config.get('source_ids'):
+                    source_id = config['source_ids'][0]
+                    # Find the dashboard.schema.source matching this ID
+                    schema_src = request.env['dashboard.schema.source'].sudo().browse(source_id)
+                    if schema_src.exists():
+                        def_vals['schema_source_id'] = schema_src.id
+
                 from ..services.query_builder import QueryBuilder
                 qb = QueryBuilder(request.env)
                 if isinstance(config, dict) and config.get('source_ids'):

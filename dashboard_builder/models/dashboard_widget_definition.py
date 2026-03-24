@@ -77,6 +77,10 @@ class DashboardWidgetDefinition(models.Model):
     query_sql     = fields.Text(
         string='SQL Query',
         help='SELECT only. Use %(param)s for filter values.')
+    schema_source_id = fields.Many2one(
+        'dashboard.schema.source', string='Schema Source',
+        ondelete='set null',
+        help='MV or table this widget queries. Used for {where_clause} generation.')
     x_column      = fields.Char(string='X / Label Column')
     y_columns     = fields.Char(
         string='Y / Value Column(s)',
