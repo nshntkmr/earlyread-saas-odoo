@@ -32,19 +32,21 @@ _STATUS_MAP = {
 }
 
 
-def format_preview(chart_type, columns, rows, config=None):
+def format_preview(chart_type, columns, rows, config=None, visual_config=None):
     """Dispatch to the right formatter based on chart_type.
 
     Args:
-        chart_type: str — widget chart type (bar, line, kpi, table, etc.)
-        columns:    list of str — column names from SQL result
-        rows:       list of list — row data from SQL result
-        config:     dict — widget configuration (x_column, y_columns, etc.)
+        chart_type:    str — widget chart type (bar, line, kpi, table, etc.)
+        columns:       list of str — column names from SQL result
+        rows:          list of list — row data from SQL result
+        config:        dict — widget configuration (x_column, y_columns, etc.)
+        visual_config: dict — chart-specific visual flags (orientation, stack, etc.)
 
     Returns:
         dict — merged into the preview API response
     """
     config = config or {}
+    visual_config = visual_config or {}
 
     if chart_type in ('kpi', 'status_kpi', 'kpi_strip'):
         return _format_kpi_preview(chart_type, columns, rows, config)
@@ -53,7 +55,7 @@ def format_preview(chart_type, columns, rows, config=None):
         return {}  # tables already work with raw columns/rows
 
     if chart_type in ('bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'gauge'):
-        return _build_echart_preview(chart_type, columns, rows, config)
+        return _build_echart_preview(chart_type, columns, rows, config, visual_config)
 
     # Fallback — return raw data as-is
     return {}
@@ -160,8 +162,9 @@ def _get_palette_colors(palette, custom_json=None):
     return _PALETTES.get(palette, _PALETTES['default'])
 
 
-def _build_echart_preview(chart_type, columns, rows, config):
+def _build_echart_preview(chart_type, columns, rows, config, visual_config=None):
     """Build an ECharts option dict for chart preview."""
+    vc = visual_config or {}
     x_col = (config.get('x_column') or '').strip()
     y_cols_raw = (config.get('y_columns') or '').strip()
     y_col_list = [c.strip() for c in y_cols_raw.split(',') if c.strip()]
@@ -288,5 +291,51 @@ def _build_echart_preview(chart_type, columns, rows, config):
         }
         option['series'] = [{'type': 'heatmap', 'data': heat_data,
                               'label': {'show': True}}]
+
+    # ── Apply visual flags (chart-library-agnostic → ECharts translation) ──
+    if chart_type == 'bar' and vc:
+        # Orientation: swap axes for horizontal bars
+        if vc.get('orientation') == 'horizontal':
+            option['xAxis'], option['yAxis'] = option.get('yAxis', {}), option.get('xAxis', {})
+
+        # Stack: stack series on top of each other
+        if vc.get('stack'):
+            for s in option.get('series', []):
+                s['stack'] = 'total'
+            # Percent stack mode
+            if vc.get('stack_mode') == 'percent':
+                option['yAxis'] = option.get('yAxis') or {}
+                if isinstance(option['yAxis'], dict):
+                    option['yAxis']['max'] = 100
+
+        # Show value labels on bars
+        if vc.get('show_labels'):
+            pos = 'inside' if vc.get('stack') else 'top'
+            for s in option.get('series', []):
+                s['label'] = {'show': True, 'position': pos}
+
+        # Hide axis labels
+        if vc.get('show_axis_labels') is False:
+            for axis_key in ('xAxis', 'yAxis'):
+                ax = option.get(axis_key)
+                if isinstance(ax, dict):
+                    ax['axisLabel'] = {'show': False}
+
+    elif chart_type == 'line' and vc:
+        # Area fill
+        if vc.get('show_area'):
+            opacity = vc.get('area_opacity', 0.3)
+            for s in option.get('series', []):
+                s['areaStyle'] = {'opacity': opacity}
+
+        # Smooth curves
+        if vc.get('smooth'):
+            for s in option.get('series', []):
+                s['smooth'] = True
+
+        # Stack
+        if vc.get('stack'):
+            for s in option.get('series', []):
+                s['stack'] = 'total'
 
     return {'echart_option': option}

@@ -291,6 +291,7 @@ function buildPreviewPayload(state, pageFilterValues) {
     kpi_suffix: state.appearance?.kpiSuffix || '',
     color_palette: state.appearance?.colorPalette || 'default',
     title: state.appearance?.title || '',
+    visual_config: state.visualFlags || {},
   }
 
   if (isCustomSql) {
@@ -362,9 +363,13 @@ function buildPreviewPayload(state, pageFilterValues) {
     groupBy.push({ source_id: seriesCol.source_id, column: seriesCol.column })
   }
 
-  // Build order by
+  // Build order by — state.orderBy can be a string (legacy) or array (from ColumnMapper)
   const orderBy = []
-  if (state.orderBy) {
+  if (Array.isArray(state.orderBy)) {
+    for (const ob of state.orderBy) {
+      if (ob.alias) orderBy.push({ alias: ob.alias, dir: ob.dir || 'ASC' })
+    }
+  } else if (state.orderBy) {
     const dir = state.orderByDir || 'ASC'
     orderBy.push({ alias: state.orderBy, dir })
   }
