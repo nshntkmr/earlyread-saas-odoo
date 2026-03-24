@@ -112,6 +112,11 @@ export default function ChartTypePicker({
               if (!shouldShow(flag.show_when, visualFlags)) return null
               const val = getFlagValue(flag)
 
+              // Info icon helper — renders a small (i) tooltip when help text exists
+              const infoIcon = flag.help
+                ? <i className="fa fa-info-circle wb-flag-info" title={flag.help} />
+                : null
+
               if (flag.type === 'boolean') {
                 return (
                   <div key={flag.flag} className="wb-toggle-group">
@@ -121,7 +126,7 @@ export default function ChartTypePicker({
                         checked={val === true}
                         onChange={e => handleFlag(flag.flag, e.target.checked)}
                       />
-                      {flag.label}
+                      {flag.label} {infoIcon}
                     </label>
                     {flag.help && <span className="wb-flag-help">{flag.help}</span>}
                   </div>
@@ -131,7 +136,7 @@ export default function ChartTypePicker({
               if (flag.type === 'select') {
                 return (
                   <div key={flag.flag} className="wb-field-row">
-                    <label className="wb-field-label">{flag.label}</label>
+                    <label className="wb-field-label">{flag.label} {infoIcon}</label>
                     <select
                       className="wb-select"
                       value={val ?? flag.default ?? ''}
@@ -148,7 +153,7 @@ export default function ChartTypePicker({
               if (flag.type === 'number') {
                 return (
                   <div key={flag.flag} className="wb-field-row">
-                    <label className="wb-field-label">{flag.label}</label>
+                    <label className="wb-field-label">{flag.label} {infoIcon}</label>
                     <input
                       type="number"
                       className="wb-input wb-input--sm"
@@ -166,7 +171,7 @@ export default function ChartTypePicker({
               if (flag.type === 'text') {
                 return (
                   <div key={flag.flag} className="wb-field-row">
-                    <label className="wb-field-label">{flag.label}</label>
+                    <label className="wb-field-label">{flag.label} {infoIcon}</label>
                     <input
                       type="text"
                       className="wb-input wb-input--sm"
