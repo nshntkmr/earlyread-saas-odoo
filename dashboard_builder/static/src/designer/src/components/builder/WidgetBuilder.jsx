@@ -559,8 +559,10 @@ function buildCreatePayload(state) {
     limit,
     generated_sql: state.generatedSql || '',
     // Bundle visual builder state for edit/reload later
+    // source_ids is what QueryBuilder needs; sources is what the React builder needs to restore
     builder_config: {
       sources,
+      source_ids: sources.map(s => s.id),
       columns: flatColumns,
       filters,
       order_by: orderBy,
