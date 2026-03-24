@@ -187,6 +187,7 @@ class DesignerAPI(http.Controller):
             # Uses the same build_sql_params() as portal.py and widget_api.py
             # so preview params match runtime params exactly.
             page_id = body.get('page_id')
+            multiselect_params = set()
             if page_id:
                 try:
                     PageFilter = request.env['dashboard.page.filter'].sudo()
@@ -205,6 +206,7 @@ class DesignerAPI(http.Controller):
                         'Preview: filter-aware param build failed (page_id=%s): %s. '
                         'Falling back to string params.', page_id, e)
                     params = normalized
+                    multiselect_params = set()
             else:
                 # No page context — use plain string params (safety net)
                 params = normalized
@@ -217,7 +219,7 @@ class DesignerAPI(http.Controller):
                 columns, rows = qb.execute_preview(sql, params)
             else:
                 config = body.get('config', {})
-                sql = qb.build_select_query(config)
+                sql = qb.build_select_query(config, multiselect_params=multiselect_params)
                 columns, rows = qb.execute_preview(sql, params)
 
             rows_list = [list(row) for row in rows]

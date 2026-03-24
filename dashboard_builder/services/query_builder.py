@@ -65,7 +65,7 @@ class QueryBuilder:
     # PUBLIC API
     # =========================================================================
 
-    def build_select_query(self, config):
+    def build_select_query(self, config, multiselect_params=None):
         """Build a SELECT query from structured config.
 
         Config schema:
@@ -82,6 +82,14 @@ class QueryBuilder:
             "order_by": [{"alias": "admits", "dir": "DESC"}],
             "limit": 10
         }
+
+        Args:
+            config: dict — structured query config from the React builder.
+            multiselect_params: set[str] | None — param names that are
+                multiselect page filters. When provided, these filters
+                generate ``[[...IN %(param)s]]`` optional clauses that
+                auto-suppress when the value is ``('__all__',)``.
+                Numeric columns get ``::text`` cast for tuple comparison.
 
         Returns: SQL string with %(param)s placeholders.
         Raises: ValueError if columns/tables invalid or no relation between tables.
@@ -141,6 +149,15 @@ class QueryBuilder:
         # ── Build FROM + JOIN clauses ────────────────────────────────────────
         from_clause = self._build_from_joins(sources, alias_map)
 
+        # ── Build column type lookup for multiselect casting ─────────────
+        _NUMERIC_TYPES = frozenset({'integer', 'float'})
+        col_type_map = {}  # {(source_id, column_name): data_type}
+        for src in sources:
+            for col_rec in src.column_ids:
+                col_type_map[(src.id, col_rec.column_name)] = col_rec.data_type
+
+        multiselect_params = multiselect_params or set()
+
         # ── Build WHERE clause ───────────────────────────────────────────────
         where_parts = []
         for flt in filters:
@@ -155,15 +172,35 @@ class QueryBuilder:
                     f"Allowed: {', '.join(sorted(_VALID_OPS))}")
 
             qualified = f'{alias_map[sid]}.{_safe_ident(col_name)}'
+            is_multi = param in multiselect_params
+            col_type = col_type_map.get((sid, col_name), 'text')
 
-            if op in ('IN', 'NOT IN'):
-                where_parts.append(f'{qualified} {op} (%({param})s)')
+            if is_multi:
+                # Multiselect: wrap in [[optional clause]] so __all__
+                # sentinel suppresses the clause. Cast numeric columns
+                # to text since tuple values are always strings.
+                col_ref = f'{qualified}::text' if col_type in _NUMERIC_TYPES else qualified
+                where_parts.append(f'[[AND {col_ref} IN %({param})s]]')
+            elif op in ('IN', 'NOT IN'):
+                # Admin explicitly chose IN/NOT IN operator
+                where_parts.append(f'{qualified} {op} %({param})s')
             else:
+                # Single-select: standard = / != / > / < etc.
                 where_parts.append(f'{qualified} {op} %({param})s')
 
         where_clause = ''
         if where_parts:
-            where_clause = 'WHERE ' + ' AND '.join(where_parts)
+            # Separate standard clauses from [[optional]] clauses
+            standard = [p for p in where_parts if not p.startswith('[[')]
+            optional = [p for p in where_parts if p.startswith('[[')]
+            parts = []
+            if standard:
+                parts.append('WHERE ' + ' AND '.join(standard))
+            elif optional:
+                parts.append('WHERE TRUE')
+            if optional:
+                parts.extend('  ' + clause for clause in optional)
+            where_clause = '\n'.join(parts)
 
         # ── Build GROUP BY clause ────────────────────────────────────────────
         group_parts = []
@@ -336,6 +373,11 @@ class QueryBuilder:
     def execute_preview(self, sql, params=None, limit=25):
         """Executes SQL in read-only transaction with timeout.
 
+        Resolves ``[[...]]`` optional clauses before execution.
+        A clause is included only when every ``%(param)s`` inside has
+        a meaningful value (not None, empty, 'all', or ``('__all__',)``).
+        This ensures multiselect "All" selections suppress their clause.
+
         Returns: (columns: list[str], rows: list[tuple])
         """
         if params is None:
@@ -352,10 +394,15 @@ class QueryBuilder:
             cr.execute("SET TRANSACTION READ ONLY")
             cr.execute("SET LOCAL statement_timeout = '10s'")
 
-            # Apply limit if not already in the SQL
+            # Resolve [[optional clauses]] — same as filter_builder
             exec_sql = sql
-            if limit and 'LIMIT' not in sql.upper():
-                exec_sql = f'{sql}\nLIMIT {int(limit)}'
+            if '[[' in exec_sql:
+                from posterra_portal.utils.filter_builder import resolve_optional_clauses
+                exec_sql = resolve_optional_clauses(exec_sql, params)
+
+            # Apply limit if not already in the SQL
+            if limit and 'LIMIT' not in exec_sql.upper():
+                exec_sql = f'{exec_sql}\nLIMIT {int(limit)}'
 
             cr.execute(exec_sql, params)
             columns = [desc[0] for desc in cr.description] if cr.description else []
