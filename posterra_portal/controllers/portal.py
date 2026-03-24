@@ -715,14 +715,22 @@ class PosterraPortal(CustomerPortal):
             '_filter_defs':          page_filters.to_filter_defs(),
         }
 
+        # Load ALL widgets for the page (all tabs). Execute SQL only for
+        # current-tab widgets. Other-tab widgets get deferred metadata —
+        # React lazy-loads them via per-widget API when the tab is clicked.
         widgets = request.env['dashboard.widget'].sudo().search([
             ('page_id.key', '=', effective_page_key),
             ('is_active', '=', True),
-            '|',
-            ('tab_id', '=', False),
-            ('tab_id.key', '=', current_tab_key),
         ], order='sequence asc')
-        widget_data = {w.id: w.get_portal_data(portal_ctx) for w in widgets}
+        widget_data = {}
+        for w in widgets:
+            w_tab_key = w.tab_id.key if w.tab_id else None
+            if not w_tab_key or w_tab_key == current_tab_key:
+                # Current tab or no-tab widget → execute SQL, full data
+                widget_data[w.id] = w.get_portal_data(portal_ctx)
+            else:
+                # Other tab → deferred metadata only (no SQL execution)
+                widget_data[w.id] = {'_deferred': True}
 
         # ── 10. Page sections ──────────────────────────────────────────
         page_sections = request.env['dashboard.page.section'].sudo().search([
