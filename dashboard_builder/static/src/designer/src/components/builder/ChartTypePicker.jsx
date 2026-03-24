@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 
 const CHART_TYPES = [
   { key: 'bar',           label: 'Bar',           icon: 'fa-bar-chart',       desc: 'Compare values across categories' },
@@ -18,15 +18,71 @@ const CHART_TYPES = [
 ]
 
 /**
- * Step 1: Pick a chart type.
+ * Evaluate show_when conditions against current flag values.
+ * Returns true if the flag should be visible.
+ */
+function shouldShow(showWhen, flagValues) {
+  if (!showWhen) return true
+  return Object.entries(showWhen).every(([key, expected]) => {
+    const actual = flagValues[key]
+    if (expected === '__not_null__') return actual != null && actual !== '' && actual !== 0
+    return actual === expected
+  })
+}
+
+/**
+ * Step 1: Pick a chart type + configure visual flags.
+ *
+ * Visual flags are loaded dynamically from the server based on chart type.
+ * The flag schema drives which controls appear — no hardcoded per-chart UI.
  *
  * Props:
- *   selected    — current chart type key
- *   onSelect    — (chartType: string) => void
- *   barStack    — boolean
- *   onBarStack  — (checked: boolean) => void
+ *   selected      — current chart type key
+ *   onSelect      — (chartType: string) => void
+ *   visualFlags   — {flag: value} object (current visual_config state)
+ *   onFlagChange  — (flag: string, value: any) => void
+ *   barStack      — boolean (legacy, kept for backward compat)
+ *   onBarStack    — (checked: boolean) => void (legacy)
  */
-export default function ChartTypePicker({ selected, onSelect, barStack, onBarStack }) {
+export default function ChartTypePicker({
+  selected, onSelect,
+  visualFlags = {}, onFlagChange,
+  barStack, onBarStack,
+}) {
+  const [flagSchema, setFlagSchema] = useState([])
+
+  // Fetch flag schema when chart type changes
+  useEffect(() => {
+    if (!selected) {
+      setFlagSchema([])
+      return
+    }
+    fetch(`/dashboard/designer/api/chart-flags/${selected}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(r => r.json())
+      .then(data => {
+        setFlagSchema(Array.isArray(data) ? data : (data.result || []))
+      })
+      .catch(() => setFlagSchema([]))
+  }, [selected])
+
+  const handleFlag = useCallback((flag, value) => {
+    // Notify parent
+    if (onFlagChange) onFlagChange(flag, value)
+    // Keep legacy bar_stack in sync
+    if (flag === 'stack' && onBarStack) onBarStack(value)
+  }, [onFlagChange, onBarStack])
+
+  // Resolve flag value: visualFlags → fallback to schema default
+  const getFlagValue = (flag) => {
+    if (flag.flag in visualFlags) return visualFlags[flag.flag]
+    // Legacy backward compat for stack
+    if (flag.flag === 'stack' && selected === 'bar' && barStack !== undefined) return barStack
+    return flag.default
+  }
+
   return (
     <div>
       <h3 className="wb-step-title">Choose Widget Type</h3>
@@ -45,19 +101,85 @@ export default function ChartTypePicker({ selected, onSelect, barStack, onBarSta
         ))}
       </div>
 
-      {/* Bar-specific options */}
-      {selected === 'bar' && (
+      {/* Dynamic chart-specific options from flag schema */}
+      {flagSchema.length > 0 && (
         <div className="wb-field-group" style={{ marginTop: 16 }}>
-          <label className="wb-label">Bar Options</label>
-          <div className="wb-toggle-group">
-            <label className="wb-toggle-label">
-              <input
-                type="checkbox"
-                checked={barStack === true}
-                onChange={e => onBarStack?.(e.target.checked)}
-              />
-              Stack bars (series on top of each other)
-            </label>
+          <label className="wb-label">
+            {CHART_TYPES.find(c => c.key === selected)?.label || 'Chart'} Options
+          </label>
+          <div className="wb-flag-list">
+            {flagSchema.map(flag => {
+              if (!shouldShow(flag.show_when, visualFlags)) return null
+              const val = getFlagValue(flag)
+
+              if (flag.type === 'boolean') {
+                return (
+                  <div key={flag.flag} className="wb-toggle-group">
+                    <label className="wb-toggle-label">
+                      <input
+                        type="checkbox"
+                        checked={val === true}
+                        onChange={e => handleFlag(flag.flag, e.target.checked)}
+                      />
+                      {flag.label}
+                    </label>
+                    {flag.help && <span className="wb-flag-help">{flag.help}</span>}
+                  </div>
+                )
+              }
+
+              if (flag.type === 'select') {
+                return (
+                  <div key={flag.flag} className="wb-field-row">
+                    <label className="wb-field-label">{flag.label}</label>
+                    <select
+                      className="wb-select"
+                      value={val ?? flag.default ?? ''}
+                      onChange={e => handleFlag(flag.flag, e.target.value)}
+                    >
+                      {(flag.options || []).map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              }
+
+              if (flag.type === 'number') {
+                return (
+                  <div key={flag.flag} className="wb-field-row">
+                    <label className="wb-field-label">{flag.label}</label>
+                    <input
+                      type="number"
+                      className="wb-input wb-input--sm"
+                      value={val ?? ''}
+                      placeholder={flag.help || ''}
+                      onChange={e => {
+                        const v = e.target.value
+                        handleFlag(flag.flag, v === '' ? null : Number(v))
+                      }}
+                    />
+                  </div>
+                )
+              }
+
+              if (flag.type === 'text') {
+                return (
+                  <div key={flag.flag} className="wb-field-row">
+                    <label className="wb-field-label">{flag.label}</label>
+                    <input
+                      type="text"
+                      className="wb-input wb-input--sm"
+                      value={val ?? ''}
+                      placeholder={flag.help || ''}
+                      onChange={e => handleFlag(flag.flag, e.target.value)}
+                    />
+                  </div>
+                )
+              }
+
+              return null
+            })}
           </div>
         </div>
       )}

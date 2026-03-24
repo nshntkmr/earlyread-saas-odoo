@@ -55,6 +55,9 @@ const initialState = {
   drillDetailColumns: '',
   actionUrlTemplate: '',
 
+  // Visual config flags (chart-specific, from flag schema)
+  visualFlags: {},
+
   // Step 5
   appearance: {
     title: '',
@@ -103,6 +106,10 @@ function reducer(state, action) {
       return { ...state, ...action.value }
     case 'UPDATE_FILTERS':
       return { ...state, ...action.value }
+    case 'SET_VISUAL_FLAG':
+      return { ...state, visualFlags: { ...state.visualFlags, [action.flag]: action.value } }
+    case 'SET_VISUAL_FLAGS':
+      return { ...state, visualFlags: action.value }
     case 'SET_APPEARANCE':
       return { ...state, appearance: action.value }
     case 'SET_GENERATED_SQL':
@@ -139,6 +146,10 @@ function reducer(state, action) {
           showDataLabels: false,
           barStack: d.bar_stack || false,
         },
+        visualFlags: (() => {
+          try { return d.visual_config ? JSON.parse(d.visual_config) : {} }
+          catch { return {} }
+        })(),
         generatedSql: d.generated_sql || '',
       }
     }
@@ -284,7 +295,12 @@ export default function WidgetBuilder({
           {state.step === 0 && (
             <ChartTypePicker
               selected={state.chartType}
-              onSelect={v => dispatch({ type: 'SET_CHART_TYPE', value: v })}
+              onSelect={v => {
+                dispatch({ type: 'SET_CHART_TYPE', value: v })
+                dispatch({ type: 'SET_VISUAL_FLAGS', value: {} })
+              }}
+              visualFlags={state.visualFlags}
+              onFlagChange={(flag, value) => dispatch({ type: 'SET_VISUAL_FLAG', flag, value })}
               barStack={state.appearance.barStack}
               onBarStack={v => dispatch({ type: 'SET_APPEARANCE', value: { ...state.appearance, barStack: v } })}
             />
@@ -444,7 +460,10 @@ function buildCreatePayload(state) {
     show_legend: state.appearance.showLegend !== false,
     show_axis_labels: state.appearance.showAxisLabels !== false,
     show_data_labels: state.appearance.showDataLabels === true,
-    bar_stack: state.chartType === 'bar' && state.appearance.barStack === true,
+    bar_stack: state.chartType === 'bar' && (state.visualFlags.stack ?? state.appearance.barStack) === true,
+    visual_config: Object.keys(state.visualFlags || {}).length > 0
+      ? JSON.stringify(state.visualFlags)
+      : '',
     click_action: state.clickAction || 'none',
     action_page_key: state.actionPageKey || '',
     action_tab_key: state.actionTabKey || '',
