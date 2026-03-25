@@ -2180,3 +2180,12 @@
     align-items: center;
     margin-bottom: 4px;
 }
+.tc-table-options-grid {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: end;
+}
+.tc-table-options-grid > div {
+    flex: 0 0 auto;
+}

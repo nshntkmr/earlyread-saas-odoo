@@ -8,8 +8,13 @@ ModuleRegistry.registerModules([AllCommunityModule])
 
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
 function AGGridTable({ data, onCellClick }) {
-  const { columnDefs, rowData = [], row_count } = data
+  const { columnDefs, rowData = [], row_count, visual_config: vc = {} } = data
   const gridRef = useRef(null)
+
+  // Table display mode from admin config (visual_config)
+  const displayMode = vc.tableDisplayMode || 'autoHeight'
+  const pageSize = vc.paginationPageSize || 50
+  const tableHeight = vc.tableHeight || 400
 
   const resolvedColDefs = useMemo(
     () => resolveColumnDefs(columnDefs),
@@ -41,9 +46,14 @@ function AGGridTable({ data, onCellClick }) {
     }
   }, [onCellClick])
 
+  // Container style: fixed height for pagination/scroll, auto for autoHeight
+  const containerStyle = displayMode !== 'autoHeight'
+    ? { height: tableHeight, width: '100%' }
+    : undefined
+
   return (
     <div className="pv-widget-table-wrap">
-      <div className="pv-ag-grid-container">
+      <div className="pv-ag-grid-container" style={containerStyle}>
         <AgGridReact
           ref={gridRef}
           theme={themeQuartz}
@@ -51,14 +61,17 @@ function AGGridTable({ data, onCellClick }) {
           rowData={rowData}
           defaultColDef={defaultColDef}
           columnTypes={CUSTOM_COLUMN_TYPES}
-          domLayout="autoHeight"
+          domLayout={displayMode === 'autoHeight' ? 'autoHeight' : 'normal'}
+          pagination={displayMode === 'pagination'}
+          paginationPageSize={pageSize}
+          paginationPageSizeSelector={[20, 50, 100, 200]}
           suppressCellFocus={true}
           enableCellTextSelection={true}
           onCellClicked={handleCellClicked}
           animateRows={false}
         />
       </div>
-      {row_count != null && (
+      {displayMode !== 'pagination' && row_count != null && (
         <div className="pv-table-meta text-muted small mt-1">
           Showing {rowData.length} of {row_count} rows
         </div>

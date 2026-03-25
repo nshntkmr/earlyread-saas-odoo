@@ -249,6 +249,48 @@ export default function TableConfigurator({
           />
         </div>
 
+        {/* Table display options */}
+        <div className="wb-field-group tc-table-options">
+          <label className="wb-label">Table Display</label>
+          <div className="tc-table-options-grid">
+            <div>
+              <label className="tcs-label">Mode</label>
+              <select className="wb-select wb-select--sm"
+                value={visualFlags.tableDisplayMode || 'autoHeight'}
+                onChange={e => onUpdate({ type: 'SET_VISUAL_FLAGS', value: { ...visualFlags, tableDisplayMode: e.target.value } })}
+              >
+                <option value="autoHeight">Auto-height (expand all)</option>
+                <option value="pagination">Pagination</option>
+                <option value="scroll">Fixed scroll</option>
+              </select>
+            </div>
+            {visualFlags.tableDisplayMode === 'pagination' && (
+              <div>
+                <label className="tcs-label">Rows per page</label>
+                <select className="wb-select wb-select--sm"
+                  value={visualFlags.paginationPageSize || 50}
+                  onChange={e => onUpdate({ type: 'SET_VISUAL_FLAGS', value: { ...visualFlags, paginationPageSize: Number(e.target.value) } })}
+                >
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+            )}
+            {(visualFlags.tableDisplayMode === 'scroll' || visualFlags.tableDisplayMode === 'pagination') && (
+              <div>
+                <label className="tcs-label">Height (px)</label>
+                <input type="number" className="wb-input wb-input--sm"
+                  style={{ width: 80 }}
+                  value={visualFlags.tableHeight || 400}
+                  onChange={e => onUpdate({ type: 'SET_VISUAL_FLAGS', value: { ...visualFlags, tableHeight: Number(e.target.value) || 400 } })}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Add column dropdown */}
         <div className="wb-field-group">
           <label className="wb-label">Columns ({columns.length})</label>
@@ -362,6 +404,7 @@ export default function TableConfigurator({
             <PreviewGrid
               previewData={previewData}
               columns={columns}
+              visualFlags={visualFlags}
             />
           )}
           {!previewData && !previewError && !previewLoading && (
@@ -408,7 +451,7 @@ export default function TableConfigurator({
  * configured columnDefs. Gives true WYSIWYG: alignment, formatters, pinning,
  * sorting, conditional formatting all visible in the preview.
  */
-function PreviewGrid({ previewData, columns }) {
+function PreviewGrid({ previewData, columns, visualFlags = {} }) {
   const prevCols = previewData.columns || []
   const prevRows = previewData.rows || []
 
@@ -481,24 +524,36 @@ function PreviewGrid({ previewData, columns }) {
     return <div className="text-muted p-3">No data returned.</div>
   }
 
+  const displayMode = visualFlags.tableDisplayMode || 'autoHeight'
+  const pageSize = visualFlags.paginationPageSize || 50
+  const tableHeight = visualFlags.tableHeight || 400
+  const containerStyle = displayMode !== 'autoHeight'
+    ? { width: '100%', height: tableHeight }
+    : { width: '100%' }
+
   return (
     <div className="tc-preview-grid">
-      <div style={{ width: '100%' }}>
+      <div style={containerStyle}>
         <AgGridReact
           theme={themeQuartz}
           columnDefs={resolvedColDefs}
           rowData={rowData}
           defaultColDef={defaultColDef}
           columnTypes={CUSTOM_COLUMN_TYPES}
-          domLayout="autoHeight"
+          domLayout={displayMode === 'autoHeight' ? 'autoHeight' : 'normal'}
+          pagination={displayMode === 'pagination'}
+          paginationPageSize={pageSize}
+          paginationPageSizeSelector={[20, 50, 100, 200]}
           suppressCellFocus={true}
           enableCellTextSelection={true}
           animateRows={false}
         />
       </div>
-      <div className="text-muted small mt-1">
-        Showing {Math.min(prevRows.length, rowData.length)} of {prevRows.length} rows
-      </div>
+      {displayMode !== 'pagination' && (
+        <div className="text-muted small mt-1">
+          Showing {Math.min(prevRows.length, rowData.length)} of {prevRows.length} rows
+        </div>
+      )}
     </div>
   )
 }
