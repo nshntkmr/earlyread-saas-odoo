@@ -105,8 +105,15 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
   // ── Conditional formatting rules ───────────────────────────────────────────
   const rules = Object.entries(column.cellClassRules || {})
   const addRule = () => {
-    const updated = { ...(column.cellClassRules || {}), 'cell-good': 'x >= 0' }
-    set('cellClassRules', updated)
+    const existing = column.cellClassRules || {}
+    const presets = ['cell-good', 'cell-bad', 'cell-warn', 'cell-muted']
+    let newClass = presets.find(c => !(c in existing))
+    if (!newClass) {
+      let n = 1
+      while (`cell-custom-${n}` in existing) n++
+      newClass = `cell-custom-${n}`
+    }
+    set('cellClassRules', { ...existing, [newClass]: 'x >= 0' })
   }
   const updateRule = (oldClass, newClass, condition) => {
     const updated = { ...(column.cellClassRules || {}) }
