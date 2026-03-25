@@ -1,7 +1,11 @@
 import React, { useMemo, useCallback, useRef } from 'react'
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
+
+// Register all AG Grid Community modules (required for v35+)
+ModuleRegistry.registerModules([AllCommunityModule])
 
 // ── Value formatter registry ────────────────────────────────────────────────
 const VALUE_FORMATTERS = {
