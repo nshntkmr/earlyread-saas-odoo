@@ -2,22 +2,33 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 /**
- * Rollup plugin: prefix any line starting with "import " inside string
- * literals with a space so Odoo's asset bundler doesn't mistake them for
- * real ESM imports. AG Grid v35 embeds multi-line template strings
- * containing developer help messages like:
+ * Rollup plugin: neutralize AG Grid's string-literal module references so
+ * Odoo's web.assets_frontend bundler doesn't mistake them for real dependencies.
+ *
+ * AG Grid v35 embeds developer help messages containing literal module names:
  *   import { ModuleRegistry } from 'ag-grid-community';
- * These break across actual newlines in the minified output, and Odoo's
- * regex scanner sees them as top-level imports → module resolution failure.
+ *   import { AgChartsEnterpriseModule } from 'ag-charts-enterprise';
+ *
+ * Odoo's bundler scans for quoted module names and tries to resolve them as
+ * AMD dependencies. Two-layer fix:
+ *   1. Prefix lines starting with "import " (prevents ^import regex)
+ *   2. Replace hyphenated module names with underscored variants
+ *      (ag-grid-community → ag_grid_community) so Odoo can't match them
  */
 function odooSafeImports() {
   return {
     name: 'odoo-safe-imports',
     renderChunk(code) {
-      // Prefix any line that starts with "import " with a space.
-      // Real imports are already gone (IIFE format), so only string-literal
-      // ones remain. The leading space prevents Odoo's ^import regex match.
-      return code.replace(/\nimport /g, '\n import ')
+      // Layer 1: prefix string-literal import lines
+      code = code.replace(/\nimport /g, '\n import ')
+      // Layer 2: mangle module name strings (hyphens → underscores)
+      // We only use ag-grid-community, but AG Grid Community's own error
+      // messages reference ag-grid-enterprise and ag-charts-enterprise
+      // in developer help text. All three must be neutralized.
+      code = code.replaceAll('ag-grid-community', 'ag_grid_community')
+      code = code.replaceAll('ag-grid-enterprise', 'ag_grid_enterprise')
+      code = code.replaceAll('ag-charts-enterprise', 'ag_charts_enterprise')
+      return code
     },
   }
 }
