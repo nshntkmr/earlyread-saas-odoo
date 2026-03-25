@@ -816,6 +816,7 @@ class DesignerAPI(http.Controller):
                 'drill_detail_columns': defn.drill_detail_columns or '',
                 'action_url_template': defn.action_url_template or '',
                 'column_link_config': defn.column_link_config or '',
+                'table_column_config': defn.table_column_config or '',
                 'builder_config': defn.builder_config or '',
                 'query_type': 'sql',
                 'query_sql': defn.get_effective_sql() or '',
