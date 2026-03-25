@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
-import { CUSTOM_COLUMN_TYPES, TYPE_DEFAULTS, resolveColumnDefs } from '@posterra/grid-utils'
+import { CUSTOM_COLUMN_TYPES, TYPE_DEFAULTS, VALUE_FORMATTERS, CELL_RENDERERS, resolveColumnDefs } from '@posterra/grid-utils'
 
 // Register all AG Grid Community modules (required for v35+)
 ModuleRegistry.registerModules([AllCommunityModule])
