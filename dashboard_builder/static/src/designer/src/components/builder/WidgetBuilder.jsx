@@ -591,14 +591,37 @@ function buildCreatePayload(state) {
   if (state.chartType === 'table' && state.tableColumnConfig?.length) {
     const tcc = state.tableColumnConfig
     const sources = (state.sources || []).map(s => ({ id: s.id, alias: s.alias || null }))
+    const defaultSourceId = sources[0]?.id ?? null
     // Build flatColumns from tableColumnConfig for QueryBuilder compatibility
     const flatColumns = tcc.map(col => ({
-      source_id: col.source_id || (sources[0]?.id ?? null),
+      source_id: col.source_id || defaultSourceId,
       column: col.column || col.field,
       agg: null,
       alias: col.alias || col.field,
       axis: 'y',
     }))
+    // Collect fields referenced by renderers (composite lines, dualValue secondary)
+    // that aren't already in flatColumns — they must be in the SQL SELECT
+    const existingFields = new Set(flatColumns.map(c => c.column))
+    for (const col of tcc) {
+      const params = col.cellRendererParams || {}
+      // CompositeRenderer: lines[].fields[]
+      if (Array.isArray(params.lines)) {
+        for (const line of params.lines) {
+          for (const f of (line.fields || [])) {
+            if (!existingFields.has(f)) {
+              flatColumns.push({ source_id: defaultSourceId, column: f, agg: null, alias: f, axis: 'y' })
+              existingFields.add(f)
+            }
+          }
+        }
+      }
+      // DualValueRenderer: secondaryField
+      if (params.secondaryField && !existingFields.has(params.secondaryField)) {
+        flatColumns.push({ source_id: defaultSourceId, column: params.secondaryField, agg: null, alias: params.secondaryField, axis: 'y' })
+        existingFields.add(params.secondaryField)
+      }
+    }
     return {
       ...base,
       sources,
