@@ -583,7 +583,43 @@ function buildCreatePayload(state) {
     }
   }
 
-  // Visual mode — build columns from ColumnMapper's {x, y, series} structure
+  // ── Table type (visual mode): build columns from tableColumnConfig ──────────
+  if (state.chartType === 'table' && state.tableColumnConfig?.length) {
+    const tcc = state.tableColumnConfig
+    const sources = (state.sources || []).map(s => ({ id: s.id, alias: s.alias || null }))
+    // Build flatColumns from tableColumnConfig for QueryBuilder compatibility
+    const flatColumns = tcc.map(col => ({
+      source_id: col.source_id || (sources[0]?.id ?? null),
+      column: col.column || col.field,
+      agg: null,
+      alias: col.alias || col.field,
+      axis: 'y',
+    }))
+    return {
+      ...base,
+      sources,
+      joins: state.joins || [],
+      columns: flatColumns,
+      x_column: flatColumns[0]?.alias || '',
+      y_columns: flatColumns.map(c => c.alias).join(','),
+      series_column: '',
+      filters: state.filters || [],
+      order_by: '',
+      limit: null,
+      generated_sql: '',
+      builder_config: {
+        sources,
+        source_ids: sources.map(s => s.id),
+        columns: flatColumns,
+        filters: state.filters || [],
+        group_by: [],
+        order_by: '',
+        limit: null,
+      },
+    }
+  }
+
+  // ── Chart types (visual mode): build columns from ColumnMapper ────────────
   const colState = state.columns || {}
   const flatColumns = []
 
@@ -639,9 +675,7 @@ function buildCreatePayload(state) {
     limit,
     generated_sql: state.generatedSql || '',
     // Bundle visual builder state for edit/reload later
-    // source_ids is what QueryBuilder needs; sources is what the React builder needs to restore
     builder_config: (() => {
-      // Build group_by from x_column + series_column (same logic as preview)
       const groupBy = []
       if (colState.x && colState.x.column) {
         groupBy.push({ source_id: colState.x.source_id, column: colState.x.column })
