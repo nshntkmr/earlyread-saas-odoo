@@ -447,10 +447,11 @@ function PreviewGrid({ previewData, columns }) {
       if (cfg.tooltipField)     def.tooltipField = cfg.tooltipField
       if (cfg.wrapText)         { def.wrapText = true; def.autoHeight = true }
       if (cfg.type)             def.type = cfg.type
-      // Resolve valueFormatter string → function
-      if (cfg.valueFormatter && VALUE_FORMATTERS[cfg.valueFormatter]) {
-        def.valueFormatter = VALUE_FORMATTERS[cfg.valueFormatter]
-      }
+      // Pass valueFormatter and cellRenderer strings through — resolveColumnDefs()
+      // will convert them to actual functions/components at line 464
+      if (cfg.valueFormatter)       def.valueFormatter = cfg.valueFormatter
+      if (cfg.cellRenderer)         def.cellRenderer = cfg.cellRenderer
+      if (cfg.cellRendererParams)   def.cellRendererParams = cfg.cellRendererParams
       // cellClassRules (conditional formatting)
       if (cfg.cellClassRules && Object.keys(cfg.cellClassRules).length) {
         def.cellClassRules = cfg.cellClassRules
