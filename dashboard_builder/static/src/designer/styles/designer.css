@@ -1798,6 +1798,64 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   MultiSelectFilter — checkbox list for multiselect page filters
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wb-multi-badge {
+    font-size: 9px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+    font-weight: 500;
+    vertical-align: middle;
+}
+.wb-multi-select {
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 12px;
+}
+.wb-multi-list {
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 2px 0;
+}
+.wb-multi-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    user-select: none;
+}
+.wb-multi-option:hover {
+    background: #f3f4f6;
+}
+.wb-multi-option--all {
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+    color: #374151;
+}
+.wb-multi-option input[type="checkbox"] {
+    margin: 0;
+    accent-color: #3b82f6;
+}
+.wb-multi-option span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wb-multi-count {
+    font-size: 10px;
+    color: #6b7280;
+    text-align: right;
+    padding: 2px 8px 4px;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    TableConfigurator — Split-pane layout
    ═══════════════════════════════════════════════════════════════════════════ */
 

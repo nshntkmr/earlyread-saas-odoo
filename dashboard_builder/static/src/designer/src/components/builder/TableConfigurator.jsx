@@ -169,33 +169,59 @@ export default function TableConfigurator({
     setPreviewLoading(true)
     setPreviewError(null)
     try {
-      const body = {
-        mode: dataMode === 'custom_sql' ? 'custom_sql' : 'visual',
-        chart_type: 'table',
-        ...(dataMode === 'custom_sql'
-          ? { sql: customSql?.sql || '', params: filterValues }
-          : {
-              sources: (sources || []).map(s => ({ id: s.id, alias: s.alias })),
-              source_ids: (sources || []).map(s => s.id),
-              columns: columns.map(c => ({
-                source_id: c.source_id, column: c.column, agg: null,
-                alias: c.alias || c.column, axis: 'y',
-              })),
-              filters: filters || [],
-              group_by: [],
-              order_by: '',
-              limit: null,
-            }),
-        page_id: appContext?.page?.id || null,
-        filter_values: filterValues,
+      let body
+      if (dataMode === 'custom_sql') {
+        // Custom SQL mode: extract %(param)s placeholders from SQL
+        const sql = customSql?.sql || ''
+        const params = {}
+        for (const m of sql.matchAll(/%\((\w+)\)s/g)) {
+          const paramName = m[1]
+          params[paramName] = filterValues[paramName] || ''
+        }
+        body = {
+          mode: 'custom_sql',
+          sql,
+          params,
+          chart_type: 'table',
+          widget_config: { x_column: '', y_columns: '', series_column: '' },
+        }
+      } else {
+        // Visual mode: build config matching buildPreviewPayload format
+        const sourceIds = (sources || []).map(s => s.id)
+        const previewCols = columns.map(c => ({
+          source_id: c.source_id || (sourceIds[0] ?? null),
+          column: c.column || c.field,
+          agg: null,
+          alias: c.alias || c.column || c.field,
+        }))
+        body = {
+          mode: 'visual',
+          chart_type: 'table',
+          widget_config: {
+            x_column: previewCols[0]?.alias || '',
+            y_columns: previewCols.map(c => c.alias).join(','),
+            series_column: '',
+          },
+          config: {
+            source_ids: sourceIds,
+            columns: previewCols,
+            filters: filters || [],
+            group_by: [],
+            order_by: [],
+            limit: 50,
+          },
+          params: filterValues || {},
+        }
       }
-      const resp = await designerFetch(previewUrl(apiBase), {
+      // Pass page_id for filter metadata resolution
+      if (appContext?.page?.id) {
+        body.page_id = appContext.page.id
+      }
+      const result = await designerFetch(previewUrl(apiBase), {
         method: 'POST',
         body: JSON.stringify(body),
       })
-      const data = await resp.json()
-      if (data.error) throw new Error(data.error)
-      setPreviewData(data.result || data)
+      setPreviewData(result)
     } catch (err) {
       setPreviewError(err.message || 'Preview failed')
     } finally {
@@ -363,35 +389,50 @@ export default function TableConfigurator({
           )}
           {previewData && !previewError && (
             <div className="tc-preview-table">
-              <table className="table table-sm table-hover table-bordered">
-                <thead>
-                  <tr>
-                    {columns.filter(c => !c.hide).map((col, ci) => (
-                      <th key={ci} style={col.cellStyle || undefined}>
-                        {col.headerName || col.field}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(previewData.rowData || previewData.rows || []).slice(0, 25).map((row, ri) => (
-                    <tr key={ri}>
-                      {columns.filter(c => !c.hide).map((col, ci) => (
-                        <td key={ci} style={col.cellStyle || undefined}>
-                          {typeof row === 'object' && !Array.isArray(row)
-                            ? (row[col.field] ?? '')
-                            : (row[ci] ?? '')}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {previewData.row_count != null && (
-                <div className="text-muted small">
-                  Showing {Math.min(25, (previewData.rowData || previewData.rows || []).length)} of {previewData.row_count} rows
-                </div>
-              )}
+              {(() => {
+                // Preview API returns { columns: ['col1','col2'], rows: [[val,val],[val,val]] }
+                const prevCols = previewData.columns || []
+                const prevRows = previewData.rows || []
+                if (!prevCols.length) return <div className="text-muted p-3">No data returned.</div>
+                // Map configured column headers to preview columns
+                const colMap = {}
+                for (const c of columns) colMap[c.column || c.field] = c
+                return (
+                  <>
+                    <table className="table table-sm table-hover table-bordered">
+                      <thead>
+                        <tr>
+                          {prevCols.map((colName, ci) => {
+                            const cfg = colMap[colName]
+                            return (
+                              <th key={ci} style={cfg?.cellStyle || undefined}>
+                                {cfg?.headerName || colName}
+                              </th>
+                            )
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {prevRows.slice(0, 25).map((row, ri) => (
+                          <tr key={ri}>
+                            {prevCols.map((colName, ci) => {
+                              const cfg = colMap[colName]
+                              return (
+                                <td key={ci} style={cfg?.cellStyle || undefined}>
+                                  {row[ci] ?? ''}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="text-muted small">
+                      Showing {Math.min(25, prevRows.length)} of {prevRows.length} rows
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           )}
           {!previewData && !previewError && !previewLoading && (

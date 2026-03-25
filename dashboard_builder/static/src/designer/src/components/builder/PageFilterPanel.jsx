@@ -81,24 +81,16 @@ export default function PageFilterPanel({ pageId, apiBase, values = {}, onChange
       <div className="wb-filter-grid">
         {visibleFilters.map(f => (
           <div key={f.id} className="wb-filter-item">
-            <label className="wb-label-sm">{f.label || f.param_name}</label>
+            <label className="wb-label-sm">
+              {f.label || f.param_name}
+              {f.is_multiselect && <span className="wb-multi-badge">multi</span>}
+            </label>
             {f.is_multiselect ? (
-              <select
-                className="wb-input wb-input--sm"
-                multiple
-                value={(values[f.param_name] || '').split(',').filter(Boolean)}
-                onChange={e => {
-                  const selected = Array.from(e.target.selectedOptions, o => o.value)
-                  handleChange(f.param_name, selected.join(','))
-                }}
-                style={{ minHeight: '60px' }}
-              >
-                {(f.options || []).map(o => (
-                  <option key={o.value} value={o.value}>
-                    {o.label || o.value}
-                  </option>
-                ))}
-              </select>
+              <MultiSelectFilter
+                options={f.options || []}
+                value={values[f.param_name] || ''}
+                onChange={val => handleChange(f.param_name, val)}
+              />
             ) : (
               <select
                 className="wb-input wb-input--sm"
@@ -117,6 +109,60 @@ export default function PageFilterPanel({ pageId, apiBase, values = {}, onChange
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/**
+ * MultiSelectFilter — checkbox list with select-all and scrollable container.
+ * Stores value as comma-separated string (matching filter system convention).
+ */
+function MultiSelectFilter({ options, value, onChange }) {
+  const selected = new Set((value || '').split(',').filter(Boolean))
+  const allSelected = options.length > 0 && options.every(o => selected.has(o.value))
+
+  const toggle = (val) => {
+    const next = new Set(selected)
+    if (next.has(val)) next.delete(val)
+    else next.add(val)
+    onChange(Array.from(next).join(','))
+  }
+
+  const toggleAll = () => {
+    if (allSelected) {
+      onChange('')
+    } else {
+      onChange(options.map(o => o.value).join(','))
+    }
+  }
+
+  return (
+    <div className="wb-multi-select">
+      {options.length > 2 && (
+        <label className="wb-multi-option wb-multi-option--all">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+          />
+          <span>Select all ({options.length})</span>
+        </label>
+      )}
+      <div className="wb-multi-list">
+        {options.map(o => (
+          <label key={o.value} className="wb-multi-option">
+            <input
+              type="checkbox"
+              checked={selected.has(o.value)}
+              onChange={() => toggle(o.value)}
+            />
+            <span>{o.label || o.value}</span>
+          </label>
+        ))}
+      </div>
+      {selected.size > 0 && (
+        <div className="wb-multi-count">{selected.size} selected</div>
+      )}
     </div>
   )
 }
