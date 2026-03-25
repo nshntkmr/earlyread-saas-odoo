@@ -2167,3 +2167,16 @@
     border-left: 2px solid #e5e7eb;
     padding-left: 10px;
 }
+.tcs-composite-line {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+}
+.tcs-composite-line-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
