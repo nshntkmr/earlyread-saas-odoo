@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@posterra/grid-utils": "file:../../../../posterra_portal/static/src/shared/grid-utils",
+    "@tanstack/react-virtual": "^3.13.23",
     "ag-grid-community": "^35.1.0",
     "ag-grid-react": "^35.1.0",
     "echarts": "^5.5.1",
