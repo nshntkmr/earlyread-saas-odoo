@@ -120,6 +120,115 @@ function BarInlineRenderer(params) {
   )
 }
 
+// ── 6. Composite ────────────────────────────────────────────────────────────
+// Multi-line cell showing multiple fields from the same row. Admin configures
+// lines via cellRendererParams.lines — each line specifies fields, separator,
+// styling (bold, muted, small), and optional prefix/suffix.
+//
+// Example config:
+//   cellRendererParams: {
+//     lines: [
+//       { fields: ["hospital_name"], bold: true },
+//       { fields: ["ccn", "city", "state"], separator: " · ", muted: true, prefix: "CCN " }
+//     ]
+//   }
+// Renders as:
+//   NORTHWESTERN MEMORIAL HOSPITAL
+//   CCN 140281 · CHICAGO, IL
+function CompositeRenderer(params) {
+  const p = params.colDef?.cellRendererParams || {}
+  const lines = p.lines || []
+  const row = params.data || {}
+
+  if (!lines.length) {
+    // Fallback: just show the primary field value
+    return <span>{params.value}</span>
+  }
+
+  return (
+    <div style={{ lineHeight: 1.3, padding: '2px 0' }}>
+      {lines.map((line, li) => {
+        const fields = line.fields || []
+        const sep = line.separator || ' '
+        const parts = fields
+          .map(f => row[f] != null && row[f] !== '' ? String(row[f]) : null)
+          .filter(Boolean)
+
+        if (!parts.length) return null
+
+        let text = parts.join(sep)
+        if (line.prefix) text = line.prefix + text
+        if (line.suffix) text = text + line.suffix
+
+        const style = {}
+        if (line.bold) style.fontWeight = 600
+        if (line.muted) { style.color = '#6b7280'; style.fontSize = '0.85em' }
+        if (line.small) style.fontSize = '0.8em'
+        if (line.color) style.color = line.color
+
+        return (
+          <div key={li} style={style}>
+            {text}
+            {line.linkField && row[line.linkField] && (
+              <span style={{ marginLeft: 4, fontSize: '0.85em', opacity: 0.6 }}>↗</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── 7. Dual Value ───────────────────────────────────────────────────────────
+// Shows primary value + secondary value side by side.
+// Primary: the column's own field value. Secondary: another field from the row.
+//
+// Example config:
+//   field: "total_admits",
+//   cellRenderer: "dualValue",
+//   cellRendererParams: { secondaryField: "admit_pct", secondaryFormat: "pct" }
+//
+// Renders as: 231  4%
+function DualValueRenderer(params) {
+  const v = params.value
+  if (v == null || v === '') return null
+  const p = params.colDef?.cellRendererParams || {}
+  const row = params.data || {}
+  const secondaryField = p.secondaryField
+  const secondaryRaw = secondaryField ? row[secondaryField] : null
+  const secondaryFormat = p.secondaryFormat || 'pct' // pct | number | raw
+
+  // Format primary
+  const primary = typeof v === 'number' ? v.toLocaleString('en-US') : String(v)
+
+  // Format secondary
+  let secondary = null
+  if (secondaryRaw != null && secondaryRaw !== '') {
+    const sv = Number(secondaryRaw)
+    if (!isNaN(sv)) {
+      if (secondaryFormat === 'pct') {
+        const multiply = p.secondaryMultiply !== false
+        secondary = (multiply ? sv * 100 : sv).toFixed(p.secondaryDecimals ?? 0) + '%'
+      } else if (secondaryFormat === 'number') {
+        secondary = sv.toLocaleString('en-US')
+      } else {
+        secondary = String(secondaryRaw)
+      }
+    } else {
+      secondary = String(secondaryRaw)
+    }
+  }
+
+  return (
+    <span style={{ whiteSpace: 'nowrap' }}>
+      <strong>{primary}</strong>
+      {secondary != null && (
+        <span style={{ color: '#6b7280', marginLeft: 6, fontSize: '0.9em' }}>{secondary}</span>
+      )}
+    </span>
+  )
+}
+
 // ── Registry ────────────────────────────────────────────────────────────────
 export const CELL_RENDERERS = {
   starRating:  StarRatingRenderer,
@@ -127,4 +236,6 @@ export const CELL_RENDERERS = {
   badge:       BadgeRenderer,
   sparkline:   SparklineRenderer,
   barInline:   BarInlineRenderer,
+  composite:   CompositeRenderer,
+  dualValue:   DualValueRenderer,
 }

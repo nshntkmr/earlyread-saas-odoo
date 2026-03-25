@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 
 // ── Column type presets ─────────────────────────────────────────────────────
 const COLUMN_TYPES = [
@@ -26,6 +26,8 @@ const RENDERER_OPTIONS = [
   { value: 'sparkline',  label: 'Sparkline' },
   { value: 'starRating', label: 'Star Rating' },
   { value: 'barInline',  label: 'Inline Bar' },
+  { value: 'composite',  label: 'Composite (multi-field)' },
+  { value: 'dualValue',  label: 'Dual Value (value + %)' },
 ]
 
 const FILTER_OPTIONS = [
@@ -230,6 +232,54 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
           </div>
         )}
 
+        {/* Composite renderer params — line config */}
+        {column.cellRenderer === 'composite' && (
+          <CompositeParamsEditor
+            lines={column.cellRendererParams?.lines || []}
+            allColumns={allColumns}
+            onChange={lines => set('cellRendererParams', { ...column.cellRendererParams, lines })}
+          />
+        )}
+
+        {/* Dual Value renderer params */}
+        {column.cellRenderer === 'dualValue' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row">
+              <label className="tcs-label">Secondary Field</label>
+              <select className="tcs-select"
+                value={column.cellRendererParams?.secondaryField || ''}
+                onChange={e => set('cellRendererParams', {
+                  ...column.cellRendererParams,
+                  secondaryField: e.target.value || null,
+                })}
+              >
+                <option value="">(none)</option>
+                {allColumns.map(c => (
+                  <option key={c.column_name} value={c.column_name}>
+                    {c.display_name || c.column_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Format</label>
+                <select className="tcs-select"
+                  value={column.cellRendererParams?.secondaryFormat || 'pct'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    secondaryFormat: e.target.value,
+                  })}
+                >
+                  <option value="pct">Percentage</option>
+                  <option value="number">Number</option>
+                  <option value="raw">Raw text</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Alignment */}
         <div className="tcs-row">
           <label className="tcs-label">Alignment</label>
@@ -412,6 +462,105 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Composite Renderer: Line Editor ─────────────────────────────────────────
+// Lets admin configure multi-line composite cell: add/remove lines, pick
+// fields per line, set separator, bold/muted flags.
+function CompositeParamsEditor({ lines, allColumns, onChange }) {
+  const addLine = useCallback(() => {
+    onChange([...lines, { fields: [], separator: ' · ', bold: false, muted: false }])
+  }, [lines, onChange])
+
+  const removeLine = useCallback((index) => {
+    onChange(lines.filter((_, i) => i !== index))
+  }, [lines, onChange])
+
+  const updateLine = useCallback((index, key, value) => {
+    const updated = lines.map((line, i) =>
+      i === index ? { ...line, [key]: value } : line
+    )
+    onChange(updated)
+  }, [lines, onChange])
+
+  const toggleField = useCallback((lineIndex, fieldName) => {
+    const line = lines[lineIndex]
+    const fields = line.fields || []
+    const next = fields.includes(fieldName)
+      ? fields.filter(f => f !== fieldName)
+      : [...fields, fieldName]
+    updateLine(lineIndex, 'fields', next)
+  }, [lines, updateLine])
+
+  return (
+    <div className="tcs-renderer-params">
+      <label className="tcs-label" style={{ marginBottom: 4 }}>Lines</label>
+      {lines.map((line, li) => (
+        <div key={li} className="tcs-composite-line">
+          <div className="tcs-composite-line-header">
+            <span className="tcs-label" style={{ fontSize: 11 }}>Line {li + 1}</span>
+            <button type="button" className="tcs-remove-btn" onClick={() => removeLine(li)}>
+              <i className="fa fa-times" />
+            </button>
+          </div>
+          <div className="tcs-row" style={{ marginBottom: 4 }}>
+            <label className="tcs-label" style={{ fontSize: 11 }}>Fields (click to toggle)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {allColumns.map(c => {
+                const active = (line.fields || []).includes(c.column_name)
+                return (
+                  <button
+                    key={c.column_name}
+                    type="button"
+                    className={`tcs-btn-toggle ${active ? 'tcs-btn-toggle--active' : ''}`}
+                    style={{ fontSize: 10, padding: '1px 6px' }}
+                    onClick={() => toggleField(li, c.column_name)}
+                  >
+                    {c.display_name || c.column_name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div className="tcs-row-inline" style={{ gap: 6 }}>
+            <div>
+              <label className="tcs-label" style={{ fontSize: 11 }}>Separator</label>
+              <input type="text" className="tcs-input tcs-input--narrow"
+                value={line.separator || ''}
+                onChange={e => updateLine(li, 'separator', e.target.value)}
+                placeholder=" · "
+              />
+            </div>
+            <div>
+              <label className="tcs-label" style={{ fontSize: 11 }}>Prefix</label>
+              <input type="text" className="tcs-input tcs-input--narrow"
+                value={line.prefix || ''}
+                onChange={e => updateLine(li, 'prefix', e.target.value)}
+                placeholder="CCN "
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 3 }}>
+            <label style={{ fontSize: 11, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!line.bold}
+                onChange={e => updateLine(li, 'bold', e.target.checked)} /> Bold
+            </label>
+            <label style={{ fontSize: 11, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!line.muted}
+                onChange={e => updateLine(li, 'muted', e.target.checked)} /> Muted
+            </label>
+            <label style={{ fontSize: 11, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!line.small}
+                onChange={e => updateLine(li, 'small', e.target.checked)} /> Small
+            </label>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={addLine}>
+        <i className="fa fa-plus me-1" /> Add Line
+      </button>
     </div>
   )
 }
