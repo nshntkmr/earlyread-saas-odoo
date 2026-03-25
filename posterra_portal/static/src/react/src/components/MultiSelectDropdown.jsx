@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 
 /**
  * MultiSelectDropdown
@@ -14,6 +15,60 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
  *   placeholder   — text when nothing selected (default: "All")
  *   allLabel      — label for the "All" display (e.g. "All 50 States")
  */
+/**
+ * VirtualOptionsList — renders the checkbox options using @tanstack/react-virtual.
+ * Only ~15 visible items + overscan are in the DOM at any time, even with 11,000+ options.
+ */
+function VirtualOptionsList({ filteredOptions, selectedSet, toggleOption }) {
+  const listRef = useRef(null)
+  const virtualizer = useVirtualizer({
+    count: filteredOptions.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 32,
+    overscan: 10,
+  })
+
+  if (filteredOptions.length === 0) {
+    return (
+      <ul className="pv-multiselect-options">
+        <li className="pv-multiselect-empty">No matches</li>
+      </ul>
+    )
+  }
+
+  return (
+    <ul className="pv-multiselect-options" ref={listRef}>
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualizer.getVirtualItems().map(vItem => {
+          const opt = filteredOptions[vItem.index]
+          return (
+            <li
+              key={opt.value}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: vItem.size,
+                transform: `translateY(${vItem.start}px)`,
+              }}
+            >
+              <label className="pv-multiselect-option">
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(opt.value)}
+                  onChange={() => toggleOption(opt.value)}
+                />
+                <span>{opt.label}</span>
+              </label>
+            </li>
+          )
+        })}
+      </div>
+    </ul>
+  )
+}
+
 export default function MultiSelectDropdown({
   options = [],
   value = '',
@@ -142,24 +197,12 @@ export default function MultiSelectDropdown({
             )}
           </div>
 
-          {/* Options list */}
-          <ul className="pv-multiselect-options">
-            {filteredOptions.length === 0 && (
-              <li className="pv-multiselect-empty">No matches</li>
-            )}
-            {filteredOptions.map(opt => (
-              <li key={opt.value}>
-                <label className="pv-multiselect-option">
-                  <input
-                    type="checkbox"
-                    checked={selectedSet.has(opt.value)}
-                    onChange={() => toggleOption(opt.value)}
-                  />
-                  <span>{opt.label}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
+          {/* Options list — virtualized for 1000+ item performance */}
+          <VirtualOptionsList
+            filteredOptions={filteredOptions}
+            selectedSet={selectedSet}
+            toggleOption={toggleOption}
+          />
         </div>
       )}
     </div>
