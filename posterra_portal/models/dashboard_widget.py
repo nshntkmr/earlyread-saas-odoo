@@ -542,6 +542,9 @@ class DashboardWidget(models.Model):
         self.echart_override = defn.echart_override
         # Store builder config for reference
         self.builder_config = defn.builder_config
+        # Column links and table column config (from mixin)
+        self.column_link_config = defn.column_link_config
+        self.table_column_config = defn.table_column_config
 
     # ── ORM onchange ──────────────────────────────────────────────────────────
     @api.onchange('orm_model_id')
@@ -1475,7 +1478,32 @@ class DashboardWidget(models.Model):
         return result
 
     def _build_table_data(self, cols, rows):
-        """Build dict for data table widgets."""
+        """Build dict for data table widgets.
+
+        When table_column_config is set (AG Grid mode), returns columnDefs +
+        rowData (list of dicts).  Otherwise falls back to legacy cols/rows
+        format for backward compatibility with existing table widgets.
+        """
+        column_config = []
+        try:
+            column_config = json.loads(self.table_column_config or '[]')
+        except (json.JSONDecodeError, TypeError):
+            column_config = []
+
+        if column_config:
+            # AG Grid mode: columnDefs + rowData (list of dicts)
+            row_data = [
+                {c: (v if v is not None else '') for c, v in zip(cols, r)}
+                for r in rows
+            ]
+            return {
+                'type': 'table',
+                'columnDefs': column_config,
+                'rowData': row_data,
+                'row_count': len(rows),
+            }
+
+        # Legacy mode: plain cols/rows for backward compat
         result = {
             'type': 'table',
             'cols': cols,
