@@ -55,11 +55,13 @@
     'assets': {
         'web.assets_frontend': [
             'posterra_portal/static/src/css/posterra.css',
-            # Phase 7 — React bundle (Vite build output, fixed filename)
+            # AG Grid CSS (safe to load through Odoo's asset system — CSS has no
+            # module resolution issues, only JS does).
+            'posterra_portal/static/src/react/dist/main.css',
+            # Phase 7 — React JS bundle loaded via <script> tag in dashboard template
+            # (NOT through Odoo's asset system — AG Grid's bundled error messages
+            # contain module name strings that Odoo's AMD resolver tries to resolve).
             # Build: cd static/src/react && npm run build
-            # ECharts 5 is bundled via npm (no CDN script needed).
-            # No portal.css — React components use posterra.css for styling.
-            'posterra_portal/static/src/react/dist/portal.js',
         ],
     },
     'installable': True,
