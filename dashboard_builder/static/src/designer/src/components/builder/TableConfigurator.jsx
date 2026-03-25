@@ -194,15 +194,22 @@ export default function TableConfigurator({
   }, [builderState, columns, filterValues, hasPageContext, apiBase, appContext])
 
   // ── Save handlers ──────────────────────────────────────────────────────────
-  const handleSave = useCallback(async () => {
-    // Update appearance title before saving
+  // Dispatch title update, then wait one tick for React to process the reducer
+  // before calling onSave() — otherwise buildCreatePayload reads stale state.
+  const flushTitle = useCallback(() => new Promise(resolve => {
     onUpdate({ type: 'SET_APPEARANCE', value: { ...appearance, title: widgetTitle } })
+    // requestAnimationFrame ensures React has processed the dispatch
+    requestAnimationFrame(() => requestAnimationFrame(resolve))
+  }), [onUpdate, appearance, widgetTitle])
+
+  const handleSave = useCallback(async () => {
+    await flushTitle()
     const result = await onSave()
     return result
-  }, [onSave, onUpdate, appearance, widgetTitle])
+  }, [onSave, flushTitle])
 
   const handleSaveAndPlace = useCallback(async () => {
-    onUpdate({ type: 'SET_APPEARANCE', value: { ...appearance, title: widgetTitle } })
+    await flushTitle()
     const result = await onSave()
     if (!result?.id || !appContext?.page?.id) return
     setPlacing(true)

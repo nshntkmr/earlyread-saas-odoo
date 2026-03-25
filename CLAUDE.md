@@ -6,6 +6,16 @@ Multi-tenant healthcare analytics SaaS built on Odoo 19 CE + React + PostgreSQL.
 Multiple independent apps (Posterra HHA, MSSP, future: St. Johns, Parx MA, etc.) share one codebase.
 Each app has its own branding, login, data scope, pages, widgets, and filters — all admin-configurable, zero code.
 
+## Core Principle: No Regressions
+
+**HARD RULE:** When building any new feature, fixing a bug, or modifying existing code:
+1. **Existing features MUST NOT break.** Before committing, mentally trace every modified function's callers and verify they still work.
+2. **If a change affects shared code** (models, controllers, shared components, `@posterra/grid-utils`), explicitly list ALL consumers that could be impacted and verify each one.
+3. **If a field is added/removed/renamed**, check every reference: Python models, controllers, XML views, React components, API endpoints, builder payload, and `place_on_page`/`library_update` sync.
+4. **Notify the user** before making changes that could affect existing widgets, pages, or apps — even if the change seems safe.
+5. **Test both designer AND portal** — a feature that works in preview but breaks on the dashboard page is a regression.
+6. **Widget name, placement, layout fields** must always be preserved when syncing definitions to instances.
+
 ## Core Principle: No Hardcoding
 
 Every feature must be **config-driven** and work across any app, any page, any dataset.
