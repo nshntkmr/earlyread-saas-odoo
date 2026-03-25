@@ -397,8 +397,10 @@ class QueryBuilder:
         cr = self.env.cr
 
         try:
-            # Enforce read-only transaction and timeout
-            cr.execute("SET TRANSACTION READ ONLY")
+            # Use savepoint so preview query is isolated and can't corrupt
+            # the Odoo transaction. SET TRANSACTION READ ONLY can't be used
+            # mid-transaction (PostgreSQL requires it before any query).
+            cr.execute("SAVEPOINT preview_exec")
             cr.execute("SET LOCAL statement_timeout = '10s'")
 
             # Resolve [[optional clauses]] — same as filter_builder
@@ -415,18 +417,18 @@ class QueryBuilder:
             columns = [desc[0] for desc in cr.description] if cr.description else []
             rows = cr.fetchall()
 
+            cr.execute("RELEASE SAVEPOINT preview_exec")
             return columns, rows
 
         except Exception as e:
             _logger.error("Query execution failed: %s\nSQL: %s\nParams: %s",
                           e, sql, params)
-            raise ValueError(f"Query execution failed: {e}")
-        finally:
-            # Reset transaction mode so subsequent ORM writes work
             try:
-                cr.execute("SET TRANSACTION READ WRITE")
+                cr.execute("ROLLBACK TO SAVEPOINT preview_exec")
+                cr.execute("RELEASE SAVEPOINT preview_exec")
             except Exception:
-                pass  # Already in a failed transaction state
+                pass  # Savepoint may already be gone
+            raise ValueError(f"Query execution failed: {e}")
 
     # =========================================================================
     # PRIVATE HELPERS
