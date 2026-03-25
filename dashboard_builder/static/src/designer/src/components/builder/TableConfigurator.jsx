@@ -1,8 +1,74 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { AgGridReact } from 'ag-grid-react'
+import 'ag-grid-community/styles/ag-grid.css'
+import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { designerFetch } from '../../api/client'
 import { previewUrl, libraryPlaceUrl } from '../../api/endpoints'
 import PageFilterPanel from './PageFilterPanel'
 import TableColumnSettings from './TableColumnSettings'
+
+// ── Value formatters (same registry as portal DataTable.jsx) ────────────────
+const VALUE_FORMATTERS = {
+  number: (params) => {
+    const v = Number(params.value)
+    return isNaN(v) ? params.value : v.toLocaleString('en-US')
+  },
+  currency: (params) => {
+    const v = Number(params.value)
+    return isNaN(v) ? params.value : '$' + v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  },
+  percentage: (params) => {
+    const v = Number(params.value)
+    if (isNaN(v)) return params.value
+    const multiply = params.colDef?.cellRendererParams?.multiply !== false
+    const pct = multiply ? v * 100 : v
+    return pct.toFixed(1) + '%'
+  },
+  decimal: (params) => {
+    const v = Number(params.value)
+    return isNaN(v) ? params.value : v.toFixed(2)
+  },
+  date: (params) => {
+    if (!params.value) return ''
+    try { return new Date(params.value).toLocaleDateString() }
+    catch { return params.value }
+  },
+}
+
+// ── Custom column types ─────────────────────────────────────────────────────
+const CUSTOM_COLUMN_TYPES = {
+  numericColumn: {
+    filter: 'agNumberColumnFilter',
+    cellStyle: { textAlign: 'right' },
+  },
+  currency: {
+    width: 110,
+    cellStyle: { textAlign: 'right' },
+    filter: 'agNumberColumnFilter',
+    valueFormatter: VALUE_FORMATTERS.currency,
+  },
+  percentage: {
+    width: 100,
+    cellStyle: { textAlign: 'right' },
+    filter: 'agNumberColumnFilter',
+    valueFormatter: VALUE_FORMATTERS.percentage,
+  },
+}
+
+// ── Resolve string formatter keys to actual functions for AG Grid ────────────
+function resolveColumnDefs(columnDefs) {
+  if (!columnDefs) return []
+  return columnDefs.map(col => {
+    const resolved = { ...col }
+    if (typeof resolved.valueFormatter === 'string' && VALUE_FORMATTERS[resolved.valueFormatter]) {
+      resolved.valueFormatter = VALUE_FORMATTERS[resolved.valueFormatter]
+    }
+    if (resolved.children) {
+      resolved.children = resolveColumnDefs(resolved.children)
+    }
+    return resolved
+  })
+}
 
 // ── Smart defaults by data_type → AG Grid column type ──────────────────────
 const TYPE_DEFAULTS = {
@@ -388,52 +454,10 @@ export default function TableConfigurator({
             </div>
           )}
           {previewData && !previewError && (
-            <div className="tc-preview-table">
-              {(() => {
-                // Preview API returns { columns: ['col1','col2'], rows: [[val,val],[val,val]] }
-                const prevCols = previewData.columns || []
-                const prevRows = previewData.rows || []
-                if (!prevCols.length) return <div className="text-muted p-3">No data returned.</div>
-                // Map configured column headers to preview columns
-                const colMap = {}
-                for (const c of columns) colMap[c.column || c.field] = c
-                return (
-                  <>
-                    <table className="table table-sm table-hover table-bordered">
-                      <thead>
-                        <tr>
-                          {prevCols.map((colName, ci) => {
-                            const cfg = colMap[colName]
-                            return (
-                              <th key={ci} style={cfg?.cellStyle || undefined}>
-                                {cfg?.headerName || colName}
-                              </th>
-                            )
-                          })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {prevRows.slice(0, 25).map((row, ri) => (
-                          <tr key={ri}>
-                            {prevCols.map((colName, ci) => {
-                              const cfg = colMap[colName]
-                              return (
-                                <td key={ci} style={cfg?.cellStyle || undefined}>
-                                  {row[ci] ?? ''}
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="text-muted small">
-                      Showing {Math.min(25, prevRows.length)} of {prevRows.length} rows
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
+            <PreviewGrid
+              previewData={previewData}
+              columns={columns}
+            />
           )}
           {!previewData && !previewError && !previewLoading && (
             <div className="tc-preview-placeholder">
@@ -469,6 +493,104 @@ export default function TableConfigurator({
             </button>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * PreviewGrid — AG Grid instance that renders preview data using the admin's
+ * configured columnDefs. Gives true WYSIWYG: alignment, formatters, pinning,
+ * sorting, conditional formatting all visible in the preview.
+ */
+function PreviewGrid({ previewData, columns }) {
+  const prevCols = previewData.columns || []
+  const prevRows = previewData.rows || []
+
+  // Convert row arrays to row dicts for AG Grid: [{col1: val, col2: val}, ...]
+  const rowData = useMemo(() =>
+    prevRows.map(row => {
+      const obj = {}
+      prevCols.forEach((colName, i) => { obj[colName] = row[i] ?? '' })
+      return obj
+    }),
+    [prevCols, prevRows]
+  )
+
+  // Build AG Grid columnDefs from admin's configured columns.
+  // Only include columns that exist in the preview data.
+  const prevColSet = useMemo(() => new Set(prevCols), [prevCols])
+  const colMap = useMemo(() => {
+    const m = {}
+    for (const c of columns) m[c.column || c.field] = c
+    return m
+  }, [columns])
+
+  const columnDefs = useMemo(() => {
+    return prevCols.map(colName => {
+      const cfg = colMap[colName]
+      if (!cfg) {
+        // Column in SQL but not configured — show raw with defaults
+        return { field: colName, headerName: colName }
+      }
+      // Build columnDef from admin config
+      const def = { field: colName }
+      if (cfg.headerName)       def.headerName = cfg.headerName
+      if (cfg.width)            def.width = cfg.width
+      if (cfg.minWidth)         def.minWidth = cfg.minWidth
+      if (cfg.flex)             def.flex = cfg.flex
+      if (cfg.pinned)           def.pinned = cfg.pinned
+      if (cfg.sortable != null) def.sortable = cfg.sortable
+      if (cfg.sort)             def.sort = cfg.sort
+      if (cfg.filter)           def.filter = cfg.filter
+      if (cfg.resizable != null) def.resizable = cfg.resizable
+      if (cfg.cellStyle)        def.cellStyle = cfg.cellStyle
+      if (cfg.hide)             def.hide = cfg.hide
+      if (cfg.tooltipField)     def.tooltipField = cfg.tooltipField
+      if (cfg.wrapText)         { def.wrapText = true; def.autoHeight = true }
+      if (cfg.type)             def.type = cfg.type
+      // Resolve valueFormatter string → function
+      if (cfg.valueFormatter && VALUE_FORMATTERS[cfg.valueFormatter]) {
+        def.valueFormatter = VALUE_FORMATTERS[cfg.valueFormatter]
+      }
+      // cellClassRules (conditional formatting)
+      if (cfg.cellClassRules && Object.keys(cfg.cellClassRules).length) {
+        def.cellClassRules = cfg.cellClassRules
+      }
+      // headerClass
+      if (cfg.headerClass) def.headerClass = cfg.headerClass
+      return def
+    })
+  }, [prevCols, colMap])
+
+  const resolvedColDefs = useMemo(() => resolveColumnDefs(columnDefs), [columnDefs])
+
+  const defaultColDef = useMemo(() => ({
+    resizable: true,
+    sortable: true,
+    suppressMovable: true,
+  }), [])
+
+  if (!prevCols.length) {
+    return <div className="text-muted p-3">No data returned.</div>
+  }
+
+  return (
+    <div className="tc-preview-grid">
+      <div className="ag-theme-alpine" style={{ width: '100%' }}>
+        <AgGridReact
+          columnDefs={resolvedColDefs}
+          rowData={rowData}
+          defaultColDef={defaultColDef}
+          columnTypes={CUSTOM_COLUMN_TYPES}
+          domLayout="autoHeight"
+          suppressCellFocus={true}
+          enableCellTextSelection={true}
+          animateRows={false}
+        />
+      </div>
+      <div className="text-muted small mt-1">
+        Showing {Math.min(prevRows.length, rowData.length)} of {prevRows.length} rows
       </div>
     </div>
   )
