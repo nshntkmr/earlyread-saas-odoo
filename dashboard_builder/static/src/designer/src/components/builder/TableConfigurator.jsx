@@ -1,88 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
-// AG Grid v35 uses Theming API (themeQuartz) — no legacy CSS imports needed
+import { CUSTOM_COLUMN_TYPES, TYPE_DEFAULTS, resolveColumnDefs } from '@posterra/grid-utils'
 
 // Register all AG Grid Community modules (required for v35+)
 ModuleRegistry.registerModules([AllCommunityModule])
+
 import { designerFetch } from '../../api/client'
 import { previewUrl, libraryPlaceUrl } from '../../api/endpoints'
 import { buildPreviewPayload } from './LivePreview'
 import PageFilterPanel from './PageFilterPanel'
 import TableColumnSettings from './TableColumnSettings'
-
-// ── Value formatters (same registry as portal DataTable.jsx) ────────────────
-const VALUE_FORMATTERS = {
-  number: (params) => {
-    const v = Number(params.value)
-    return isNaN(v) ? params.value : v.toLocaleString('en-US')
-  },
-  currency: (params) => {
-    const v = Number(params.value)
-    return isNaN(v) ? params.value : '$' + v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-  },
-  percentage: (params) => {
-    const v = Number(params.value)
-    if (isNaN(v)) return params.value
-    const multiply = params.colDef?.cellRendererParams?.multiply !== false
-    const pct = multiply ? v * 100 : v
-    return pct.toFixed(1) + '%'
-  },
-  decimal: (params) => {
-    const v = Number(params.value)
-    return isNaN(v) ? params.value : v.toFixed(2)
-  },
-  date: (params) => {
-    if (!params.value) return ''
-    try { return new Date(params.value).toLocaleDateString() }
-    catch { return params.value }
-  },
-}
-
-// ── Custom column types ─────────────────────────────────────────────────────
-const CUSTOM_COLUMN_TYPES = {
-  numericColumn: {
-    filter: 'agNumberColumnFilter',
-    cellStyle: { textAlign: 'right' },
-  },
-  currency: {
-    width: 110,
-    cellStyle: { textAlign: 'right' },
-    filter: 'agNumberColumnFilter',
-    valueFormatter: VALUE_FORMATTERS.currency,
-  },
-  percentage: {
-    width: 100,
-    cellStyle: { textAlign: 'right' },
-    filter: 'agNumberColumnFilter',
-    valueFormatter: VALUE_FORMATTERS.percentage,
-  },
-}
-
-// ── Resolve string formatter keys to actual functions for AG Grid ────────────
-function resolveColumnDefs(columnDefs) {
-  if (!columnDefs) return []
-  return columnDefs.map(col => {
-    const resolved = { ...col }
-    if (typeof resolved.valueFormatter === 'string' && VALUE_FORMATTERS[resolved.valueFormatter]) {
-      resolved.valueFormatter = VALUE_FORMATTERS[resolved.valueFormatter]
-    }
-    if (resolved.children) {
-      resolved.children = resolveColumnDefs(resolved.children)
-    }
-    return resolved
-  })
-}
-
-// ── Smart defaults by data_type → AG Grid column type ──────────────────────
-const TYPE_DEFAULTS = {
-  text:    { type: null,            width: 200, align: 'left',  formatter: null,         filter: 'agTextColumnFilter' },
-  numeric: { type: 'numericColumn', width: 110, align: 'right', formatter: 'number',     filter: 'agNumberColumnFilter' },
-  integer: { type: 'numericColumn', width: 110, align: 'right', formatter: 'number',     filter: 'agNumberColumnFilter' },
-  float:   { type: 'numericColumn', width: 110, align: 'right', formatter: 'number',     filter: 'agNumberColumnFilter' },
-  date:    { type: null,            width: 120, align: 'left',  formatter: 'date',       filter: 'agDateColumnFilter' },
-  boolean: { type: null,            width: 80,  align: 'center', formatter: null,        filter: 'agTextColumnFilter' },
-}
 
 function getTypeDefaults(dataType) {
   const dt = (dataType || 'text').toLowerCase()

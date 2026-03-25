@@ -1,81 +1,10 @@
 import React, { useMemo, useCallback, useRef } from 'react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
-// AG Grid v35 uses Theming API (themeQuartz) — no legacy CSS imports needed
+import { CUSTOM_COLUMN_TYPES, resolveColumnDefs } from '@posterra/grid-utils'
 
 // Register all AG Grid Community modules (required for v35+)
 ModuleRegistry.registerModules([AllCommunityModule])
-
-// ── Value formatter registry ────────────────────────────────────────────────
-const VALUE_FORMATTERS = {
-  number: (params) => {
-    const v = Number(params.value)
-    return isNaN(v) ? params.value : v.toLocaleString('en-US')
-  },
-  currency: (params) => {
-    const v = Number(params.value)
-    return isNaN(v) ? params.value : '$' + v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-  },
-  percentage: (params) => {
-    const v = Number(params.value)
-    if (isNaN(v)) return params.value
-    // Use colDef.cellRendererParams.multiply to control scaling.
-    // Default: multiply=true (assume 0-1 range → multiply by 100).
-    // Set multiply=false when data is already 0-100.
-    const multiply = params.colDef?.cellRendererParams?.multiply !== false
-    const pct = multiply ? v * 100 : v
-    return pct.toFixed(1) + '%'
-  },
-  decimal: (params) => {
-    const v = Number(params.value)
-    return isNaN(v) ? params.value : v.toFixed(2)
-  },
-  date: (params) => {
-    if (!params.value) return ''
-    try { return new Date(params.value).toLocaleDateString() }
-    catch { return params.value }
-  },
-}
-
-// ── Custom column types (pre-bundle common settings) ────────────────────────
-const CUSTOM_COLUMN_TYPES = {
-  numericColumn: {
-    filter: 'agNumberColumnFilter',
-    cellStyle: { textAlign: 'right' },
-  },
-  currency: {
-    width: 110,
-    cellStyle: { textAlign: 'right' },
-    filter: 'agNumberColumnFilter',
-    valueFormatter: VALUE_FORMATTERS.currency,
-  },
-  percentage: {
-    width: 100,
-    cellStyle: { textAlign: 'right' },
-    filter: 'agNumberColumnFilter',
-    valueFormatter: VALUE_FORMATTERS.percentage,
-  },
-}
-
-// ── Resolve string formatter/renderer keys to actual functions ──────────────
-function resolveColumnDefs(columnDefs) {
-  if (!columnDefs) return []
-  return columnDefs.map(col => {
-    const resolved = { ...col }
-
-    // Resolve string valueFormatter to function
-    if (typeof resolved.valueFormatter === 'string' && VALUE_FORMATTERS[resolved.valueFormatter]) {
-      resolved.valueFormatter = VALUE_FORMATTERS[resolved.valueFormatter]
-    }
-
-    // Recursively resolve children (column groups)
-    if (resolved.children) {
-      resolved.children = resolveColumnDefs(resolved.children)
-    }
-
-    return resolved
-  })
-}
 
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
 function AGGridTable({ data, onCellClick }) {
