@@ -537,6 +537,49 @@ class DesignerAPI(http.Controller):
 
         try:
             defn.write(update_vals)
+
+            # ── Propagate data fields to all linked widget instances ──────
+            # Instance-specific fields (name, page_id, tab_id, col_span,
+            # chart_height, color_palette, sequence) are NOT synced — they
+            # may have been customized per-instance by the admin.
+            try:
+                Widget = request.env['dashboard.widget'].sudo()
+                instances = Widget.search([('definition_id', '=', defn.id)])
+                if instances:
+                    sync_vals = {
+                        'query_sql': defn.get_effective_sql() or '',
+                        'chart_type': defn.chart_type,
+                        'x_column': defn.x_column or '',
+                        'y_columns': defn.y_columns or '',
+                        'series_column': defn.series_column or '',
+                        'visual_config': defn.visual_config or '',
+                        'echart_override': defn.echart_override or '',
+                        'builder_config': defn.builder_config or '',
+                        'table_column_config': defn.table_column_config or '',
+                        'column_link_config': defn.column_link_config or '',
+                        'click_action': defn.click_action,
+                        'action_page_key': defn.action_page_key or '',
+                        'action_tab_key': defn.action_tab_key or '',
+                        'action_pass_value_as': defn.action_pass_value_as or '',
+                        'drill_detail_columns': defn.drill_detail_columns or '',
+                        'action_url_template': defn.action_url_template or '',
+                        'schema_source_id': defn.schema_source_id.id if defn.schema_source_id else False,
+                        'bar_stack': defn.bar_stack,
+                    }
+                    if hasattr(defn, 'where_clause_exclude'):
+                        sync_vals['where_clause_exclude'] = defn.where_clause_exclude or ''
+                    if defn.chart_type in ('kpi', 'status_kpi'):
+                        sync_vals['kpi_format'] = defn.kpi_format
+                        sync_vals['kpi_prefix'] = defn.kpi_prefix or ''
+                        sync_vals['kpi_suffix'] = defn.kpi_suffix or ''
+                    instances.write(sync_vals)
+                    _logger.info(
+                        'Synced definition %s (%s) → %d instance(s)',
+                        defn.id, defn.name, len(instances),
+                    )
+            except KeyError:
+                pass  # dashboard.widget not installed
+
             return _json_response({'id': defn.id, 'name': defn.name})
         except Exception as e:
             _logger.exception("Designer update error")
@@ -824,6 +867,9 @@ class DesignerAPI(http.Controller):
                 'y_columns': defn.y_columns or '',
                 'series_column': defn.series_column or '',
                 'echart_override': defn.echart_override or '',
+                'visual_config': defn.visual_config or '',
+                'schema_source_id': defn.schema_source_id.id if defn.schema_source_id else False,
+                'where_clause_exclude': defn.where_clause_exclude or '' if hasattr(defn, 'where_clause_exclude') else '',
             }
 
             if body.get('tab_id'):
