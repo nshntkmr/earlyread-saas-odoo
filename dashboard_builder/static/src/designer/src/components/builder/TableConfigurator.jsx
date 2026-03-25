@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
+import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
-import 'ag-grid-community/styles/ag-grid.css'
-import 'ag-grid-community/styles/ag-theme-alpine.css'
+// AG Grid v35 uses Theming API (themeQuartz) — no legacy CSS imports needed
 
 // Register all AG Grid Community modules (required for v35+)
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -548,8 +547,9 @@ function PreviewGrid({ previewData, columns }) {
 
   return (
     <div className="tc-preview-grid">
-      <div className="ag-theme-alpine" style={{ width: '100%' }}>
+      <div style={{ width: '100%' }}>
         <AgGridReact
+          theme={themeQuartz}
           columnDefs={resolvedColDefs}
           rowData={rowData}
           defaultColDef={defaultColDef}

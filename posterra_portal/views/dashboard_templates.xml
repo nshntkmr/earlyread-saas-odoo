@@ -111,7 +111,7 @@
                     <!-- (AG Grid's bundled error messages contain module name strings-->
                     <!-- that Odoo's resolver incorrectly tries to resolve).          -->
                     <!-- ============================================================ -->
-                    <script src="/posterra_portal/static/src/react/dist/portal.js"/>
+                    <script src="/posterra_portal/static/src/react/dist/portal.js" defer="defer"/>
                     <div id="app-root"
                          t-att-data-page-config="page_config_json"
                          t-att-data-initial-widgets="initial_widget_data_json"
