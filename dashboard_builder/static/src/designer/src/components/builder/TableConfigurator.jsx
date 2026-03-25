@@ -4,6 +4,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { designerFetch } from '../../api/client'
 import { previewUrl, libraryPlaceUrl } from '../../api/endpoints'
+import { buildPreviewPayload } from './LivePreview'
 import PageFilterPanel from './PageFilterPanel'
 import TableColumnSettings from './TableColumnSettings'
 
@@ -231,56 +232,22 @@ export default function TableConfigurator({
   }, [onUpdate])
 
   // ── Run preview ────────────────────────────────────────────────────────────
+  // Uses the SAME buildPreviewPayload as LivePreview (shared across all widget
+  // types: bar, line, pie, table, kpi, etc.) so filter handling is consistent.
   const runPreview = useCallback(async () => {
     setPreviewLoading(true)
     setPreviewError(null)
     try {
-      let body
-      if (dataMode === 'custom_sql') {
-        // Custom SQL mode: extract %(param)s placeholders from SQL
-        const sql = customSql?.sql || ''
-        const params = {}
-        for (const m of sql.matchAll(/%\((\w+)\)s/g)) {
-          const paramName = m[1]
-          params[paramName] = filterValues[paramName] || ''
-        }
-        body = {
-          mode: 'custom_sql',
-          sql,
-          params,
-          chart_type: 'table',
-          widget_config: { x_column: '', y_columns: '', series_column: '' },
-        }
-      } else {
-        // Visual mode: build config matching buildPreviewPayload format
-        const sourceIds = (sources || []).map(s => s.id)
-        const previewCols = columns.map(c => ({
-          source_id: c.source_id || (sourceIds[0] ?? null),
-          column: c.column || c.field,
-          agg: null,
-          alias: c.alias || c.column || c.field,
-        }))
-        body = {
-          mode: 'visual',
-          chart_type: 'table',
-          widget_config: {
-            x_column: previewCols[0]?.alias || '',
-            y_columns: previewCols.map(c => c.alias).join(','),
-            series_column: '',
-          },
-          config: {
-            source_ids: sourceIds,
-            columns: previewCols,
-            filters: filters || [],
-            group_by: [],
-            order_by: [],
-            limit: 50,
-          },
-          params: filterValues || {},
-        }
-      }
-      // Pass page_id for filter metadata resolution
-      if (appContext?.page?.id) {
+      // Build a snapshot of builderState with the latest local columns
+      // (local state may be ahead of parent due to async dispatch)
+      const clean = columns.map(({ _id, ...rest }) => rest)
+      const stateSnapshot = { ...builderState, tableColumnConfig: clean }
+
+      const body = buildPreviewPayload(
+        stateSnapshot,
+        hasPageContext ? filterValues : null
+      )
+      if (hasPageContext && appContext?.page?.id) {
         body.page_id = appContext.page.id
       }
       const result = await designerFetch(previewUrl(apiBase), {
@@ -293,7 +260,7 @@ export default function TableConfigurator({
     } finally {
       setPreviewLoading(false)
     }
-  }, [dataMode, customSql, sources, columns, filters, filterValues, apiBase, appContext])
+  }, [builderState, columns, filterValues, hasPageContext, apiBase, appContext])
 
   // ── Save handlers ──────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {

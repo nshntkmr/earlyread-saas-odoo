@@ -297,7 +297,7 @@ export default function LivePreview({
  * Build the preview payload from builder state.
  * When pageFilterValues is provided, uses those as params instead of manual testParams.
  */
-function buildPreviewPayload(state, pageFilterValues) {
+export function buildPreviewPayload(state, pageFilterValues) {
   const isCustomSql = state.dataMode === 'custom_sql'
   const widgetConfig = {
     x_column: isCustomSql ? (state.customSql?.xColumn || '') : (state.xColumn || ''),
@@ -334,7 +334,39 @@ function buildPreviewPayload(state, pageFilterValues) {
     }
   }
 
-  // Visual mode — build columns from ColumnMapper's {x, y, series} structure
+  const sourceIds = (state.sources || []).map(s => s.id)
+
+  // ── Table type: build columns from tableColumnConfig ──────────────────────
+  if (state.chartType === 'table' && state.tableColumnConfig?.length) {
+    const tcc = state.tableColumnConfig
+    const primarySourceId = sourceIds[0] ?? null
+    const columns = tcc.map(c => ({
+      source_id: c.source_id || primarySourceId,
+      column: c.column || c.field,
+      agg: null,
+      alias: c.alias || c.column || c.field,
+    }))
+    widgetConfig.x_column = columns[0]?.alias || ''
+    widgetConfig.y_columns = columns.map(c => c.alias).join(',')
+    widgetConfig.series_column = ''
+
+    return {
+      mode: 'visual',
+      chart_type: 'table',
+      widget_config: widgetConfig,
+      config: {
+        source_ids: sourceIds,
+        columns,
+        filters: state.filters || [],
+        group_by: [],
+        order_by: [],
+        limit: 50,
+      },
+      params: pageFilterValues || {},
+    }
+  }
+
+  // ── Chart types: build columns from ColumnMapper's {x, y, series} ─────────
   const colState = state.columns || {}
   const columns = []
 
@@ -359,8 +391,6 @@ function buildPreviewPayload(state, pageFilterValues) {
       })
     }
   }
-
-  const sourceIds = (state.sources || []).map(s => s.id)
 
   const groupBy = []
   // Group by X column
