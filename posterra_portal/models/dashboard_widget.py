@@ -1496,11 +1496,18 @@ class DashboardWidget(models.Model):
                 {c: (v if v is not None else '') for c, v in zip(cols, r)}
                 for r in rows
             ]
+            # Parse visual_config for table display options (pagination, scroll, etc.)
+            vc = {}
+            try:
+                vc = json.loads(self.visual_config or '{}') or {}
+            except (json.JSONDecodeError, TypeError):
+                vc = {}
             return {
                 'type': 'table',
                 'columnDefs': column_config,
                 'rowData': row_data,
                 'row_count': len(rows),
+                'visual_config': vc,
             }
 
         # Legacy mode: plain cols/rows for backward compat
