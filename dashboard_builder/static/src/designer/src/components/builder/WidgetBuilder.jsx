@@ -22,6 +22,7 @@ const CHART_STEPS = [
 const TABLE_STEPS = [
   { key: 'chart_type',   label: 'Chart Type' },
   { key: 'data_source',  label: 'Data Source' },
+  { key: 'filters',      label: 'Filters & Actions' },
   { key: 'configure',    label: 'Configure Table' },
 ]
 
@@ -312,7 +313,7 @@ export default function WidgetBuilder({
   const canNext = state.step < activeSteps.length - 1
   const canPrev = state.step > 0
   const isEditing = !!editId
-  const isTableConfigStep = state.chartType === 'table' && state.step === 2
+  const isTableConfigStep = state.chartType === 'table' && state.step === 3
 
   return (
     <div className="dd-page">
@@ -353,8 +354,10 @@ export default function WidgetBuilder({
         <div className="dd-wizard-instruction">
           {state.step === 0 && 'Choose how this widget displays data.'}
           {state.step === 1 && 'Select your data source — visual table builder or custom SQL.'}
-          {state.step === 2 && 'Map columns to axes and configure aggregation.'}
-          {state.step === 3 && 'Add filters and configure click actions.'}
+          {state.step === 2 && state.chartType === 'table' && 'Add WHERE filters and configure click actions.'}
+          {state.step === 2 && state.chartType !== 'table' && 'Map columns to axes and configure aggregation.'}
+          {state.step === 3 && state.chartType === 'table' && 'Configure table columns and preview with real data.'}
+          {state.step === 3 && state.chartType !== 'table' && 'Add filters and configure click actions.'}
           {state.step === 4 && 'Preview your widget and save it to the library.'}
         </div>
 
@@ -431,26 +434,6 @@ export default function WidgetBuilder({
             </div>
           )}
 
-          {/* Step 3: Table Configurator (table type — merged steps 3+4+5) */}
-          {state.step === 2 && state.chartType === 'table' && (
-            <TableConfigurator
-              sources={state.sources}
-              joins={state.joins}
-              dataMode={state.dataMode}
-              customSql={state.customSql}
-              filters={state.filters}
-              visualFlags={state.visualFlags}
-              appearance={state.appearance}
-              tableColumnConfig={state.tableColumnConfig}
-              builderState={state}
-              onUpdate={dispatch}
-              onSave={handleSave}
-              saving={saving}
-              apiBase={apiBase}
-              appContext={appContext}
-            />
-          )}
-
           {/* Step 3: Columns (chart types — visual mode) */}
           {state.step === 2 && state.chartType !== 'table' && (
             (state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
@@ -472,8 +455,9 @@ export default function WidgetBuilder({
             )
           )}
 
-          {/* Step 4: Filters & Actions (chart types only) */}
-          {state.step === 3 && state.chartType !== 'table' && (
+          {/* Step 3 (tables) / Step 4 (charts): Filters & Actions */}
+          {((state.step === 2 && state.chartType === 'table') ||
+            (state.step === 3 && state.chartType !== 'table')) && (
             <FilterActionConfig
               dataSourceMode={state.dataMode}
               sources={state.sources}
@@ -489,7 +473,27 @@ export default function WidgetBuilder({
             />
           )}
 
-          {/* Step 5: Preview & Save (chart types only) */}
+          {/* Step 4 (tables): Table Configurator + Preview & Save */}
+          {state.step === 3 && state.chartType === 'table' && (
+            <TableConfigurator
+              sources={state.sources}
+              joins={state.joins}
+              dataMode={state.dataMode}
+              customSql={state.customSql}
+              filters={state.filters}
+              visualFlags={state.visualFlags}
+              appearance={state.appearance}
+              tableColumnConfig={state.tableColumnConfig}
+              builderState={state}
+              onUpdate={dispatch}
+              onSave={handleSave}
+              saving={saving}
+              apiBase={apiBase}
+              appContext={appContext}
+            />
+          )}
+
+          {/* Step 5 (charts): Preview & Save */}
           {state.step === 4 && state.chartType !== 'table' && (
             <LivePreview
               builderState={state}
