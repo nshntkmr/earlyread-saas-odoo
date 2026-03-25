@@ -1992,6 +1992,27 @@
 .tc-preview-table table {
     font-size: 12px;
 }
+.tc-preview-grid {
+    padding: 8px;
+    overflow: auto;
+}
+.tc-preview-grid .ag-root-wrapper {
+    border: none;
+}
+.tc-preview-grid .ag-header-cell-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+.tc-preview-grid .ag-cell {
+    font-size: 0.8rem;
+}
+/* AG Grid conditional formatting classes (same as portal) */
+.tc-preview-grid .cell-good  { color: #10b981; font-weight: 600; }
+.tc-preview-grid .cell-bad   { color: #ef4444; font-weight: 600; }
+.tc-preview-grid .cell-warn  { color: #f59e0b; font-weight: 600; }
+.tc-preview-grid .cell-muted { color: #9ca3af; }
 .tc-preview-placeholder {
     display: flex;
     align-items: center;
