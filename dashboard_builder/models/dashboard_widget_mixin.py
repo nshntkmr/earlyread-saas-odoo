@@ -50,3 +50,11 @@ class DashboardWidgetActionMixin(models.AbstractModel):
         string='Builder Config (JSON)',
         help='Stores the full widget builder config so the widget can be '
              'edited in the builder later. Auto-populated by builder API.')
+
+    # ── Table Column Config (AG Grid columnDefs) ──────────────────────────
+    table_column_config = fields.Text(
+        string='Table Column Config (JSON)',
+        help='AG Grid columnDefs JSON array. Stores full column configuration '
+             'including renderers, formatters, sorting, pinning, conditional '
+             'formatting, and per-column click actions. Only used when '
+             'chart_type is "table". Auto-populated by builder.')

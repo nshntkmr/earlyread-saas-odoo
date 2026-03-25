@@ -335,6 +335,7 @@ class DesignerAPI(http.Controller):
             'kpi_suffix': defn.kpi_suffix or '',
             'echart_override': defn.echart_override or '',
             'visual_config': defn.visual_config or '',
+            'table_column_config': defn.table_column_config or '',
             'instance_count': defn.instance_count,
         })
 
@@ -430,6 +431,11 @@ class DesignerAPI(http.Controller):
                 vc = body['visual_config']
                 def_vals['visual_config'] = vc if isinstance(vc, str) else json.dumps(vc)
 
+            # Table column config (AG Grid columnDefs from TableConfigurator)
+            if 'table_column_config' in body:
+                tcc = body['table_column_config']
+                def_vals['table_column_config'] = tcc if isinstance(tcc, str) else json.dumps(tcc) if tcc else ''
+
             # App scoping (field added by posterra_portal via _inherit)
             if body.get('app_ids') and 'app_ids' in request.env['dashboard.widget.definition']._fields:
                 def_vals['app_ids'] = [(6, 0, body['app_ids'])]
@@ -505,6 +511,11 @@ class DesignerAPI(http.Controller):
         if 'visual_config' in body:
             vc = body['visual_config']
             update_vals['visual_config'] = vc if isinstance(vc, str) else json.dumps(vc)
+
+        # Table column config (AG Grid columnDefs)
+        if 'table_column_config' in body:
+            tcc = body['table_column_config']
+            update_vals['table_column_config'] = tcc if isinstance(tcc, str) else json.dumps(tcc)
 
         if 'app_ids' in body and 'app_ids' in request.env['dashboard.widget.definition']._fields:
             update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]

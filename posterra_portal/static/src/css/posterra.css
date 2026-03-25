@@ -1703,6 +1703,29 @@
     flex: 1;
 }
 
+/* ── AG Grid container ──────────────────────────────────────────────────── */
+.pv-ag-grid-container {
+    width: 100%;
+}
+.pv-ag-grid-container .ag-root-wrapper {
+    border: none;
+}
+.pv-ag-grid-container .ag-header-cell-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+.pv-ag-grid-container .ag-cell {
+    font-size: 0.8rem;
+}
+
+/* ── AG Grid conditional formatting classes ──────────────────────────────── */
+.cell-good  { color: #10b981; font-weight: 600; }
+.cell-bad   { color: #ef4444; font-weight: 600; }
+.cell-warn  { color: #f59e0b; font-weight: 600; }
+.cell-muted { color: #9ca3af; }
+
 .pv-widget-table {
     font-size: var(--w-font-base);
     font-size: clamp(0.6rem, 4cqw, 0.8rem);

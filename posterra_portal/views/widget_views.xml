@@ -90,12 +90,14 @@
                                    placeholder="0 = no limit"
                                    help="Max width 1-100%. Limits auto-scaling. 0 = no limit."/>
                             <field name="chart_height"/>
-                            <field name="color_palette"/>
+                            <field name="color_palette"
+                                   invisible="chart_type == 'table'"/>
                             <field name="color_custom_json"
-                                   invisible="color_palette != 'custom'"
+                                   invisible="color_palette != 'custom' or chart_type == 'table'"
                                    placeholder='e.g. ["#FF5733","#33FF57","#3357FF","#9B59B6"]'/>
                         </group>
-                        <group string="Typography">
+                        <group string="Typography"
+                               invisible="chart_type == 'table'">
                             <field name="label_font_weight"/>
                             <field name="label_color"/>
                             <field name="value_font_weight"/>
@@ -146,7 +148,8 @@
                         </page>
 
                         <!-- ─────────────────────── Widget-type options ── -->
-                        <page string="Widget Options" name="widget_options">
+                        <page string="Widget Options" name="widget_options"
+                              invisible="chart_type == 'table'">
 
                             <!-- KPI / status_kpi -->
                             <group string="KPI Options"
@@ -219,7 +222,8 @@
                         </page>
 
                         <!-- ──────────────────────────── Actions tab ──── -->
-                        <page string="Actions" name="actions">
+                        <page string="Actions" name="actions"
+                              invisible="chart_type == 'table'">
                             <group string="Click Action">
                                 <field name="click_action" widget="radio"/>
                             </group>
@@ -281,17 +285,17 @@
                                        style="min-height: 60px;"/>
                             </group>
 
-                            <!-- Chart annotation -->
-                            <group string="Chart Annotation">
+                            <!-- Chart / Table annotation (single field, conditional sub-fields) -->
+                            <group string="Annotation">
                                 <field name="annotation_type" widget="radio"/>
                                 <field name="annotation_text"
                                        invisible="annotation_type == 'none'"
-                                       placeholder="e.g. MA at 34%  (use SQL interpolation in value)"/>
+                                       placeholder="e.g. MA at 34%  or  761 providers"/>
                                 <field name="annotation_value"
-                                       invisible="annotation_type != 'reference_line'"
+                                       invisible="annotation_type != 'reference_line' or chart_type == 'table'"
                                        placeholder="Static value (ignored if column set)"/>
                                 <field name="annotation_value_column"
-                                       invisible="annotation_type != 'reference_line'"
+                                       invisible="annotation_type != 'reference_line' or chart_type == 'table'"
                                        placeholder="e.g. ma_pct  (SQL column, overrides static value)"/>
                             </group>
 
@@ -304,9 +308,9 @@
                                        nolabel="1" colspan="2"/>
                             </group>
 
-                            <!-- Positioning (visible when annotation active) -->
+                            <!-- Positioning (visible when annotation active, NOT for tables) -->
                             <group string="Positioning"
-                                   invisible="annotation_type == 'none'">
+                                   invisible="annotation_type == 'none' or chart_type == 'table'">
                                 <field name="annotation_position"/>
                                 <field name="annotation_x"
                                        placeholder="0 = use grid preset"/>
@@ -339,6 +343,22 @@
                                        invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel')"
                                        placeholder='{"title":{"text":"My Chart"},"yAxis":{"name":"Count"}}'
                                        style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                            <!-- Table Column Config (read-only, for debugging) -->
+                            <group string="Table Column Config"
+                                   invisible="chart_type != 'table' or not table_column_config">
+                                <field name="table_column_config" widget="text"
+                                       readonly="1"
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                            <!-- Builder Config (read-only reference, for tables shown here instead of Actions) -->
+                            <group string="Builder Config"
+                                   invisible="not builder_config or chart_type != 'table'">
+                                <field name="builder_config" widget="text"
+                                       readonly="1"
+                                       style="font-family: monospace; min-height: 60px;"
                                        nolabel="1" colspan="2"/>
                             </group>
                         </page>

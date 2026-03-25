@@ -9,14 +9,28 @@ import CustomSqlEditor    from './CustomSqlEditor'
 import ColumnMapper       from './ColumnMapper'
 import FilterActionConfig from './FilterActionConfig'
 import LivePreview        from './LivePreview'
+import TableConfigurator  from './TableConfigurator'
 
-const STEPS = [
+const CHART_STEPS = [
   { key: 'chart_type',   label: 'Chart Type' },
   { key: 'data_source',  label: 'Data Source' },
   { key: 'columns',      label: 'Columns' },
   { key: 'filters',      label: 'Filters & Actions' },
   { key: 'preview',      label: 'Preview & Save' },
 ]
+
+const TABLE_STEPS = [
+  { key: 'chart_type',   label: 'Chart Type' },
+  { key: 'data_source',  label: 'Data Source' },
+  { key: 'configure',    label: 'Configure Table' },
+]
+
+function getSteps(chartType) {
+  return chartType === 'table' ? TABLE_STEPS : CHART_STEPS
+}
+
+// Keep STEPS reference for backward compat in reducer (uses length for bounds)
+const STEPS = CHART_STEPS
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -72,14 +86,19 @@ const initialState = {
 
   // Step 6
   generatedSql: '',
+
+  // Table column config (AG Grid columnDefs — only for chart_type 'table')
+  tableColumnConfig: [],
 }
 
 function reducer(state, action) {
   switch (action.type) {
     case 'SET_STEP':
       return { ...state, step: action.step }
-    case 'NEXT':
-      return { ...state, step: Math.min(state.step + 1, STEPS.length - 1) }
+    case 'NEXT': {
+      const maxStep = getSteps(state.chartType).length - 1
+      return { ...state, step: Math.min(state.step + 1, maxStep) }
+    }
     case 'PREV':
       return { ...state, step: Math.max(state.step - 1, 0) }
     case 'SET_CHART_TYPE':
@@ -114,6 +133,8 @@ function reducer(state, action) {
       return { ...state, appearance: action.value }
     case 'SET_GENERATED_SQL':
       return { ...state, generatedSql: action.value }
+    case 'SET_TABLE_COLUMN_CONFIG':
+      return { ...state, tableColumnConfig: action.value }
     case 'LOAD_DEFINITION': {
       const d = action.value
       // Parse builder_config to restore visual builder state (sources, columns, filters, etc.)
@@ -171,6 +192,15 @@ function reducer(state, action) {
           catch { return {} }
         })(),
         generatedSql: d.generated_sql || '',
+        tableColumnConfig: (() => {
+          try {
+            return d.table_column_config
+              ? (typeof d.table_column_config === 'string'
+                  ? JSON.parse(d.table_column_config)
+                  : d.table_column_config)
+              : []
+          } catch { return [] }
+        })(),
       }
     }
     case 'RESET':
@@ -277,10 +307,12 @@ export default function WidgetBuilder({
     )
   }
 
-  const currentStep = STEPS[state.step]
-  const canNext = state.step < STEPS.length - 1
+  const activeSteps = getSteps(state.chartType)
+  const currentStep = activeSteps[state.step] || activeSteps[0]
+  const canNext = state.step < activeSteps.length - 1
   const canPrev = state.step > 0
   const isEditing = !!editId
+  const isTableConfigStep = state.chartType === 'table' && state.step === 2
 
   return (
     <div className="dd-page">
@@ -294,7 +326,7 @@ export default function WidgetBuilder({
             <div>
               <h2 className="dd-wizard-title">{isEditing ? 'Edit widget' : 'Create widget'}</h2>
               <p className="dd-wizard-subtitle">
-                Step {state.step + 1} of {STEPS.length} &mdash; {currentStep.label}
+                Step {state.step + 1} of {activeSteps.length} &mdash; {currentStep.label}
               </p>
             </div>
           </div>
@@ -305,7 +337,7 @@ export default function WidgetBuilder({
 
         {/* Step tabs */}
         <div className="dd-wizard-tabs">
-          {STEPS.map((s, i) => (
+          {activeSteps.map((s, i) => (
             <button
               key={s.key}
               type="button"
@@ -399,8 +431,28 @@ export default function WidgetBuilder({
             </div>
           )}
 
-          {/* Step 3: Columns (visual mode) */}
-          {state.step === 2 && (
+          {/* Step 3: Table Configurator (table type — merged steps 3+4+5) */}
+          {state.step === 2 && state.chartType === 'table' && (
+            <TableConfigurator
+              sources={state.sources}
+              joins={state.joins}
+              dataMode={state.dataMode}
+              customSql={state.customSql}
+              filters={state.filters}
+              visualFlags={state.visualFlags}
+              appearance={state.appearance}
+              tableColumnConfig={state.tableColumnConfig}
+              builderState={state}
+              onUpdate={dispatch}
+              onSave={handleSave}
+              saving={saving}
+              apiBase={apiBase}
+              appContext={appContext}
+            />
+          )}
+
+          {/* Step 3: Columns (chart types — visual mode) */}
+          {state.step === 2 && state.chartType !== 'table' && (
             (state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
               <ColumnMapper
                 sources={state.sources}
@@ -420,8 +472,8 @@ export default function WidgetBuilder({
             )
           )}
 
-          {/* Step 4: Filters & Actions */}
-          {state.step === 3 && (
+          {/* Step 4: Filters & Actions (chart types only) */}
+          {state.step === 3 && state.chartType !== 'table' && (
             <FilterActionConfig
               dataSourceMode={state.dataMode}
               sources={state.sources}
@@ -437,8 +489,8 @@ export default function WidgetBuilder({
             />
           )}
 
-          {/* Step 5: Preview & Save */}
-          {state.step === 4 && (
+          {/* Step 5: Preview & Save (chart types only) */}
+          {state.step === 4 && state.chartType !== 'table' && (
             <LivePreview
               builderState={state}
               generatedSql={state.generatedSql}
@@ -463,23 +515,23 @@ export default function WidgetBuilder({
             <i className="fa fa-arrow-left me-1" /> Back
           </button>
           <div className="dd-wizard-step-dots">
-            {STEPS.map((_, i) => (
+            {activeSteps.map((_, i) => (
               <span
                 key={i}
                 className={`dd-wizard-dot ${i === state.step ? 'dd-wizard-dot--active' : ''} ${i < state.step ? 'dd-wizard-dot--done' : ''}`}
               />
             ))}
           </div>
-          {canNext ? (
+          {canNext && !isTableConfigStep ? (
             <button
               type="button"
               className="dd-wizard-btn dd-wizard-btn--primary"
               onClick={() => dispatch({ type: 'NEXT' })}
             >
-              Next &mdash; {STEPS[state.step + 1].label} <i className="fa fa-arrow-right ms-1" />
+              Next &mdash; {activeSteps[state.step + 1]?.label} <i className="fa fa-arrow-right ms-1" />
             </button>
           ) : (
-            <div /> // placeholder — save is in LivePreview
+            <div /> // placeholder — save is in LivePreview or TableConfigurator
           )}
         </div>
       </div>
@@ -515,6 +567,10 @@ function buildCreatePayload(state) {
     action_pass_value_as: state.actionPassValueAs || '',
     drill_detail_columns: state.drillDetailColumns || '',
     action_url_template: state.actionUrlTemplate || '',
+    // Table column config (AG Grid columnDefs) — only meaningful for table type
+    table_column_config: state.chartType === 'table' && state.tableColumnConfig?.length
+      ? JSON.stringify(state.tableColumnConfig)
+      : '',
   }
 
   if (state.dataMode === 'custom_sql') {
