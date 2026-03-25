@@ -402,10 +402,25 @@ class DesignerAPI(http.Controller):
                     if schema_src.exists():
                         def_vals['schema_source_id'] = schema_src.id
 
-                from ..services.query_builder import QueryBuilder
-                qb = QueryBuilder(request.env)
-                if isinstance(config, dict) and config.get('source_ids'):
-                    def_vals['generated_sql'] = qb.build_select_query(config, save_mode=True)
+                # Generate SQL from visual builder config (skip for table type —
+                # tables use table_column_config for column definitions, and their
+                # SQL is a simple SELECT of all configured columns without aggregation)
+                if chart_type != 'table':
+                    from ..services.query_builder import QueryBuilder
+                    qb = QueryBuilder(request.env)
+                    if isinstance(config, dict) and config.get('source_ids'):
+                        def_vals['generated_sql'] = qb.build_select_query(config, save_mode=True)
+                else:
+                    # For tables: build a simple SELECT from the configured columns
+                    if isinstance(config, dict) and config.get('source_ids') and config.get('columns'):
+                        from ..services.query_builder import QueryBuilder
+                        qb = QueryBuilder(request.env)
+                        try:
+                            def_vals['generated_sql'] = qb.build_select_query(config, save_mode=True)
+                        except (ValueError, Exception):
+                            # Table columns may not have agg functions — build a
+                            # simple SELECT col1, col2, ... FROM source instead
+                            pass
 
             # KPI fields
             if chart_type in ('kpi', 'status_kpi'):
