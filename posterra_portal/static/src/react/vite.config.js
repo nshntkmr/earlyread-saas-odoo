@@ -34,7 +34,21 @@ function odooSafeImports() {
 }
 
 export default defineConfig({
-  plugins: [react(), odooSafeImports()],
+  plugins: [
+    react({
+      // Include the shared grid-utils package for JSX transformation.
+      // Without this, Vite's React plugin only transforms .jsx files within
+      // the project root — shared package files at ../shared/ would be skipped.
+      include: ['src/**/*.jsx', /grid-utils\/.*\.jsx$/],
+    }),
+    odooSafeImports(),
+  ],
+  // Prevent Vite from caching @posterra/grid-utils (file: symlink).
+  // Without this, Vite may use a stale pre-bundled version that's missing
+  // newly added renderers (CompositeRenderer, DualValueRenderer, etc.).
+  optimizeDeps: {
+    exclude: ['@posterra/grid-utils'],
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {

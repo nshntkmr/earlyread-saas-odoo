@@ -267,11 +267,11 @@ export default function WidgetBuilder({
     })
   }, [state.sources.length, apiBase])
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (overrides = {}) => {
     setSaving(true)
     setSaveError(null)
     try {
-      const payload = buildCreatePayload(state)
+      const payload = { ...buildCreatePayload(state), ...overrides }
       let result
       if (editId) {
         result = await designerFetch(libraryDetailUrl(apiBase, editId), {

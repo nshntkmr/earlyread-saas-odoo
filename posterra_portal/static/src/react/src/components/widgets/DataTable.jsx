@@ -1,7 +1,12 @@
 import React, { useMemo, useCallback, useRef } from 'react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
-import { CUSTOM_COLUMN_TYPES, resolveColumnDefs } from '@posterra/grid-utils'
+// Import CELL_RENDERERS explicitly to prevent Rollup tree-shaking.
+// resolveColumnDefs uses dynamic property access (CELL_RENDERERS[key])
+// which Rollup may not trace as "used" during static analysis.
+import { CUSTOM_COLUMN_TYPES, CELL_RENDERERS, resolveColumnDefs } from '@posterra/grid-utils'
+// Force side-effect: ensure all renderers are retained in the bundle
+void CELL_RENDERERS
 
 // Register all AG Grid Community modules (required for v35+)
 ModuleRegistry.registerModules([AllCommunityModule])
