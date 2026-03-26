@@ -10,8 +10,11 @@ import React from 'react'
 function StarRatingRenderer(params) {
   const v = Number(params.value)
   if (isNaN(v) || params.value == null || params.value === '') return null
+  // Use 'inherit' so conditional formatting classes (cell-good, cell-bad, cell-warn)
+  // on the parent AG Grid cell control the color. The default star color (#f59e0b)
+  // is applied via CSS class .pv-star-rating when no conditional class overrides it.
   return (
-    <span style={{ color: '#f59e0b', whiteSpace: 'nowrap' }}>
+    <span className="pv-star-rating" style={{ whiteSpace: 'nowrap' }}>
       ★ {v % 1 === 0 ? v : v.toFixed(1)}
     </span>
   )

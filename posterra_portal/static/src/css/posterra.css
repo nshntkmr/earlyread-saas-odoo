@@ -1721,10 +1721,20 @@
 }
 
 /* ── AG Grid conditional formatting classes ──────────────────────────────── */
+/* Conditional formatting classes — applied by AG Grid cellClassRules */
 .cell-good  { color: #10b981; font-weight: 600; }
 .cell-bad   { color: #ef4444; font-weight: 600; }
 .cell-warn  { color: #f59e0b; font-weight: 600; }
 .cell-muted { color: #9ca3af; }
+
+/* Star rating: default amber when no conditional class overrides.
+   When cell-good/cell-bad/cell-warn is on the parent, the star inherits
+   that color because we use 'inherit' (no inline color override). */
+.pv-star-rating { color: #f59e0b; }
+.cell-good .pv-star-rating,
+.cell-bad .pv-star-rating,
+.cell-warn .pv-star-rating,
+.cell-muted .pv-star-rating { color: inherit; }
 
 .pv-widget-table {
     font-size: var(--w-font-base);
