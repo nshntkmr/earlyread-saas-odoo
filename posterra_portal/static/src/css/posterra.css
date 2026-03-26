@@ -1698,9 +1698,11 @@
 
 /* ── Data Table ─────────────────────────────────────────────────────── */
 .pv-widget-table-wrap {
-    max-height: 380px;
-    overflow-y: auto;
+    /* No max-height cap — AG Grid controls height via domLayout (autoHeight
+       expands to fit content, normal/pagination use inline containerStyle).
+       The old 380px cap clipped multi-line composite cells. */
     flex: 1;
+    overflow: visible;
 }
 
 /* ── AG Grid container ──────────────────────────────────────────────────── */
