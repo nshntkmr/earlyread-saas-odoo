@@ -490,6 +490,7 @@ export default function WidgetBuilder({
               saving={saving}
               apiBase={apiBase}
               appContext={appContext}
+              editId={editId}
             />
           )}
 
@@ -504,6 +505,7 @@ export default function WidgetBuilder({
               apiBase={apiBase}
               appContext={appContext}
               onAppearanceChange={v => dispatch({ type: 'SET_APPEARANCE', value: v })}
+              editId={editId}
             />
           )}
         </div>

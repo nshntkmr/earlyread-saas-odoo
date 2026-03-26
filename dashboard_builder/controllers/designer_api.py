@@ -881,6 +881,20 @@ class DesignerAPI(http.Controller):
                 vals['kpi_prefix'] = defn.kpi_prefix or ''
                 vals['kpi_suffix'] = defn.kpi_suffix or ''
 
+            # Dedup safeguard: if an instance already exists for this
+            # definition on this page, update it instead of creating a duplicate.
+            existing = Widget.search([
+                ('definition_id', '=', defn.id),
+                ('page_id', '=', page_id),
+            ], limit=1)
+            if existing:
+                existing.write(vals)
+                _logger.info(
+                    'Place dedup: updated existing instance %s for definition %s on page %s',
+                    existing.id, defn.id, page_id,
+                )
+                return _json_response({'widget_id': existing.id, 'name': existing.name, 'updated': True})
+
             widget = Widget.create(vals)
             return _json_response({'widget_id': widget.id, 'name': widget.name})
 

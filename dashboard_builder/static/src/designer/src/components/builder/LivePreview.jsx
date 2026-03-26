@@ -22,7 +22,7 @@ import PageFilterPanel from './PageFilterPanel'
 export default function LivePreview({
   builderState, generatedSql, onSqlGenerated,
   onSave, saving, apiBase, appContext = null,
-  onAppearanceChange = null,
+  onAppearanceChange = null, editId = null,
 }) {
   const [previewData, setPreviewData] = useState(null)
   const [previewError, setPreviewError] = useState(null)
@@ -89,13 +89,19 @@ export default function LivePreview({
     if (!appContext?.page) return
     setPlacing(true)
     try {
-      // First save (onSave returns the created definition)
+      // First save (onSave returns the created/updated definition)
       const result = await onSave()
       if (!result?.id) {
         setPlacing(false)
         return
       }
-      // Then place on the selected page/tab
+      // When editing, library_update already synced all instances —
+      // don't call place_on_page or it creates a duplicate instance.
+      if (editId) {
+        setPlaceSuccess(true)
+        return
+      }
+      // New widget: create instance on the selected page/tab
       await designerFetch(libraryPlaceUrl(apiBase, result.id), {
         method: 'POST',
         body: JSON.stringify({
