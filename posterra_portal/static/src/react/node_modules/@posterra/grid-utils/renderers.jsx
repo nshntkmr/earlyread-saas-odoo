@@ -147,6 +147,11 @@ function CompositeRenderer(params) {
 
   return (
     <div style={{ lineHeight: 1.3, padding: '2px 0' }}>
+      {/* Primary field value — always shown as bold title line */}
+      {params.value != null && params.value !== '' && (
+        <div style={{ fontWeight: 600 }}>{params.value}</div>
+      )}
+      {/* Configured sub-lines (secondary fields) */}
       {lines.map((line, li) => {
         const fields = line.fields || []
         const sep = line.separator || ' '
