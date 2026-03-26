@@ -1,6 +1,11 @@
 import { VALUE_FORMATTERS } from './formatters'
 import { CELL_RENDERERS } from './renderers.jsx'
 
+// ── Renderers that produce multi-line cell content ──────────────────────────
+// These require AG Grid's autoHeight so rows expand to fit their content.
+// Without this, multi-line content is clipped at the default ~28px row height.
+const MULTI_LINE_RENDERERS = new Set(['composite', 'dualValue'])
+
 // ── Resolve string formatter/renderer keys to actual functions ──────────────
 // AG Grid expects functions for valueFormatter and cellRenderer, but our
 // column config stores them as strings (e.g., "number", "starRating").
@@ -19,6 +24,14 @@ export function resolveColumnDefs(columnDefs) {
 
     // Resolve string cellRenderer → React component
     if (typeof resolved.cellRenderer === 'string' && CELL_RENDERERS[resolved.cellRenderer]) {
+      // Auto-enable autoHeight for multi-line renderers so AG Grid
+      // expands row height to fit composite/dualValue content.
+      // This is critical for portal rendering — without it, multi-line
+      // cells are clipped at default row height.
+      if (MULTI_LINE_RENDERERS.has(resolved.cellRenderer)) {
+        resolved.autoHeight = true
+        resolved.wrapText = true
+      }
       resolved.cellRenderer = CELL_RENDERERS[resolved.cellRenderer]
     }
 
