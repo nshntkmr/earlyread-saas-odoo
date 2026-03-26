@@ -26,6 +26,7 @@ function VirtualOptionsList({ filteredOptions, selectedSet, toggleOption }) {
     getScrollElement: () => listRef.current,
     estimateSize: () => 32,
     overscan: 10,
+    measureElement: (el) => el?.getBoundingClientRect().height || 32,
   })
 
   if (filteredOptions.length === 0) {
@@ -44,12 +45,13 @@ function VirtualOptionsList({ filteredOptions, selectedSet, toggleOption }) {
           return (
             <li
               key={opt.value}
+              ref={virtualizer.measureElement}
+              data-index={vItem.index}
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
-                height: vItem.size,
                 transform: `translateY(${vItem.start}px)`,
               }}
             >
