@@ -30,7 +30,7 @@ function getTypeDefaults(dataType) {
 export default function TableConfigurator({
   sources, joins, dataMode, customSql, filters, visualFlags, appearance,
   tableColumnConfig, builderState, onUpdate, onSave, saving,
-  apiBase, appContext = null,
+  apiBase, appContext = null, editId = null,
 }) {
   // ── Stable column ID counter ────────────────────────────────────────────────
   const colIdRef = useRef(0)
@@ -206,6 +206,13 @@ export default function TableConfigurator({
     onUpdate({ type: 'SET_APPEARANCE', value: { ...appearance, title: widgetTitle } })
     const result = await onSave({ name: widgetTitle })
     if (!result?.id || !appContext?.page?.id) return
+    // When editing, library_update already synced all instances —
+    // don't call place_on_page or it creates a duplicate instance.
+    if (editId) {
+      setPlaceSuccess(true)
+      return
+    }
+    // New widget: create instance on the selected page/tab
     setPlacing(true)
     try {
       await designerFetch(libraryPlaceUrl(apiBase, result.id), {
@@ -218,7 +225,7 @@ export default function TableConfigurator({
       setPlaceSuccess(true)
     } catch { /* ignore */ }
     finally { setPlacing(false) }
-  }, [onSave, onUpdate, appearance, widgetTitle, apiBase, appContext])
+  }, [onSave, onUpdate, appearance, widgetTitle, apiBase, appContext, editId])
 
   // ── Columns not yet added ──────────────────────────────────────────────────
   const unusedColumns = useMemo(() => {
