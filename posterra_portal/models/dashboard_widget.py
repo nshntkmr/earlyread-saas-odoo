@@ -1287,6 +1287,23 @@ class DashboardWidget(models.Model):
                     })
                 option['series'] = series_list
 
+                # Add ring title (group name) centered inside each ring
+                for i, grp in enumerate(group_keys):
+                    center_x = f'{int((100 / (n + 1)) * (i + 1))}%'
+                    option.setdefault('graphic', []).append({
+                        'type': 'text',
+                        'left': center_x,
+                        'top': '50%',
+                        'style': {
+                            'text': str(grp),
+                            'fontSize': 14,
+                            'fontWeight': 'bold',
+                            'fill': '#333',
+                            'textAlign': 'center',
+                            'textVerticalAlign': 'middle',
+                        },
+                    })
+
             else:
                 # Fallback for nested/multi_ring without series_column, or unknown style
                 # Render as standard donut
