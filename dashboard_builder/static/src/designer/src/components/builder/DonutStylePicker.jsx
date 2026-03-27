@@ -249,6 +249,7 @@ export default function DonutStylePicker({
   const showRadii = ['standard', 'label_center', 'rounded', 'rose'].includes(style)
   const showCenterText = ['standard', 'label_center', 'rounded'].includes(style)
   const showRoseType = style === 'rose'
+  const showNested = style === 'nested'
 
   return (
     <div>
@@ -282,7 +283,7 @@ export default function DonutStylePicker({
       </div>
 
       {/* ── Variant-specific settings ────────────────────── */}
-      {(showRadii || showCenterText || showRoseType) && (
+      {(showRadii || showCenterText || showRoseType || showNested) && (
         <>
           <div style={styles.sectionTitle}>Variant Settings</div>
 
@@ -366,6 +367,108 @@ export default function DonutStylePicker({
                   />
                 </div>
               )}
+            </>
+          )}
+
+          {showNested && (
+            <>
+              {/* ── Inner Ring ── */}
+              <div style={{ ...styles.sectionTitle, fontSize: 11, marginTop: 12, color: '#6b7280' }}>
+                Inner Ring
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Radius Start</label>
+                <input
+                  type="text"
+                  className="wb-input wb-input--sm"
+                  placeholder="e.g. 0"
+                  value={cfgVal(visualConfig, 'nested_inner_radius_start', '')}
+                  onChange={e => handleCfg('nested_inner_radius_start', e.target.value)}
+                />
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Radius End</label>
+                <input
+                  type="text"
+                  className="wb-input wb-input--sm"
+                  placeholder="e.g. 30"
+                  value={cfgVal(visualConfig, 'nested_inner_radius_end', '')}
+                  onChange={e => handleCfg('nested_inner_radius_end', e.target.value)}
+                />
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Label Position</label>
+                <select
+                  className="wb-select"
+                  value={cfgVal(visualConfig, 'nested_inner_label_pos', 'inner')}
+                  onChange={e => handleCfg('nested_inner_label_pos', e.target.value)}
+                >
+                  <option value="inner">Inner</option>
+                  <option value="inside">Inside</option>
+                  <option value="outside">Outside</option>
+                </select>
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Label Format</label>
+                <select
+                  className="wb-select"
+                  value={cfgVal(visualConfig, 'nested_inner_label_format', 'name')}
+                  onChange={e => handleCfg('nested_inner_label_format', e.target.value)}
+                >
+                  {LABEL_FORMATS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ── Outer Ring ── */}
+              <div style={{ ...styles.sectionTitle, fontSize: 11, marginTop: 12, color: '#6b7280' }}>
+                Outer Ring
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Radius Start</label>
+                <input
+                  type="text"
+                  className="wb-input wb-input--sm"
+                  placeholder="e.g. 40"
+                  value={cfgVal(visualConfig, 'nested_outer_radius_start', '')}
+                  onChange={e => handleCfg('nested_outer_radius_start', e.target.value)}
+                />
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Radius End</label>
+                <input
+                  type="text"
+                  className="wb-input wb-input--sm"
+                  placeholder="e.g. 65"
+                  value={cfgVal(visualConfig, 'nested_outer_radius_end', '')}
+                  onChange={e => handleCfg('nested_outer_radius_end', e.target.value)}
+                />
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Label Position</label>
+                <select
+                  className="wb-select"
+                  value={cfgVal(visualConfig, 'nested_outer_label_pos', 'outside')}
+                  onChange={e => handleCfg('nested_outer_label_pos', e.target.value)}
+                >
+                  <option value="outside">Outside</option>
+                  <option value="inside">Inside</option>
+                  <option value="inner">Inner</option>
+                </select>
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Label Format</label>
+                <select
+                  className="wb-select"
+                  value={cfgVal(visualConfig, 'nested_outer_label_format', 'name')}
+                  onChange={e => handleCfg('nested_outer_label_format', e.target.value)}
+                >
+                  {LABEL_FORMATS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
         </>

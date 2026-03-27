@@ -429,21 +429,41 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             elif sort_mode == 'value_asc':
                 inner_data.sort(key=lambda d: (d['value'] or 0))
 
+            # Read per-ring config (defaults match previous hardcoded values)
+            ni_start = _ensure_pct(vc.get('nested_inner_radius_start', ''), '0%')
+            ni_end   = _ensure_pct(vc.get('nested_inner_radius_end', ''), '30%')
+            ni_lpos  = vc.get('nested_inner_label_pos', 'inner')
+            ni_lfmt  = vc.get('nested_inner_label_format', 'name')
+
+            no_start = _ensure_pct(vc.get('nested_outer_radius_start', ''), '40%')
+            no_end   = _ensure_pct(vc.get('nested_outer_radius_end', ''), '65%')
+            no_lpos  = vc.get('nested_outer_label_pos', 'outside')
+            no_lfmt  = vc.get('nested_outer_label_format', 'name')
+
             inner_series = {
                 'type': 'pie',
-                'radius': ['0%', '30%'],
+                'radius': [ni_start, ni_end],
                 'data': inner_data,
-                'label': {'show': show_labels, 'position': 'inner', 'fontSize': 11},
-                'labelLine': {'show': False},
+                'label': {
+                    'show': show_labels,
+                    'position': ni_lpos,
+                    'fontSize': 11 if ni_lpos == 'inner' else 12,
+                    'formatter': _LABEL_FMTS.get(ni_lfmt, '{b}'),
+                },
+                'labelLine': {'show': show_labels and ni_lpos == 'outside'},
                 'emphasis': {'focus': 'self', 'blurScope': 'series',
                              'itemStyle': {'shadowBlur': 10}},
             }
             outer_series = {
                 'type': 'pie',
-                'radius': ['40%', '65%'],
+                'radius': [no_start, no_end],
                 'data': child_items,
-                'label': _pie_label_cfg(),
-                'labelLine': {'show': show_labels and label_position == 'outside'},
+                'label': {
+                    'show': show_labels,
+                    'position': no_lpos,
+                    'formatter': _LABEL_FMTS.get(no_lfmt, '{b}'),
+                },
+                'labelLine': {'show': show_labels and no_lpos == 'outside'},
                 'emphasis': {'focus': 'self', 'blurScope': 'series',
                              'itemStyle': {'shadowBlur': 10}},
             }
