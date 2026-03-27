@@ -163,14 +163,152 @@ BAR_FLAGS = [
 ]
 
 
+# ── Pie / Donut — Common Flags ────────────────────────────────────────────────
+
+_PIE_DONUT_COMMON = [
+    {
+        'flag': 'show_labels',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Slice Labels',
+        'help': 'Display label text on or near each slice.',
+    },
+    {
+        'flag': 'label_position',
+        'type': 'select',
+        'default': 'outside',
+        'label': 'Label Position',
+        'help': 'Where slice labels appear relative to the pie/donut.',
+        'options': [
+            {'value': 'outside', 'label': 'Outside'},
+            {'value': 'inside', 'label': 'Inside'},
+        ],
+        'show_when': {'show_labels': True},
+    },
+    {
+        'flag': 'show_percent',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Show Percentage',
+        'help': 'Include percentage value in labels and tooltips (e.g. "42.9%").',
+    },
+    {
+        'flag': 'legend_position',
+        'type': 'select',
+        'default': 'left',
+        'label': 'Legend Position',
+        'help': 'Where the legend appears, or hide it entirely.',
+        'options': [
+            {'value': 'left', 'label': 'Left (vertical)'},
+            {'value': 'right', 'label': 'Right (vertical)'},
+            {'value': 'top', 'label': 'Top (horizontal)'},
+            {'value': 'bottom', 'label': 'Bottom (horizontal)'},
+            {'value': 'none', 'label': 'Hidden'},
+        ],
+    },
+    {
+        'flag': 'sort',
+        'type': 'select',
+        'default': 'none',
+        'label': 'Sort Slices',
+        'help': 'Reorder slices by value. SQL Order uses the query ORDER BY.',
+        'options': [
+            {'value': 'none', 'label': 'SQL Order (default)'},
+            {'value': 'value_desc', 'label': 'Largest First'},
+            {'value': 'value_asc', 'label': 'Smallest First'},
+        ],
+    },
+    {
+        'flag': 'limit',
+        'type': 'number',
+        'default': 0,
+        'label': 'Max Slices',
+        'help': 'Limit how many slices to show. 0 = show all. Remaining slices are '
+                'grouped as "Other".',
+    },
+]
+
+
+# ── Donut-Specific Flags ──────────────────────────────────────────────────────
+
+DONUT_FLAGS = [
+    {
+        'flag': 'donut_style',
+        'type': 'select',
+        'default': 'standard',
+        'label': 'Donut Style',
+        'help': 'Visual variant of the donut chart. '
+                'Center Label shows the hovered slice name and value in the center hole. '
+                'Rounded adds rounded corners between slices. '
+                'Half shows a semicircle (180°). '
+                'Rose (Nightingale) varies slice radius by value. '
+                'Nested shows parent/child as two concentric rings. '
+                'Multi-Ring places groups side-by-side as separate rings.',
+        'options': [
+            {'value': 'standard', 'label': 'Standard Donut'},
+            {'value': 'label_center', 'label': 'Center Label (on hover)'},
+            {'value': 'rounded', 'label': 'Rounded Corners'},
+            {'value': 'semi', 'label': 'Half Donut (180°)'},
+            {'value': 'rose', 'label': 'Rose / Nightingale'},
+            {'value': 'nested', 'label': 'Nested (2 rings)'},
+            {'value': 'multi_ring', 'label': 'Multi-Ring Comparison'},
+        ],
+    },
+    {
+        'flag': 'rose_type',
+        'type': 'select',
+        'default': 'area',
+        'label': 'Rose Type',
+        'help': '"Area" varies slice area proportionally (recommended). '
+                '"Radius" varies only the radius.',
+        'options': [
+            {'value': 'area', 'label': 'Area (proportional)'},
+            {'value': 'radius', 'label': 'Radius'},
+        ],
+        'show_when': {'donut_style': 'rose'},
+    },
+    {
+        'flag': 'inner_radius',
+        'type': 'text',
+        'default': '40%',
+        'label': 'Inner Radius',
+        'help': 'Inner hole size as percentage (e.g. "40%"). Larger = bigger hole.',
+        'show_when': {'donut_style': ['standard', 'label_center', 'rounded', 'rose']},
+    },
+    {
+        'flag': 'outer_radius',
+        'type': 'text',
+        'default': '70%',
+        'label': 'Outer Radius',
+        'help': 'Outer edge size as percentage (e.g. "70%", "85%").',
+        'show_when': {'donut_style': ['standard', 'label_center', 'rounded', 'rose']},
+    },
+    {
+        'flag': 'center_text',
+        'type': 'text',
+        'default': '',
+        'label': 'Center Static Text',
+        'help': 'Optional text displayed in the donut hole (e.g. "Total" or "52,843"). '
+                'Overridden by hover label when style is Center Label.',
+        'show_when': {'donut_style': ['standard', 'label_center', 'rounded']},
+    },
+    *_PIE_DONUT_COMMON,
+]
+
+
+# ── Pie-Specific Flags ────────────────────────────────────────────────────────
+
+PIE_FLAGS = [*_PIE_DONUT_COMMON]
+
+
 # ── Registry ─────────────────────────────────────────────────────────────────
 # Add new chart families here as they are implemented.
 
 CHART_FLAGS = {
     'bar': BAR_FLAGS,
+    'pie': PIE_FLAGS,
+    'donut': DONUT_FLAGS,
     # 'line': LINE_FLAGS,     # future
-    # 'pie': PIE_FLAGS,       # future
-    # 'donut': DONUT_FLAGS,   # future
     # 'gauge': GAUGE_FLAGS,   # future
     # 'radar': RADAR_FLAGS,   # future
 }

@@ -429,6 +429,8 @@ export default function WidgetBuilder({
                   onUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
                   apiBase={apiBase}
                   appContext={appContext}
+                  chartType={state.chartType}
+                  donutStyle={state.visualFlags?.donut_style || 'standard'}
                 />
               )}
             </div>
