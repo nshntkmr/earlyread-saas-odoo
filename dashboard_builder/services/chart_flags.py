@@ -274,6 +274,73 @@ DONUT_FLAGS = [
         ],
         'show_when': {'donut_style': 'rose'},
     },
+    # ── Nested ring flags ──────────────────────────────────────────────────
+    {
+        'flag': 'nested_inner_radius_start', 'type': 'text', 'default': '0%',
+        'label': 'Inner Ring — Radius Start',
+        'help': 'Inner ring starts at this % from center (default 0%).',
+        'show_when': {'donut_style': 'nested'},
+    },
+    {
+        'flag': 'nested_inner_radius_end', 'type': 'text', 'default': '30%',
+        'label': 'Inner Ring — Radius End',
+        'help': 'Inner ring ends at this % from center (default 30%).',
+        'show_when': {'donut_style': 'nested'},
+    },
+    {
+        'flag': 'nested_inner_label_pos', 'type': 'select', 'default': 'inner',
+        'label': 'Inner Ring — Label Position',
+        'options': [
+            {'value': 'inner', 'label': 'Inner (centered in slice)'},
+            {'value': 'inside', 'label': 'Inside (near edge)'},
+            {'value': 'outside', 'label': 'Outside'},
+        ],
+        'show_when': {'donut_style': 'nested'},
+    },
+    {
+        'flag': 'nested_inner_label_format', 'type': 'select', 'default': 'name',
+        'label': 'Inner Ring — Label Format',
+        'options': [
+            {'value': 'name', 'label': 'Name only'},
+            {'value': 'name_value', 'label': 'Name + Value'},
+            {'value': 'name_percent', 'label': 'Name + Percentage'},
+            {'value': 'name_value_percent', 'label': 'Name + Value + Percentage'},
+        ],
+        'show_when': {'donut_style': 'nested'},
+    },
+    {
+        'flag': 'nested_outer_radius_start', 'type': 'text', 'default': '40%',
+        'label': 'Outer Ring — Radius Start',
+        'help': 'Outer ring starts at this % from center (default 40%). Must be > inner ring end.',
+        'show_when': {'donut_style': 'nested'},
+    },
+    {
+        'flag': 'nested_outer_radius_end', 'type': 'text', 'default': '65%',
+        'label': 'Outer Ring — Radius End',
+        'help': 'Outer ring ends at this % from center (default 65%).',
+        'show_when': {'donut_style': 'nested'},
+    },
+    {
+        'flag': 'nested_outer_label_pos', 'type': 'select', 'default': 'outside',
+        'label': 'Outer Ring — Label Position',
+        'options': [
+            {'value': 'outside', 'label': 'Outside'},
+            {'value': 'inside', 'label': 'Inside'},
+            {'value': 'inner', 'label': 'Inner (centered in slice)'},
+        ],
+        'show_when': {'donut_style': 'nested'},
+    },
+    {
+        'flag': 'nested_outer_label_format', 'type': 'select', 'default': 'name',
+        'label': 'Outer Ring — Label Format',
+        'options': [
+            {'value': 'name', 'label': 'Name only'},
+            {'value': 'name_value', 'label': 'Name + Value'},
+            {'value': 'name_percent', 'label': 'Name + Percentage'},
+            {'value': 'name_value_percent', 'label': 'Name + Value + Percentage'},
+        ],
+        'show_when': {'donut_style': 'nested'},
+    },
     {
         'flag': 'inner_radius',
         'type': 'text',
