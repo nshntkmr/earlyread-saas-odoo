@@ -1002,17 +1002,29 @@ class DashboardWidget(models.Model):
                 except (json.JSONDecodeError, TypeError):
                     vc = {}
 
+            # ── Helper: ensure percentage suffix ─────────────────────
+            def _ensure_pct(val, default):
+                if not val:
+                    return default
+                val = str(val).strip()
+                if val.replace('.', '', 1).isdigit():
+                    val += '%'
+                return val
+
             donut_style    = vc.get('donut_style', 'standard') if ct == 'donut' else 'pie'
             show_labels    = vc.get('show_labels', True)
             label_position = vc.get('label_position', 'outside')
             show_percent   = vc.get('show_percent', False)
+            label_format   = vc.get('label_format', '')
             legend_pos     = vc.get('legend_position', 'left')
             sort_mode      = vc.get('sort', 'none')
             vc_limit       = int(vc.get('limit', 0) or 0)
-            inner_radius   = vc.get('inner_radius', '40%') if ct == 'donut' else '0%'
-            outer_radius   = vc.get('outer_radius', '70%')
+            inner_radius   = _ensure_pct(vc.get('inner_radius', ''), '40%') if ct == 'donut' else '0%'
+            outer_radius   = _ensure_pct(vc.get('outer_radius', ''), '70%')
             rose_type_val  = vc.get('rose_type', 'area')
             center_text    = vc.get('center_text', '')
+            center_mode    = vc.get('center_mode', 'none')
+            center_static  = vc.get('center_static_text', '')
             s_col          = self.series_column.strip() if self.series_column else ''
 
             # ── Build pie data ─────────────────────────────────────────
@@ -1037,12 +1049,21 @@ class DashboardWidget(models.Model):
                 pie_data = shown
 
             # ── Helper: build label config ─────────────────────────────
+            _LABEL_FMTS = {
+                'name':               '{b}',
+                'name_value':         '{b}: {c}',
+                'name_percent':       '{b} ({d}%)',
+                'name_value_percent': '{b}: {c} ({d}%)',
+            }
+
             def _pie_label_cfg():
                 if not show_labels:
                     return {'show': False}
                 cfg = {'show': True, 'position': label_position}
-                if show_percent:
-                    cfg['formatter'] = '{b}: {d}%'
+                # label_format takes priority; fall back to show_percent for backward compat
+                fmt = label_format or ('name_percent' if show_percent else 'name')
+                if fmt in _LABEL_FMTS:
+                    cfg['formatter'] = _LABEL_FMTS[fmt]
                 return cfg
 
             # ── Helper: build legend config ────────────────────────────
@@ -1052,8 +1073,9 @@ class DashboardWidget(models.Model):
                 orient = 'vertical' if legend_pos in ('left', 'right') else 'horizontal'
                 return {'orient': orient, legend_pos: legend_pos}
 
-            # ── Tooltip ────────────────────────────────────────────────
-            tooltip_fmt = '{b}: {c} ({d}%)' if show_percent else '{b}: {c}'
+            # ── Tooltip (always shows value; percent if label_format includes it) ──
+            _eff_fmt = label_format or ('name_percent' if show_percent else 'name')
+            tooltip_fmt = '{b}: {c} ({d}%)' if 'percent' in _eff_fmt else '{b}: {c}'
             option['tooltip'] = {'trigger': 'item', 'formatter': tooltip_fmt}
 
             # ── Build series based on donut_style ──────────────────────
@@ -1085,13 +1107,14 @@ class DashboardWidget(models.Model):
 
             elif donut_style == 'label_center':
                 # donut_label_center — hover shows name+value in center hole
+                # Respects show_labels: when True, slice labels appear alongside center emphasis
                 series_cfg = {
                     'type': 'pie',
                     'radius': [inner_radius, outer_radius],
                     'avoidLabelOverlap': False,
                     'data': pie_data,
-                    'label': {'show': False},
-                    'labelLine': {'show': False},
+                    'label': _pie_label_cfg(),
+                    'labelLine': {'show': show_labels and label_position == 'outside'},
                     'emphasis': {
                         'label': {
                             'show': True,
@@ -1268,8 +1291,49 @@ class DashboardWidget(models.Model):
             # ── Legend ─────────────────────────────────────────────────
             option['legend'] = _pie_legend_cfg()
 
-            # ── Center text (graphic element) ──────────────────────────
-            if center_text and donut_style not in ('semi', 'nested', 'multi_ring'):
+            # ── Center display (graphic element) ─────────────────────────
+            _center_styles = ('standard', 'label_center', 'rounded', 'rose')
+            if center_mode == 'auto_total' and donut_style in _center_styles:
+                total_val = sum((d.get('value') or 0) for d in pie_data)
+                # Format number with commas
+                total_str = f'{total_val:,.0f}' if isinstance(total_val, (int, float)) else str(total_val)
+                lines = []
+                if center_text:
+                    lines.append(center_text)
+                lines.append(total_str)
+                option.setdefault('graphic', []).append({
+                    'type': 'text',
+                    'left': 'center',
+                    'top': 'center',
+                    'style': {
+                        'text': '\n'.join(lines),
+                        'fontSize': 14,
+                        'fill': '#333',
+                        'textAlign': 'center',
+                        'textVerticalAlign': 'middle',
+                        'rich': {
+                            'label': {'fontSize': 12, 'fill': '#999', 'padding': [0, 0, 4, 0]},
+                            'total': {'fontSize': 20, 'fontWeight': 'bold', 'fill': '#333'},
+                        },
+                        'text': ('{label|' + center_text + '}\n{total|' + total_str + '}') if center_text else ('{total|' + total_str + '}'),
+                    },
+                })
+            elif center_mode == 'static' and center_static and donut_style in _center_styles:
+                option.setdefault('graphic', []).append({
+                    'type': 'text',
+                    'left': 'center',
+                    'top': 'center',
+                    'style': {
+                        'text': center_static,
+                        'fontSize': 16,
+                        'fontWeight': 'bold',
+                        'fill': '#333',
+                        'textAlign': 'center',
+                        'textVerticalAlign': 'middle',
+                    },
+                })
+            elif center_mode == 'none' and center_text and donut_style in _center_styles:
+                # Backward compat: old widgets with center_text but no center_mode
                 option.setdefault('graphic', []).append({
                     'type': 'text',
                     'left': 'center',

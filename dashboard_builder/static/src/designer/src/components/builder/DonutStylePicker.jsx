@@ -192,9 +192,22 @@ const LEGEND_POSITIONS = [
 ]
 
 const SORT_OPTIONS = [
-  { value: 'none', label: 'None (data order)' },
-  { value: 'desc', label: 'Descending' },
-  { value: 'asc', label: 'Ascending' },
+  { value: 'none', label: 'SQL Order (default)' },
+  { value: 'value_desc', label: 'Largest First' },
+  { value: 'value_asc', label: 'Smallest First' },
+]
+
+const LABEL_FORMATS = [
+  { value: 'name', label: 'Name only' },
+  { value: 'name_value', label: 'Name + Value' },
+  { value: 'name_percent', label: 'Name + Percentage' },
+  { value: 'name_value_percent', label: 'Name + Value + Percentage' },
+]
+
+const CENTER_MODES = [
+  { value: 'none', label: 'None' },
+  { value: 'auto_total', label: 'Auto Total (computed from slices)' },
+  { value: 'static', label: 'Static Text' },
 ]
 
 const ROSE_TYPES = [
@@ -314,16 +327,46 @@ export default function DonutStylePicker({
           )}
 
           {showCenterText && (
-            <div className="wb-field-row">
-              <label className="wb-field-label">Center Static Text</label>
-              <input
-                type="text"
-                className="wb-input wb-input--sm"
-                placeholder="e.g. Total"
-                value={cfgVal(visualConfig, 'center_text', '')}
-                onChange={e => handleCfg('center_text', e.target.value)}
-              />
-            </div>
+            <>
+              <div className="wb-field-row">
+                <label className="wb-field-label">Center Display</label>
+                <select
+                  className="wb-select"
+                  value={cfgVal(visualConfig, 'center_mode', 'none')}
+                  onChange={e => handleCfg('center_mode', e.target.value)}
+                >
+                  {CENTER_MODES.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {cfgVal(visualConfig, 'center_mode', 'none') === 'auto_total' && (
+                <div className="wb-field-row">
+                  <label className="wb-field-label">Center Label</label>
+                  <input
+                    type="text"
+                    className="wb-input wb-input--sm"
+                    placeholder='e.g. "Total" or "Admits"'
+                    value={cfgVal(visualConfig, 'center_text', '')}
+                    onChange={e => handleCfg('center_text', e.target.value)}
+                  />
+                </div>
+              )}
+
+              {cfgVal(visualConfig, 'center_mode', 'none') === 'static' && (
+                <div className="wb-field-row">
+                  <label className="wb-field-label">Center Static Text</label>
+                  <input
+                    type="text"
+                    className="wb-input wb-input--sm"
+                    placeholder='e.g. "Market Share" or "74%"'
+                    value={cfgVal(visualConfig, 'center_static_text', '')}
+                    onChange={e => handleCfg('center_static_text', e.target.value)}
+                  />
+                </div>
+              )}
+            </>
           )}
         </>
       )}
@@ -357,16 +400,20 @@ export default function DonutStylePicker({
         </div>
       )}
 
-      <div className="wb-toggle-group">
-        <label className="wb-toggle-label">
-          <input
-            type="checkbox"
-            checked={cfgVal(visualConfig, 'show_percentage', true)}
-            onChange={e => handleCfg('show_percentage', e.target.checked)}
-          />
-          Show Percentage
-        </label>
-      </div>
+      {cfgVal(visualConfig, 'show_labels', true) && (
+        <div className="wb-field-row">
+          <label className="wb-field-label">Label Format</label>
+          <select
+            className="wb-select"
+            value={cfgVal(visualConfig, 'label_format', 'name')}
+            onChange={e => handleCfg('label_format', e.target.value)}
+          >
+            {LABEL_FORMATS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="wb-field-row">
         <label className="wb-field-label">Legend Position</label>
@@ -385,8 +432,8 @@ export default function DonutStylePicker({
         <label className="wb-field-label">Sort Slices</label>
         <select
           className="wb-select"
-          value={cfgVal(visualConfig, 'sort_slices', 'none')}
-          onChange={e => handleCfg('sort_slices', e.target.value)}
+          value={cfgVal(visualConfig, 'sort', 'none')}
+          onChange={e => handleCfg('sort', e.target.value)}
         >
           {SORT_OPTIONS.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -401,10 +448,10 @@ export default function DonutStylePicker({
           className="wb-input wb-input--sm"
           min="0"
           placeholder="0 = no limit"
-          value={cfgVal(visualConfig, 'max_slices', '')}
+          value={cfgVal(visualConfig, 'limit', '')}
           onChange={e => {
             const v = e.target.value
-            handleCfg('max_slices', v === '' ? null : Number(v))
+            handleCfg('limit', v === '' ? null : Number(v))
           }}
         />
       </div>
