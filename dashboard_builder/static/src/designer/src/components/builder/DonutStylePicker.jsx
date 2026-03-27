@@ -246,8 +246,8 @@ export default function DonutStylePicker({
   }
 
   /* Which variant-specific fields to show */
-  const showRadii = ['standard', 'label_center', 'rounded', 'rose'].includes(style)
-  const showCenterText = ['standard', 'label_center', 'rounded'].includes(style)
+  const showRadii = ['standard', 'label_center', 'rounded', 'rose', 'multi_ring'].includes(style)
+  const showCenterText = ['standard', 'label_center', 'rounded', 'multi_ring'].includes(style)
   const showRoseType = style === 'rose'
   const showNested = style === 'nested'
 
