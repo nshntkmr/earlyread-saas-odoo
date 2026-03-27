@@ -403,8 +403,28 @@ class QueryBuilder:
             cr.execute("SAVEPOINT preview_exec")
             cr.execute("SET LOCAL statement_timeout = '10s'")
 
-            # Resolve [[optional clauses]] — same as filter_builder
             exec_sql = sql
+
+            # Resolve {where_clause} macro — build WHERE from preview filter
+            # params, or fall back to 1=1 (show all data) when no filters.
+            # This mirrors portal-side substitution in dashboard_widget.py.
+            if '{where_clause}' in exec_sql:
+                where_parts = []
+                for key, val in (params or {}).items():
+                    if key.startswith('_'):
+                        continue
+                    if val is None or val == '' or val == 'all':
+                        continue
+                    if isinstance(val, (list, tuple)):
+                        if not val or val == ('__all__',):
+                            continue
+                        where_parts.append(f"{key} IN %({key})s")
+                    else:
+                        where_parts.append(f"{key} = %({key})s")
+                where_sql = ' AND '.join(where_parts) if where_parts else '1=1'
+                exec_sql = exec_sql.replace('{where_clause}', where_sql)
+
+            # Resolve [[optional clauses]] — same as filter_builder
             if '[[' in exec_sql:
                 from odoo.addons.posterra_portal.utils.filter_builder import resolve_optional_clauses
                 exec_sql = resolve_optional_clauses(exec_sql, params)
