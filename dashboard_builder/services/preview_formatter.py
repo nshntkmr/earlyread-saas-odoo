@@ -372,16 +372,9 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             option['series'] = [series_cfg]
 
         elif donut_style == 'semi':
-            # donut_semi — half donut (180°), transparent filler
-            visible_total = sum((d['value'] or 0) for d in pie_data)
-            semi_data = list(pie_data) + [{
-                'name': '',
-                'value': visible_total,
-                'itemStyle': {'color': 'transparent'},
-                'label': {'show': False},
-                'labelLine': {'show': False},
-                'emphasis': {'disabled': True},
-            }]
+            # donut_semi — half donut (180°)
+            # endAngle:360 with startAngle:180 restricts to top semicircle.
+            # No filler item needed — ECharts fills the 180° arc with real data.
             label_cfg = _pie_label_cfg()
             if show_labels and label_position == 'outside':
                 label_cfg['position'] = 'inside'
@@ -391,7 +384,7 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                 'center': ['50%', '70%'],
                 'startAngle': 180,
                 'endAngle': 360,
-                'data': semi_data,
+                'data': pie_data,
                 'label': label_cfg,
                 'labelLine': {'show': False},
                 'emphasis': {'focus': 'self', 'blurScope': 'series',
