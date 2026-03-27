@@ -186,11 +186,18 @@ _PIE_DONUT_COMMON = [
         'show_when': {'show_labels': True},
     },
     {
-        'flag': 'show_percent',
-        'type': 'boolean',
-        'default': False,
-        'label': 'Show Percentage',
-        'help': 'Include percentage value in labels and tooltips (e.g. "42.9%").',
+        'flag': 'label_format',
+        'type': 'select',
+        'default': 'name',
+        'label': 'Label Format',
+        'help': 'What information to display in slice labels.',
+        'options': [
+            {'value': 'name', 'label': 'Name only'},
+            {'value': 'name_value', 'label': 'Name + Value'},
+            {'value': 'name_percent', 'label': 'Name + Percentage'},
+            {'value': 'name_value_percent', 'label': 'Name + Value + Percentage'},
+        ],
+        'show_when': {'show_labels': True},
     },
     {
         'flag': 'legend_position',
@@ -284,13 +291,35 @@ DONUT_FLAGS = [
         'show_when': {'donut_style': ['standard', 'label_center', 'rounded', 'rose']},
     },
     {
+        'flag': 'center_mode',
+        'type': 'select',
+        'default': 'none',
+        'label': 'Center Display',
+        'help': 'What to show in the center hole. '
+                '"Auto Total" computes the sum of all slices dynamically. '
+                '"Static Text" shows free-form text you type.',
+        'options': [
+            {'value': 'none', 'label': 'None'},
+            {'value': 'auto_total', 'label': 'Auto Total (computed from slices)'},
+            {'value': 'static', 'label': 'Static Text'},
+        ],
+        'show_when': {'donut_style': ['standard', 'label_center', 'rounded', 'rose']},
+    },
+    {
         'flag': 'center_text',
         'type': 'text',
         'default': '',
+        'label': 'Center Label',
+        'help': 'Label shown above the computed total (e.g. "Total", "Admits", "Episodes").',
+        'show_when': {'center_mode': 'auto_total'},
+    },
+    {
+        'flag': 'center_static_text',
+        'type': 'text',
+        'default': '',
         'label': 'Center Static Text',
-        'help': 'Optional text displayed in the donut hole (e.g. "Total" or "52,843"). '
-                'Overridden by hover label when style is Center Label.',
-        'show_when': {'donut_style': ['standard', 'label_center', 'rounded']},
+        'help': 'Free text shown in the center (e.g. "Market Share", "74%").',
+        'show_when': {'center_mode': 'static'},
     },
     *_PIE_DONUT_COMMON,
 ]
