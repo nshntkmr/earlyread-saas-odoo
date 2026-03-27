@@ -2,6 +2,28 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { designerFetch } from '../../api/client'
 import { previewUrl, pageFiltersUrl } from '../../api/endpoints'
 
+const SQL_COLUMN_HELP = {
+  bar:           { cols: 'category, value1 [, value2, ...]', example: 'SELECT state, SUM(admits) AS admits FROM mv_hha GROUP BY state' },
+  line:          { cols: 'x_value, y_value1 [, y_value2, ...]', example: 'SELECT year, total_visits, total_admits FROM mv_summary ORDER BY year' },
+  pie:           { cols: 'label, value', example: 'SELECT payer_type, COUNT(*) AS count FROM mv_claims GROUP BY payer_type' },
+  donut:         { cols: 'label, value', example: 'SELECT status, SUM(episodes) AS episodes FROM mv_discharge GROUP BY status' },
+  donut_nested:  { cols: 'parent, child, value', example: 'SELECT payer, sub_type, SUM(episodes) FROM mv_claims GROUP BY 1, 2' },
+  donut_multi_ring: { cols: 'ring_group, label, value', example: 'SELECT year, source_type, COUNT(*) FROM mv_admissions GROUP BY 1, 2' },
+  gauge:         { cols: 'value', example: 'SELECT AVG(star_rating) AS rating FROM mv_quality' },
+  radar:         { cols: 'indicator, score1 [, score2, ...]', example: 'SELECT metric_name, your_score, benchmark FROM mv_compare' },
+  scatter:       { cols: 'x_value, y_value', example: 'SELECT latitude, longitude FROM mv_locations' },
+  heatmap:       { cols: 'x_category, y_category, intensity', example: 'SELECT day_of_week, hour, visit_count FROM mv_traffic GROUP BY 1, 2' },
+  kpi:           { cols: 'value [, prior_value]', example: 'SELECT SUM(revenue) AS revenue FROM mv_financial' },
+  status_kpi:    { cols: 'value, status_text', example: 'SELECT total_patients, trend_label FROM mv_kpi' },
+  table:         { cols: 'col1, col2, col3, ...', example: 'SELECT patient_id, name, status, score FROM mv_patients' },
+}
+
+function getSqlHelpKey(chartType, donutStyle) {
+  if (chartType === 'donut' && donutStyle === 'nested') return 'donut_nested'
+  if (chartType === 'donut' && donutStyle === 'multi_ring') return 'donut_multi_ring'
+  return chartType
+}
+
 /**
  * Step 2 (Custom SQL mode): Write raw SQL with test query.
  *
@@ -14,10 +36,13 @@ import { previewUrl, pageFiltersUrl } from '../../api/endpoints'
  * Props:
  *   sql, xColumn, yColumns, seriesColumn, testResult, testParams, onUpdate, apiBase
  *   appContext  — { app, page, tab } | null — from AppContextBar
+ *   chartType  — string — current chart type for SQL column help
+ *   donutStyle — string — optional donut variant (standard, nested, multi_ring)
  */
 export default function CustomSqlEditor({
   sql, xColumn, yColumns, seriesColumn, testResult,
   testParams = {}, onUpdate, apiBase, appContext = null,
+  chartType, donutStyle,
 }) {
   const [testing, setTesting] = useState(false)
   const [pageParams, setPageParams] = useState([])
@@ -85,6 +110,21 @@ export default function CustomSqlEditor({
   return (
     <div>
       <h3 className="wb-step-title">Custom SQL Query</h3>
+
+      {/* SQL column help */}
+      {chartType && SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle)] && (
+        <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontSize: 13 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            Expected columns for {chartType}{donutStyle && donutStyle !== 'standard' ? ` (${donutStyle})` : ''}:
+          </div>
+          <code style={{ background: '#e0f2fe', padding: '2px 6px', borderRadius: 3 }}>
+            {SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle)].cols}
+          </code>
+          <div style={{ color: '#6b7280', marginTop: 4, fontSize: 12 }}>
+            Example: <code>{SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle)].example}</code>
+          </div>
+        </div>
+      )}
 
       {/* SQL textarea */}
       <div className="wb-field-group">

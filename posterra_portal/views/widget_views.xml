@@ -129,7 +129,7 @@
                                        placeholder="e.g. cnt  (comma-separated for multi-series)"/>
                                 <field name="series_column"
                                        placeholder="e.g. payer_type  (optional split into series)"
-                                       invisible="chart_type not in ('bar','line','radar')"/>
+                                       invisible="chart_type not in ('bar','line','radar','donut')"/>
                             </group>
 
                             <!-- ORM sub-section -->

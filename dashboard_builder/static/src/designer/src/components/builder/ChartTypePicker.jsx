@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import DonutStylePicker from './DonutStylePicker'
 
 const CHART_TYPES = [
   { key: 'bar',           label: 'Bar',           icon: 'fa-bar-chart',       desc: 'Compare values across categories' },
@@ -26,6 +27,7 @@ function shouldShow(showWhen, flagValues) {
   return Object.entries(showWhen).every(([key, expected]) => {
     const actual = flagValues[key]
     if (expected === '__not_null__') return actual != null && actual !== '' && actual !== 0
+    if (Array.isArray(expected)) return expected.includes(actual)
     return actual === expected
   })
 }
@@ -100,6 +102,18 @@ export default function ChartTypePicker({
           </button>
         ))}
       </div>
+
+      {/* Donut style sub-picker */}
+      {selected === 'donut' && (
+        <div style={{ marginTop: 16 }}>
+          <DonutStylePicker
+            selectedStyle={visualFlags.donut_style || 'standard'}
+            onStyleChange={style => onFlagChange && onFlagChange('donut_style', style)}
+            visualConfig={visualFlags}
+            onVisualConfigChange={(key, value) => onFlagChange && onFlagChange(key, value)}
+          />
+        </div>
+      )}
 
       {/* Dynamic chart-specific options from flag schema */}
       {flagSchema.length > 0 && (

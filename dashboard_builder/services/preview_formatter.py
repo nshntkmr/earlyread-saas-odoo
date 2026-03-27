@@ -227,16 +227,286 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             ]
 
     elif chart_type in ('pie', 'donut'):
+        # ── Read visual_config flags (backward-compatible) ─────────
+        donut_style    = vc.get('donut_style', 'standard') if chart_type == 'donut' else 'pie'
+        show_labels    = vc.get('show_labels', True)
+        label_position = vc.get('label_position', 'outside')
+        show_percent   = vc.get('show_percent', False)
+        legend_pos     = vc.get('legend_position', 'left')
+        sort_mode      = vc.get('sort', 'none')
+        vc_limit       = int(vc.get('limit', 0) or 0)
+        inner_radius   = vc.get('inner_radius', '40%') if chart_type == 'donut' else '0%'
+        outer_radius   = vc.get('outer_radius', '70%')
+        rose_type_val  = vc.get('rose_type', 'area')
+        center_text    = vc.get('center_text', '')
+
+        # ── Build pie data ─────────────────────────────────────────
         pie_data = [
             {'name': str(col_val(r, x_col) or ''),
              'value': col_val(r, y_col_list[0]) if y_col_list else 0}
             for r in rows
         ]
-        radius = ['40%', '70%'] if chart_type == 'donut' else '70%'
-        option['tooltip'] = {'trigger': 'item'}
-        option['legend'] = {'orient': 'vertical', 'left': 'left'}
-        option['series'] = [{'type': 'pie', 'radius': radius, 'data': pie_data,
-                              'emphasis': {'itemStyle': {'shadowBlur': 10}}}]
+
+        # ── Sort ───────────────────────────────────────────────────
+        if sort_mode == 'value_desc':
+            pie_data.sort(key=lambda d: (d['value'] or 0), reverse=True)
+        elif sort_mode == 'value_asc':
+            pie_data.sort(key=lambda d: (d['value'] or 0))
+
+        # ── Limit (group remainder as "Other") ─────────────────────
+        if vc_limit > 0 and len(pie_data) > vc_limit:
+            shown = pie_data[:vc_limit]
+            rest_val = sum((d['value'] or 0) for d in pie_data[vc_limit:])
+            if rest_val:
+                shown.append({'name': 'Other', 'value': rest_val})
+            pie_data = shown
+
+        # ── Helper: build label config ─────────────────────────────
+        def _pie_label_cfg():
+            if not show_labels:
+                return {'show': False}
+            cfg = {'show': True, 'position': label_position}
+            if show_percent:
+                cfg['formatter'] = '{b}: {d}%'
+            return cfg
+
+        # ── Helper: build legend config ────────────────────────────
+        def _pie_legend_cfg():
+            if legend_pos == 'none':
+                return {'show': False}
+            orient = 'vertical' if legend_pos in ('left', 'right') else 'horizontal'
+            return {'orient': orient, legend_pos: legend_pos}
+
+        # ── Tooltip ────────────────────────────────────────────────
+        tooltip_fmt = '{b}: {c} ({d}%)' if show_percent else '{b}: {c}'
+        option['tooltip'] = {'trigger': 'item', 'formatter': tooltip_fmt}
+
+        # ── Build series based on donut_style ──────────────────────
+
+        if donut_style == 'pie':
+            # pie_standard — solid circle, no hole
+            option['series'] = [{
+                'type': 'pie',
+                'radius': outer_radius,
+                'data': pie_data,
+                'label': _pie_label_cfg(),
+                'labelLine': {'show': show_labels and label_position == 'outside'},
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }]
+
+        elif donut_style == 'standard':
+            # donut_standard — basic ring
+            series_cfg = {
+                'type': 'pie',
+                'radius': [inner_radius, outer_radius],
+                'data': pie_data,
+                'label': _pie_label_cfg(),
+                'labelLine': {'show': show_labels and label_position == 'outside'},
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }
+            option['series'] = [series_cfg]
+
+        elif donut_style == 'label_center':
+            # donut_label_center — hover shows name+value in center hole
+            series_cfg = {
+                'type': 'pie',
+                'radius': [inner_radius, outer_radius],
+                'avoidLabelOverlap': False,
+                'data': pie_data,
+                'label': {'show': False},
+                'labelLine': {'show': False},
+                'emphasis': {
+                    'label': {
+                        'show': True,
+                        'fontSize': 18,
+                        'fontWeight': 'bold',
+                        'position': 'center',
+                    },
+                    'focus': 'self',
+                    'blurScope': 'series',
+                    'itemStyle': {'shadowBlur': 10},
+                },
+            }
+            option['series'] = [series_cfg]
+
+        elif donut_style == 'rounded':
+            # donut_rounded — rounded corners with white gaps
+            series_cfg = {
+                'type': 'pie',
+                'radius': [inner_radius, outer_radius],
+                'data': pie_data,
+                'label': _pie_label_cfg(),
+                'labelLine': {'show': show_labels and label_position == 'outside'},
+                'itemStyle': {
+                    'borderRadius': 10,
+                    'borderColor': '#fff',
+                    'borderWidth': 2,
+                },
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }
+            option['series'] = [series_cfg]
+
+        elif donut_style == 'semi':
+            # donut_semi — half donut (180°), transparent filler
+            visible_total = sum((d['value'] or 0) for d in pie_data)
+            semi_data = list(pie_data) + [{
+                'name': '',
+                'value': visible_total,
+                'itemStyle': {'color': 'transparent'},
+                'label': {'show': False},
+                'labelLine': {'show': False},
+                'emphasis': {'disabled': True},
+            }]
+            label_cfg = _pie_label_cfg()
+            if show_labels and label_position == 'outside':
+                label_cfg['position'] = 'inside'
+            series_cfg = {
+                'type': 'pie',
+                'radius': ['50%', '70%'],
+                'center': ['50%', '70%'],
+                'startAngle': 180,
+                'endAngle': 360,
+                'data': semi_data,
+                'label': label_cfg,
+                'labelLine': {'show': False},
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }
+            option['series'] = [series_cfg]
+
+        elif donut_style == 'rose':
+            # donut_rose — nightingale / rose chart
+            series_cfg = {
+                'type': 'pie',
+                'radius': [inner_radius, outer_radius],
+                'roseType': rose_type_val,
+                'data': pie_data,
+                'label': _pie_label_cfg(),
+                'labelLine': {'show': show_labels and label_position == 'outside'},
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }
+            option['series'] = [series_cfg]
+
+        elif donut_style == 'nested' and series_col:
+            # donut_nested — 2 concentric rings (parent=x_col, child=series_column)
+            from collections import OrderedDict
+            parent_totals = OrderedDict()
+            child_items = []
+            for r in rows:
+                parent = str(col_val(r, x_col) or '')
+                child = str(col_val(r, series_col) or '')
+                value = col_val(r, y_col_list[0]) if y_col_list else 0
+                parent_totals[parent] = parent_totals.get(parent, 0) + (value or 0)
+                child_items.append({
+                    'name': f'{parent} \u2192 {child}' if child else parent,
+                    'value': value,
+                })
+
+            inner_data = [{'name': k, 'value': v} for k, v in parent_totals.items()]
+
+            # Apply sort/limit to inner ring
+            if sort_mode == 'value_desc':
+                inner_data.sort(key=lambda d: (d['value'] or 0), reverse=True)
+            elif sort_mode == 'value_asc':
+                inner_data.sort(key=lambda d: (d['value'] or 0))
+
+            inner_series = {
+                'type': 'pie',
+                'radius': ['0%', '30%'],
+                'data': inner_data,
+                'label': {'show': show_labels, 'position': 'inner', 'fontSize': 11},
+                'labelLine': {'show': False},
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }
+            outer_series = {
+                'type': 'pie',
+                'radius': ['40%', '65%'],
+                'data': child_items,
+                'label': _pie_label_cfg(),
+                'labelLine': {'show': show_labels and label_position == 'outside'},
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }
+            option['series'] = [inner_series, outer_series]
+
+        elif donut_style == 'multi_ring' and series_col:
+            # donut_multi_ring — side-by-side rings grouped by series_column
+            from collections import OrderedDict
+            groups = OrderedDict()
+            for r in rows:
+                grp = str(col_val(r, series_col) or '')
+                label = str(col_val(r, x_col) or '')
+                value = col_val(r, y_col_list[0]) if y_col_list else 0
+                groups.setdefault(grp, []).append({'name': label, 'value': value})
+
+            group_keys = list(groups.keys())
+            n = len(group_keys) or 1
+            series_list = []
+            for i, grp in enumerate(group_keys):
+                center_x = f'{int((100 / (n + 1)) * (i + 1))}%'
+                ring_data = groups[grp]
+                # Apply sort/limit per ring
+                if sort_mode == 'value_desc':
+                    ring_data.sort(key=lambda d: (d['value'] or 0), reverse=True)
+                elif sort_mode == 'value_asc':
+                    ring_data.sort(key=lambda d: (d['value'] or 0))
+                if vc_limit > 0 and len(ring_data) > vc_limit:
+                    shown_r = ring_data[:vc_limit]
+                    rest_r = sum((d['value'] or 0) for d in ring_data[vc_limit:])
+                    if rest_r:
+                        shown_r.append({'name': 'Other', 'value': rest_r})
+                    ring_data = shown_r
+
+                series_list.append({
+                    'type': 'pie',
+                    'radius': [inner_radius, outer_radius],
+                    'center': [center_x, '50%'],
+                    'data': ring_data,
+                    'name': str(grp),
+                    'label': _pie_label_cfg(),
+                    'labelLine': {'show': show_labels and label_position == 'outside'},
+                    'emphasis': {'focus': 'self', 'blurScope': 'series',
+                                 'itemStyle': {'shadowBlur': 10}},
+                })
+            option['series'] = series_list
+
+        else:
+            # Fallback for nested/multi_ring without series_column, or unknown style
+            # Render as standard donut
+            radius = [inner_radius, outer_radius] if chart_type == 'donut' else outer_radius
+            option['series'] = [{
+                'type': 'pie',
+                'radius': radius,
+                'data': pie_data,
+                'label': _pie_label_cfg(),
+                'labelLine': {'show': show_labels and label_position == 'outside'},
+                'emphasis': {'focus': 'self', 'blurScope': 'series',
+                             'itemStyle': {'shadowBlur': 10}},
+            }]
+
+        # ── Legend ─────────────────────────────────────────────────
+        option['legend'] = _pie_legend_cfg()
+
+        # ── Center text (graphic element) ──────────────────────────
+        if center_text and donut_style not in ('semi', 'nested', 'multi_ring'):
+            option.setdefault('graphic', []).append({
+                'type': 'text',
+                'left': 'center',
+                'top': 'center',
+                'style': {
+                    'text': center_text,
+                    'fontSize': 16,
+                    'fontWeight': 'bold',
+                    'fill': '#333',
+                    'textAlign': 'center',
+                    'textVerticalAlign': 'middle',
+                },
+            })
 
     elif chart_type == 'gauge':
         gauge_min = float(config.get('gauge_min', 0))
