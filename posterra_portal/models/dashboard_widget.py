@@ -840,8 +840,7 @@ class DashboardWidget(models.Model):
                     str(col_val(r, series_col) or 'Other') for r in rows))
                 option['series'] = [
                     {'name': sv, 'type': ct,
-                     'data': [data_map.get((sv, xv), 0) for xv in unique_x],
-                     **(({'areaStyle': {}} if ct == 'line' else {}))}
+                     'data': [data_map.get((sv, xv), 0) for xv in unique_x]}
                     for sv in series_names
                 ]
             else:
@@ -992,6 +991,11 @@ class DashboardWidget(models.Model):
                               'label': {'formatter': target_label or str(target_line)}}],
                     'lineStyle': {'type': 'dashed', 'color': '#ef4444'},
                 })
+
+            # ── Line variant flags ────────────────────────────────────
+            if ct == 'line':
+                self._apply_line_variant_flags(option, vc, cols, rows,
+                                               x_col, y_col_list, series_col)
 
         elif ct in ('pie', 'donut'):
             # ── Read visual_config flags (backward-compatible) ─────────
@@ -1578,6 +1582,223 @@ class DashboardWidget(models.Model):
         return option
 
     # =========================================================================
+    # Line variant builder
+    # =========================================================================
+
+    def _apply_line_variant_flags(self, option, vc, cols, rows,
+                                  x_col, y_col_list, series_col):
+        """Apply line_style variant + universal line flags to the ECharts option.
+
+        Called within _build_echart_option after the shared bar/line data
+        extraction and shared post-processing (sort, limit, labels).
+        Mutates ``option`` in-place.
+        """
+        line_style = vc.get('line_style', 'basic')
+        colors = self._get_palette_colors() or []
+
+        # ── Universal line appearance flags ──────────────────────
+        smooth      = vc.get('smooth', False)
+        show_points = vc.get('show_points', True)
+        point_size  = int(vc.get('point_size', 4) or 4)
+        line_width  = int(vc.get('line_width', 2) or 2)
+        step_type   = vc.get('step_type', 'none')
+        legend_pos  = vc.get('legend_position', 'top')
+
+        col_idx = {c: i for i, c in enumerate(cols)}
+
+        def col_val(row, name):
+            idx = col_idx.get(name)
+            return row[idx] if idx is not None else None
+
+        # ── Variant-specific transforms ──────────────────────────
+
+        if line_style in ('basic', 'area', 'stacked_line', 'stacked_area'):
+            # Stack
+            if line_style in ('stacked_line', 'stacked_area'):
+                for s in option.get('series', []):
+                    s['stack'] = 'total'
+                    s['emphasis'] = {'focus': 'series'}
+
+            # Area fill
+            if line_style in ('area', 'stacked_area'):
+                area_opacity = float(vc.get('area_opacity', 0.3) or 0.3)
+                use_gradient = vc.get('area_gradient', False)
+                for idx_s, s in enumerate(option.get('series', [])):
+                    if use_gradient:
+                        c = colors[idx_s % len(colors)] if colors else '#5470c6'
+                        s['areaStyle'] = {
+                            'opacity': area_opacity,
+                            'color': {
+                                'type': 'linear', 'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
+                                'colorStops': [
+                                    {'offset': 0, 'color': c},
+                                    {'offset': 1, 'color': 'rgba(255,255,255,0)'},
+                                ],
+                            },
+                        }
+                    else:
+                        s['areaStyle'] = {'opacity': area_opacity}
+
+            # Step function
+            if step_type and step_type != 'none':
+                for s in option.get('series', []):
+                    s['step'] = step_type
+
+        elif line_style == 'waterfall':
+            self._build_waterfall_series(option, vc, colors, col_idx,
+                                         col_val, rows, x_col, y_col_list)
+
+        elif line_style == 'combo':
+            self._build_combo_series(option, vc, y_col_list)
+
+        elif line_style == 'benchmark':
+            self._build_benchmark_series(option, vc, y_col_list)
+
+        # ── Apply universal appearance to all line-type series ───
+        for s in option.get('series', []):
+            if s.get('type') != 'line':
+                continue
+            if smooth:
+                s['smooth'] = True
+            s['symbol'] = 'circle' if show_points else 'none'
+            s['symbolSize'] = point_size
+            s.setdefault('lineStyle', {})['width'] = line_width
+
+        # ── Legend position ──────────────────────────────────────
+        if legend_pos == 'none':
+            option['legend'] = {'show': False}
+        elif legend_pos in ('left', 'right', 'top', 'bottom'):
+            orient = 'vertical' if legend_pos in ('left', 'right') else 'horizontal'
+            option['legend'] = {'orient': orient, legend_pos: legend_pos}
+
+    def _build_waterfall_series(self, option, vc, colors, col_idx,
+                                col_val, rows, x_col, y_col_list):
+        """Replace series with waterfall (bridge) bar segments."""
+        pos_color = vc.get('wf_positive_color', '#91cc75')
+        neg_color = vc.get('wf_negative_color', '#ee6666')
+        total_color = vc.get('wf_total_color', '#5470c6')
+        show_connectors = vc.get('wf_show_connectors', True)
+
+        categories = []
+        deltas = []
+        for r in rows:
+            categories.append(str(col_val(r, x_col) or ''))
+            val = col_val(r, y_col_list[0]) if y_col_list else 0
+            deltas.append(float(val or 0))
+
+        # Compute base / positive / negative arrays
+        base_data = []
+        pos_data = []
+        neg_data = []
+        running = 0
+        for d in deltas:
+            if d >= 0:
+                base_data.append(running)
+                pos_data.append(d)
+                neg_data.append(0)
+            else:
+                base_data.append(running + d)
+                pos_data.append(0)
+                neg_data.append(abs(d))
+            running += d
+
+        option['xAxis'] = {'type': 'category', 'data': categories}
+        option['yAxis'] = {'type': 'value'}
+        option['tooltip'] = {'trigger': 'axis', 'axisPointer': {'type': 'shadow'}}
+
+        # Invisible base series
+        option['series'] = [
+            {
+                'name': '_base',
+                'type': 'bar',
+                'stack': 'waterfall',
+                'data': base_data,
+                'itemStyle': {'color': 'transparent',
+                              'borderColor': 'transparent'},
+                'emphasis': {'itemStyle': {'color': 'transparent'}},
+            },
+            {
+                'name': 'Increase',
+                'type': 'bar',
+                'stack': 'waterfall',
+                'data': pos_data,
+                'itemStyle': {'color': pos_color},
+                'label': {'show': True, 'position': 'top'},
+            },
+            {
+                'name': 'Decrease',
+                'type': 'bar',
+                'stack': 'waterfall',
+                'data': neg_data,
+                'itemStyle': {'color': neg_color},
+                'label': {'show': True, 'position': 'bottom'},
+            },
+        ]
+
+        # Connector line showing running total
+        if show_connectors:
+            connector_data = []
+            r_total = 0
+            for d in deltas:
+                r_total += d
+                connector_data.append(r_total)
+            option['series'].append({
+                'name': 'Total',
+                'type': 'line',
+                'data': connector_data,
+                'symbol': 'none',
+                'lineStyle': {'type': 'dashed', 'color': total_color,
+                              'width': 1.5},
+                'z': 10,
+            })
+
+        option['legend'] = {'data': ['Increase', 'Decrease', 'Total']}
+
+    def _build_combo_series(self, option, vc, y_col_list):
+        """Retype selected series from line to bar for combo charts."""
+        bar_cols_raw = (vc.get('combo_bar_columns') or '').strip()
+        bar_cols = set(c.strip() for c in bar_cols_raw.split(',') if c.strip())
+        dual_axis = vc.get('combo_secondary_axis', False)
+
+        for s in option.get('series', []):
+            if s.get('name', '') in bar_cols:
+                s['type'] = 'bar'
+            else:
+                s['type'] = 'line'
+                if dual_axis:
+                    s['yAxisIndex'] = 1
+
+        if dual_axis:
+            primary_axis = option.get('yAxis', {'type': 'value'})
+            if isinstance(primary_axis, dict):
+                option['yAxis'] = [
+                    primary_axis,
+                    {'type': 'value', 'splitLine': {'show': False}},
+                ]
+
+    def _build_benchmark_series(self, option, vc, y_col_list):
+        """Apply benchmark styling — static markLine or dashed column series."""
+        bm_mode = vc.get('benchmark_mode', 'static')
+        bm_label = vc.get('benchmark_label', 'Target')
+
+        if bm_mode == 'static':
+            bm_value = vc.get('benchmark_value')
+            if bm_value is not None and option.get('series'):
+                option['series'][0].setdefault('markLine', {
+                    'silent': True,
+                    'data': [{'yAxis': bm_value,
+                              'label': {'formatter': bm_label or str(bm_value)}}],
+                    'lineStyle': {'type': 'dashed', 'color': '#ef4444'},
+                })
+        elif bm_mode == 'column':
+            bm_col = (vc.get('benchmark_column') or '').strip()
+            if bm_col:
+                for s in option.get('series', []):
+                    if s.get('name') == bm_col:
+                        s['lineStyle'] = {'type': 'dashed', 'width': 2}
+                        s['symbol'] = 'none'
+                        s['name'] = bm_label or bm_col
+
     # Gauge option builder (shared by gauge and gauge_kpi)
     # =========================================================================
 
