@@ -666,13 +666,15 @@ function buildCreatePayload(state) {
   }
   for (const yc of (colState.y || [])) {
     if (yc.column) {
-      flatColumns.push({
+      const entry = {
         source_id: yc.source_id,
         column: yc.column,
         agg: yc.agg || 'sum',
         alias: yc.alias || yc.column,
         axis: 'y',
-      })
+      }
+      if (yc.weightColumn) entry.weight_column = yc.weightColumn
+      flatColumns.push(entry)
     }
   }
   const seriesCol = colState.series
