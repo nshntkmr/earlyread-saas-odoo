@@ -397,6 +397,275 @@ DONUT_FLAGS = [
 PIE_FLAGS = [*_PIE_DONUT_COMMON]
 
 
+# ── Line Chart Flags ─────────────────────────────────────────────────────────
+
+LINE_FLAGS = [
+    # ── Primary variant selector ─────────────────────────────────
+    {
+        'flag': 'line_style',
+        'type': 'select',
+        'default': 'basic',
+        'label': 'Line Style',
+        'help': 'Basic = straight lines. Area = filled under. '
+                'Stacked = cumulative. Waterfall = sequential deltas. '
+                'Combo = mixed bar+line. Benchmark = trend vs target.',
+        'options': [
+            {'value': 'basic',        'label': 'Basic Line'},
+            {'value': 'area',         'label': 'Area Chart'},
+            {'value': 'stacked_line', 'label': 'Stacked Line'},
+            {'value': 'stacked_area', 'label': 'Stacked Area'},
+            {'value': 'waterfall',    'label': 'Waterfall / Bridge'},
+            {'value': 'combo',        'label': 'Combo (Bar + Line)'},
+            {'value': 'benchmark',    'label': 'Trend + Benchmark'},
+        ],
+    },
+
+    # ── Universal line appearance ────────────────────────────────
+    {
+        'flag': 'smooth',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Smooth Curves',
+        'help': 'Use spline interpolation instead of straight segments.',
+        'show_when': {'line_style': ['basic', 'area', 'stacked_line', 'stacked_area', 'benchmark']},
+    },
+    {
+        'flag': 'show_points',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Data Points',
+        'help': 'Display circle markers at each data point.',
+        'show_when': {'line_style': ['basic', 'area', 'stacked_line', 'stacked_area', 'benchmark']},
+    },
+    {
+        'flag': 'point_size',
+        'type': 'number',
+        'default': 4,
+        'label': 'Point Size (px)',
+        'show_when': {'show_points': True},
+    },
+    {
+        'flag': 'line_width',
+        'type': 'number',
+        'default': 2,
+        'label': 'Line Width (px)',
+        'show_when': {'line_style': ['basic', 'area', 'stacked_line', 'stacked_area', 'benchmark']},
+    },
+    {
+        'flag': 'step_type',
+        'type': 'select',
+        'default': 'none',
+        'label': 'Step Function',
+        'help': 'Render as step function instead of diagonal lines.',
+        'options': [
+            {'value': 'none',   'label': 'None (diagonal)'},
+            {'value': 'start',  'label': 'Step Start'},
+            {'value': 'middle', 'label': 'Step Middle'},
+            {'value': 'end',    'label': 'Step End'},
+        ],
+        'show_when': {'line_style': ['basic', 'area', 'stacked_line', 'stacked_area']},
+    },
+
+    # ── Area-specific ────────────────────────────────────────────
+    {
+        'flag': 'area_opacity',
+        'type': 'number',
+        'default': 0.3,
+        'label': 'Area Opacity (0–1)',
+        'help': 'Opacity of the filled area under the line. 0 = transparent, 1 = solid.',
+        'show_when': {'line_style': ['area', 'stacked_area']},
+    },
+    {
+        'flag': 'area_gradient',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Gradient Fill',
+        'help': 'Vertical gradient from series color at top to transparent at bottom.',
+        'show_when': {'line_style': ['area', 'stacked_area']},
+    },
+
+    # ── Waterfall-specific ───────────────────────────────────────
+    {
+        'flag': 'wf_positive_color',
+        'type': 'text',
+        'default': '#91cc75',
+        'label': 'Positive Color',
+        'help': 'Color for bars representing increases.',
+        'show_when': {'line_style': 'waterfall'},
+    },
+    {
+        'flag': 'wf_negative_color',
+        'type': 'text',
+        'default': '#ee6666',
+        'label': 'Negative Color',
+        'help': 'Color for bars representing decreases.',
+        'show_when': {'line_style': 'waterfall'},
+    },
+    {
+        'flag': 'wf_total_color',
+        'type': 'text',
+        'default': '#5470c6',
+        'label': 'Total Bar Color',
+        'help': 'Color for the starting/ending total bars.',
+        'show_when': {'line_style': 'waterfall'},
+    },
+    {
+        'flag': 'wf_show_connectors',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Connector Lines',
+        'help': 'Dashed lines connecting bar tops to show running total.',
+        'show_when': {'line_style': 'waterfall'},
+    },
+
+    # ── Combo-specific ───────────────────────────────────────────
+    {
+        'flag': 'combo_bar_columns',
+        'type': 'text',
+        'default': '',
+        'label': 'Bar Columns (comma-separated)',
+        'help': 'Which y_columns to render as bars. Remaining columns render as lines.',
+        'show_when': {'line_style': 'combo'},
+    },
+    {
+        'flag': 'combo_secondary_axis',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Dual Y-Axis',
+        'help': 'Lines use a second Y-axis on the right. Useful when bar and line scales differ.',
+        'show_when': {'line_style': 'combo'},
+    },
+
+    # ── Benchmark-specific ───────────────────────────────────────
+    {
+        'flag': 'benchmark_mode',
+        'type': 'select',
+        'default': 'static',
+        'label': 'Benchmark Source',
+        'help': 'Static = horizontal line at a fixed value. Column = render a query column as dashed line.',
+        'options': [
+            {'value': 'static', 'label': 'Static Value'},
+            {'value': 'column', 'label': 'Column from Query'},
+        ],
+        'show_when': {'line_style': 'benchmark'},
+    },
+    {
+        'flag': 'benchmark_value',
+        'type': 'number',
+        'default': None,
+        'label': 'Benchmark Value',
+        'help': 'The fixed target/reference value for the horizontal benchmark line.',
+        'show_when': {'benchmark_mode': 'static', 'line_style': 'benchmark'},
+    },
+    {
+        'flag': 'benchmark_label',
+        'type': 'text',
+        'default': 'Target',
+        'label': 'Benchmark Label',
+        'help': 'Label shown next to the benchmark line.',
+        'show_when': {'line_style': 'benchmark'},
+    },
+    {
+        'flag': 'benchmark_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Benchmark Column Name',
+        'help': 'Name of the y_column that is the benchmark (rendered as dashed line).',
+        'show_when': {'benchmark_mode': 'column', 'line_style': 'benchmark'},
+    },
+
+    # ── Common controls ──────────────────────────────────────────
+    {
+        'flag': 'show_labels',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Show Value Labels',
+        'help': 'Display numeric value at each data point.',
+    },
+    {
+        'flag': 'label_position',
+        'type': 'select',
+        'default': 'top',
+        'label': 'Label Position',
+        'options': [
+            {'value': 'top', 'label': 'Top'},
+            {'value': 'inside', 'label': 'Inside'},
+        ],
+        'show_when': {'show_labels': True},
+    },
+    {
+        'flag': 'number_format',
+        'type': 'select',
+        'default': 'auto',
+        'label': 'Number Format',
+        'help': 'How values are formatted on labels and tooltips.',
+        'options': [
+            {'value': 'auto',    'label': 'Auto'},
+            {'value': 'comma',   'label': 'Comma (1,234)'},
+            {'value': 'compact', 'label': 'Compact (1.2K)'},
+            {'value': 'percent', 'label': 'Percent (42.9%)'},
+        ],
+    },
+    {
+        'flag': 'show_axis_labels',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Axis Labels',
+        'help': 'Show category names and value ticks on the axes.',
+    },
+    {
+        'flag': 'legend_position',
+        'type': 'select',
+        'default': 'top',
+        'label': 'Legend Position',
+        'options': [
+            {'value': 'top',    'label': 'Top (horizontal)'},
+            {'value': 'bottom', 'label': 'Bottom (horizontal)'},
+            {'value': 'left',   'label': 'Left (vertical)'},
+            {'value': 'right',  'label': 'Right (vertical)'},
+            {'value': 'none',   'label': 'Hidden'},
+        ],
+    },
+    {
+        'flag': 'target_line',
+        'type': 'number',
+        'default': None,
+        'label': 'Reference Line Value',
+        'help': 'Draws a dashed horizontal line at this value for benchmarking.',
+        'show_when': {'line_style': ['basic', 'area', 'stacked_line', 'stacked_area']},
+    },
+    {
+        'flag': 'target_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Reference Line Label',
+        'help': 'Label shown next to the reference line (e.g. "Q4 Target").',
+        'show_when': {'target_line': '__not_null__'},
+    },
+    {
+        'flag': 'sort',
+        'type': 'select',
+        'default': 'none',
+        'label': 'Sort Categories',
+        'help': 'Reorder data points by value or alphabetically.',
+        'options': [
+            {'value': 'none',       'label': 'SQL Order (default)'},
+            {'value': 'value_desc', 'label': 'Highest First'},
+            {'value': 'value_asc',  'label': 'Lowest First'},
+            {'value': 'alpha_asc',  'label': 'A → Z'},
+            {'value': 'alpha_desc', 'label': 'Z → A'},
+        ],
+    },
+    {
+        'flag': 'limit',
+        'type': 'number',
+        'default': 0,
+        'label': 'Max Data Points',
+        'help': 'Limit how many data points to show. 0 = show all. Applied after sort.',
+    },
+]
+
+
 # ── Registry ─────────────────────────────────────────────────────────────────
 # Add new chart families here as they are implemented.
 
@@ -404,7 +673,7 @@ CHART_FLAGS = {
     'bar': BAR_FLAGS,
     'pie': PIE_FLAGS,
     'donut': DONUT_FLAGS,
-    # 'line': LINE_FLAGS,     # future
+    'line': LINE_FLAGS,
     # 'gauge': GAUGE_FLAGS,   # future
     # 'radar': RADAR_FLAGS,   # future
 }

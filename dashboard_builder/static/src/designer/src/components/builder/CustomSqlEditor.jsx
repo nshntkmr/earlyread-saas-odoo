@@ -5,6 +5,9 @@ import { previewUrl, pageFiltersUrl } from '../../api/endpoints'
 const SQL_COLUMN_HELP = {
   bar:           { cols: 'category, value1 [, value2, ...]', example: 'SELECT state, SUM(admits) AS admits FROM mv_hha GROUP BY state' },
   line:          { cols: 'x_value, y_value1 [, y_value2, ...]', example: 'SELECT year, total_visits, total_admits FROM mv_summary ORDER BY year' },
+  line_waterfall: { cols: 'step_name, delta_value', example: 'SELECT step_name, delta_amount FROM mv_waterfall ORDER BY step_order' },
+  line_combo:    { cols: 'x_value, bar_col, line_col [, ...]', example: 'SELECT month, revenue, cost, margin_pct FROM mv_financial ORDER BY month' },
+  line_benchmark: { cols: 'x_value, actual, target', example: 'SELECT month, actual_admits, target_admits FROM mv_monthly ORDER BY month' },
   pie:           { cols: 'label, value', example: 'SELECT payer_type, COUNT(*) AS count FROM mv_claims GROUP BY payer_type' },
   donut:         { cols: 'label, value', example: 'SELECT status, SUM(episodes) AS episodes FROM mv_discharge GROUP BY status' },
   donut_nested:  { cols: 'parent, child, value', example: 'SELECT payer, sub_type, SUM(episodes) FROM mv_claims GROUP BY 1, 2' },
@@ -18,9 +21,12 @@ const SQL_COLUMN_HELP = {
   table:         { cols: 'col1, col2, col3, ...', example: 'SELECT patient_id, name, status, score FROM mv_patients' },
 }
 
-function getSqlHelpKey(chartType, donutStyle) {
+function getSqlHelpKey(chartType, donutStyle, lineStyle) {
   if (chartType === 'donut' && donutStyle === 'nested') return 'donut_nested'
   if (chartType === 'donut' && donutStyle === 'multi_ring') return 'donut_multi_ring'
+  if (chartType === 'line' && lineStyle && ['waterfall', 'combo', 'benchmark'].includes(lineStyle)) {
+    return `line_${lineStyle}`
+  }
   return chartType
 }
 
@@ -38,11 +44,12 @@ function getSqlHelpKey(chartType, donutStyle) {
  *   appContext  — { app, page, tab } | null — from AppContextBar
  *   chartType  — string — current chart type for SQL column help
  *   donutStyle — string — optional donut variant (standard, nested, multi_ring)
+ *   lineStyle  — string — optional line variant (basic, area, waterfall, combo, benchmark)
  */
 export default function CustomSqlEditor({
   sql, xColumn, yColumns, seriesColumn, testResult,
   testParams = {}, onUpdate, apiBase, appContext = null,
-  chartType, donutStyle,
+  chartType, donutStyle, lineStyle,
 }) {
   const [testing, setTesting] = useState(false)
   const [pageParams, setPageParams] = useState([])
@@ -112,16 +119,16 @@ export default function CustomSqlEditor({
       <h3 className="wb-step-title">Custom SQL Query</h3>
 
       {/* SQL column help */}
-      {chartType && SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle)] && (
+      {chartType && SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle)] && (
         <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontSize: 13 }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>
             Expected columns for {chartType}{donutStyle && donutStyle !== 'standard' ? ` (${donutStyle})` : ''}:
           </div>
           <code style={{ background: '#e0f2fe', padding: '2px 6px', borderRadius: 3 }}>
-            {SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle)].cols}
+            {SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle)].cols}
           </code>
           <div style={{ color: '#6b7280', marginTop: 4, fontSize: 12 }}>
-            Example: <code>{SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle)].example}</code>
+            Example: <code>{SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle)].example}</code>
           </div>
         </div>
       )}

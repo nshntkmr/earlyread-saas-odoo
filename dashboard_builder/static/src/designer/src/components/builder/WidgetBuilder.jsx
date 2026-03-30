@@ -431,6 +431,7 @@ export default function WidgetBuilder({
                   appContext={appContext}
                   chartType={state.chartType}
                   donutStyle={state.visualFlags?.donut_style || 'standard'}
+                  lineStyle={state.visualFlags?.line_style || 'basic'}
                 />
               )}
             </div>

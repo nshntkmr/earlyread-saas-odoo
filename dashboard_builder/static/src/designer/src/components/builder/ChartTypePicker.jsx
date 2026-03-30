@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import DonutStylePicker from './DonutStylePicker'
+import LineStylePicker from './LineStylePicker'
 
 const CHART_TYPES = [
   { key: 'bar',           label: 'Bar',           icon: 'fa-bar-chart',       desc: 'Compare values across categories' },
@@ -109,6 +110,18 @@ export default function ChartTypePicker({
           <DonutStylePicker
             selectedStyle={visualFlags.donut_style || 'standard'}
             onStyleChange={style => onFlagChange && onFlagChange('donut_style', style)}
+            visualConfig={visualFlags}
+            onVisualConfigChange={(key, value) => onFlagChange && onFlagChange(key, value)}
+          />
+        </div>
+      )}
+
+      {/* Line style sub-picker */}
+      {selected === 'line' && (
+        <div style={{ marginTop: 16 }}>
+          <LineStylePicker
+            selectedStyle={visualFlags.line_style || 'basic'}
+            onStyleChange={style => onFlagChange && onFlagChange('line_style', style)}
             visualConfig={visualFlags}
             onVisualConfigChange={(key, value) => onFlagChange && onFlagChange(key, value)}
           />
