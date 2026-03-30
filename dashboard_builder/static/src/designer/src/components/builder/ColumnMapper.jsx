@@ -1,6 +1,6 @@
 import React from 'react'
 
-const AGG_FUNCS = ['SUM', 'COUNT', 'AVG', 'MIN', 'MAX']
+const AGG_FUNCS = ['SUM', 'COUNT', 'AVG', 'MIN', 'MAX', 'WAVG']
 
 /**
  * Step 3 (Visual mode): Map X, Y, series columns with aggregation.
@@ -44,7 +44,7 @@ export default function ColumnMapper({
     onUpdate({
       columns: {
         ...columns,
-        y: [...(columns.y || []), { source_id: null, column: '', agg: 'sum', alias: '', displayName: '' }],
+        y: [...(columns.y || []), { source_id: null, column: '', agg: 'sum', alias: '', displayName: '', weightColumn: '' }],
       },
     })
   }
@@ -132,12 +132,28 @@ export default function ColumnMapper({
                     name={`agg-${idx}`}
                     value={fn.toLowerCase()}
                     checked={(yCol.agg || 'sum') === fn.toLowerCase()}
-                    onChange={() => updateY(idx, { agg: fn.toLowerCase() })}
+                    onChange={() => updateY(idx, { agg: fn.toLowerCase(), ...(fn.toLowerCase() !== 'wavg' ? { weightColumn: '' } : {}) })}
                   />
                   {fn}
                 </label>
               ))}
             </div>
+
+            {yCol.agg === 'wavg' && (
+              <select
+                className="wb-select wb-select--sm"
+                value={yCol.weightColumn || ''}
+                onChange={e => updateY(idx, { weightColumn: e.target.value })}
+                style={{ marginTop: 4 }}
+              >
+                <option value="">-- Weight column --</option>
+                {measures.filter(c => c.column_name !== yCol.column).map(c => (
+                  <option key={c.column_name} value={c.column_name}>
+                    {c.display_name} ({c.column_name})
+                  </option>
+                ))}
+              </select>
+            )}
 
             <input
               type="text"

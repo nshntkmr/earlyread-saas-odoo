@@ -26,7 +26,7 @@ _BLOCKED_KEYWORDS = re.compile(
 )
 
 # ── Allowed aggregation functions ────────────────────────────────────────────
-_VALID_AGGS = {'sum', 'count', 'avg', 'min', 'max'}
+_VALID_AGGS = {'sum', 'count', 'avg', 'min', 'max', 'wavg'}
 
 # ── Allowed filter operators ─────────────────────────────────────────────────
 _VALID_OPS = {'=', '!=', '>', '<', '>=', '<=', 'IN', 'NOT IN', 'LIKE', 'ILIKE'}
@@ -137,7 +137,17 @@ class QueryBuilder:
                     raise ValueError(
                         f"Invalid aggregation '{agg}'. "
                         f"Allowed: {', '.join(sorted(_VALID_AGGS))}")
-                select_parts.append(f'{agg_lower.upper()}({qualified}) AS {_safe_ident(alias)}')
+                if agg_lower == 'wavg':
+                    weight_col = col_cfg.get('weight_column')
+                    if not weight_col:
+                        raise ValueError(
+                            f"Weighted average for '{col_name}' requires a weight_column.")
+                    weight_qualified = f'{alias_map[sid]}.{_safe_ident(weight_col)}'
+                    expr = (f'ROUND((SUM({qualified} * {weight_qualified}) '
+                            f'/ NULLIF(SUM({weight_qualified}), 0))::numeric, 4)')
+                    select_parts.append(f'{expr} AS {_safe_ident(alias)}')
+                else:
+                    select_parts.append(f'{agg_lower.upper()}({qualified}) AS {_safe_ident(alias)}')
             else:
                 if alias != col_name:
                     select_parts.append(f'{qualified} AS {_safe_ident(alias)}')

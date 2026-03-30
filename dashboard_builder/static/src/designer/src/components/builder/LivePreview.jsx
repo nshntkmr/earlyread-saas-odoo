@@ -389,12 +389,14 @@ export function buildPreviewPayload(state, pageFilterValues) {
   // Y measure columns (with aggregation)
   for (const yc of (colState.y || [])) {
     if (yc.column) {
-      columns.push({
+      const colEntry = {
         source_id: yc.source_id,
         column: yc.column,
         agg: yc.agg || 'sum',
         alias: yc.alias || yc.column,
-      })
+      }
+      if (yc.weightColumn) colEntry.weight_column = yc.weightColumn
+      columns.push(colEntry)
     }
   }
 
