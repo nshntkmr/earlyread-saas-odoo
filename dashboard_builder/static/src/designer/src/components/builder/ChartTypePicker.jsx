@@ -129,7 +129,8 @@ export default function ChartTypePicker({
       )}
 
       {/* Dynamic chart-specific options from flag schema */}
-      {flagSchema.length > 0 && (
+      {/* Skip when a custom StylePicker already handles all flags (line, donut) */}
+      {flagSchema.length > 0 && selected !== 'line' && selected !== 'donut' && (
         <div className="wb-field-group" style={{ marginTop: 16 }}>
           <label className="wb-label">
             {CHART_TYPES.find(c => c.key === selected)?.label || 'Chart'} Options
