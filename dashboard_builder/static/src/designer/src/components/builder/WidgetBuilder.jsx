@@ -148,7 +148,10 @@ function reducer(state, action) {
       const bcColumns = bc.columns || []
       const restoredColumns = {
         x: bcColumns.find(c => c.axis === 'x') || null,
-        y: bcColumns.filter(c => c.axis === 'y') || [],
+        y: bcColumns.filter(c => c.axis === 'y').map(c => ({
+          ...c,
+          weightColumn: c.weight_column || c.weightColumn || '',
+        })),
         series: bcColumns.find(c => c.axis === 'series') || null,
       }
 
