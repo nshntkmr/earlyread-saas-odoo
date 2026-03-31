@@ -435,6 +435,7 @@ export default function WidgetBuilder({
                   chartType={state.chartType}
                   donutStyle={state.visualFlags?.donut_style || 'standard'}
                   lineStyle={state.visualFlags?.line_style || 'basic'}
+                  gaugeStyle={state.visualFlags?.gauge_style || 'standard'}
                 />
               )}
             </div>

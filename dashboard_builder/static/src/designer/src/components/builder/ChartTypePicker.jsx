@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import DonutStylePicker from './DonutStylePicker'
 import LineStylePicker from './LineStylePicker'
+import GaugeStylePicker from './GaugeStylePicker'
 
 const CHART_TYPES = [
   { key: 'bar',           label: 'Bar',           icon: 'fa-bar-chart',       desc: 'Compare values across categories' },
@@ -128,9 +129,21 @@ export default function ChartTypePicker({
         </div>
       )}
 
+      {/* Gauge style sub-picker */}
+      {selected === 'gauge' && (
+        <div style={{ marginTop: 16 }}>
+          <GaugeStylePicker
+            selectedStyle={visualFlags.gauge_style || 'standard'}
+            onStyleChange={style => onFlagChange && onFlagChange('gauge_style', style)}
+            visualConfig={visualFlags}
+            onVisualConfigChange={(key, value) => onFlagChange && onFlagChange(key, value)}
+          />
+        </div>
+      )}
+
       {/* Dynamic chart-specific options from flag schema */}
-      {/* Skip when a custom StylePicker already handles all flags (line, donut) */}
-      {flagSchema.length > 0 && selected !== 'line' && selected !== 'donut' && (
+      {/* Skip when a custom StylePicker already handles all flags (line, donut, gauge) */}
+      {flagSchema.length > 0 && selected !== 'line' && selected !== 'donut' && selected !== 'gauge' && (
         <div className="wb-field-group" style={{ marginTop: 16 }}>
           <label className="wb-label">
             {CHART_TYPES.find(c => c.key === selected)?.label || 'Chart'} Options

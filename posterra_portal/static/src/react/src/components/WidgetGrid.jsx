@@ -12,16 +12,18 @@ import DataTable    from './widgets/DataTable'
 import BattleCard   from './widgets/BattleCard'
 import InsightPanel from './widgets/InsightPanel'
 import KPIStrip    from './widgets/KPIStrip'
+import GaugeRouter from './widgets/GaugeRouter'
 
 // ── Drill-down ──────────────────────────────────────────────────────────────
 import DrillDownModal from './builder/DrillDownModal'
 
 // Chart types handled by the generic EChartWidget
-const ECHART_TYPES = new Set(['bar', 'line', 'pie', 'donut', 'gauge', 'radar', 'scatter', 'heatmap'])
+const ECHART_TYPES = new Set(['bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap'])
 
 function resolveWidget(chartType) {
   if (ECHART_TYPES.has(chartType)) return EChartWidget
   switch (chartType) {
+    case 'gauge':        return GaugeRouter
     case 'gauge_kpi':    return GaugeKPI
     case 'kpi':          return KPICard
     case 'status_kpi':   return StatusKPI

@@ -4,6 +4,98 @@ import { designerFetch } from '../../api/client'
 import { previewUrl, libraryPlaceUrl } from '../../api/endpoints'
 import PageFilterPanel from './PageFilterPanel'
 
+/* ── Lightweight gauge preview renderers (inline, no external deps) ─── */
+
+const RAG_COLORS = {
+  red: '#ef4444', amber: '#f59e0b', green: '#10b981',
+}
+const RAG_BG = {
+  red: '#fef2f2', amber: '#fffbeb', green: '#f0fdf4',
+}
+
+function GaugePreviewInline({ data, height }) {
+  if (!data) return null
+  const v = data.gauge_variant
+  if (v === 'bullet') return <BulletPreview data={data} height={height} />
+  if (v === 'traffic_light_rag') return <RagPreview data={data} height={height} />
+  if (v === 'percentile_rank') return <PercentilePreview data={data} height={height} />
+  return null
+}
+
+function BulletPreview({ data, height }) {
+  const { value = 0, formatted_value = '', target, min = 0, max = 100, ranges = [],
+          label = '', threshold_text = '' } = data
+  const range = max - min || 1
+  const pct = Math.max(0, Math.min(100, ((value - min) / range) * 100))
+  const tPct = target != null ? Math.max(0, Math.min(100, ((target - min) / range) * 100)) : null
+  return (
+    <div style={{ padding: '16px 20px', height }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{label}</span>
+        <span style={{ fontWeight: 700, fontSize: 18, color: '#0d9488' }}>{formatted_value}</span>
+      </div>
+      <div style={{ position: 'relative', height: 20, borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
+        {ranges.map((r, i) => {
+          const prevTo = i > 0 ? ranges[i-1].to : min
+          return <div key={i} style={{ width: `${((r.to - prevTo) / range) * 100}%`, backgroundColor: r.color, opacity: 0.25 }} />
+        })}
+        <div style={{ position: 'absolute', top: 4, left: 0, height: 12, width: `${pct}%`, borderRadius: 3, backgroundColor: '#0d9488' }} />
+        {tPct != null && <div style={{ position: 'absolute', left: `${tPct}%`, top: 0, width: 2, height: 20, backgroundColor: '#374151' }} />}
+      </div>
+      {threshold_text && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>{threshold_text}</div>}
+    </div>
+  )
+}
+
+function RagPreview({ data, height }) {
+  const { formatted_value = '', rag_status = 'green', badge_text = '', threshold_text = '', label = '' } = data
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, height }}>
+      {label && <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{label}</div>}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        {['red', 'amber', 'green'].map(s => (
+          <div key={s} style={{
+            width: s === rag_status ? 30 : 22, height: s === rag_status ? 30 : 22,
+            borderRadius: '50%', backgroundColor: s === rag_status ? RAG_COLORS[s] : RAG_BG[s],
+            opacity: s === rag_status ? 1 : 0.5, transition: 'all .3s',
+          }} />
+        ))}
+      </div>
+      <div style={{ fontSize: 24, fontWeight: 700, color: RAG_COLORS[rag_status] }}>{formatted_value}</div>
+      {badge_text && <div style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+        backgroundColor: RAG_BG[rag_status], color: RAG_COLORS[rag_status], marginTop: 4 }}>{badge_text}</div>}
+      {threshold_text && <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 6 }}>{threshold_text}</div>}
+    </div>
+  )
+}
+
+function PercentilePreview({ data, height }) {
+  const { percentile = 0, ordinal_text = '', subtitle = '', quartile_label = '', quartile_color = '#16a34a',
+          actual_label = '', actual_value = '', show_quartile_markers = true } = data
+  const pct = Math.max(0, Math.min(100, percentile))
+  return (
+    <div style={{ padding: '14px 20px', height }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{data.label || ''}</span>
+        {quartile_label && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, color: quartile_color, backgroundColor: '#f3f4f6' }}>{quartile_label}</span>}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: quartile_color, marginBottom: 2 }}>{ordinal_text}</div>
+      {subtitle && <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{subtitle}</div>}
+      <div style={{ position: 'relative', height: 8, borderRadius: 4, backgroundColor: '#e5e7eb', marginBottom: show_quartile_markers ? 20 : 8 }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${pct}%`, borderRadius: 4, backgroundColor: quartile_color }} />
+        <div style={{ position: 'absolute', left: `${pct}%`, top: -3, width: 4, height: 14, borderRadius: 2, backgroundColor: '#1f2937', transform: 'translateX(-2px)' }} />
+        {show_quartile_markers && [25, 50, 75].map(q => (
+          <React.Fragment key={q}>
+            <div style={{ position: 'absolute', left: `${q}%`, top: 10, width: 1, height: 6, backgroundColor: '#9ca3af' }} />
+            <span style={{ position: 'absolute', left: `${q}%`, top: 18, fontSize: 9, color: '#9ca3af', transform: 'translateX(-50%)' }}>{q}th</span>
+          </React.Fragment>
+        ))}
+      </div>
+      {(actual_label || actual_value) && <div style={{ fontSize: 11, color: '#6b7280' }}>{actual_label}{actual_label && actual_value ? ' — ' : ''}{actual_value && <strong>actual: {actual_value}</strong>}</div>}
+    </div>
+  )
+}
+
 /**
  * Step 5: Live Preview + Save.
  *
@@ -56,9 +148,15 @@ export default function LivePreview({
     chartRef.current.setOption(previewData.echart_option, { notMerge: true })
   }, [previewData, previewCounter])
 
-  const isChart = ['bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'gauge'].includes(
+  const isChart = ['bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap'].includes(
     builderState.chartType
   )
+  // Gauge is a chart only when using ECharts variants (not bullet/RAG/percentile)
+  const gaugeStyle = builderState.visualFlags?.gauge_style || 'standard'
+  const isEChartsGauge = builderState.chartType === 'gauge' &&
+    !['bullet', 'traffic_light_rag', 'percentile_rank'].includes(gaugeStyle)
+  const isNonEChartsGauge = builderState.chartType === 'gauge' &&
+    ['bullet', 'traffic_light_rag', 'percentile_rank'].includes(gaugeStyle)
   const isTable = builderState.chartType === 'table'
 
   const runPreview = async () => {
@@ -173,13 +271,20 @@ export default function LivePreview({
         </div>
       )}
 
-      {/* Chart preview */}
-      {isChart && (
+      {/* Chart preview (ECharts) */}
+      {(isChart || isEChartsGauge) && (
         <div className="wb-preview-chart">
           <div
             ref={containerRef}
             style={{ height: `${builderState.appearance?.chartHeight || 350}px`, width: '100%' }}
           />
+        </div>
+      )}
+
+      {/* Non-ECharts gauge preview (bullet, RAG, percentile) */}
+      {isNonEChartsGauge && previewData?.gauge_variant && (
+        <div className="wb-preview-chart" style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff' }}>
+          <GaugePreviewInline data={previewData} height={builderState.appearance?.chartHeight || 200} />
         </div>
       )}
 

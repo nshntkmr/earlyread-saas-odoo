@@ -666,6 +666,339 @@ LINE_FLAGS = [
 ]
 
 
+# ── Gauge Chart Flags ────────────────────────────────────────────────────────
+
+_ARC_STYLES = ['standard', 'half_arc', 'three_quarter']
+
+GAUGE_FLAGS = [
+    # ── Primary variant selector ─────────────────────────────────
+    {
+        'flag': 'gauge_style',
+        'type': 'select',
+        'default': 'standard',
+        'label': 'Gauge Style',
+        'help': 'Standard = 220° arc with needle. '
+                'Half-Arc = 180° semicircle (KPI tiles). '
+                'Three-Quarter = 270° cockpit-style. '
+                'Bullet = horizontal progress bar with target. '
+                'Traffic Light = RAG circles with status badge. '
+                'Percentile Rank = position on 0-100 scale. '
+                'Multi-Ring = concentric rings for composite scores.',
+        'options': [
+            {'value': 'standard',          'label': 'Standard Arc (220°)'},
+            {'value': 'half_arc',          'label': 'Half-Arc (180°)'},
+            {'value': 'three_quarter',     'label': 'Three-Quarter (270°)'},
+            {'value': 'bullet',            'label': 'Bullet Gauge'},
+            {'value': 'traffic_light_rag', 'label': 'Traffic Light / RAG'},
+            {'value': 'percentile_rank',   'label': 'Percentile Rank'},
+            {'value': 'multi_ring',        'label': 'Multi-Ring Nested'},
+        ],
+    },
+
+    # ── Common arc flags (standard, half_arc, three_quarter) ─────
+    {
+        'flag': 'gauge_min',
+        'type': 'number',
+        'default': 0,
+        'label': 'Scale Minimum',
+        'help': 'Minimum value on the gauge scale.',
+        'show_when': {'gauge_style': _ARC_STYLES},
+    },
+    {
+        'flag': 'gauge_max',
+        'type': 'number',
+        'default': 100,
+        'label': 'Scale Maximum',
+        'help': 'Maximum value on the gauge scale.',
+        'show_when': {'gauge_style': _ARC_STYLES},
+    },
+    {
+        'flag': 'gauge_color_mode',
+        'type': 'select',
+        'default': 'single',
+        'label': 'Color Mode',
+        'help': 'Single uses palette color. Traffic Light shows red/amber/green zones.',
+        'options': [
+            {'value': 'single', 'label': 'Single Color (from palette)'},
+            {'value': 'traffic_light', 'label': 'Traffic Light (R/A/G zones)'},
+        ],
+        'show_when': {'gauge_style': _ARC_STYLES},
+    },
+    {
+        'flag': 'gauge_warn_threshold',
+        'type': 'number',
+        'default': 50,
+        'label': 'Warning Threshold (%)',
+        'help': 'Percentage of scale where color shifts from red to amber.',
+        'show_when': {'gauge_color_mode': 'traffic_light'},
+    },
+    {
+        'flag': 'gauge_good_threshold',
+        'type': 'number',
+        'default': 70,
+        'label': 'Good Threshold (%)',
+        'help': 'Percentage of scale where color shifts from amber to green.',
+        'show_when': {'gauge_color_mode': 'traffic_light'},
+    },
+    {
+        'flag': 'gauge_number_format',
+        'type': 'select',
+        'default': 'auto',
+        'label': 'Number Format',
+        'help': 'How the center value is displayed.',
+        'options': [
+            {'value': 'auto', 'label': 'Auto (% if 0-100)'},
+            {'value': 'percent', 'label': 'Percent (78.4%)'},
+            {'value': 'comma', 'label': 'Comma (1,234)'},
+            {'value': 'decimal1', 'label': '1 Decimal (78.4)'},
+            {'value': 'decimal2', 'label': '2 Decimals (78.40)'},
+            {'value': 'integer', 'label': 'Integer (78)'},
+            {'value': 'currency', 'label': 'Currency ($1,234)'},
+        ],
+        'show_when': {'gauge_style': _ARC_STYLES + ['bullet', 'percentile_rank', 'multi_ring']},
+    },
+    {
+        'flag': 'show_needle',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Needle',
+        'help': 'Display the pointer needle on the arc.',
+        'show_when': {'gauge_style': ['standard', 'three_quarter']},
+    },
+    {
+        'flag': 'show_progress_bar',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Progress Arc',
+        'help': 'Colored arc from min to current value.',
+        'show_when': {'gauge_style': _ARC_STYLES},
+    },
+    {
+        'flag': 'show_scale_labels',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Scale Labels',
+        'help': 'Display min/max and split labels around the arc.',
+        'show_when': {'gauge_style': _ARC_STYLES},
+    },
+
+    # ── Target marker (arc + bullet) ─────────────────────────────
+    {
+        'flag': 'target_value',
+        'type': 'number',
+        'default': None,
+        'label': 'Target Value',
+        'help': 'Draws a target marker on the gauge. For arc gauges shows a dashed mark; '
+                'for bullet shows a vertical line.',
+        'show_when': {'gauge_style': _ARC_STYLES + ['bullet']},
+    },
+    {
+        'flag': 'target_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Target Label',
+        'help': 'Text shown near the target marker (e.g. "Target: ≥85%").',
+        'show_when': {'target_value': '__not_null__'},
+    },
+
+    # ── Bullet gauge flags ───────────────────────────────────────
+    {
+        'flag': 'bullet_min',
+        'type': 'number',
+        'default': 0,
+        'label': 'Scale Minimum',
+        'help': 'Minimum value on the bullet scale.',
+        'show_when': {'gauge_style': 'bullet'},
+    },
+    {
+        'flag': 'bullet_max',
+        'type': 'number',
+        'default': 100,
+        'label': 'Scale Maximum',
+        'help': 'Maximum value on the bullet scale.',
+        'show_when': {'gauge_style': 'bullet'},
+    },
+    {
+        'flag': 'bullet_orientation',
+        'type': 'select',
+        'default': 'horizontal',
+        'label': 'Orientation',
+        'help': 'Direction of the bullet bar.',
+        'options': [
+            {'value': 'horizontal', 'label': 'Horizontal'},
+            {'value': 'vertical', 'label': 'Vertical'},
+        ],
+        'show_when': {'gauge_style': 'bullet'},
+    },
+    {
+        'flag': 'bullet_ranges',
+        'type': 'text',
+        'default': '',
+        'label': 'Range Zones (JSON)',
+        'help': 'JSON array of zones: [{"to": 70, "color": "#ef4444", "label": "Poor <70"}, '
+                '{"to": 85, "color": "#f59e0b", "label": "At risk 70-85"}, '
+                '{"to": 100, "color": "#10b981", "label": "On target >85"}]. '
+                'Leave empty for auto red/amber/green.',
+        'show_when': {'gauge_style': 'bullet'},
+    },
+    {
+        'flag': 'bullet_show_labels',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Range Labels',
+        'help': 'Display threshold descriptions below the bar (e.g. "Poor <70 | At risk 70-85").',
+        'show_when': {'gauge_style': 'bullet'},
+    },
+    {
+        'flag': 'bullet_bar_height',
+        'type': 'number',
+        'default': 12,
+        'label': 'Bar Height (px)',
+        'help': 'Height of the actual value bar inside the range zones.',
+        'show_when': {'gauge_style': 'bullet'},
+    },
+
+    # ── Traffic Light / RAG flags ────────────────────────────────
+    {
+        'flag': 'rag_red_threshold',
+        'type': 'number',
+        'default': 70,
+        'label': 'Red → Amber Threshold',
+        'help': 'Values below this are red.',
+        'show_when': {'gauge_style': 'traffic_light_rag'},
+    },
+    {
+        'flag': 'rag_green_threshold',
+        'type': 'number',
+        'default': 85,
+        'label': 'Amber → Green Threshold',
+        'help': 'Values at or above this are green.',
+        'show_when': {'gauge_style': 'traffic_light_rag'},
+    },
+    {
+        'flag': 'rag_invert',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Lower is Better',
+        'help': 'Invert thresholds: lower values are green (e.g. rehospitalization rate).',
+        'show_when': {'gauge_style': 'traffic_light_rag'},
+    },
+    {
+        'flag': 'rag_show_badge',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Status Badge',
+        'help': 'Display "On target", "At risk", etc. below the value.',
+        'show_when': {'gauge_style': 'traffic_light_rag'},
+    },
+    {
+        'flag': 'rag_badge_green',
+        'type': 'text',
+        'default': 'On target',
+        'label': 'Green Badge Text',
+        'show_when': {'rag_show_badge': True, 'gauge_style': 'traffic_light_rag'},
+    },
+    {
+        'flag': 'rag_badge_amber',
+        'type': 'text',
+        'default': 'Watch',
+        'label': 'Amber Badge Text',
+        'show_when': {'rag_show_badge': True, 'gauge_style': 'traffic_light_rag'},
+    },
+    {
+        'flag': 'rag_badge_red',
+        'type': 'text',
+        'default': 'At risk',
+        'label': 'Red Badge Text',
+        'show_when': {'rag_show_badge': True, 'gauge_style': 'traffic_light_rag'},
+    },
+    {
+        'flag': 'rag_show_thresholds',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Threshold Text',
+        'help': 'Display ranges below (e.g. "G: ≥85 | A: 70-85 | R: <70").',
+        'show_when': {'gauge_style': 'traffic_light_rag'},
+    },
+
+    # ── Percentile Rank flags ────────────────────────────────────
+    {
+        'flag': 'percentile_show_quartiles',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Quartile Markers',
+        'help': 'Display 25th, 50th, 75th markers on the bar.',
+        'show_when': {'gauge_style': 'percentile_rank'},
+    },
+    {
+        'flag': 'percentile_show_badge',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Quartile Badge',
+        'help': 'Display "Top quartile", "2nd quartile" etc. badge.',
+        'show_when': {'gauge_style': 'percentile_rank'},
+    },
+    {
+        'flag': 'percentile_invert',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Lower is Better (Inverted)',
+        'help': 'Higher rank means better (e.g. 88th percentile for rehospitalization).',
+        'show_when': {'gauge_style': 'percentile_rank'},
+    },
+
+    # ── Multi-Ring Nested flags ──────────────────────────────────
+    {
+        'flag': 'multi_ring_max_rings',
+        'type': 'number',
+        'default': 6,
+        'label': 'Max Rings',
+        'help': 'Maximum number of concentric rings (2-6). Extra rows are ignored.',
+        'show_when': {'gauge_style': 'multi_ring'},
+    },
+    {
+        'flag': 'multi_ring_show_center',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Center Label',
+        'help': 'Display a label/value in the center of the rings.',
+        'show_when': {'gauge_style': 'multi_ring'},
+    },
+    {
+        'flag': 'multi_ring_center_text',
+        'type': 'text',
+        'default': '',
+        'label': 'Center Text',
+        'help': 'Text shown in center (e.g. "3.5 ★", "B+"). Leave empty to auto-compute average.',
+        'show_when': {'multi_ring_show_center': True, 'gauge_style': 'multi_ring'},
+    },
+    {
+        'flag': 'multi_ring_center_subtitle',
+        'type': 'text',
+        'default': '',
+        'label': 'Center Subtitle',
+        'help': 'Small text below center value (e.g. "Star rating", "Overall grade").',
+        'show_when': {'multi_ring_show_center': True, 'gauge_style': 'multi_ring'},
+    },
+    {
+        'flag': 'multi_ring_show_legend',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Legend',
+        'help': 'Display metric names and values below the rings.',
+        'show_when': {'gauge_style': 'multi_ring'},
+    },
+    {
+        'flag': 'multi_ring_arc_width',
+        'type': 'number',
+        'default': 10,
+        'label': 'Arc Width (px)',
+        'help': 'Width of each ring arc in pixels.',
+        'show_when': {'gauge_style': 'multi_ring'},
+    },
+]
+
+
 # ── Registry ─────────────────────────────────────────────────────────────────
 # Add new chart families here as they are implemented.
 
@@ -674,7 +1007,7 @@ CHART_FLAGS = {
     'pie': PIE_FLAGS,
     'donut': DONUT_FLAGS,
     'line': LINE_FLAGS,
-    # 'gauge': GAUGE_FLAGS,   # future
+    'gauge': GAUGE_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
 }
 

@@ -13,6 +13,12 @@ const SQL_COLUMN_HELP = {
   donut_nested:  { cols: 'parent, child, value', example: 'SELECT payer, sub_type, SUM(episodes) FROM mv_claims GROUP BY 1, 2' },
   donut_multi_ring: { cols: 'ring_group, label, value', example: 'SELECT year, source_type, COUNT(*) FROM mv_admissions GROUP BY 1, 2' },
   gauge:         { cols: 'value', example: 'SELECT AVG(star_rating) AS rating FROM mv_quality' },
+  gauge_half_arc: { cols: 'value', example: 'SELECT timely_access_pct AS value FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
+  gauge_three_quarter: { cols: 'value', example: 'SELECT rehospitalization_rate AS value FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
+  gauge_bullet:  { cols: 'value [, target]', example: 'SELECT timely_access_pct AS value, 85 AS target FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
+  gauge_traffic_light_rag: { cols: 'value', example: 'SELECT lupa_rate AS value FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
+  gauge_percentile_rank: { cols: 'percentile [, subtitle, actual_value, actual_label]', example: 'SELECT pctile_rank, \'Total admits\' AS subtitle, total_admits AS actual, \'Volume leader\' AS label FROM mv_rankings WHERE hha_ccn = %(hha_ccn)s' },
+  gauge_multi_ring: { cols: 'metric_name, metric_value [, metric_max]', example: 'SELECT metric_name, score FROM mv_composite_quality WHERE hha_ccn = %(hha_ccn)s' },
   radar:         { cols: 'indicator, score1 [, score2, ...]', example: 'SELECT metric_name, your_score, benchmark FROM mv_compare' },
   scatter:       { cols: 'x_value, y_value', example: 'SELECT latitude, longitude FROM mv_locations' },
   heatmap:       { cols: 'x_category, y_category, intensity', example: 'SELECT day_of_week, hour, visit_count FROM mv_traffic GROUP BY 1, 2' },
@@ -21,11 +27,15 @@ const SQL_COLUMN_HELP = {
   table:         { cols: 'col1, col2, col3, ...', example: 'SELECT patient_id, name, status, score FROM mv_patients' },
 }
 
-function getSqlHelpKey(chartType, donutStyle, lineStyle) {
+function getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle) {
   if (chartType === 'donut' && donutStyle === 'nested') return 'donut_nested'
   if (chartType === 'donut' && donutStyle === 'multi_ring') return 'donut_multi_ring'
   if (chartType === 'line' && lineStyle && ['waterfall', 'combo', 'benchmark'].includes(lineStyle)) {
     return `line_${lineStyle}`
+  }
+  if (chartType === 'gauge' && gaugeStyle && gaugeStyle !== 'standard') {
+    const key = `gauge_${gaugeStyle}`
+    if (key in SQL_COLUMN_HELP) return key
   }
   return chartType
 }
@@ -49,7 +59,7 @@ function getSqlHelpKey(chartType, donutStyle, lineStyle) {
 export default function CustomSqlEditor({
   sql, xColumn, yColumns, seriesColumn, testResult,
   testParams = {}, onUpdate, apiBase, appContext = null,
-  chartType, donutStyle, lineStyle,
+  chartType, donutStyle, lineStyle, gaugeStyle,
 }) {
   const [testing, setTesting] = useState(false)
   const [pageParams, setPageParams] = useState([])
@@ -119,16 +129,16 @@ export default function CustomSqlEditor({
       <h3 className="wb-step-title">Custom SQL Query</h3>
 
       {/* SQL column help */}
-      {chartType && SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle)] && (
+      {chartType && SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle)] && (
         <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontSize: 13 }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>
             Expected columns for {chartType}{donutStyle && donutStyle !== 'standard' ? ` (${donutStyle})` : ''}:
           </div>
           <code style={{ background: '#e0f2fe', padding: '2px 6px', borderRadius: 3 }}>
-            {SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle)].cols}
+            {SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle)].cols}
           </code>
           <div style={{ color: '#6b7280', marginTop: 4, fontSize: 12 }}>
-            Example: <code>{SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle)].example}</code>
+            Example: <code>{SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle)].example}</code>
           </div>
         </div>
       )}

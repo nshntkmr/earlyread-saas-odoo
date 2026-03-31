@@ -1,14 +1,16 @@
 import React from 'react'
-import EChartWidget from './EChartWidget'
+import GaugeRouter from './GaugeRouter'
 
 /**
  * GaugeKPI
  *
- * Composite widget: ECharts gauge (top) + row of sub-KPI tiles + optional alert text.
+ * Composite widget: gauge (top) + row of sub-KPI tiles + optional alert text.
+ * Uses GaugeRouter to support all gauge variants (ECharts and non-ECharts).
  *
  * Expected data shape (from gauge_kpi widget type):
  * {
- *   echart_option: {...},          // gauge chart config
+ *   echart_option: {...},          // gauge chart config (ECharts variants)
+ *   gauge_variant: '...',          // non-ECharts variant key (optional)
  *   sub_kpis: [                    // optional row of mini-KPIs below the gauge
  *     { label, value, sub_label },
  *     ...
@@ -29,8 +31,8 @@ export default function GaugeKPI({ data = {}, height = 280 }) {
 
   return (
     <div className="pv-gauge-kpi-wrap">
-      {/* ECharts gauge */}
-      <EChartWidget data={data} height={height} />
+      {/* Gauge (supports all variants via GaugeRouter) */}
+      <GaugeRouter data={data} height={height} />
 
       {/* Sub-KPI row */}
       {sub_kpis.length > 0 && (

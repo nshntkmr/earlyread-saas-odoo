@@ -594,25 +594,249 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             })
 
     elif chart_type == 'gauge':
-        gauge_min = float(config.get('gauge_min', 0))
-        gauge_max = float(config.get('gauge_max', 100))
+        vc = visual_config or {}
+        gauge_style = vc.get('gauge_style', 'standard')
+
+        gauge_min = float(vc.get('gauge_min', config.get('gauge_min', 0)))
+        gauge_max = float(vc.get('gauge_max', config.get('gauge_max', 100)))
         raw_val = col_val(rows[0], x_col) if rows else 0
         try:
             val = float(raw_val or 0)
         except (TypeError, ValueError):
             val = 0
-        option = {
-            'animation': True,
-            'color': colors,
-            'series': [{
-                'type': 'gauge',
-                'min': gauge_min,
-                'max': gauge_max,
-                'data': [{'value': val, 'name': config.get('title', '')}],
-                'title': {'show': False},
-                'detail': {'formatter': '{value}'},
-            }],
-        }
+
+        color_mode = vc.get('gauge_color_mode', 'single')
+        warn_frac = float(vc.get('gauge_warn_threshold', 50)) / 100.0
+        good_frac = float(vc.get('gauge_good_threshold', 70)) / 100.0
+
+        if color_mode == 'traffic_light':
+            axis_color = [[warn_frac, '#ef4444'], [good_frac, '#f59e0b'], [1.0, '#10b981']]
+            val_range = gauge_max - gauge_min
+            vf = (val - gauge_min) / val_range if val_range else 0
+            pt_color = '#ef4444' if vf < warn_frac else ('#f59e0b' if vf < good_frac else '#10b981')
+        else:
+            pt_color = colors[0] if colors else '#0d9488'
+            axis_color = [[1.0, pt_color]]
+
+        # Non-ECharts variants — return plain dict
+        if gauge_style == 'bullet':
+            b_min = float(vc.get('bullet_min', 0))
+            b_max = float(vc.get('bullet_max', 100))
+            target = vc.get('target_value')
+            # Try target from second column
+            if target is None and y_col_list:
+                t_val = col_val(rows[0], y_col_list[0]) if rows else None
+                if t_val is not None:
+                    try:
+                        target = float(t_val)
+                    except (TypeError, ValueError):
+                        pass
+            ranges_raw = vc.get('bullet_ranges', '')
+            ranges = []
+            if ranges_raw and ranges_raw.strip():
+                try:
+                    ranges = json.loads(ranges_raw)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if not ranges:
+                third = (b_max - b_min) / 3
+                ranges = [
+                    {'to': b_min + third, 'color': '#ef4444', 'label': f'Poor <{round(b_min + third)}'},
+                    {'to': b_min + 2*third, 'color': '#f59e0b', 'label': f'Watch'},
+                    {'to': b_max, 'color': '#10b981', 'label': f'Good >{round(b_min + 2*third)}'},
+                ]
+            threshold_parts = [r.get('label', '') for r in ranges if r.get('label')]
+            return {
+                'gauge_variant': 'bullet',
+                'value': round(val, 1),
+                'formatted_value': f'{round(val, 1)}%' if gauge_max == 100 else str(round(val, 1)),
+                'target': round(target, 1) if target is not None else None,
+                'min': b_min, 'max': b_max,
+                'ranges': ranges,
+                'label': config.get('title', ''),
+                'orientation': vc.get('bullet_orientation', 'horizontal'),
+                'bar_height': int(vc.get('bullet_bar_height', 12)),
+                'threshold_text': ' | '.join(threshold_parts) if vc.get('bullet_show_labels', True) else '',
+                'target_label': vc.get('target_label', ''),
+            }
+
+        elif gauge_style == 'traffic_light_rag':
+            red_t = float(vc.get('rag_red_threshold', 70))
+            green_t = float(vc.get('rag_green_threshold', 85))
+            invert = vc.get('rag_invert', False)
+            if invert:
+                rag_status = 'green' if val <= red_t else ('amber' if val <= green_t else 'red')
+            else:
+                rag_status = 'green' if val >= green_t else ('amber' if val >= red_t else 'red')
+            badge_map = {'green': vc.get('rag_badge_green', 'On target'),
+                         'amber': vc.get('rag_badge_amber', 'Watch'),
+                         'red': vc.get('rag_badge_red', 'At risk')}
+            thr = (f'G: <{red_t} | A: {red_t}-{green_t} | R: >{green_t}' if invert
+                   else f'G: \u2265{green_t} | A: {red_t}-{green_t} | R: <{red_t}')
+            return {
+                'gauge_variant': 'traffic_light_rag',
+                'value': round(val, 1),
+                'formatted_value': f'{round(val, 1)}%' if gauge_max == 100 else str(round(val, 1)),
+                'rag_status': rag_status,
+                'badge_text': badge_map.get(rag_status, '') if vc.get('rag_show_badge', True) else '',
+                'threshold_text': thr if vc.get('rag_show_thresholds', True) else '',
+                'label': config.get('title', ''),
+            }
+
+        elif gauge_style == 'percentile_rank':
+            p = int(val)
+            suffix = 'th'
+            if p % 10 == 1 and p % 100 != 11: suffix = 'st'
+            elif p % 10 == 2 and p % 100 != 12: suffix = 'nd'
+            elif p % 10 == 3 and p % 100 != 13: suffix = 'rd'
+            if p >= 75: q_label, q_color = 'Top quartile', '#16a34a'
+            elif p >= 50: q_label, q_color = '2nd quartile', '#2563eb'
+            elif p >= 25: q_label, q_color = '3rd quartile', '#d97706'
+            else: q_label, q_color = '4th quartile', '#dc2626'
+            subtitle = ''
+            actual_value = ''
+            actual_label = ''
+            if y_col_list:
+                if len(y_col_list) >= 1:
+                    sv = col_val(rows[0], y_col_list[0]) if rows else ''
+                    subtitle = str(sv or '')
+                if len(y_col_list) >= 2:
+                    av = col_val(rows[0], y_col_list[1]) if rows else ''
+                    actual_value = str(av or '')
+                if len(y_col_list) >= 3:
+                    al = col_val(rows[0], y_col_list[2]) if rows else ''
+                    actual_label = str(al or '')
+            return {
+                'gauge_variant': 'percentile_rank',
+                'percentile': p,
+                'ordinal_text': f'{p}{suffix}',
+                'subtitle': subtitle or config.get('title', ''),
+                'quartile_label': q_label if vc.get('percentile_show_badge', True) else '',
+                'quartile_color': q_color,
+                'actual_value': actual_value,
+                'actual_label': actual_label,
+                'show_quartile_markers': vc.get('percentile_show_quartiles', True),
+                'label': config.get('title', ''),
+            }
+
+        # ECharts gauge variants
+        fmt = '{value}%' if (gauge_max == 100 and gauge_min == 0) else '{value}'
+        show_needle = vc.get('show_needle', True)
+        show_progress = vc.get('show_progress_bar', True)
+
+        if gauge_style == 'half_arc':
+            option = {
+                'animation': True, 'color': colors,
+                'series': [{
+                    'type': 'gauge', 'startAngle': 180, 'endAngle': 0,
+                    'min': gauge_min, 'max': gauge_max,
+                    'radius': '90%', 'center': ['50%', '70%'],
+                    'progress': {'show': show_progress, 'width': 18, 'itemStyle': {'color': pt_color}},
+                    'axisLine': {'lineStyle': {'width': 18, 'color': axis_color}},
+                    'axisTick': {'show': False}, 'splitLine': {'show': False},
+                    'axisLabel': {'show': False},
+                    'pointer': {'show': False}, 'anchor': {'show': False},
+                    'title': {'show': False},
+                    'detail': {'fontSize': 28, 'fontWeight': 'bold', 'formatter': fmt,
+                               'color': pt_color, 'offsetCenter': [0, '-10%']},
+                    'data': [{'value': round(val, 1)}],
+                }],
+            }
+        elif gauge_style == 'three_quarter':
+            option = {
+                'animation': True, 'color': colors,
+                'series': [{
+                    'type': 'gauge', 'startAngle': 225, 'endAngle': -45,
+                    'min': gauge_min, 'max': gauge_max, 'radius': '85%',
+                    'progress': {'show': show_progress, 'width': 12},
+                    'axisLine': {'lineStyle': {'width': 12, 'color': axis_color}},
+                    'axisTick': {'show': True, 'splitNumber': 5},
+                    'splitLine': {'length': 10, 'lineStyle': {'width': 2, 'color': '#aaa'}},
+                    'axisLabel': {'distance': 18, 'color': '#666', 'fontSize': 11},
+                    'pointer': {'show': show_needle, 'length': '60%', 'width': 5},
+                    'anchor': {'show': show_needle, 'size': 14,
+                               'itemStyle': {'borderWidth': 6, 'borderColor': pt_color, 'color': '#fff'}},
+                    'title': {'show': False},
+                    'detail': {'fontSize': 30, 'fontWeight': 'bold', 'formatter': fmt,
+                               'color': pt_color, 'offsetCenter': [0, '70%']},
+                    'data': [{'value': round(val, 1)}],
+                }],
+            }
+        elif gauge_style == 'multi_ring':
+            # Multi-ring needs multiple rows
+            mr_colors = colors or ['#0d9488', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899']
+            max_rings = int(vc.get('multi_ring_max_rings', 6))
+            arc_width = int(vc.get('multi_ring_arc_width', 10))
+            ring_data = []
+            for r in rows[:max_rings]:
+                nm = str(col_val(r, x_col) or '')
+                try:
+                    rv = float(col_val(r, y_col_list[0]) if y_col_list else 0)
+                except (TypeError, ValueError):
+                    rv = 0
+                ring_data.append({'name': nm, 'value': round(rv, 1)})
+            series_list = []
+            outer = 90
+            gap = arc_width + 4
+            for i, rd in enumerate(ring_data):
+                rp = outer - i * gap
+                if rp < 15:
+                    break
+                rc = mr_colors[i % len(mr_colors)]
+                series_list.append({
+                    'type': 'gauge', 'startAngle': 225, 'endAngle': -45,
+                    'min': 0, 'max': gauge_max, 'radius': f'{rp}%',
+                    'progress': {'show': True, 'width': arc_width, 'itemStyle': {'color': rc}},
+                    'axisLine': {'lineStyle': {'width': arc_width, 'color': [[1.0, '#f3f4f6']]}},
+                    'axisTick': {'show': False}, 'splitLine': {'show': False},
+                    'axisLabel': {'show': False},
+                    'pointer': {'show': False}, 'anchor': {'show': False},
+                    'title': {'show': False}, 'detail': {'show': False},
+                    'data': [{'value': rd['value'], 'name': rd['name']}],
+                })
+            option = {'animation': True, 'color': mr_colors, 'series': series_list}
+            # Center text
+            if vc.get('multi_ring_show_center', True):
+                ct = vc.get('multi_ring_center_text', '')
+                if not ct and ring_data:
+                    ct = str(round(sum(d['value'] for d in ring_data) / len(ring_data), 1))
+                option['graphic'] = [{'type': 'text', 'left': 'center', 'top': '42%',
+                    'style': {'text': ct, 'fontSize': 24, 'fontWeight': 'bold',
+                              'fill': '#1f2937', 'textAlign': 'center'}}]
+                cs = vc.get('multi_ring_center_subtitle', '')
+                if cs:
+                    option['graphic'].append({'type': 'text', 'left': 'center', 'top': '52%',
+                        'style': {'text': cs, 'fontSize': 11, 'fill': '#6b7280', 'textAlign': 'center'}})
+            # Legend via hidden pie
+            if vc.get('multi_ring_show_legend', True) and ring_data:
+                option['legend'] = {'show': True, 'bottom': 0, 'itemGap': 12,
+                    'data': [rd['name'] for rd in ring_data], 'textStyle': {'fontSize': 11}}
+                option['series'].append({'type': 'pie', 'radius': [0, 0], 'label': {'show': False},
+                    'data': [{'name': rd['name'], 'value': rd['value'],
+                              'itemStyle': {'color': mr_colors[i % len(mr_colors)]}}
+                             for i, rd in enumerate(ring_data)]})
+        else:
+            # standard (default)
+            option = {
+                'animation': True, 'color': colors,
+                'series': [{
+                    'type': 'gauge', 'startAngle': 200, 'endAngle': -20,
+                    'min': gauge_min, 'max': gauge_max, 'radius': '85%',
+                    'progress': {'show': show_progress, 'width': 14},
+                    'axisLine': {'lineStyle': {'width': 14, 'color': axis_color}},
+                    'axisTick': {'show': False},
+                    'splitLine': {'length': 8, 'lineStyle': {'width': 2, 'color': '#aaa'}},
+                    'axisLabel': {'distance': 20, 'color': '#666', 'fontSize': 11},
+                    'anchor': {'show': show_needle, 'size': 16,
+                               'itemStyle': {'borderWidth': 8, 'borderColor': pt_color, 'color': '#fff'}},
+                    'pointer': {'show': show_needle},
+                    'title': {'show': False},
+                    'detail': {'fontSize': 32, 'fontWeight': 'bold', 'formatter': fmt,
+                               'color': pt_color, 'offsetCenter': [0, '60%']},
+                    'itemStyle': {'color': pt_color},
+                    'data': [{'value': round(val, 1)}],
+                }],
+            }
 
     elif chart_type == 'radar':
         indicators = [{'name': str(col_val(r, x_col) or ''), 'max': 100}

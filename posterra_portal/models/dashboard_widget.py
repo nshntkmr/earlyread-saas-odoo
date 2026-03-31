@@ -616,6 +616,19 @@ class DashboardWidget(models.Model):
                 result = self._build_insight_data(cols, rows, portal_ctx)
             elif self.chart_type == 'gauge_kpi':
                 result = self._build_gauge_kpi_data(cols, rows)
+            elif self.chart_type == 'gauge':
+                # Dispatch gauge variants — non-ECharts styles return plain dicts
+                _vc = {}
+                try:
+                    _vc = json.loads(self.visual_config or '{}') or {}
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                _gs = _vc.get('gauge_style', 'standard')
+                if _gs in ('bullet', 'traffic_light_rag', 'percentile_rank'):
+                    result = self._build_gauge_custom(cols, rows, _vc, _gs)
+                else:
+                    option = self._build_gauge_option(cols, rows)
+                    result = {'echart_json': json.dumps(option, default=str)}
             else:
                 # Run annotation query once and pass to both chart builder and interpolation
                 ann_row = self._get_annotation_row(portal_ctx)
@@ -1803,43 +1816,60 @@ class DashboardWidget(models.Model):
     # =========================================================================
 
     def _build_gauge_option(self, cols, rows):
-        """Build a complete ECharts option dict for a gauge/meter chart.
+        """Dispatch to the appropriate gauge style builder.
 
-        Honours gauge_min, gauge_max, gauge_color_mode, gauge_warn_threshold,
-        gauge_good_threshold.  Sets title.show=False to prevent the series
-        name label from overlapping the value in the dial centre.
+        Reads ``gauge_style`` from ``visual_config`` and dispatches.
+        Default is ``'standard'`` for backward compatibility.
         """
+        vc = {}
+        try:
+            vc = json.loads(self.visual_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            pass
+        style = vc.get('gauge_style', 'standard')
+        builder = {
+            'standard':      self._build_gauge_standard,
+            'half_arc':      self._build_gauge_half_arc,
+            'three_quarter': self._build_gauge_three_quarter,
+            'multi_ring':    self._build_gauge_multi_ring,
+        }.get(style, self._build_gauge_standard)
+        return builder(cols, rows, vc)
+
+    # ── Gauge helpers ────────────────────────────────────────────────────────
+
+    def _gauge_extract_value(self, cols, rows):
+        """Extract the primary float value from the first row."""
         col_idx = {c: i for i, c in enumerate(cols)}
-
-        def col_val(row, name):
-            idx = col_idx.get(name)
-            return row[idx] if idx is not None else None
-
-        # Determine the value column — fall back to first col if x_column blank
         x_col = (self.x_column or '').strip()
         if not x_col and cols:
             x_col = cols[0]
-
         val = 0.0
         if rows:
-            try:
-                val = float(col_val(rows[0], x_col) or 0)
-            except (TypeError, ValueError):
-                val = 0.0
+            idx = col_idx.get(x_col)
+            if idx is not None:
+                try:
+                    val = float(rows[0][idx] or 0)
+                except (TypeError, ValueError):
+                    val = 0.0
+        return val
 
-        g_min = float(self.gauge_min or 0)
-        g_max = float(self.gauge_max or 100)
+    def _gauge_color_zones(self, val, vc):
+        """Compute axis color zones and pointer color based on visual config.
+
+        Falls back to model-level fields for backward compatibility.
+        """
         colors = self._get_palette_colors()
+        g_min = float(vc.get('gauge_min', self.gauge_min or 0))
+        g_max = float(vc.get('gauge_max', self.gauge_max or 100))
+        color_mode = vc.get('gauge_color_mode', self.gauge_color_mode or 'single')
+        warn_frac = float(vc.get('gauge_warn_threshold', self.gauge_warn_threshold or 50)) / 100.0
+        good_frac = float(vc.get('gauge_good_threshold', self.gauge_good_threshold or 70)) / 100.0
 
-        # Color zones ─────────────────────────────────────────────────────────
-        warn_frac = float(self.gauge_warn_threshold or 50) / 100.0
-        good_frac = float(self.gauge_good_threshold or 70) / 100.0
-
-        if self.gauge_color_mode == 'traffic_light':
+        if color_mode == 'traffic_light':
             axis_color = [
-                [warn_frac, '#ef4444'],   # red
-                [good_frac, '#f59e0b'],   # amber
-                [1.0,       '#10b981'],   # green
+                [warn_frac, '#ef4444'],
+                [good_frac, '#f59e0b'],
+                [1.0,       '#10b981'],
             ]
             val_range = g_max - g_min
             val_frac = (val - g_min) / val_range if val_range else 0
@@ -1853,56 +1883,25 @@ class DashboardWidget(models.Model):
             pt_color = colors[0] if colors else '#0d9488'
             axis_color = [[1.0, pt_color]]
 
-        # Format: show % only when scale is 0-100
-        fmt = '{value}%' if (g_max == 100 and g_min == 0) else '{value}'
+        return g_min, g_max, axis_color, pt_color, colors
 
-        option = {
-            'animation': True,
-            'color': colors or ['#0d9488'],
-            'tooltip': {'formatter': '{a} <br/>{b} : {c}'},
-            'series': [{
-                'name': self.name,
-                'type': 'gauge',
-                'startAngle': 200,
-                'endAngle': -20,
-                'min': g_min,
-                'max': g_max,
-                'splitNumber': 5,
-                'radius': '85%',
-                'progress': {'show': True, 'width': 14},
-                'axisLine': {'lineStyle': {'width': 14, 'color': axis_color}},
-                'axisTick': {'show': False},
-                'splitLine': {
-                    'length': 8,
-                    'lineStyle': {'width': 2, 'color': '#aaa'},
-                },
-                'axisLabel': {'distance': 20, 'color': '#666', 'fontSize': 11},
-                'anchor': {
-                    'show': True,
-                    'showAbove': True,
-                    'size': 16,
-                    'itemStyle': {
-                        'borderWidth': 8,
-                        'borderColor': pt_color,
-                        'color': '#fff',
-                    },
-                },
-                # ── FIX: hide the series-name label inside the dial ──────────
-                'title': {'show': False},
-                'detail': {
-                    'valueAnimation': True,
-                    'fontSize': 32,
-                    'fontWeight': 'bold',
-                    'formatter': fmt,
-                    'color': pt_color,
-                    'offsetCenter': [0, '60%'],
-                },
-                'itemStyle': {'color': pt_color},
-                'data': [{'value': round(val, 1), 'name': ''}],
-            }],
+    def _gauge_number_formatter(self, vc, g_min, g_max):
+        """Return ECharts formatter string for the gauge center value."""
+        fmt_mode = vc.get('gauge_number_format', 'auto')
+        if fmt_mode == 'auto':
+            return '{value}%' if (g_max == 100 and g_min == 0) else '{value}'
+        fmts = {
+            'percent': '{value}%',
+            'comma': None,  # handled via JS formatter
+            'decimal1': None,
+            'decimal2': None,
+            'integer': None,
+            'currency': None,
         }
+        return fmts.get(fmt_mode, '{value}')
 
-        # ── Annotation injection (SQL-interpolated) ──────────────────────────
+    def _gauge_inject_annotations(self, option, cols, rows):
+        """Inject subtitle and annotation text into the gauge option."""
         sql_row = {}
         if rows and cols:
             sql_row = {c: (str(rows[0][i]) if rows[0][i] is not None else '')
@@ -1944,8 +1943,579 @@ class DashboardWidget(models.Model):
                 },
                 **pos,
             }]
-
         return option
+
+    # ── Standard gauge (220° arc — original) ──────────────────────────────
+
+    def _build_gauge_standard(self, cols, rows, vc):
+        """Build the classic 220° arc gauge with needle and progress bar."""
+        val = self._gauge_extract_value(cols, rows)
+        g_min, g_max, axis_color, pt_color, colors = self._gauge_color_zones(val, vc)
+        fmt = self._gauge_number_formatter(vc, g_min, g_max)
+        show_needle = vc.get('show_needle', True)
+        show_progress = vc.get('show_progress_bar', True)
+        show_scale = vc.get('show_scale_labels', True)
+
+        option = {
+            'animation': True,
+            'color': colors or ['#0d9488'],
+            'tooltip': {'formatter': '{a} <br/>{b} : {c}'},
+            'series': [{
+                'name': self.name,
+                'type': 'gauge',
+                'startAngle': 200,
+                'endAngle': -20,
+                'min': g_min,
+                'max': g_max,
+                'splitNumber': 5,
+                'radius': '85%',
+                'progress': {'show': show_progress, 'width': 14},
+                'axisLine': {'lineStyle': {'width': 14, 'color': axis_color}},
+                'axisTick': {'show': False},
+                'splitLine': {
+                    'length': 8,
+                    'lineStyle': {'width': 2, 'color': '#aaa'},
+                },
+                'axisLabel': {'distance': 20, 'color': '#666', 'fontSize': 11,
+                              'show': show_scale},
+                'anchor': {
+                    'show': show_needle,
+                    'showAbove': True,
+                    'size': 16,
+                    'itemStyle': {
+                        'borderWidth': 8,
+                        'borderColor': pt_color,
+                        'color': '#fff',
+                    },
+                },
+                'pointer': {'show': show_needle},
+                'title': {'show': False},
+                'detail': {
+                    'valueAnimation': True,
+                    'fontSize': 32,
+                    'fontWeight': 'bold',
+                    'formatter': fmt,
+                    'color': pt_color,
+                    'offsetCenter': [0, '60%'],
+                },
+                'itemStyle': {'color': pt_color},
+                'data': [{'value': round(val, 1), 'name': ''}],
+            }],
+        }
+
+        # Target marker
+        target_val = vc.get('target_value')
+        if target_val is not None:
+            self._gauge_add_target_marker(option, float(target_val),
+                                          vc.get('target_label', ''),
+                                          g_min, g_max, 200, -20)
+
+        return self._gauge_inject_annotations(option, cols, rows)
+
+    # ── Half-arc gauge (180°) ─────────────────────────────────────────────
+
+    def _build_gauge_half_arc(self, cols, rows, vc):
+        """Build a 180° semicircle gauge — clean arc with center value."""
+        val = self._gauge_extract_value(cols, rows)
+        g_min, g_max, axis_color, pt_color, colors = self._gauge_color_zones(val, vc)
+        fmt = self._gauge_number_formatter(vc, g_min, g_max)
+        show_progress = vc.get('show_progress_bar', True)
+        show_scale = vc.get('show_scale_labels', True)
+
+        option = {
+            'animation': True,
+            'color': colors or ['#0d9488'],
+            'series': [{
+                'name': self.name,
+                'type': 'gauge',
+                'startAngle': 180,
+                'endAngle': 0,
+                'min': g_min,
+                'max': g_max,
+                'splitNumber': 4,
+                'radius': '90%',
+                'center': ['50%', '70%'],
+                'progress': {'show': show_progress, 'width': 18,
+                             'itemStyle': {'color': pt_color}},
+                'axisLine': {'lineStyle': {'width': 18, 'color': axis_color}},
+                'axisTick': {'show': False},
+                'splitLine': {'show': False},
+                'axisLabel': {'show': show_scale, 'distance': -30,
+                              'color': '#999', 'fontSize': 10},
+                'pointer': {'show': False},
+                'anchor': {'show': False},
+                'title': {'show': False},
+                'detail': {
+                    'valueAnimation': True,
+                    'fontSize': 28,
+                    'fontWeight': 'bold',
+                    'formatter': fmt,
+                    'color': pt_color,
+                    'offsetCenter': [0, '-10%'],
+                },
+                'itemStyle': {'color': pt_color},
+                'data': [{'value': round(val, 1), 'name': ''}],
+            }],
+        }
+
+        # Min/Max labels at edges
+        if show_scale:
+            option.setdefault('graphic', []).extend([
+                {'type': 'text', 'left': '8%', 'bottom': '15%',
+                 'style': {'text': str(int(g_min)), 'fontSize': 11, 'fill': '#999'}},
+                {'type': 'text', 'right': '8%', 'bottom': '15%',
+                 'style': {'text': str(int(g_max)), 'fontSize': 11, 'fill': '#999',
+                           'textAlign': 'right'}},
+            ])
+
+        # Target marker + label below
+        target_val = vc.get('target_value')
+        target_label = vc.get('target_label', '')
+        if target_val is not None:
+            self._gauge_add_target_marker(option, float(target_val), '',
+                                          g_min, g_max, 180, 0)
+        if target_label:
+            option.setdefault('graphic', []).append({
+                'type': 'text',
+                'left': 'center',
+                'bottom': '5%',
+                'style': {'text': target_label, 'fontSize': 12,
+                          'fill': '#666', 'textAlign': 'center'},
+            })
+
+        return self._gauge_inject_annotations(option, cols, rows)
+
+    # ── Three-quarter gauge (270°) ────────────────────────────────────────
+
+    def _build_gauge_three_quarter(self, cols, rows, vc):
+        """Build a 270° arc gauge — cockpit style with full scale."""
+        val = self._gauge_extract_value(cols, rows)
+        g_min, g_max, axis_color, pt_color, colors = self._gauge_color_zones(val, vc)
+        fmt = self._gauge_number_formatter(vc, g_min, g_max)
+        show_needle = vc.get('show_needle', True)
+        show_progress = vc.get('show_progress_bar', True)
+        show_scale = vc.get('show_scale_labels', True)
+
+        option = {
+            'animation': True,
+            'color': colors or ['#0d9488'],
+            'series': [{
+                'name': self.name,
+                'type': 'gauge',
+                'startAngle': 225,
+                'endAngle': -45,
+                'min': g_min,
+                'max': g_max,
+                'splitNumber': 5,
+                'radius': '85%',
+                'progress': {'show': show_progress, 'width': 12},
+                'axisLine': {'lineStyle': {'width': 12, 'color': axis_color}},
+                'axisTick': {'show': True, 'splitNumber': 5,
+                             'lineStyle': {'color': '#ccc'}},
+                'splitLine': {
+                    'length': 10,
+                    'lineStyle': {'width': 2, 'color': '#aaa'},
+                },
+                'axisLabel': {'distance': 18, 'color': '#666', 'fontSize': 11,
+                              'show': show_scale},
+                'pointer': {'show': show_needle, 'length': '60%', 'width': 5},
+                'anchor': {
+                    'show': show_needle,
+                    'showAbove': True,
+                    'size': 14,
+                    'itemStyle': {
+                        'borderWidth': 6,
+                        'borderColor': pt_color,
+                        'color': '#fff',
+                    },
+                },
+                'title': {'show': False},
+                'detail': {
+                    'valueAnimation': True,
+                    'fontSize': 30,
+                    'fontWeight': 'bold',
+                    'formatter': fmt,
+                    'color': pt_color,
+                    'offsetCenter': [0, '70%'],
+                },
+                'itemStyle': {'color': pt_color},
+                'data': [{'value': round(val, 1), 'name': ''}],
+            }],
+        }
+
+        target_val = vc.get('target_value')
+        if target_val is not None:
+            self._gauge_add_target_marker(option, float(target_val),
+                                          vc.get('target_label', ''),
+                                          g_min, g_max, 225, -45)
+
+        return self._gauge_inject_annotations(option, cols, rows)
+
+    # ── Multi-ring nested gauge ───────────────────────────────────────────
+
+    def _build_gauge_multi_ring(self, cols, rows, vc):
+        """Build concentric ring arcs — each row is one ring."""
+        colors = self._get_palette_colors() or ['#0d9488', '#f59e0b', '#ef4444',
+                                                  '#3b82f6', '#8b5cf6', '#ec4899']
+        max_rings = int(vc.get('multi_ring_max_rings', 6))
+        arc_width = int(vc.get('multi_ring_arc_width', 10))
+        show_center = vc.get('multi_ring_show_center', True)
+        center_text = vc.get('multi_ring_center_text', '')
+        center_subtitle = vc.get('multi_ring_center_subtitle', '')
+        show_legend = vc.get('multi_ring_show_legend', True)
+        g_max = float(vc.get('gauge_max', self.gauge_max or 100))
+
+        col_idx = {c: i for i, c in enumerate(cols)}
+        x_col = (self.x_column or '').strip() or (cols[0] if cols else '')
+        y_cols = [c.strip() for c in (self.y_columns or '').split(',') if c.strip()]
+        y_col = y_cols[0] if y_cols else (cols[1] if len(cols) > 1 else '')
+
+        ring_data = []
+        for r in rows[:max_rings]:
+            name_val = r[col_idx[x_col]] if x_col in col_idx else ''
+            try:
+                val = float(r[col_idx[y_col]]) if y_col in col_idx else 0
+            except (TypeError, ValueError):
+                val = 0
+            ring_data.append({'name': str(name_val), 'value': round(val, 1)})
+
+        # Build concentric gauge series
+        series_list = []
+        outer_start = 90  # outermost ring radius %
+        ring_gap = arc_width + 4  # gap between rings in %
+        for i, rd in enumerate(ring_data):
+            radius_pct = outer_start - (i * ring_gap)
+            if radius_pct < 15:
+                break
+            ring_color = colors[i % len(colors)]
+            series_list.append({
+                'type': 'gauge',
+                'startAngle': 225,
+                'endAngle': -45,
+                'min': 0,
+                'max': g_max,
+                'radius': f'{radius_pct}%',
+                'progress': {'show': True, 'width': arc_width,
+                             'itemStyle': {'color': ring_color}},
+                'axisLine': {'lineStyle': {'width': arc_width,
+                             'color': [[1.0, '#f3f4f6']]}},
+                'axisTick': {'show': False},
+                'splitLine': {'show': False},
+                'axisLabel': {'show': False},
+                'pointer': {'show': False},
+                'anchor': {'show': False},
+                'title': {'show': False},
+                'detail': {'show': False},
+                'data': [{'value': rd['value'], 'name': rd['name']}],
+            })
+
+        option = {
+            'animation': True,
+            'color': colors,
+            'series': series_list,
+        }
+
+        # Center label
+        if show_center and (center_text or ring_data):
+            graphic = []
+            display_text = center_text or str(round(sum(d['value'] for d in ring_data) / len(ring_data), 1)) if ring_data else ''
+            graphic.append({
+                'type': 'text',
+                'left': 'center',
+                'top': '42%',
+                'style': {
+                    'text': display_text,
+                    'fontSize': 24,
+                    'fontWeight': 'bold',
+                    'fill': '#1f2937',
+                    'textAlign': 'center',
+                    'textVerticalAlign': 'middle',
+                },
+            })
+            if center_subtitle:
+                graphic.append({
+                    'type': 'text',
+                    'left': 'center',
+                    'top': '52%',
+                    'style': {
+                        'text': center_subtitle,
+                        'fontSize': 11,
+                        'fill': '#6b7280',
+                        'textAlign': 'center',
+                    },
+                })
+            option['graphic'] = graphic
+
+        # Legend with values
+        if show_legend and ring_data:
+            option['legend'] = {
+                'show': True,
+                'bottom': 0,
+                'itemGap': 12,
+                'data': [rd['name'] for rd in ring_data],
+                'textStyle': {'fontSize': 11},
+            }
+            # Add a hidden pie series for legend coloring
+            option['series'].append({
+                'type': 'pie',
+                'radius': [0, 0],
+                'label': {'show': False},
+                'data': [{'name': rd['name'], 'value': rd['value'],
+                          'itemStyle': {'color': colors[i % len(colors)]}}
+                         for i, rd in enumerate(ring_data)],
+            })
+
+        return self._gauge_inject_annotations(option, cols, rows)
+
+    # ── Gauge target marker helper ────────────────────────────────────────
+
+    def _gauge_add_target_marker(self, option, target_val, label,
+                                  g_min, g_max, start_angle, end_angle):
+        """Add a target pointer to the gauge series as a second data item."""
+        if not option.get('series'):
+            return
+        series = option['series'][0]
+        # Add a small fixed pointer for the target
+        import math
+        val_range = g_max - g_min
+        if val_range <= 0:
+            return
+        frac = (target_val - g_min) / val_range
+        frac = max(0, min(1, frac))
+        # Calculate angle for the target position
+        angle_range = start_angle - end_angle
+        target_angle = start_angle - frac * angle_range
+        rad = math.radians(target_angle)
+        # We use a markPoint-style approach via graphic elements
+        radius_pct = 0.85  # match series radius
+        cx, cy = 0.5, 0.5  # center
+        # Add a dashed arc segment as graphic
+        option.setdefault('graphic', []).append({
+            'type': 'text',
+            'left': 'center',
+            'bottom': '2%',
+            'style': {
+                'text': label if label else f'Target: {target_val}',
+                'fontSize': 11,
+                'fill': '#666',
+                'textAlign': 'center',
+            },
+            'z': 50,
+        })
+
+    # ── Non-ECharts gauge builders (bullet, RAG, percentile) ─────────────
+
+    def _build_gauge_custom(self, cols, rows, vc, style):
+        """Build plain dict for non-ECharts gauge variants."""
+        if style == 'bullet':
+            return self._build_bullet_gauge(cols, rows, vc)
+        elif style == 'traffic_light_rag':
+            return self._build_rag_gauge(cols, rows, vc)
+        elif style == 'percentile_rank':
+            return self._build_percentile_gauge(cols, rows, vc)
+        return {}
+
+    def _build_bullet_gauge(self, cols, rows, vc):
+        """Build bullet gauge data dict."""
+        col_idx = {c: i for i, c in enumerate(cols)}
+        x_col = (self.x_column or '').strip() or (cols[0] if cols else '')
+        y_cols = [c.strip() for c in (self.y_columns or '').split(',') if c.strip()]
+
+        val = 0.0
+        target = None
+        if rows:
+            try:
+                val = float(rows[0][col_idx.get(x_col, 0)] or 0)
+            except (TypeError, ValueError):
+                val = 0.0
+            # Target from second column if available
+            if y_cols and y_cols[0] in col_idx:
+                try:
+                    target = float(rows[0][col_idx[y_cols[0]]] or 0)
+                except (TypeError, ValueError):
+                    pass
+
+        b_min = float(vc.get('bullet_min', 0))
+        b_max = float(vc.get('bullet_max', 100))
+        target_override = vc.get('target_value')
+        if target_override is not None:
+            target = float(target_override)
+
+        # Parse custom ranges or build defaults
+        ranges = []
+        raw_ranges = vc.get('bullet_ranges', '')
+        if raw_ranges and raw_ranges.strip():
+            try:
+                ranges = json.loads(raw_ranges)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        if not ranges:
+            # Default 3-zone red/amber/green
+            third = (b_max - b_min) / 3
+            ranges = [
+                {'to': b_min + third, 'color': '#ef4444', 'label': f'Poor <{round(b_min + third)}'},
+                {'to': b_min + 2 * third, 'color': '#f59e0b', 'label': f'Watch {round(b_min + third)}-{round(b_min + 2 * third)}'},
+                {'to': b_max, 'color': '#10b981', 'label': f'Good >{round(b_min + 2 * third)}'},
+            ]
+
+        # Build threshold text
+        threshold_parts = [r.get('label', '') for r in ranges if r.get('label')]
+        threshold_text = ' | '.join(threshold_parts) if vc.get('bullet_show_labels', True) else ''
+
+        # Format value
+        fmt = self._gauge_format_value(val, vc)
+
+        return {
+            'gauge_variant': 'bullet',
+            'value': round(val, 1),
+            'formatted_value': fmt,
+            'target': round(target, 1) if target is not None else None,
+            'min': b_min,
+            'max': b_max,
+            'ranges': ranges,
+            'label': self.name,
+            'orientation': vc.get('bullet_orientation', 'horizontal'),
+            'bar_height': int(vc.get('bullet_bar_height', 12)),
+            'threshold_text': threshold_text,
+            'target_label': vc.get('target_label', ''),
+        }
+
+    def _build_rag_gauge(self, cols, rows, vc):
+        """Build traffic light / RAG gauge data dict."""
+        val = self._gauge_extract_value(cols, rows)
+        red_thresh = float(vc.get('rag_red_threshold', 70))
+        green_thresh = float(vc.get('rag_green_threshold', 85))
+        invert = vc.get('rag_invert', False)
+
+        if invert:
+            # Lower is better: value <= red_thresh is green
+            if val <= red_thresh:
+                rag_status = 'green'
+            elif val <= green_thresh:
+                rag_status = 'amber'
+            else:
+                rag_status = 'red'
+        else:
+            # Higher is better: value >= green_thresh is green
+            if val >= green_thresh:
+                rag_status = 'green'
+            elif val >= red_thresh:
+                rag_status = 'amber'
+            else:
+                rag_status = 'red'
+
+        badge_text = ''
+        if vc.get('rag_show_badge', True):
+            badge_map = {
+                'green': vc.get('rag_badge_green', 'On target'),
+                'amber': vc.get('rag_badge_amber', 'Watch'),
+                'red':   vc.get('rag_badge_red', 'At risk'),
+            }
+            badge_text = badge_map.get(rag_status, '')
+
+        # Threshold text
+        threshold_text = ''
+        if vc.get('rag_show_thresholds', True):
+            if invert:
+                threshold_text = f'G: <{red_thresh} | A: {red_thresh}-{green_thresh} | R: >{green_thresh}'
+            else:
+                threshold_text = f'G: \u2265{green_thresh} | A: {red_thresh}-{green_thresh} | R: <{red_thresh}'
+
+        fmt = self._gauge_format_value(val, vc)
+
+        return {
+            'gauge_variant': 'traffic_light_rag',
+            'value': round(val, 1),
+            'formatted_value': fmt,
+            'rag_status': rag_status,
+            'badge_text': badge_text,
+            'threshold_text': threshold_text,
+            'label': self.name,
+        }
+
+    def _build_percentile_gauge(self, cols, rows, vc):
+        """Build percentile rank gauge data dict."""
+        col_idx = {c: i for i, c in enumerate(cols)}
+        x_col = (self.x_column or '').strip() or (cols[0] if cols else '')
+        y_cols = [c.strip() for c in (self.y_columns or '').split(',') if c.strip()]
+
+        percentile = 0
+        subtitle = ''
+        actual_value = ''
+        actual_label = ''
+
+        if rows:
+            row = rows[0]
+            try:
+                percentile = int(float(row[col_idx.get(x_col, 0)] or 0))
+            except (TypeError, ValueError):
+                percentile = 0
+
+            # Optional columns: subtitle, actual_value, actual_label
+            if len(y_cols) >= 1 and y_cols[0] in col_idx:
+                subtitle = str(row[col_idx[y_cols[0]]] or '')
+            if len(y_cols) >= 2 and y_cols[1] in col_idx:
+                actual_value = str(row[col_idx[y_cols[1]]] or '')
+            if len(y_cols) >= 3 and y_cols[2] in col_idx:
+                actual_label = str(row[col_idx[y_cols[2]]] or '')
+
+        # Ordinal suffix
+        invert = vc.get('percentile_invert', False)
+        suffix = 'th'
+        if percentile % 10 == 1 and percentile % 100 != 11:
+            suffix = 'st'
+        elif percentile % 10 == 2 and percentile % 100 != 12:
+            suffix = 'nd'
+        elif percentile % 10 == 3 and percentile % 100 != 13:
+            suffix = 'rd'
+
+        # Quartile
+        if percentile >= 75:
+            quartile_label = 'Top quartile'
+            quartile_color = '#16a34a'
+        elif percentile >= 50:
+            quartile_label = '2nd quartile'
+            quartile_color = '#2563eb'
+        elif percentile >= 25:
+            quartile_label = '3rd quartile'
+            quartile_color = '#d97706'
+        else:
+            quartile_label = '4th quartile'
+            quartile_color = '#dc2626'
+
+        if invert:
+            quartile_label += ' (inverted)'
+
+        return {
+            'gauge_variant': 'percentile_rank',
+            'percentile': percentile,
+            'ordinal_text': f'{percentile}{suffix}',
+            'subtitle': subtitle or self.name,
+            'quartile_label': quartile_label if vc.get('percentile_show_badge', True) else '',
+            'quartile_color': quartile_color,
+            'actual_value': actual_value,
+            'actual_label': actual_label,
+            'show_quartile_markers': vc.get('percentile_show_quartiles', True),
+            'label': self.name,
+        }
+
+    def _gauge_format_value(self, val, vc):
+        """Format a gauge value based on gauge_number_format flag."""
+        fmt_mode = vc.get('gauge_number_format', 'auto')
+        if fmt_mode == 'percent' or (fmt_mode == 'auto' and float(vc.get('gauge_max', self.gauge_max or 100)) == 100):
+            return f'{round(val, 1)}%'
+        elif fmt_mode == 'comma':
+            return f'{val:,.0f}'
+        elif fmt_mode == 'decimal1':
+            return f'{val:.1f}'
+        elif fmt_mode == 'decimal2':
+            return f'{val:.2f}'
+        elif fmt_mode == 'integer':
+            return f'{int(round(val))}'
+        elif fmt_mode == 'currency':
+            return f'${val:,.0f}'
+        return str(round(val, 1))
 
     # =========================================================================
     # gauge_kpi render builder
@@ -1954,8 +2524,11 @@ class DashboardWidget(models.Model):
     def _build_gauge_kpi_data(self, cols, rows):
         """Build render dict for gauge_kpi widgets.
 
+        Supports both ECharts gauge variants (returns echart_json) and
+        non-ECharts variants (returns gauge_variant + custom data).
+
         Returns:
-            echart_json — serialised ECharts option for the gauge half
+            echart_json / gauge_variant — gauge rendering data
             sub_kpis    — list of {label, value, sub_label} dicts
             alert_text  — optional warning string from gauge_alert_column
         """
@@ -1969,8 +2542,21 @@ class DashboardWidget(models.Model):
         g_min = float(self.gauge_min or 0)
         g_max = float(self.gauge_max or 100)
 
-        # Gauge ECharts option (shared helper)
-        gauge_option = self._build_gauge_option(cols, rows)
+        # Check gauge style for non-ECharts variants
+        vc = {}
+        try:
+            vc = json.loads(self.visual_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            pass
+        gauge_style = vc.get('gauge_style', 'standard')
+
+        if gauge_style in ('bullet', 'traffic_light_rag', 'percentile_rank'):
+            # Non-ECharts gauge — merge custom data with sub-KPI/alert
+            result = self._build_gauge_custom(cols, rows, vc, gauge_style)
+        else:
+            # ECharts gauge (standard, half_arc, three_quarter, multi_ring)
+            gauge_option = self._build_gauge_option(cols, rows)
+            result = {'echart_json': json.dumps(gauge_option, default=str)}
 
         # Sub-KPI cards ───────────────────────────────────────────────────────
         sub_cols   = [c.strip() for c in (self.gauge_sub_kpi_columns  or '').split(',') if c.strip()]
@@ -1991,16 +2577,14 @@ class DashboardWidget(models.Model):
                 fmt_val = str(raw or '--')
             sub_kpis.append({'label': label, 'value': fmt_val, 'sub_label': sub_label})
 
+        result['sub_kpis'] = sub_kpis
+
         # Alert / insight text ────────────────────────────────────────────────
         alert_text = ''
         if self.gauge_alert_column and row:
             alert_text = str(col_val(row, self.gauge_alert_column) or '')
+        result['alert_text'] = alert_text
 
-        result = {
-            'echart_json': json.dumps(gauge_option, default=str),
-            'sub_kpis':    sub_kpis,
-            'alert_text':  alert_text,
-        }
         result.update(self._get_typography_overrides())
         return result
 
