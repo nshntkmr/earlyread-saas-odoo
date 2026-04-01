@@ -22,26 +22,47 @@ function GaugePreviewInline({ data, height }) {
   return null
 }
 
-function BulletPreview({ data, height }) {
-  const { value = 0, formatted_value = '', target, min = 0, max = 100, ranges = [],
-          label = '', threshold_text = '' } = data
-  const range = max - min || 1
-  const pct = Math.max(0, Math.min(100, ((value - min) / range) * 100))
-  const tPct = target != null ? Math.max(0, Math.min(100, ((target - min) / range) * 100)) : null
+function BulletRowPrev({ label, formatted_value, value, target, target_label, min, max, ranges }) {
+  const rng = max - min || 1
+  const pct = Math.max(0, Math.min(100, ((value - min) / rng) * 100))
+  const tPct = target != null ? Math.max(0, Math.min(100, ((target - min) / rng) * 100)) : null
   return (
-    <div style={{ padding: '16px 20px', height }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{label}</span>
-        <span style={{ fontWeight: 700, fontSize: 18, color: '#0d9488' }}>{formatted_value}</span>
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+        <span style={{ fontWeight: 600, fontSize: 13 }}>{label}</span>
+        <span style={{ fontWeight: 700, fontSize: 15, color: '#0d9488' }}>{formatted_value}</span>
       </div>
-      <div style={{ position: 'relative', height: 20, borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
+      <div style={{ position: 'relative', height: 16, borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
         {ranges.map((r, i) => {
           const prevTo = i > 0 ? ranges[i-1].to : min
-          return <div key={i} style={{ width: `${((r.to - prevTo) / range) * 100}%`, backgroundColor: r.color, opacity: 0.25 }} />
+          return <div key={i} style={{ width: `${((r.to - prevTo) / rng) * 100}%`, backgroundColor: r.color, opacity: 0.25 }} />
         })}
-        <div style={{ position: 'absolute', top: 4, left: 0, height: 12, width: `${pct}%`, borderRadius: 3, backgroundColor: '#0d9488' }} />
-        {tPct != null && <div style={{ position: 'absolute', left: `${tPct}%`, top: 0, width: 2, height: 20, backgroundColor: '#374151' }} />}
+        <div style={{ position: 'absolute', top: 3, left: 0, height: 10, width: `${pct}%`, borderRadius: 2, backgroundColor: '#0d9488' }} />
+        {tPct != null && <div style={{ position: 'absolute', left: `${tPct}%`, top: 0, width: 2, height: 16, backgroundColor: '#374151' }} />}
       </div>
+      {target_label && <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'right', marginTop: 1 }}>{target_label}</div>}
+    </div>
+  )
+}
+
+function BulletPreview({ data, height }) {
+  if (data.multi && data.items) {
+    const { items, min = 0, max = 100, ranges = [], threshold_text = '' } = data
+    return (
+      <div style={{ padding: '12px 20px', height }}>
+        {items.map((item, i) => (
+          <BulletRowPrev key={i} {...item} min={min} max={max} ranges={ranges} />
+        ))}
+        {threshold_text && <div style={{ fontSize: 11, color: '#9ca3af', borderTop: '1px solid #f3f4f6', paddingTop: 4 }}>{threshold_text}</div>}
+      </div>
+    )
+  }
+  const { value = 0, formatted_value = '', target, min = 0, max = 100, ranges = [],
+          label = '', threshold_text = '', target_label = '' } = data
+  return (
+    <div style={{ padding: '16px 20px', height }}>
+      <BulletRowPrev label={label} formatted_value={formatted_value} value={value}
+        target={target} target_label={target_label} min={min} max={max} ranges={ranges} />
       {threshold_text && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>{threshold_text}</div>}
     </div>
   )

@@ -2348,11 +2348,74 @@ class DashboardWidget(models.Model):
         return {}
 
     def _build_bullet_gauge(self, cols, rows, vc):
-        """Build bullet gauge data dict."""
+        """Build bullet gauge data dict.
+
+        Supports multi-row: when SQL returns multiple rows, each row becomes
+        a stacked bullet bar with its own label, value, target, and target_label.
+
+        Column mapping:
+          Single-row:  x_column = value column, y_columns = target (optional)
+          Multi-row:   x_column = metric_name (label), y_columns = actual_value, benchmark_value [, benchmark_label]
+        """
         col_idx = {c: i for i, c in enumerate(cols)}
         x_col = (self.x_column or '').strip() or (cols[0] if cols else '')
         y_cols = [c.strip() for c in (self.y_columns or '').split(',') if c.strip()]
 
+        b_min = float(vc.get('bullet_min', 0))
+        b_max = float(vc.get('bullet_max', 100))
+
+        # Parse custom ranges or build defaults
+        ranges = self._bullet_parse_ranges(vc, b_min, b_max)
+
+        # Build threshold text
+        threshold_parts = [r.get('label', '') for r in ranges if r.get('label')]
+        threshold_text = ' | '.join(threshold_parts) if vc.get('bullet_show_labels', True) else ''
+
+        bar_height = int(vc.get('bullet_bar_height', 12))
+        orientation = vc.get('bullet_orientation', 'horizontal')
+
+        # ── Multi-row detection ──────────────────────────────────────────
+        # If SQL returns >1 row AND y_columns has at least 1 column (actual_value),
+        # treat as multi-row: x_col = label, y_cols[0] = actual, y_cols[1] = benchmark, y_cols[2] = benchmark_label
+        if len(rows) > 1 and y_cols:
+            items = []
+            for row in rows:
+                name = str(row[col_idx.get(x_col, 0)] or '') if x_col in col_idx else ''
+                try:
+                    val = float(row[col_idx[y_cols[0]]] or 0) if y_cols[0] in col_idx else 0.0
+                except (TypeError, ValueError):
+                    val = 0.0
+                benchmark = None
+                benchmark_label = ''
+                if len(y_cols) >= 2 and y_cols[1] in col_idx:
+                    try:
+                        benchmark = float(row[col_idx[y_cols[1]]] or 0)
+                    except (TypeError, ValueError):
+                        pass
+                if len(y_cols) >= 3 and y_cols[2] in col_idx:
+                    benchmark_label = str(row[col_idx[y_cols[2]]] or '')
+
+                items.append({
+                    'label': name,
+                    'value': round(val, 1),
+                    'formatted_value': self._gauge_format_value(val, vc),
+                    'target': round(benchmark, 1) if benchmark is not None else None,
+                    'target_label': benchmark_label,
+                })
+
+            return {
+                'gauge_variant': 'bullet',
+                'multi': True,
+                'items': items,
+                'min': b_min,
+                'max': b_max,
+                'ranges': ranges,
+                'bar_height': bar_height,
+                'orientation': orientation,
+                'threshold_text': threshold_text,
+            }
+
+        # ── Single-row (backward compatible) ─────────────────────────────
         val = 0.0
         target = None
         if rows:
@@ -2360,20 +2423,33 @@ class DashboardWidget(models.Model):
                 val = float(rows[0][col_idx.get(x_col, 0)] or 0)
             except (TypeError, ValueError):
                 val = 0.0
-            # Target from second column if available
             if y_cols and y_cols[0] in col_idx:
                 try:
                     target = float(rows[0][col_idx[y_cols[0]]] or 0)
                 except (TypeError, ValueError):
                     pass
 
-        b_min = float(vc.get('bullet_min', 0))
-        b_max = float(vc.get('bullet_max', 100))
         target_override = vc.get('target_value')
         if target_override is not None:
             target = float(target_override)
 
-        # Parse custom ranges or build defaults
+        return {
+            'gauge_variant': 'bullet',
+            'value': round(val, 1),
+            'formatted_value': self._gauge_format_value(val, vc),
+            'target': round(target, 1) if target is not None else None,
+            'min': b_min,
+            'max': b_max,
+            'ranges': ranges,
+            'label': self.name,
+            'orientation': orientation,
+            'bar_height': bar_height,
+            'threshold_text': threshold_text,
+            'target_label': vc.get('target_label', ''),
+        }
+
+    def _bullet_parse_ranges(self, vc, b_min, b_max):
+        """Parse bullet range zones from visual_config or build defaults."""
         ranges = []
         raw_ranges = vc.get('bullet_ranges', '')
         if raw_ranges and raw_ranges.strip():
@@ -2381,37 +2457,14 @@ class DashboardWidget(models.Model):
                 ranges = json.loads(raw_ranges)
             except (json.JSONDecodeError, TypeError):
                 pass
-
         if not ranges:
-            # Default 3-zone red/amber/green
             third = (b_max - b_min) / 3
             ranges = [
                 {'to': b_min + third, 'color': '#ef4444', 'label': f'Poor <{round(b_min + third)}'},
                 {'to': b_min + 2 * third, 'color': '#f59e0b', 'label': f'Watch {round(b_min + third)}-{round(b_min + 2 * third)}'},
                 {'to': b_max, 'color': '#10b981', 'label': f'Good >{round(b_min + 2 * third)}'},
             ]
-
-        # Build threshold text
-        threshold_parts = [r.get('label', '') for r in ranges if r.get('label')]
-        threshold_text = ' | '.join(threshold_parts) if vc.get('bullet_show_labels', True) else ''
-
-        # Format value
-        fmt = self._gauge_format_value(val, vc)
-
-        return {
-            'gauge_variant': 'bullet',
-            'value': round(val, 1),
-            'formatted_value': fmt,
-            'target': round(target, 1) if target is not None else None,
-            'min': b_min,
-            'max': b_max,
-            'ranges': ranges,
-            'label': self.name,
-            'orientation': vc.get('bullet_orientation', 'horizontal'),
-            'bar_height': int(vc.get('bullet_bar_height', 12)),
-            'threshold_text': threshold_text,
-            'target_label': vc.get('target_label', ''),
-        }
+        return ranges
 
     def _build_rag_gauge(self, cols, rows, vc):
         """Build traffic light / RAG gauge data dict."""

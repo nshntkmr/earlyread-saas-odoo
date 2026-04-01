@@ -622,15 +622,7 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
         if gauge_style == 'bullet':
             b_min = float(vc.get('bullet_min', 0))
             b_max = float(vc.get('bullet_max', 100))
-            target = vc.get('target_value')
-            # Try target from second column
-            if target is None and y_col_list:
-                t_val = col_val(rows[0], y_col_list[0]) if rows else None
-                if t_val is not None:
-                    try:
-                        target = float(t_val)
-                    except (TypeError, ValueError):
-                        pass
+            # Parse ranges
             ranges_raw = vc.get('bullet_ranges', '')
             ranges = []
             if ranges_raw and ranges_raw.strip():
@@ -646,6 +638,52 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                     {'to': b_max, 'color': '#10b981', 'label': f'Good >{round(b_min + 2*third)}'},
                 ]
             threshold_parts = [r.get('label', '') for r in ranges if r.get('label')]
+            threshold_text = ' | '.join(threshold_parts) if vc.get('bullet_show_labels', True) else ''
+            bar_height = int(vc.get('bullet_bar_height', 12))
+            orientation = vc.get('bullet_orientation', 'horizontal')
+
+            # Multi-row: when >1 row and y_col_list has actual_value column
+            if len(rows) > 1 and y_col_list:
+                items = []
+                for r in rows:
+                    name = str(col_val(r, x_col) or '')
+                    try:
+                        rv = float(col_val(r, y_col_list[0]) or 0)
+                    except (TypeError, ValueError):
+                        rv = 0
+                    bm = None
+                    bm_label = ''
+                    if len(y_col_list) >= 2:
+                        try:
+                            bm = float(col_val(r, y_col_list[1]) or 0)
+                        except (TypeError, ValueError):
+                            pass
+                    if len(y_col_list) >= 3:
+                        bm_label = str(col_val(r, y_col_list[2]) or '')
+                    fmt = f'{round(rv, 1)}%' if b_max == 100 else str(round(rv, 1))
+                    items.append({
+                        'label': name, 'value': round(rv, 1),
+                        'formatted_value': fmt,
+                        'target': round(bm, 1) if bm is not None else None,
+                        'target_label': bm_label,
+                    })
+                return {
+                    'gauge_variant': 'bullet', 'multi': True,
+                    'items': items,
+                    'min': b_min, 'max': b_max, 'ranges': ranges,
+                    'bar_height': bar_height, 'orientation': orientation,
+                    'threshold_text': threshold_text,
+                }
+
+            # Single-row
+            target = vc.get('target_value')
+            if target is None and y_col_list:
+                t_val = col_val(rows[0], y_col_list[0]) if rows else None
+                if t_val is not None:
+                    try:
+                        target = float(t_val)
+                    except (TypeError, ValueError):
+                        pass
             return {
                 'gauge_variant': 'bullet',
                 'value': round(val, 1),
@@ -654,9 +692,9 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                 'min': b_min, 'max': b_max,
                 'ranges': ranges,
                 'label': config.get('title', ''),
-                'orientation': vc.get('bullet_orientation', 'horizontal'),
-                'bar_height': int(vc.get('bullet_bar_height', 12)),
-                'threshold_text': ' | '.join(threshold_parts) if vc.get('bullet_show_labels', True) else '',
+                'orientation': orientation,
+                'bar_height': bar_height,
+                'threshold_text': threshold_text,
                 'target_label': vc.get('target_label', ''),
             }
 

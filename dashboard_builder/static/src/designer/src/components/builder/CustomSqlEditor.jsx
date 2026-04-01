@@ -15,7 +15,7 @@ const SQL_COLUMN_HELP = {
   gauge:         { cols: 'value', example: 'SELECT AVG(star_rating) AS rating FROM mv_quality' },
   gauge_half_arc: { cols: 'value', example: 'SELECT timely_access_pct AS value FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
   gauge_three_quarter: { cols: 'value', example: 'SELECT rehospitalization_rate AS value FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
-  gauge_bullet:  { cols: 'value [, target]', example: 'SELECT timely_access_pct AS value, 85 AS target FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
+  gauge_bullet:  { cols: 'Single: value [, target]. Multi-row: metric_name, actual_value, benchmark_value [, benchmark_label]', example: "SELECT 'Timely access' AS metric, timely_pct AS actual, peer_avg AS benchmark, 'Target: ' || peer_avg || '%' AS label FROM ..." },
   gauge_traffic_light_rag: { cols: 'value', example: 'SELECT lupa_rate AS value FROM mv_quality WHERE hha_ccn = %(hha_ccn)s' },
   gauge_percentile_rank: { cols: 'percentile [, subtitle, actual_value, actual_label]', example: 'SELECT pctile_rank, \'Total admits\' AS subtitle, total_admits AS actual, \'Volume leader\' AS label FROM mv_rankings WHERE hha_ccn = %(hha_ccn)s' },
   gauge_multi_ring: { cols: 'metric_name, metric_value [, metric_max]', example: 'SELECT metric_name, score FROM mv_composite_quality WHERE hha_ccn = %(hha_ccn)s' },
