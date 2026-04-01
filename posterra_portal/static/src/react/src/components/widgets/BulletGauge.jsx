@@ -33,6 +33,10 @@ export default function BulletGauge({ data = {}, height }) {
     bar_height = 12,
     threshold_text = '',
     target_label = '',
+    label_font_weight,
+    label_color,
+    value_font_weight,
+    value_color,
   } = data
 
   const range_val = max - min || 1
@@ -58,8 +62,8 @@ export default function BulletGauge({ data = {}, height }) {
         alignItems: 'baseline',
         marginBottom: 8,
       }}>
-        <span style={{ fontWeight: 600, fontSize: 14, color: '#1f2937' }}>{label}</span>
-        <span style={{ fontWeight: 700, fontSize: 18, color: '#0d9488' }}>{formatted_value}</span>
+        <span style={{ fontWeight: label_font_weight || 600, fontSize: 14, color: label_color || '#1f2937' }}>{label}</span>
+        <span style={{ fontWeight: value_font_weight || 700, fontSize: 18, color: value_color || '#0d9488' }}>{formatted_value}</span>
       </div>
 
       {/* Bullet bar */}

@@ -629,6 +629,8 @@ class DashboardWidget(models.Model):
                 else:
                     option = self._build_gauge_option(cols, rows)
                     result = {'echart_json': json.dumps(option, default=str)}
+                # Typography overrides for all gauge variants
+                result.update(self._get_typography_overrides())
             else:
                 # Run annotation query once and pass to both chart builder and interpolation
                 ann_row = self._get_annotation_row(portal_ctx)
@@ -1901,7 +1903,7 @@ class DashboardWidget(models.Model):
         return fmts.get(fmt_mode, '{value}')
 
     def _gauge_inject_annotations(self, option, cols, rows):
-        """Inject subtitle and annotation text into the gauge option."""
+        """Inject subtitle, annotation text, and typography into the gauge option."""
         sql_row = {}
         if rows and cols:
             sql_row = {c: (str(rows[0][i]) if rows[0][i] is not None else '')
@@ -1932,7 +1934,7 @@ class DashboardWidget(models.Model):
                 pos = dict(_POSITION_MAP.get(
                     self.annotation_position or 'top_right',
                     _POSITION_MAP['top_right']))
-            option['graphic'] = [{
+            option.setdefault('graphic', []).append({
                 'type': 'text',
                 'z': 100,
                 'style': {
@@ -1942,7 +1944,21 @@ class DashboardWidget(models.Model):
                     'textAlign': self.annotation_align or 'right',
                 },
                 **pos,
-            }]
+            })
+
+        # ── Apply typography overrides to ECharts gauge detail ────────────
+        typo = self._get_typography_overrides()
+        if typo and option.get('series'):
+            for s in option['series']:
+                if s.get('type') == 'gauge' and 'detail' in s:
+                    if typo.get('value_color'):
+                        s['detail']['color'] = typo['value_color']
+                    if typo.get('value_font_weight'):
+                        s['detail']['fontWeight'] = typo['value_font_weight']
+                    # Also update pointer/anchor color to match
+                    if typo.get('value_color') and 'itemStyle' in s:
+                        s['itemStyle']['color'] = typo['value_color']
+
         return option
 
     # ── Standard gauge (220° arc — original) ──────────────────────────────
@@ -2015,12 +2031,28 @@ class DashboardWidget(models.Model):
     # ── Half-arc gauge (180°) ─────────────────────────────────────────────
 
     def _build_gauge_half_arc(self, cols, rows, vc):
-        """Build a 180° semicircle gauge — clean arc with center value."""
+        """Build a 180° semicircle gauge — clean arc with center value.
+
+        Adapts to chart_height: at small sizes (< 200px), suppresses scale
+        labels and reduces arc width/font to avoid overlap.
+        """
         val = self._gauge_extract_value(cols, rows)
         g_min, g_max, axis_color, pt_color, colors = self._gauge_color_zones(val, vc)
         fmt = self._gauge_number_formatter(vc, g_min, g_max)
         show_progress = vc.get('show_progress_bar', True)
         show_scale = vc.get('show_scale_labels', True)
+
+        # ── Responsive sizing based on chart_height ──────────────────────
+        h = int(self.chart_height or 280)
+        is_compact = h < 200
+        arc_width = max(8, min(18, int(h * 0.09)))
+        value_font = max(14, min(28, int(h * 0.16)))
+        label_font = max(8, min(10, int(h * 0.05)))
+        label_dist = max(-20, -int(h * 0.15))
+
+        # At compact sizes, suppress scale labels to avoid overlap
+        if is_compact:
+            show_scale = False
 
         option = {
             'animation': True,
@@ -2033,33 +2065,33 @@ class DashboardWidget(models.Model):
                 'min': g_min,
                 'max': g_max,
                 'splitNumber': 4,
-                'radius': '90%',
-                'center': ['50%', '70%'],
-                'progress': {'show': show_progress, 'width': 18,
+                'radius': '85%' if is_compact else '90%',
+                'center': ['50%', '75%' if is_compact else '70%'],
+                'progress': {'show': show_progress, 'width': arc_width,
                              'itemStyle': {'color': pt_color}},
-                'axisLine': {'lineStyle': {'width': 18, 'color': axis_color}},
+                'axisLine': {'lineStyle': {'width': arc_width, 'color': axis_color}},
                 'axisTick': {'show': False},
                 'splitLine': {'show': False},
-                'axisLabel': {'show': show_scale, 'distance': -30,
-                              'color': '#999', 'fontSize': 10},
+                'axisLabel': {'show': show_scale, 'distance': label_dist,
+                              'color': '#999', 'fontSize': label_font},
                 'pointer': {'show': False},
                 'anchor': {'show': False},
                 'title': {'show': False},
                 'detail': {
                     'valueAnimation': True,
-                    'fontSize': 28,
+                    'fontSize': value_font,
                     'fontWeight': 'bold',
                     'formatter': fmt,
                     'color': pt_color,
-                    'offsetCenter': [0, '-10%'],
+                    'offsetCenter': [0, '-5%' if is_compact else '-10%'],
                 },
                 'itemStyle': {'color': pt_color},
                 'data': [{'value': round(val, 1), 'name': ''}],
             }],
         }
 
-        # Min/Max labels at edges
-        if show_scale:
+        # Min/Max labels at edges (only at larger sizes)
+        if show_scale and not is_compact:
             option.setdefault('graphic', []).extend([
                 {'type': 'text', 'left': '8%', 'bottom': '15%',
                  'style': {'text': str(int(g_min)), 'fontSize': 11, 'fill': '#999'}},

@@ -38,6 +38,10 @@ export default function TrafficLightGauge({ data = {}, height }) {
     badge_text = '',
     threshold_text = '',
     label = '',
+    label_font_weight,
+    label_color,
+    value_font_weight,
+    value_color,
   } = data
 
   const circleOrder = ['red', 'amber', 'green']
@@ -56,8 +60,8 @@ export default function TrafficLightGauge({ data = {}, height }) {
       {label && (
         <div style={{
           fontSize: 13,
-          fontWeight: 600,
-          color: '#1f2937',
+          fontWeight: label_font_weight || 600,
+          color: label_color || '#1f2937',
           marginBottom: 12,
           textAlign: 'center',
         }}>
@@ -96,8 +100,8 @@ export default function TrafficLightGauge({ data = {}, height }) {
       {/* Value */}
       <div style={{
         fontSize: 28,
-        fontWeight: 700,
-        color: RAG_COLORS[rag_status]?.active || '#1f2937',
+        fontWeight: value_font_weight || 700,
+        color: value_color || RAG_COLORS[rag_status]?.active || '#1f2937',
         lineHeight: 1.2,
         marginBottom: 6,
       }}>

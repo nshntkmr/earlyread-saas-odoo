@@ -39,6 +39,10 @@ export default function PercentileGauge({ data = {}, height }) {
     actual_label = '',
     show_quartile_markers = true,
     label = '',
+    label_font_weight,
+    label_color,
+    value_font_weight,
+    value_color,
   } = data
 
   const pct = Math.max(0, Math.min(100, percentile))
@@ -63,7 +67,7 @@ export default function PercentileGauge({ data = {}, height }) {
         alignItems: 'center',
         marginBottom: 6,
       }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>
+        <span style={{ fontSize: 13, fontWeight: label_font_weight || 600, color: label_color || '#1f2937' }}>
           {label}
         </span>
         {quartile_label && (
@@ -85,8 +89,8 @@ export default function PercentileGauge({ data = {}, height }) {
       {/* Large ordinal number */}
       <div style={{
         fontSize: 32,
-        fontWeight: 700,
-        color: quartile_color,
+        fontWeight: value_font_weight || 700,
+        color: value_color || quartile_color,
         lineHeight: 1.1,
         marginBottom: 2,
       }}>
