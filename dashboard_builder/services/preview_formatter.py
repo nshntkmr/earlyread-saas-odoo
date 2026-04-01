@@ -708,8 +708,9 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                     return 'green' if v <= red_t else ('amber' if v <= green_t else 'red')
                 return 'green' if v >= green_t else ('amber' if v >= red_t else 'red')
 
-            # Multi-row: x=metric_name, y=[value, rag_status, status_text]
-            if len(rows) > 1 and y_col_list:
+            # Scorecard mode: x=metric_name, y=[value, rag_status, status_text]
+            rag_layout = vc.get('rag_layout', 'circles')
+            if rag_layout == 'scorecard' and y_col_list:
                 items = []
                 for r in rows:
                     nm = str(col_val(r, x_col) or '')

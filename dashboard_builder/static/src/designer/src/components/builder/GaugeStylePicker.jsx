@@ -529,6 +529,18 @@ export default function GaugeStylePicker({
           <div style={styles.sectionTitle}>Traffic Light Settings</div>
 
           <div className="wb-field-row">
+            <label className="wb-field-label">Layout</label>
+            <select
+              className="wb-select"
+              value={cfgVal(visualConfig, 'rag_layout', 'circles')}
+              onChange={e => handleCfg('rag_layout', e.target.value)}
+            >
+              <option value="circles">Traffic Light (circles)</option>
+              <option value="scorecard">RAG Scorecard (list)</option>
+            </select>
+          </div>
+
+          <div className="wb-field-row">
             <label className="wb-field-label">Red → Amber Threshold</label>
             <input
               type="number"

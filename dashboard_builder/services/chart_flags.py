@@ -871,6 +871,19 @@ GAUGE_FLAGS = [
 
     # ── Traffic Light / RAG flags ────────────────────────────────
     {
+        'flag': 'rag_layout',
+        'type': 'select',
+        'default': 'circles',
+        'label': 'Layout',
+        'help': 'Circles = single KPI with 3 colored circles + value + badge. '
+                'Scorecard = multiple metrics listed with colored dot + value + status text.',
+        'options': [
+            {'value': 'circles', 'label': 'Traffic Light (circles)'},
+            {'value': 'scorecard', 'label': 'RAG Scorecard (list)'},
+        ],
+        'show_when': {'gauge_style': 'traffic_light_rag'},
+    },
+    {
         'flag': 'rag_red_threshold',
         'type': 'number',
         'default': 70,

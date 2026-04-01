@@ -2510,9 +2510,10 @@ class DashboardWidget(models.Model):
         red_thresh = float(vc.get('rag_red_threshold', 70))
         green_thresh = float(vc.get('rag_green_threshold', 85))
         invert = vc.get('rag_invert', False)
+        rag_layout = vc.get('rag_layout', 'circles')
 
-        # ── Multi-row mode ───────────────────────────────────────────
-        if len(rows) > 1 and y_cols:
+        # ── Scorecard mode (multi-row list) ──────────────────────────
+        if rag_layout == 'scorecard' and y_cols:
             items = []
             for row in rows:
                 name = str(row[col_idx.get(x_col, 0)] or '') if x_col in col_idx else ''
