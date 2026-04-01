@@ -220,6 +220,12 @@ export default function WidgetGrid({ initialWidgets }) {
   }
   if (currentRow.length) rows.push(currentRow)
 
+  // Widget types that scale their content to fill available height (ECharts canvas,
+  // tables with more rows, gauge_kpi composite). Non-scalable widgets (traffic light,
+  // bullet, percentile, KPI, battle card, insight) render at their natural height
+  // and top-align within the card — they don't benefit from extra vertical space.
+  const SCALABLE_TYPES = new Set([...ECHART_TYPES, 'table', 'gauge_kpi'])
+
   const renderWidget = (w, rowTotalWidth) => {
     const WidgetComponent = resolveWidget(w.chart_type)
     const isLoading = !!loading[w.id]
@@ -229,6 +235,12 @@ export default function WidgetGrid({ initialWidgets }) {
 
     // Compact mode: kpi_strip chart type or display_mode === 'compact'
     const isCompact = w.chart_type === 'kpi_strip' || w.display_mode === 'compact'
+
+    // Scalable widgets (ECharts, tables) get the configured height passed through.
+    // Non-scalable widgets (gauge variants, KPI, battle card) render at natural size.
+    const isGaugeNonEchart = w.chart_type === 'gauge' && w.data?.gauge_variant
+    const isScalable = SCALABLE_TYPES.has(w.chart_type) && !isGaugeNonEchart
+    const componentHeight = isScalable ? w.height : undefined
 
     // Extra props for interactive widgets
     const extraProps = {}
@@ -296,7 +308,7 @@ export default function WidgetGrid({ initialWidgets }) {
               <div className="pv-widget-skeleton" />
             </div>
           ) : (
-            <WidgetComponent data={w.data} height={w.height} name={w.name} {...extraProps} />
+            <WidgetComponent data={w.data} height={componentHeight} name={w.name} {...extraProps} />
           )}
           {w.footnote && (
             <div className="pv-widget-footnote text-muted px-3 pb-2 mt-auto border-top pt-1">
