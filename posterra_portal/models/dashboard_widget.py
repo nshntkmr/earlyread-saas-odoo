@@ -679,6 +679,17 @@ class DashboardWidget(models.Model):
         for m in re.finditer(r'%\(([^)]+)\)s', sql):
             if m.group(1) not in safe_params:
                 safe_params[m.group(1)] = None
+
+        # Auto-unwrap single-element tuples to scalar values.
+        # build_sql_params() wraps multiselect filter values as tuples (even
+        # when only one value is selected), but custom SQL often uses
+        # ``= %(param)s`` instead of ``IN %(param)s``.  psycopg2 can't bind
+        # a tuple with ``=``, so we unwrap single-element tuples here.
+        # Multi-element tuples are left as-is (the SQL must use ``IN``).
+        for k, v in list(safe_params.items()):
+            if isinstance(v, (list, tuple)) and len(v) == 1:
+                safe_params[k] = v[0]
+
         # psycopg2 named params: %(key)s  — pass as dict
         # Use a savepoint so a failed query doesn't poison the whole transaction
         with self.env.cr.savepoint():

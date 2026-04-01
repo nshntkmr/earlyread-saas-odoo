@@ -287,9 +287,9 @@ export default function WidgetGrid({ initialWidgets }) {
               {w.subtitle}
             </div>
           )}
-          {error ? (
+          {error || w.data?.error ? (
             <div className="pv-widget-error text-danger p-3">
-              <small>⚠ {error}</small>
+              <small>⚠ {error || w.data?.error}</small>
             </div>
           ) : isLoading ? (
             <div className="pv-widget-loading" style={{ height: isCompact ? 48 : (w.height || 120) }}>
