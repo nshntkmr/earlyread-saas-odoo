@@ -452,6 +452,7 @@ export default function WidgetBuilder({
                 orderBy={state.orderBy}
                 limit={state.limit}
                 chartType={state.chartType}
+                visualFlags={state.visualFlags}
                 onUpdate={v => dispatch({ type: 'UPDATE_COLUMN_MAPPER', value: v })}
               />
             ) : (

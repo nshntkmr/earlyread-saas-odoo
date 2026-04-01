@@ -16,6 +16,7 @@ const AGG_FUNCS = ['SUM', 'COUNT', 'AVG', 'MIN', 'MAX', 'WAVG']
  */
 export default function ColumnMapper({
   sources, columns, orderBy, limit, chartType, columnLinks,
+  visualFlags,
   onUpdate,
 }) {
   // Flatten all columns across sources
@@ -98,6 +99,28 @@ export default function ColumnMapper({
       {/* Y-axis columns */}
       <div className="wb-field-group">
         <label className="wb-label">Y-Axis / Values</label>
+        {/* Contextual hint for gauge bullet multi-row */}
+        {chartType === 'gauge' && visualFlags?.gauge_style === 'bullet' && (
+          <div style={{ fontSize: 11, color: '#6b7280', background: '#f0fdf4', border: '1px solid #bbf7d0',
+                        borderRadius: 4, padding: '6px 10px', marginBottom: 8 }}>
+            <i className="fa fa-info-circle" style={{ marginRight: 6, color: '#0d9488' }} />
+            <strong>Multi-row bullet:</strong> X = metric name, Y1 = actual value, Y2 = benchmark/target value (optional), Y3 = benchmark label text (optional)
+          </div>
+        )}
+        {chartType === 'gauge' && visualFlags?.gauge_style === 'percentile_rank' && (
+          <div style={{ fontSize: 11, color: '#6b7280', background: '#eff6ff', border: '1px solid #bfdbfe',
+                        borderRadius: 4, padding: '6px 10px', marginBottom: 8 }}>
+            <i className="fa fa-info-circle" style={{ marginRight: 6, color: '#2563eb' }} />
+            <strong>Percentile:</strong> X = percentile value (0-100), Y1 = subtitle, Y2 = actual value, Y3 = actual label
+          </div>
+        )}
+        {chartType === 'gauge' && visualFlags?.gauge_style === 'multi_ring' && (
+          <div style={{ fontSize: 11, color: '#6b7280', background: '#fefce8', border: '1px solid #fde68a',
+                        borderRadius: 4, padding: '6px 10px', marginBottom: 8 }}>
+            <i className="fa fa-info-circle" style={{ marginRight: 6, color: '#d97706' }} />
+            <strong>Multi-ring:</strong> X = metric name (one row per ring), Y1 = metric value
+          </div>
+        )}
         {(columns.y || []).map((yCol, idx) => (
           <div key={idx} className="wb-y-row">
             <span className="wb-y-num">#{idx + 1}</span>
