@@ -277,7 +277,10 @@ export default function WidgetGrid({ initialWidgets }) {
       >
         <div
           className="pv-widget-card"
-          style={!isCompact && w.height && isScalable ? { minHeight: w.height } : undefined}
+          style={{
+            ...(!isCompact && w.height && isScalable ? { minHeight: w.height } : {}),
+            ...(!isScalable && !isCompact ? { height: 'auto' } : {}),
+          }}
         >
           {!isCompact && (
             <div className="pv-widget-card-header">
