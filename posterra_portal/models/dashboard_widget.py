@@ -2488,23 +2488,68 @@ class DashboardWidget(models.Model):
     def _build_rag_gauge(self, cols, rows, vc):
         """Build traffic light / RAG gauge data dict.
 
-        Supports dynamic thresholds from SQL columns:
+        Single-row mode:
           x_column = value
           y_columns[0] = red_threshold (optional — overrides static config)
           y_columns[1] = green_threshold (optional — overrides static config)
           y_columns[2] = badge_text (optional — overrides auto-computed badge)
 
+        Multi-row mode (when SQL returns >1 row AND y_columns has value column):
+          x_column = metric_name (label for each line)
+          y_columns[0] = value (the metric value)
+          y_columns[1] = rag_status ('green'|'amber'|'red' — optional, auto-computed if missing)
+          y_columns[2] = status_text (e.g. "Above 80% target" — optional)
+
         If y_columns are not set or columns not found, falls back to static
         config values from visual_config (rag_red_threshold, rag_green_threshold).
         """
-        val = self._gauge_extract_value(cols, rows)
         col_idx = {c: i for i, c in enumerate(cols)}
+        x_col = (self.x_column or '').strip() or (cols[0] if cols else '')
         y_cols = [c.strip() for c in (self.y_columns or '').split(',') if c.strip()]
-        row = rows[0] if rows else ()
 
-        # Thresholds: SQL column overrides static config
         red_thresh = float(vc.get('rag_red_threshold', 70))
         green_thresh = float(vc.get('rag_green_threshold', 85))
+        invert = vc.get('rag_invert', False)
+
+        # ── Multi-row mode ───────────────────────────────────────────
+        if len(rows) > 1 and y_cols:
+            items = []
+            for row in rows:
+                name = str(row[col_idx.get(x_col, 0)] or '') if x_col in col_idx else ''
+                try:
+                    val = float(row[col_idx[y_cols[0]]] or 0) if y_cols[0] in col_idx else 0.0
+                except (TypeError, ValueError):
+                    val = 0.0
+
+                # RAG status: from SQL column or auto-compute
+                rag_status = ''
+                if len(y_cols) >= 2 and y_cols[1] in col_idx:
+                    rag_status = str(row[col_idx[y_cols[1]]] or '').lower().strip()
+                if rag_status not in ('green', 'amber', 'red'):
+                    rag_status = self._compute_rag_status(val, red_thresh, green_thresh, invert)
+
+                # Status text from SQL column
+                status_text = ''
+                if len(y_cols) >= 3 and y_cols[2] in col_idx:
+                    status_text = str(row[col_idx[y_cols[2]]] or '')
+
+                items.append({
+                    'label': name,
+                    'value': round(val, 1),
+                    'formatted_value': self._gauge_format_value(val, vc),
+                    'rag_status': rag_status,
+                    'status_text': status_text,
+                })
+
+            return {
+                'gauge_variant': 'traffic_light_rag',
+                'multi': True,
+                'items': items,
+            }
+
+        # ── Single-row mode (backward compatible) ────────────────────
+        val = self._gauge_extract_value(cols, rows)
+        row = rows[0] if rows else ()
         badge_override = ''
 
         if row and y_cols:
@@ -2525,22 +2570,7 @@ class DashboardWidget(models.Model):
             if len(y_cols) >= 3 and y_cols[2] in col_idx:
                 badge_override = str(row[col_idx[y_cols[2]]] or '')
 
-        invert = vc.get('rag_invert', False)
-
-        if invert:
-            if val <= red_thresh:
-                rag_status = 'green'
-            elif val <= green_thresh:
-                rag_status = 'amber'
-            else:
-                rag_status = 'red'
-        else:
-            if val >= green_thresh:
-                rag_status = 'green'
-            elif val >= red_thresh:
-                rag_status = 'amber'
-            else:
-                rag_status = 'red'
+        rag_status = self._compute_rag_status(val, red_thresh, green_thresh, invert)
 
         badge_text = ''
         if badge_override:
@@ -2553,7 +2583,6 @@ class DashboardWidget(models.Model):
             }
             badge_text = badge_map.get(rag_status, '')
 
-        # Threshold text (uses actual thresholds — may be dynamic)
         threshold_text = ''
         if vc.get('rag_show_thresholds', True):
             rt = round(red_thresh, 1)
@@ -2574,6 +2603,21 @@ class DashboardWidget(models.Model):
             'threshold_text': threshold_text,
             'label': vc.get('gauge_label', ''),
         }
+
+    def _compute_rag_status(self, val, red_thresh, green_thresh, invert):
+        """Compute RAG status from value and thresholds."""
+        if invert:
+            if val <= red_thresh:
+                return 'green'
+            elif val <= green_thresh:
+                return 'amber'
+            return 'red'
+        else:
+            if val >= green_thresh:
+                return 'green'
+            elif val >= red_thresh:
+                return 'amber'
+            return 'red'
 
     def _build_percentile_gauge(self, cols, rows, vc):
         """Build percentile rank gauge data dict."""

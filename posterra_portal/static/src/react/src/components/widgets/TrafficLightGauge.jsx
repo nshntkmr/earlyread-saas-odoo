@@ -3,19 +3,14 @@ import React from 'react'
 /**
  * TrafficLightGauge
  *
- * Three circles (red/amber/green) with the active one highlighted.
- * Shows value, status badge, and threshold text.
+ * Single-row: Three circles (red/amber/green) with the active one highlighted.
+ * Multi-row:  List of metrics, each with a colored circle, value, and status text.
  *
- * Expected data shape:
- * {
- *   gauge_variant: 'traffic_light_rag',
- *   value: 78.4,
- *   formatted_value: '78.4%',
- *   rag_status: 'green' | 'amber' | 'red',
- *   badge_text: 'On target',
- *   threshold_text: 'G: ≥85 | A: 70-85 | R: <70',
- *   label: 'Timely access (IP)',
- * }
+ * Single-row data shape:
+ * { gauge_variant, value, formatted_value, rag_status, badge_text, threshold_text, label }
+ *
+ * Multi-row data shape:
+ * { gauge_variant, multi: true, items: [{ label, value, formatted_value, rag_status, status_text }] }
  */
 
 const RAG_COLORS = {
@@ -30,7 +25,110 @@ const BADGE_BG = {
   green: { bg: '#f0fdf4', text: '#16a34a' },
 }
 
+
+/* ── Multi-row: single metric line ─────────────────────────────── */
+
+function RagRow({ label, formatted_value, rag_status, status_text, labelStyle, valueStyle }) {
+  const colors = RAG_COLORS[rag_status] || RAG_COLORS.green
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      padding: '6px 0',
+    }}>
+      {/* RAG circle */}
+      <div style={{
+        width: 14,
+        height: 14,
+        borderRadius: '50%',
+        backgroundColor: colors.active,
+        flexShrink: 0,
+      }} />
+
+      {/* Metric name */}
+      <span style={{
+        fontWeight: 600,
+        fontSize: 13,
+        color: '#1f2937',
+        minWidth: 120,
+        ...labelStyle,
+      }}>
+        {label}
+      </span>
+
+      {/* Value */}
+      <span style={{
+        fontWeight: 600,
+        fontSize: 13,
+        color: '#374151',
+        minWidth: 50,
+        ...valueStyle,
+      }}>
+        {formatted_value}
+      </span>
+
+      {/* Status text */}
+      {status_text && (
+        <span style={{
+          fontSize: 12,
+          color: '#6b7280',
+          marginLeft: 'auto',
+        }}>
+          {status_text}
+        </span>
+      )}
+    </div>
+  )
+}
+
+
+/* ── Main component ────────────────────────────────────────────── */
+
 export default function TrafficLightGauge({ data = {}, height }) {
+  const {
+    label_font_weight,
+    label_color,
+    value_font_weight,
+    value_color,
+  } = data
+
+  const labelStyle = {
+    ...(label_font_weight && { fontWeight: label_font_weight }),
+    ...(label_color && { color: label_color }),
+  }
+  const valueStyle = {
+    ...(value_font_weight && { fontWeight: value_font_weight }),
+    ...(value_color && { color: value_color }),
+  }
+
+  // ── Multi-row mode ──────────────────────────────────────────
+  if (data.multi && data.items) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '8px 16px',
+        height: height || 'auto',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        overflow: 'auto',
+      }}>
+        {data.items.map((item, i) => (
+          <RagRow
+            key={i}
+            label={item.label}
+            formatted_value={item.formatted_value}
+            rag_status={item.rag_status}
+            status_text={item.status_text}
+            labelStyle={labelStyle}
+            valueStyle={valueStyle}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // ── Single-row mode (backward compatible) ───────────────────
   const {
     value = 0,
     formatted_value = '',
@@ -38,10 +136,6 @@ export default function TrafficLightGauge({ data = {}, height }) {
     badge_text = '',
     threshold_text = '',
     label = '',
-    label_font_weight,
-    label_color,
-    value_font_weight,
-    value_color,
   } = data
 
   const circleOrder = ['red', 'amber', 'green']

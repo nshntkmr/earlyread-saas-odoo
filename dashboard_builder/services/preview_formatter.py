@@ -701,8 +701,42 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
         elif gauge_style == 'traffic_light_rag':
             red_t = float(vc.get('rag_red_threshold', 70))
             green_t = float(vc.get('rag_green_threshold', 85))
+            invert = vc.get('rag_invert', False)
+
+            def _rag(v):
+                if invert:
+                    return 'green' if v <= red_t else ('amber' if v <= green_t else 'red')
+                return 'green' if v >= green_t else ('amber' if v >= red_t else 'red')
+
+            # Multi-row: x=metric_name, y=[value, rag_status, status_text]
+            if len(rows) > 1 and y_col_list:
+                items = []
+                for r in rows:
+                    nm = str(col_val(r, x_col) or '')
+                    try:
+                        rv = float(col_val(r, y_col_list[0]) or 0)
+                    except (TypeError, ValueError):
+                        rv = 0
+                    rs = ''
+                    if len(y_col_list) >= 2:
+                        rs = str(col_val(r, y_col_list[1]) or '').lower().strip()
+                    if rs not in ('green', 'amber', 'red'):
+                        rs = _rag(rv)
+                    st = ''
+                    if len(y_col_list) >= 3:
+                        st = str(col_val(r, y_col_list[2]) or '')
+                    fmt = f'{round(rv, 1)}%' if gauge_max == 100 else str(round(rv, 1))
+                    items.append({
+                        'label': nm, 'value': round(rv, 1),
+                        'formatted_value': fmt, 'rag_status': rs, 'status_text': st,
+                    })
+                return {
+                    'gauge_variant': 'traffic_light_rag', 'multi': True,
+                    'items': items,
+                }
+
+            # Single-row (backward compatible)
             badge_override = ''
-            # Dynamic thresholds from SQL columns (y_col_list)
             if rows and y_col_list:
                 if len(y_col_list) >= 1:
                     try:
@@ -716,11 +750,7 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                     except (TypeError, ValueError): pass
                 if len(y_col_list) >= 3:
                     badge_override = str(col_val(rows[0], y_col_list[2]) or '')
-            invert = vc.get('rag_invert', False)
-            if invert:
-                rag_status = 'green' if val <= red_t else ('amber' if val <= green_t else 'red')
-            else:
-                rag_status = 'green' if val >= green_t else ('amber' if val >= red_t else 'red')
+            rag_status = _rag(val)
             badge_map = {'green': vc.get('rag_badge_green', 'On target'),
                          'amber': vc.get('rag_badge_amber', 'Watch'),
                          'red': vc.get('rag_badge_red', 'At risk')}

@@ -111,7 +111,7 @@ export default function ColumnMapper({
           <div style={{ fontSize: 11, color: '#6b7280', background: '#fef2f2', border: '1px solid #fecaca',
                         borderRadius: 4, padding: '6px 10px', marginBottom: 8 }}>
             <i className="fa fa-info-circle" style={{ marginRight: 6, color: '#ef4444' }} />
-            <strong>Traffic Light:</strong> X = value, Y1 = red threshold (optional), Y2 = green threshold (optional), Y3 = badge text (optional). Leave Y empty to use static thresholds from settings.
+            <strong>Traffic Light:</strong> Single: X = value, Y1 = red threshold, Y2 = green threshold, Y3 = badge text (all optional). Multi-row: X = metric name, Y1 = value, Y2 = rag status (green/amber/red), Y3 = status text.
           </div>
         )}
         {chartType === 'gauge' && visualFlags?.gauge_style === 'percentile_rank' && (

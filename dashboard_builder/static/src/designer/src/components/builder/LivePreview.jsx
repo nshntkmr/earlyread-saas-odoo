@@ -68,7 +68,29 @@ function BulletPreview({ data, height }) {
   )
 }
 
+function RagRowPrev({ label, formatted_value, rag_status, status_text }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
+      <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: RAG_COLORS[rag_status] || RAG_COLORS.green, flexShrink: 0 }} />
+      <span style={{ fontWeight: 600, fontSize: 13, minWidth: 100 }}>{label}</span>
+      <span style={{ fontWeight: 600, fontSize: 13, color: '#374151', minWidth: 45 }}>{formatted_value}</span>
+      {status_text && <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>{status_text}</span>}
+    </div>
+  )
+}
+
 function RagPreview({ data, height }) {
+  // Multi-row
+  if (data.multi && data.items) {
+    return (
+      <div style={{ padding: '8px 20px', height }}>
+        {data.items.map((item, i) => (
+          <RagRowPrev key={i} {...item} />
+        ))}
+      </div>
+    )
+  }
+  // Single-row
   const { formatted_value = '', rag_status = 'green', badge_text = '', threshold_text = '', label = '' } = data
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, height }}>
