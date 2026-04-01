@@ -2486,14 +2486,48 @@ class DashboardWidget(models.Model):
         return ranges
 
     def _build_rag_gauge(self, cols, rows, vc):
-        """Build traffic light / RAG gauge data dict."""
+        """Build traffic light / RAG gauge data dict.
+
+        Supports dynamic thresholds from SQL columns:
+          x_column = value
+          y_columns[0] = red_threshold (optional — overrides static config)
+          y_columns[1] = green_threshold (optional — overrides static config)
+          y_columns[2] = badge_text (optional — overrides auto-computed badge)
+
+        If y_columns are not set or columns not found, falls back to static
+        config values from visual_config (rag_red_threshold, rag_green_threshold).
+        """
         val = self._gauge_extract_value(cols, rows)
+        col_idx = {c: i for i, c in enumerate(cols)}
+        y_cols = [c.strip() for c in (self.y_columns or '').split(',') if c.strip()]
+        row = rows[0] if rows else ()
+
+        # Thresholds: SQL column overrides static config
         red_thresh = float(vc.get('rag_red_threshold', 70))
         green_thresh = float(vc.get('rag_green_threshold', 85))
+        badge_override = ''
+
+        if row and y_cols:
+            if len(y_cols) >= 1 and y_cols[0] in col_idx:
+                try:
+                    sql_red = float(row[col_idx[y_cols[0]]] or 0)
+                    if sql_red:
+                        red_thresh = sql_red
+                except (TypeError, ValueError):
+                    pass
+            if len(y_cols) >= 2 and y_cols[1] in col_idx:
+                try:
+                    sql_green = float(row[col_idx[y_cols[1]]] or 0)
+                    if sql_green:
+                        green_thresh = sql_green
+                except (TypeError, ValueError):
+                    pass
+            if len(y_cols) >= 3 and y_cols[2] in col_idx:
+                badge_override = str(row[col_idx[y_cols[2]]] or '')
+
         invert = vc.get('rag_invert', False)
 
         if invert:
-            # Lower is better: value <= red_thresh is green
             if val <= red_thresh:
                 rag_status = 'green'
             elif val <= green_thresh:
@@ -2501,7 +2535,6 @@ class DashboardWidget(models.Model):
             else:
                 rag_status = 'red'
         else:
-            # Higher is better: value >= green_thresh is green
             if val >= green_thresh:
                 rag_status = 'green'
             elif val >= red_thresh:
@@ -2510,7 +2543,9 @@ class DashboardWidget(models.Model):
                 rag_status = 'red'
 
         badge_text = ''
-        if vc.get('rag_show_badge', True):
+        if badge_override:
+            badge_text = badge_override
+        elif vc.get('rag_show_badge', True):
             badge_map = {
                 'green': vc.get('rag_badge_green', 'On target'),
                 'amber': vc.get('rag_badge_amber', 'Watch'),
@@ -2518,13 +2553,15 @@ class DashboardWidget(models.Model):
             }
             badge_text = badge_map.get(rag_status, '')
 
-        # Threshold text
+        # Threshold text (uses actual thresholds — may be dynamic)
         threshold_text = ''
         if vc.get('rag_show_thresholds', True):
+            rt = round(red_thresh, 1)
+            gt = round(green_thresh, 1)
             if invert:
-                threshold_text = f'G: <{red_thresh} | A: {red_thresh}-{green_thresh} | R: >{green_thresh}'
+                threshold_text = f'G: <{rt} | A: {rt}-{gt} | R: >{gt}'
             else:
-                threshold_text = f'G: \u2265{green_thresh} | A: {red_thresh}-{green_thresh} | R: <{red_thresh}'
+                threshold_text = f'G: \u2265{gt} | A: {rt}-{gt} | R: <{rt}'
 
         fmt = self._gauge_format_value(val, vc)
 

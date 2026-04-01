@@ -107,6 +107,13 @@ export default function ColumnMapper({
             <strong>Multi-row bullet:</strong> X = metric name, Y1 = actual value, Y2 = benchmark/target value (optional), Y3 = benchmark label text (optional)
           </div>
         )}
+        {chartType === 'gauge' && visualFlags?.gauge_style === 'traffic_light_rag' && (
+          <div style={{ fontSize: 11, color: '#6b7280', background: '#fef2f2', border: '1px solid #fecaca',
+                        borderRadius: 4, padding: '6px 10px', marginBottom: 8 }}>
+            <i className="fa fa-info-circle" style={{ marginRight: 6, color: '#ef4444' }} />
+            <strong>Traffic Light:</strong> X = value, Y1 = red threshold (optional), Y2 = green threshold (optional), Y3 = badge text (optional). Leave Y empty to use static thresholds from settings.
+          </div>
+        )}
         {chartType === 'gauge' && visualFlags?.gauge_style === 'percentile_rank' && (
           <div style={{ fontSize: 11, color: '#6b7280', background: '#eff6ff', border: '1px solid #bfdbfe',
                         borderRadius: 4, padding: '6px 10px', marginBottom: 8 }}>

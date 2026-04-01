@@ -701,6 +701,21 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
         elif gauge_style == 'traffic_light_rag':
             red_t = float(vc.get('rag_red_threshold', 70))
             green_t = float(vc.get('rag_green_threshold', 85))
+            badge_override = ''
+            # Dynamic thresholds from SQL columns (y_col_list)
+            if rows and y_col_list:
+                if len(y_col_list) >= 1:
+                    try:
+                        sr = float(col_val(rows[0], y_col_list[0]) or 0)
+                        if sr: red_t = sr
+                    except (TypeError, ValueError): pass
+                if len(y_col_list) >= 2:
+                    try:
+                        sg = float(col_val(rows[0], y_col_list[1]) or 0)
+                        if sg: green_t = sg
+                    except (TypeError, ValueError): pass
+                if len(y_col_list) >= 3:
+                    badge_override = str(col_val(rows[0], y_col_list[2]) or '')
             invert = vc.get('rag_invert', False)
             if invert:
                 rag_status = 'green' if val <= red_t else ('amber' if val <= green_t else 'red')
@@ -709,14 +724,16 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             badge_map = {'green': vc.get('rag_badge_green', 'On target'),
                          'amber': vc.get('rag_badge_amber', 'Watch'),
                          'red': vc.get('rag_badge_red', 'At risk')}
-            thr = (f'G: <{red_t} | A: {red_t}-{green_t} | R: >{green_t}' if invert
-                   else f'G: \u2265{green_t} | A: {red_t}-{green_t} | R: <{red_t}')
+            rt, gt = round(red_t, 1), round(green_t, 1)
+            thr = (f'G: <{rt} | A: {rt}-{gt} | R: >{gt}' if invert
+                   else f'G: \u2265{gt} | A: {rt}-{gt} | R: <{rt}')
+            badge = badge_override if badge_override else (badge_map.get(rag_status, '') if vc.get('rag_show_badge', True) else '')
             return {
                 'gauge_variant': 'traffic_light_rag',
                 'value': round(val, 1),
                 'formatted_value': f'{round(val, 1)}%' if gauge_max == 100 else str(round(val, 1)),
                 'rag_status': rag_status,
-                'badge_text': badge_map.get(rag_status, '') if vc.get('rag_show_badge', True) else '',
+                'badge_text': badge,
                 'threshold_text': thr if vc.get('rag_show_thresholds', True) else '',
                 'label': config.get('title', ''),
             }
