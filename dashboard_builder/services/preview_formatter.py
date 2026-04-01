@@ -691,7 +691,7 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                 'target': round(target, 1) if target is not None else None,
                 'min': b_min, 'max': b_max,
                 'ranges': ranges,
-                'label': config.get('title', ''),
+                'label': vc.get('gauge_label', ''),
                 'orientation': orientation,
                 'bar_height': bar_height,
                 'threshold_text': threshold_text,
@@ -735,7 +735,7 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                 'rag_status': rag_status,
                 'badge_text': badge,
                 'threshold_text': thr if vc.get('rag_show_thresholds', True) else '',
-                'label': config.get('title', ''),
+                'label': vc.get('gauge_label', ''),
             }
 
         elif gauge_style == 'percentile_rank':
@@ -771,7 +771,7 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                 'actual_value': actual_value,
                 'actual_label': actual_label,
                 'show_quartile_markers': vc.get('percentile_show_quartiles', True),
-                'label': config.get('title', ''),
+                'label': vc.get('gauge_label', ''),
             }
 
         # ECharts gauge variants

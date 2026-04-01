@@ -283,6 +283,22 @@ export default function GaugeStylePicker({
         })}
       </div>
 
+      {/* ── Internal label (all variants) ──────────────────── */}
+      <div className="wb-field-row" style={{ marginTop: 12 }}>
+        <label className="wb-field-label">
+          Internal Label
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Text shown inside the gauge component (below the card title). Leave empty to show no internal label." />
+        </label>
+        <input
+          type="text"
+          className="wb-input wb-input--sm"
+          placeholder="Leave empty for no internal label"
+          value={cfgVal(visualConfig, 'gauge_label', '')}
+          onChange={e => handleCfg('gauge_label', e.target.value)}
+        />
+      </div>
+
       {/* ── Arc variant settings (standard, half_arc, three_quarter) ─── */}
       {isArc && (
         <>

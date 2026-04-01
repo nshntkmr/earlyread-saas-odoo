@@ -695,6 +695,17 @@ GAUGE_FLAGS = [
         ],
     },
 
+    # ── Component label (all gauge variants) ─────────────────────
+    {
+        'flag': 'gauge_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Internal Label',
+        'help': 'Text shown inside the gauge component (below the card title). '
+                'Leave empty to show no internal label. '
+                'The card header title is always shown separately.',
+    },
+
     # ── Common arc flags (standard, half_arc, three_quarter) ─────
     {
         'flag': 'gauge_min',

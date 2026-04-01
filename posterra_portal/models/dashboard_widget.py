@@ -2460,7 +2460,7 @@ class DashboardWidget(models.Model):
             'min': b_min,
             'max': b_max,
             'ranges': ranges,
-            'label': self.name,
+            'label': vc.get('gauge_label', ''),
             'orientation': orientation,
             'bar_height': bar_height,
             'threshold_text': threshold_text,
@@ -2572,7 +2572,7 @@ class DashboardWidget(models.Model):
             'rag_status': rag_status,
             'badge_text': badge_text,
             'threshold_text': threshold_text,
-            'label': self.name,
+            'label': vc.get('gauge_label', ''),
         }
 
     def _build_percentile_gauge(self, cols, rows, vc):
@@ -2638,7 +2638,7 @@ class DashboardWidget(models.Model):
             'actual_value': actual_value,
             'actual_label': actual_label,
             'show_quartile_markers': vc.get('percentile_show_quartiles', True),
-            'label': self.name,
+            'label': vc.get('gauge_label', ''),
         }
 
     def _gauge_format_value(self, val, vc):
