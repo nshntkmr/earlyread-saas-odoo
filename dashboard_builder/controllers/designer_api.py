@@ -194,11 +194,12 @@ class DesignerAPI(http.Controller):
         line_style = body.get('line_style')
         donut_style = body.get('donut_style')
         rag_layout = body.get('rag_layout')
+        mode = body.get('mode', 'generate')   # 'generate' | 'suggest'
         prompt = body.get('prompt', '')
         previous_sql = body.get('previous_sql')
         error_message = body.get('error_message')
 
-        if not prompt and not error_message:
+        if mode != 'suggest' and not prompt and not error_message:
             return _json_error(400, 'A prompt or error_message is required')
 
         try:
@@ -211,6 +212,11 @@ class DesignerAPI(http.Controller):
                 donut_style=donut_style,
                 rag_layout=rag_layout,
             )
+
+            # Suggest mode: return schema-aware query suggestions
+            if mode == 'suggest':
+                result = ai.suggest_queries(context)
+                return _json_response(result)
 
             if error_message and previous_sql:
                 result = ai.fix_sql(context, previous_sql, error_message)

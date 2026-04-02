@@ -45,6 +45,52 @@ _PG_TYPE_MAP = {
 _MEASURE_TYPES  = {'integer', 'float'}
 _DIMENSION_TYPES = {'text', 'date'}
 
+# ── Column role auto-detection from naming conventions ──────────────────────
+_RATE_SUFFIXES = ('_pct', '_rate', '_ratio')
+_COUNT_SUFFIXES = ('_count',)
+_IDENTIFIER_NAMES = {'id', 'hha_ccn', 'hha_npi', 'source_ccn', 'source_npi'}
+
+
+def _auto_detect_column_role(col_name, data_type):
+    """Auto-detect column_role and never_avg from naming conventions.
+
+    Returns (column_role, never_avg) tuple.
+    Admin can override any auto-detection in the UI.
+    """
+    lower = col_name.lower()
+
+    # Pre-computed rate: never AVG these
+    if any(lower.endswith(s) for s in _RATE_SUFFIXES):
+        return 'pre_computed_rate', True
+
+    # Columns starting with 'avg_' are pre-computed averages — never AVG
+    if lower.startswith('avg_'):
+        return 'pre_computed_rate', True
+
+    # Count columns are typically ratio numerators
+    if any(lower.endswith(s) for s in _COUNT_SUFFIXES):
+        return 'ratio_numerator', False
+
+    # Identifiers
+    if lower in _IDENTIFIER_NAMES:
+        return 'identifier', False
+
+    # Numeric columns that are likely additive measures
+    if data_type in _MEASURE_TYPES:
+        # Common additive measure patterns
+        if lower.startswith('total_') or lower.startswith('sum_'):
+            return 'additive_measure', False
+        if lower in ('episode_count', 'unique_patients'):
+            return 'additive_measure', False
+        # Default for numeric: additive_measure (safe to SUM)
+        return 'additive_measure', False
+
+    # Text/date columns are dimensions
+    if data_type in _DIMENSION_TYPES:
+        return 'dimension', False
+
+    return None, False
+
 
 class DashboardSchemaSource(models.Model):
     _name = 'dashboard.schema.source'
@@ -205,6 +251,9 @@ class DashboardSchemaSource(models.Model):
             # Auto-generate display name: hha_state → Hha State
             display_name = col_name.replace('_', ' ').title()
 
+            # Auto-detect column_role from naming conventions
+            column_role, never_avg = _auto_detect_column_role(col_name, data_type)
+
             ColumnModel.create({
                 'source_id': self.id,
                 'column_name': col_name,
@@ -213,6 +262,8 @@ class DashboardSchemaSource(models.Model):
                 'is_measure': data_type in _MEASURE_TYPES,
                 'is_dimension': data_type in _DIMENSION_TYPES,
                 'is_filterable': data_type in _DIMENSION_TYPES,
+                'column_role': column_role,
+                'never_avg': never_avg,
             })
             created += 1
 
@@ -261,10 +312,55 @@ class DashboardSchemaColumn(models.Model):
         default=False,
         help='Available in WHERE conditions.')
 
+    # ── Column Intelligence (Layer 2) ────────────────────────────────────
+    column_role = fields.Selection([
+        ('dimension', 'Dimension'),
+        ('additive_measure', 'Additive Measure (safe to SUM)'),
+        ('ratio_numerator', 'Ratio Numerator'),
+        ('ratio_denominator', 'Ratio Denominator'),
+        ('pre_computed_rate', 'Pre-computed Rate (NEVER AVG)'),
+        ('weight', 'Weight Column (for weighted avg)'),
+        ('identifier', 'Identifier (CCN, NPI, etc.)'),
+    ], string='Column Role',
+       help='Semantic role determines how the AI uses this column in SQL. '
+            'Pre-computed rates trigger "NEVER AVG" warnings. '
+            'Ratio numerator/denominator pairs enable correct weighted formulas.')
+    paired_column_id = fields.Many2one(
+        'dashboard.schema.column',
+        string='Paired Column',
+        domain="[('source_id', '=', source_id)]",
+        help='For ratio_numerator: its denominator column. '
+             'For pre_computed_rate: the numerator count column. '
+             'Example: timely_access_pct → ip_timely_count.')
+    never_avg = fields.Boolean(
+        string='Never AVG',
+        default=False,
+        help='When True, AI is told to NEVER use AVG() on this column. '
+             'Auto-set when column_role is pre_computed_rate.')
+
+    # ── Domain Context (Layer 3) ─────────────────────────────────────────
+    description = fields.Text(
+        string='Business Description',
+        help='What this column means in business terms. '
+             'Examples: "IP referrals seen within 48 hours", '
+             '"Total home health admissions for the period"')
+    domain_notes = fields.Text(
+        string='Domain Notes',
+        help='Special rules or caveats for the AI. '
+             'Examples: "Always $0 for MA records", '
+             '"FFS-only metric — filter to ffs_ma=FFS", '
+             '"Exclude hha_ccn starting with 9 (test data)"')
+
     _sql_constraints = [
         ('source_column_uniq', 'unique(source_id, column_name)',
          'Column name must be unique within a schema source.'),
     ]
+
+    @api.onchange('column_role')
+    def _onchange_column_role(self):
+        """Auto-set never_avg when role is pre_computed_rate."""
+        if self.column_role == 'pre_computed_rate':
+            self.never_avg = True
 
 
 class DashboardSchemaRelation(models.Model):

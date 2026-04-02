@@ -450,9 +450,9 @@ export default function WidgetBuilder({
                   onSourcesChange={s => dispatch({ type: 'SET_SOURCES', value: s })}
                   onUpdate={v => dispatch({ type: 'SET_AI_RESULT', value: v })}
                   onPromptChange={v => dispatch({ type: 'SET_AI_PROMPT', value: v })}
-                  onSwitchToCustomSql={(sql, xCol, yCols) => {
+                  onSwitchToCustomSql={(sql, xCol, yCols, seriesCol) => {
                     dispatch({ type: 'SET_DATA_MODE', value: 'custom_sql' })
-                    dispatch({ type: 'UPDATE_CUSTOM_SQL', value: { sql, xColumn: xCol, yColumns: yCols } })
+                    dispatch({ type: 'UPDATE_CUSTOM_SQL', value: { sql, xColumn: xCol, yColumns: yCols, seriesColumn: seriesCol || '' } })
                   }}
                 />
               ) : (state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
@@ -649,7 +649,7 @@ function buildCreatePayload(state) {
       query_sql: state.aiState.generatedSql || '',
       x_column: state.aiState.xColumn || '',
       y_columns: state.aiState.yColumns || '',
-      series_column: '',
+      series_column: state.aiState.seriesColumn || '',
       builder_config: JSON.stringify({
         ai_prompt: state.aiState.prompt,
         ai_generated: true,

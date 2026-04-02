@@ -37,6 +37,43 @@ RULES — follow these EXACTLY:
 9. Return column names that match the chart type's expected format exactly.
 10. When benchmark/peer comparison is requested: use CROSS JOIN with the same table aliased as 'peer'.
     Scope the peer group using [[AND peer.hha_state IN %(hha_state)s]] optional clauses.
+
+COLUMN INTELLIGENCE:
+- Columns marked "NEVER AVG" are pre-computed rates. NEVER use AVG() on them.
+  Instead, find the paired count columns (numerator/denominator) and compute:
+  SUM(numerator) / NULLIF(SUM(denominator), 0) * 100.
+- Columns with role "ratio_numerator" have a paired denominator column listed.
+  Use these pairs for correct weighted rate computation.
+- Columns with role "additive_measure" are safe to SUM directly.
+- Columns with role "dimension" are for grouping (GROUP BY, X-axis).
+- Columns with role "identifier" are for filtering (WHERE), not aggregation.
+
+SYSTEM HELPER PARAMS (auto-generated for every multiselect filter):
+- For each multiselect filter param %(param)s, the system auto-generates:
+  - %(_param_single)s — integer when exactly 1 value selected, else NULL
+  - %(_param_prior)s  — integer value minus 1 (for YoY comparison), else NULL
+  Example: If year filter has "2023" selected:
+    %(year)s = ('2023',)       — use with IN
+    %(_year_single)s = 2023    — use with = for single-year logic
+    %(_year_prior)s = 2022     — use for prior year comparison
+  If year filter has "2022,2023" selected:
+    %(year)s = ('2022','2023') — use with IN
+    %(_year_single)s = NULL    — multiple years, no single value
+    %(_year_prior)s = NULL     — no prior year available
+
+{WHERE_CLAUSE} MACRO:
+- When the widget has a schema_source_id, use {where_clause} in the SQL.
+  The system auto-generates WHERE from ALL active page filters.
+  Example: SELECT ... FROM mv_table WHERE {where_clause}
+  This is preferred for simple single-table queries.
+- Use manual %(param)s only when you need different filter logic per table
+  (e.g., CROSS JOIN peer benchmark with different scoping).
+
+STATUS KPI PATTERN:
+- Status KPI expects columns: value [, prior_value]
+- Use %(_year_prior)s for YoY comparison when year filter is available.
+- The React component computes % change and trend arrow automatically.
+- Return raw numbers, NOT pre-formatted text.
 """
 
 
@@ -61,6 +98,13 @@ GENERATE_SQL_TOOL = {
                 'type': 'string',
                 'description': 'Comma-separated column names for Y axis / values / benchmark.',
             },
+            'series_column': {
+                'type': 'string',
+                'description': 'Column name for series/grouping (optional). '
+                               'Only set when the chart type supports multiple series '
+                               'and the query groups data by a category dimension '
+                               '(e.g., ffs_ma to split FFS vs MA). Leave empty if not applicable.',
+            },
             'explanation': {
                 'type': 'string',
                 'description': 'Brief explanation of what the query does, what aggregations are used, '
@@ -73,6 +117,30 @@ GENERATE_SQL_TOOL = {
             },
         },
         'required': ['sql', 'x_column', 'y_columns', 'explanation'],
+    },
+}
+
+# ── Suggest tool — for generating schema-aware query suggestions ───────────
+
+SUGGEST_TOOL = {
+    'name': 'suggest_queries',
+    'description': 'Generate natural language query suggestions for a dashboard widget '
+                   'based on the chart type and available data columns.',
+    'input_schema': {
+        'type': 'object',
+        'properties': {
+            'suggestions': {
+                'type': 'array',
+                'items': {'type': 'string'},
+                'description': 'List of 10 natural language descriptions of useful queries '
+                               'for this chart type using the available columns. '
+                               'Use actual column names from the schema. '
+                               'Be specific and practical — each suggestion should describe '
+                               'a concrete, useful visualization. '
+                               'Order from most common/useful to most specialized.',
+            },
+        },
+        'required': ['suggestions'],
     },
 }
 
@@ -181,12 +249,7 @@ class AiSqlGenerator:
                 context['primary_table'] = {
                     'table_name': source.table_name,
                     'display_name': source.name,
-                    'columns': [{
-                        'name': c.column_name,
-                        'display_name': c.display_name,
-                        'type': c.data_type,
-                        'role': 'measure' if c.is_measure else 'dimension',
-                    } for c in source.column_ids],
+                    'columns': [self._build_column_context(c) for c in source.column_ids],
                 }
 
                 # ── Related tables ─────────────────────────────────
@@ -200,12 +263,7 @@ class AiSqlGenerator:
                             'join_type': rel.join_type,
                             'join_from_column': rel.source_column,
                             'join_to_column': rel.target_column,
-                            'columns': [{
-                                'name': c.column_name,
-                                'display_name': c.display_name,
-                                'type': c.data_type,
-                                'role': 'measure' if c.is_measure else 'dimension',
-                            } for c in target.column_ids],
+                            'columns': [self._build_column_context(c) for c in target.column_ids],
                         })
                     context['related_tables'] = related
 
@@ -221,6 +279,11 @@ class AiSqlGenerator:
                 'label': f.display_template or f.param_name or '',
                 'multiselect': f.is_multiselect,
                 'is_visible': f.is_visible,
+                # Auto-generated helper params for multiselect filters
+                'helpers': [
+                    f'_{f.param_name}_single',
+                    f'_{f.param_name}_prior',
+                ] if f.is_multiselect and f.param_name else [],
             } for f in filters if (f.param_name or f.field_name)]
 
         # ── Chart column requirements ──────────────────────────────
@@ -229,6 +292,25 @@ class AiSqlGenerator:
         context['expected_columns'] = SQL_COLUMN_REQUIREMENTS.get(req_key, '')
 
         return context
+
+    @staticmethod
+    def _build_column_context(col):
+        """Build rich column context dict with Layer 2+3 metadata."""
+        ctx = {
+            'name': col.column_name,
+            'display_name': col.display_name,
+            'type': col.data_type,
+            'role': col.column_role or ('measure' if col.is_measure else 'dimension'),
+        }
+        if col.never_avg:
+            ctx['never_avg'] = True
+        if col.paired_column_id:
+            ctx['paired_with'] = col.paired_column_id.column_name
+        if col.description:
+            ctx['description'] = col.description
+        if col.domain_notes:
+            ctx['domain_notes'] = col.domain_notes
+        return ctx
 
     # ── Prompt building ────────────────────────────────────────────────
 
@@ -248,7 +330,7 @@ class AiSqlGenerator:
             parts.append(f"PRIMARY TABLE: {pt['table_name']}")
             parts.append('COLUMNS:')
             for c in pt.get('columns', []):
-                parts.append(f"  - {c['name']} ({c['type']}, {c['role']})")
+                parts.append(self._format_column_line(c))
             parts.append('')
 
         # Related tables
@@ -257,7 +339,7 @@ class AiSqlGenerator:
                          f"(join: {rt['join_type'].upper()} ON {rt['join_from_column']} = {rt['join_to_column']})")
             parts.append('COLUMNS:')
             for c in rt.get('columns', []):
-                parts.append(f"  - {c['name']} ({c['type']}, {c['role']})")
+                parts.append(self._format_column_line(c))
             parts.append('')
 
         # Page filters
@@ -267,13 +349,36 @@ class AiSqlGenerator:
             for f in pf:
                 ms = ' [MULTISELECT — use IN]' if f['multiselect'] else ''
                 vis = '' if f['is_visible'] else ' [HIDDEN — SQL context only]'
-                parts.append(f"  - %({{param}})s  label=\"{f['label']}\"{ms}{vis}"
-                             .replace('{param}', f['param']))
+                param = f['param']
+                parts.append(f"  - %({param})s  label=\"{f['label']}\"{ms}{vis}")
+                # Show helper params for multiselect filters
+                for h in f.get('helpers', []):
+                    parts.append(f"      helper: %({h})s")
             parts.append('')
 
         parts.append(f"USER REQUEST: {user_prompt}")
 
         return '\n'.join(parts)
+
+    @staticmethod
+    def _format_column_line(c):
+        """Format one column line for the prompt with Layer 2+3 metadata."""
+        role = c.get('role', 'dimension')
+        line = f"  - {c['name']} ({c['type']}, {role})"
+
+        # Layer 2: warnings and paired columns
+        if c.get('never_avg'):
+            line += ' ⚠️ NEVER AVG'
+        if c.get('paired_with'):
+            line += f' → paired with {c["paired_with"]}'
+
+        # Layer 3: business description
+        if c.get('description'):
+            line += f'\n      "{c["description"]}"'
+        if c.get('domain_notes'):
+            line += f'\n      NOTE: {c["domain_notes"]}'
+
+        return line
 
     # ── Generate SQL ───────────────────────────────────────────────────
 
@@ -392,3 +497,50 @@ class AiSqlGenerator:
                     return result
 
         raise ValueError('AI could not refine the SQL. Try editing it manually.')
+
+    # ── Suggest queries (schema-aware) ─────────────────────────────────
+
+    def suggest_queries(self, context):
+        """Generate 10 schema-aware query suggestions for the chart type + table.
+
+        Returns: {suggestions: ["Show total_admits as bars by year...", ...]}
+        """
+        if not self._api_key:
+            return {'suggestions': []}
+
+        client = self._get_client()
+        user_message = self._build_user_message(
+            context,
+            'Generate 10 useful query suggestions for this chart type and data table. '
+            'Use actual column names from the schema. Be specific and practical. '
+            'Each suggestion should describe a concrete visualization an analyst would want.'
+        )
+
+        _logger.info('AI Suggest: chart=%s, source=%s',
+                     context.get('chart_type'),
+                     context.get('primary_table', {}).get('table_name', ''))
+
+        try:
+            message = client.messages.create(
+                model=self._model,
+                max_tokens=2048,
+                system=SYSTEM_PROMPT,
+                tools=[SUGGEST_TOOL],
+                tool_choice={'type': 'tool', 'name': 'suggest_queries'},
+                messages=[
+                    {'role': 'user', 'content': user_message},
+                ],
+            )
+
+            for block in message.content:
+                if hasattr(block, 'type') and block.type == 'tool_use':
+                    if block.name == 'suggest_queries':
+                        result = block.input
+                        _logger.info('AI Suggest: %d suggestions generated',
+                                     len(result.get('suggestions', [])))
+                        return result
+
+        except Exception as e:
+            _logger.warning('AI Suggest failed: %s', e)
+
+        return {'suggestions': []}

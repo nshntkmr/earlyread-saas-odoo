@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { designerFetch } from '../../api/client'
 import TableJoinBuilder from './TableJoinBuilder'
 
@@ -79,15 +79,61 @@ export default function AiSqlEditor({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [refinePrompt, setRefinePrompt] = useState('')
+  const [dynamicSuggestions, setDynamicSuggestions] = useState([])
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false)
+  const [suggestionsCache, setSuggestionsCache] = useState({}) // {source_id:chart_type: suggestions}
 
   const { prompt = '', generatedSql = '', xColumn = '', yColumns = '',
-          explanation = '', warnings = [] } = aiState
+          seriesColumn = '', explanation = '', warnings = [] } = aiState
 
   const hasSource = sources && sources.length > 0
   const sourceId = hasSource ? sources[0].id : null
   const pageId = appContext?.page?.id
 
-  const suggestions = getSuggestions(chartType, gaugeStyle)
+  // Static fallback suggestions
+  const staticSuggestions = getSuggestions(chartType, gaugeStyle)
+
+  // Fetch dynamic suggestions when source + chart type changes
+  useEffect(() => {
+    if (!sourceId || !chartType) {
+      setDynamicSuggestions([])
+      return
+    }
+    const cacheKey = `${sourceId}:${chartType}:${gaugeStyle || ''}`
+    if (suggestionsCache[cacheKey]) {
+      setDynamicSuggestions(suggestionsCache[cacheKey])
+      return
+    }
+    setSuggestionsLoading(true)
+    designerFetch(`${apiBase}/ai-generate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        mode: 'suggest',
+        source_id: sourceId,
+        page_id: pageId,
+        chart_type: chartType,
+        gauge_style: gaugeStyle || undefined,
+        line_style: lineStyle || undefined,
+        donut_style: donutStyle || undefined,
+        rag_layout: ragLayout || undefined,
+      }),
+    })
+      .then(result => {
+        const suggs = result.suggestions || []
+        setDynamicSuggestions(suggs)
+        setSuggestionsCache(prev => ({ ...prev, [cacheKey]: suggs }))
+      })
+      .catch(() => {
+        // Fallback to static suggestions on error
+        setDynamicSuggestions([])
+      })
+      .finally(() => setSuggestionsLoading(false))
+  }, [sourceId, chartType, gaugeStyle]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Use dynamic suggestions if available, otherwise static
+  const allSuggestions = dynamicSuggestions.length > 0 ? dynamicSuggestions : staticSuggestions
+  const visibleSuggestions = showAllSuggestions ? allSuggestions : allSuggestions.slice(0, 5)
 
   // ── Call the backend AI endpoint ────────────────────────────────
   const callAi = useCallback(async (userPrompt, previousSql = null, errorMessage = null) => {
@@ -128,6 +174,7 @@ export default function AiSqlEditor({
           generatedSql: result.sql || '',
           xColumn: result.x_column || '',
           yColumns: result.y_columns || '',
+          seriesColumn: result.series_column || '',
           explanation: result.explanation || '',
           warnings: result.warnings || [],
         })
@@ -152,7 +199,7 @@ export default function AiSqlEditor({
 
   const handleEditAsSql = () => {
     if (onSwitchToCustomSql) {
-      onSwitchToCustomSql(generatedSql, xColumn, yColumns)
+      onSwitchToCustomSql(generatedSql, xColumn, yColumns, seriesColumn)
     }
   }
 
@@ -184,20 +231,43 @@ export default function AiSqlEditor({
         />
 
         {/* ── Suggestion pills ───────────────────────────────────── */}
-        {suggestions.length > 0 && !generatedSql && (
-          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <span style={{ fontSize: 11, color: '#6b7280', marginRight: 4 }}>Suggestions:</span>
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                type="button"
-                className="wb-btn wb-btn--outline"
-                style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12 }}
-                onClick={() => onPromptChange && onPromptChange(s)}
-              >
-                {s}
-              </button>
-            ))}
+        {!generatedSql && (
+          <div style={{ marginTop: 8 }}>
+            {suggestionsLoading ? (
+              <div style={{ fontSize: 11, color: '#6b7280' }}>
+                <span className="spinner-border spinner-border-sm me-2" style={{ width: 12, height: 12 }} />
+                Loading smart suggestions...
+              </div>
+            ) : visibleSuggestions.length > 0 ? (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: '#6b7280', marginRight: 4, lineHeight: '24px' }}>
+                    {dynamicSuggestions.length > 0 ? '✨ Smart suggestions:' : 'Suggestions:'}
+                  </span>
+                  {visibleSuggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="wb-btn wb-btn--outline"
+                      style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, textAlign: 'left' }}
+                      onClick={() => onPromptChange && onPromptChange(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                {allSuggestions.length > 5 && !showAllSuggestions && (
+                  <button
+                    type="button"
+                    className="wb-btn wb-btn--outline"
+                    style={{ fontSize: 10, padding: '2px 8px', marginTop: 4 }}
+                    onClick={() => setShowAllSuggestions(true)}
+                  >
+                    Show {allSuggestions.length - 5} more suggestions...
+                  </button>
+                )}
+              </>
+            ) : null}
           </div>
         )}
 
@@ -266,6 +336,7 @@ export default function AiSqlEditor({
             <span style={{ marginLeft: 8 }}>
               X: <code>{xColumn || '(auto)'}</code>
               {yColumns && <>, Y: <code>{yColumns}</code></>}
+              {seriesColumn && <>, Series: <code>{seriesColumn}</code></>}
             </span>
           </div>
 

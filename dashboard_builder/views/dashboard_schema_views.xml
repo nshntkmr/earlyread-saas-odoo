@@ -70,6 +70,29 @@
                                     <field name="is_measure"/>
                                     <field name="is_dimension"/>
                                     <field name="is_filterable"/>
+                                    <field name="column_role" optional="hide"/>
+                                    <field name="never_avg" optional="hide"/>
+                                    <field name="paired_column_id" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- ── AI Column Intelligence Tab ──────────── -->
+                        <page string="AI Column Intelligence" name="ai_intelligence">
+                            <p class="text-muted">
+                                Column metadata for the AI SQL Assistant. Set roles, descriptions,
+                                and domain notes to help the AI generate correct SQL.
+                                Columns with role "Pre-computed Rate" are flagged as "Never AVG".
+                            </p>
+                            <field name="column_ids">
+                                <list editable="bottom">
+                                    <field name="column_name" readonly="1"/>
+                                    <field name="data_type" readonly="1"/>
+                                    <field name="column_role"/>
+                                    <field name="never_avg"/>
+                                    <field name="paired_column_id"/>
+                                    <field name="description" widget="text"/>
+                                    <field name="domain_notes" widget="text"/>
                                 </list>
                             </field>
                         </page>
