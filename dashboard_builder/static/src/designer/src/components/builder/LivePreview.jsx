@@ -453,9 +453,10 @@ export default function LivePreview({
  */
 export function buildPreviewPayload(state, pageFilterValues) {
   const isCustomSql = state.dataMode === 'custom_sql'
+  const isAi = state.dataMode === 'ai'
   const widgetConfig = {
-    x_column: isCustomSql ? (state.customSql?.xColumn || '') : (state.xColumn || ''),
-    y_columns: isCustomSql ? (state.customSql?.yColumns || '') : '',
+    x_column: isCustomSql ? (state.customSql?.xColumn || '') : isAi ? (state.aiState?.xColumn || '') : (state.xColumn || ''),
+    y_columns: isCustomSql ? (state.customSql?.yColumns || '') : isAi ? (state.aiState?.yColumns || '') : '',
     series_column: isCustomSql ? (state.customSql?.seriesColumn || '') : (state.seriesColumn || ''),
     kpi_format: state.appearance?.kpiFormat || 'number',
     kpi_prefix: state.appearance?.kpiPrefix || '',
@@ -463,6 +464,27 @@ export function buildPreviewPayload(state, pageFilterValues) {
     color_palette: state.appearance?.colorPalette || 'default',
     title: state.appearance?.title || '',
     visual_config: state.visualFlags || {},
+  }
+
+  // AI mode: use AI-generated SQL with same preview path as custom SQL
+  if (isAi && state.aiState?.generatedSql) {
+    const sql = state.aiState.generatedSql
+    const params = {}
+    for (const m of sql.matchAll(/%\((\w+)\)s/g)) {
+      const paramName = m[1]
+      if (pageFilterValues && paramName in pageFilterValues) {
+        params[paramName] = pageFilterValues[paramName]
+      } else {
+        params[paramName] = ''
+      }
+    }
+    return {
+      mode: 'custom_sql',
+      sql,
+      params,
+      chart_type: state.chartType,
+      widget_config: widgetConfig,
+    }
   }
 
   if (isCustomSql) {

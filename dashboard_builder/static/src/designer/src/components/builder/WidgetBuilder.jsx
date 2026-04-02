@@ -10,6 +10,7 @@ import ColumnMapper       from './ColumnMapper'
 import FilterActionConfig from './FilterActionConfig'
 import LivePreview        from './LivePreview'
 import TableConfigurator  from './TableConfigurator'
+import AiSqlEditor        from './AiSqlEditor'
 
 const CHART_STEPS = [
   { key: 'chart_type',   label: 'Chart Type' },
@@ -90,6 +91,16 @@ const initialState = {
 
   // Table column config (AG Grid columnDefs — only for chart_type 'table')
   tableColumnConfig: [],
+
+  // AI Assistant state
+  aiState: {
+    prompt: '',
+    generatedSql: '',
+    xColumn: '',
+    yColumns: '',
+    explanation: '',
+    warnings: [],
+  },
 }
 
 function reducer(state, action) {
@@ -112,6 +123,12 @@ function reducer(state, action) {
       return { ...state, joins: action.value }
     case 'UPDATE_CUSTOM_SQL':
       return { ...state, customSql: { ...state.customSql, ...action.value } }
+    case 'SET_AI_PROMPT':
+      return { ...state, aiState: { ...state.aiState, prompt: action.value } }
+    case 'SET_AI_RESULT':
+      return { ...state, aiState: { ...state.aiState, ...action.value } }
+    case 'CLEAR_AI_STATE':
+      return { ...state, aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] } }
     case 'SET_X_COLUMN':
       return { ...state, xColumn: action.value }
     case 'SET_COLUMNS':
@@ -408,10 +425,37 @@ export default function WidgetBuilder({
                   >
                     <i className="fa fa-code me-1" /> Custom SQL
                   </button>
+                  <button
+                    type="button"
+                    className={`wb-btn ${state.dataMode === 'ai' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
+                    onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'ai' })}
+                    style={state.dataMode === 'ai' ? { background: '#7c3aed', borderColor: '#7c3aed' } : {}}
+                  >
+                    <i className="fa fa-magic me-1" /> AI Assistant
+                  </button>
                 </div>
               </div>
 
-              {(state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
+              {state.dataMode === 'ai' ? (
+                <AiSqlEditor
+                  sources={state.sources}
+                  aiState={state.aiState}
+                  chartType={state.chartType}
+                  gaugeStyle={state.visualFlags?.gauge_style}
+                  lineStyle={state.visualFlags?.line_style}
+                  donutStyle={state.visualFlags?.donut_style}
+                  ragLayout={state.visualFlags?.rag_layout}
+                  appContext={appContext}
+                  apiBase={apiBase}
+                  onSourcesChange={s => dispatch({ type: 'SET_SOURCES', value: s })}
+                  onUpdate={v => dispatch({ type: 'SET_AI_RESULT', value: v })}
+                  onPromptChange={v => dispatch({ type: 'SET_AI_PROMPT', value: v })}
+                  onSwitchToCustomSql={(sql, xCol, yCols) => {
+                    dispatch({ type: 'SET_DATA_MODE', value: 'custom_sql' })
+                    dispatch({ type: 'UPDATE_CUSTOM_SQL', value: { sql, xColumn: xCol, yColumns: yCols } })
+                  }}
+                />
+              ) : (state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
                 <TableJoinBuilder
                   sources={state.sources}
                   joins={state.joins}
@@ -594,6 +638,22 @@ function buildCreatePayload(state) {
       x_column: state.customSql.xColumn || '',
       y_columns: state.customSql.yColumns || '',
       series_column: state.customSql.seriesColumn || '',
+    }
+  }
+
+  // AI mode: save as custom_sql — the generated SQL is the artifact
+  if (state.dataMode === 'ai') {
+    return {
+      ...base,
+      data_mode: 'custom_sql',  // stored as custom_sql for portal execution
+      query_sql: state.aiState.generatedSql || '',
+      x_column: state.aiState.xColumn || '',
+      y_columns: state.aiState.yColumns || '',
+      series_column: '',
+      builder_config: JSON.stringify({
+        ai_prompt: state.aiState.prompt,
+        ai_generated: true,
+      }),
     }
   }
 
