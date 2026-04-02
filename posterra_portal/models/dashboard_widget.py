@@ -618,15 +618,21 @@ class DashboardWidget(models.Model):
                 result = self._build_gauge_kpi_data(cols, rows)
             elif self.chart_type == 'gauge':
                 # Dispatch gauge variants — non-ECharts styles return plain dicts
-                # Read visual_config from instance; fall back to definition if empty
+                # Merge visual_config: definition flags first, instance overrides on top.
+                # This ensures new flags added to the definition (like rag_layout)
+                # are picked up even if the instance has an older visual_config.
                 _vc = {}
-                _vc_raw = self.visual_config
-                if not _vc_raw and self.definition_id and self.definition_id.visual_config:
-                    _vc_raw = self.definition_id.visual_config
-                try:
-                    _vc = json.loads(_vc_raw or '{}') or {}
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                if self.definition_id and self.definition_id.visual_config:
+                    try:
+                        _vc = json.loads(self.definition_id.visual_config) or {}
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                if self.visual_config:
+                    try:
+                        _vc_inst = json.loads(self.visual_config) or {}
+                        _vc.update(_vc_inst)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
                 _gs = _vc.get('gauge_style', 'standard')
                 if _gs in ('bullet', 'traffic_light_rag', 'percentile_rank'):
                     result = self._build_gauge_custom(cols, rows, _vc, _gs)
