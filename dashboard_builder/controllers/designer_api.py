@@ -149,6 +149,92 @@ class DesignerAPI(http.Controller):
         } for r in src.relation_ids])
 
     # =========================================================================
+    # AI SQL GENERATION ENDPOINT
+    # =========================================================================
+
+    @http.route(
+        '/dashboard/designer/api/ai-generate',
+        type='http', auth='user', methods=['POST'], csrf=False,
+    )
+    def ai_generate(self, **kw):
+        """Generate SQL from natural language using Claude on Azure AI Foundry.
+
+        Assembles schema context dynamically from the selected source/page,
+        then calls Claude with the admin's prompt. Returns structured SQL
+        with column mapping and explanation.
+
+        Request body:
+            source_id:     int — schema source ID (table/MV)
+            page_id:       int — page ID (for filter params)
+            chart_type:    str — bar, line, gauge, kpi, etc.
+            gauge_style:   str — bullet, traffic_light_rag, etc. (optional)
+            line_style:    str — waterfall, combo, benchmark (optional)
+            donut_style:   str — nested, multi_ring (optional)
+            rag_layout:    str — circles, scorecard (optional)
+            prompt:        str — natural language description
+            previous_sql:  str — existing SQL for refinement (optional)
+            error_message: str — error from failed SQL for self-healing (optional)
+
+        Returns:
+            {sql, x_column, y_columns, explanation, warnings}
+        """
+        try:
+            _require_admin()
+        except ValueError as e:
+            return _json_error(403, str(e))
+
+        body = _get_request_json()
+        if not body:
+            return _json_error(400, 'Request body is required')
+
+        source_id = body.get('source_id')
+        page_id = body.get('page_id')
+        chart_type = body.get('chart_type', 'bar')
+        gauge_style = body.get('gauge_style')
+        line_style = body.get('line_style')
+        donut_style = body.get('donut_style')
+        rag_layout = body.get('rag_layout')
+        prompt = body.get('prompt', '')
+        previous_sql = body.get('previous_sql')
+        error_message = body.get('error_message')
+
+        if not prompt and not error_message:
+            return _json_error(400, 'A prompt or error_message is required')
+
+        try:
+            from ..services.ai_sql_generator import AiSqlGenerator
+            ai = AiSqlGenerator(request.env)
+            context = ai.assemble_context(
+                source_id, page_id, chart_type,
+                gauge_style=gauge_style,
+                line_style=line_style,
+                donut_style=donut_style,
+                rag_layout=rag_layout,
+            )
+
+            if error_message and previous_sql:
+                result = ai.fix_sql(context, previous_sql, error_message)
+            elif previous_sql:
+                result = ai.refine_sql(context, previous_sql, prompt)
+            else:
+                result = ai.generate_sql(context, prompt)
+
+            # Validate generated SQL using existing QueryBuilder
+            from ..services.query_builder import QueryBuilder
+            qb = QueryBuilder(request.env)
+            is_valid, err = qb.validate_query(result.get('sql', ''))
+            if not is_valid:
+                return _json_error(400, f'AI generated invalid SQL: {err}')
+
+            return _json_response(result)
+
+        except ValueError as e:
+            return _json_error(400, str(e))
+        except Exception as e:
+            _logger.error('AI SQL generation failed: %s', e, exc_info=True)
+            return _json_error(500, f'AI SQL generation failed: {e}')
+
+    # =========================================================================
     # PREVIEW ENDPOINT
     # =========================================================================
 
