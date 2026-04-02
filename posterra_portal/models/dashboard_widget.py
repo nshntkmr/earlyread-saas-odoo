@@ -634,6 +634,15 @@ class DashboardWidget(models.Model):
                     except (json.JSONDecodeError, TypeError):
                         pass
                 _gs = _vc.get('gauge_style', 'standard')
+                _logger.info(
+                    'GAUGE DEBUG widget %s: gauge_style=%s, rag_layout=%s, '
+                    'def_id=%s, def_vc=%s, inst_vc=%s, merged_vc_keys=%s',
+                    self.id, _gs, _vc.get('rag_layout'),
+                    self.definition_id.id if self.definition_id else None,
+                    (self.definition_id.visual_config or '')[:100] if self.definition_id else 'N/A',
+                    (self.visual_config or '')[:100],
+                    list(_vc.keys()),
+                )
                 if _gs in ('bullet', 'traffic_light_rag', 'percentile_rank'):
                     result = self._build_gauge_custom(cols, rows, _vc, _gs)
                 else:
