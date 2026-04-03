@@ -72,7 +72,7 @@ function getSuggestions(chartType, gaugeStyle) {
 
 
 export default function AiSqlEditor({
-  sources, aiState = {}, chartType, gaugeStyle, lineStyle, donutStyle, ragLayout,
+  sources, aiState = {}, chartType, gaugeStyle, lineStyle, donutStyle, ragLayout, kpiStyle,
   appContext, apiBase,
   onSourcesChange, onUpdate, onPromptChange, onSwitchToCustomSql,
 }) {
@@ -100,7 +100,7 @@ export default function AiSqlEditor({
       setDynamicSuggestions([])
       return
     }
-    const cacheKey = `${sourceId}:${chartType}:${gaugeStyle || ''}`
+    const cacheKey = `${sourceId}:${chartType}:${gaugeStyle || ''}:${kpiStyle || ''}`
     if (!force && suggestionsCache[cacheKey]) {
       setDynamicSuggestions(suggestionsCache[cacheKey])
       return
@@ -117,6 +117,7 @@ export default function AiSqlEditor({
         line_style: lineStyle || undefined,
         donut_style: donutStyle || undefined,
         rag_layout: ragLayout || undefined,
+        kpi_style: kpiStyle || undefined,
       }),
     })
       .then(result => {
@@ -128,12 +129,12 @@ export default function AiSqlEditor({
         setDynamicSuggestions([])
       })
       .finally(() => setSuggestionsLoading(false))
-  }, [sourceId, chartType, gaugeStyle, pageId, apiBase, lineStyle, donutStyle, ragLayout, suggestionsCache])
+  }, [sourceId, chartType, gaugeStyle, kpiStyle, pageId, apiBase, lineStyle, donutStyle, ragLayout, suggestionsCache])
 
   // Auto-fetch dynamic suggestions when source + chart type changes
   useEffect(() => {
     fetchSuggestions(false)
-  }, [sourceId, chartType, gaugeStyle]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sourceId, chartType, gaugeStyle, kpiStyle]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use dynamic suggestions if available, otherwise static
   const allSuggestions = dynamicSuggestions.length > 0 ? dynamicSuggestions : staticSuggestions
@@ -161,6 +162,7 @@ export default function AiSqlEditor({
         line_style: lineStyle || undefined,
         donut_style: donutStyle || undefined,
         rag_layout: ragLayout || undefined,
+        kpi_style: kpiStyle || undefined,
         prompt: userPrompt,
       }
       if (previousSql) body.previous_sql = previousSql

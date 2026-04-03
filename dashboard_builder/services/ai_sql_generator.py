@@ -171,13 +171,18 @@ SQL_COLUMN_REQUIREMENTS = {
     'scatter':              'x_value, y_value',
     'heatmap':              'x_category, y_category, intensity',
     'kpi':                  'value [, prior_value]',
+    'kpi_sparkline':        'value [, prior_value], sparkline_data (CSV string via STRING_AGG of the metric over time periods)',
+    'kpi_progress':         'value, target',
+    'kpi_mini_gauge':       'value, target [, status_text]',
+    'kpi_comparison':       'value, prior_value [, current_label, prior_label]',
+    'kpi_rag_status':       'value',
     'status_kpi':           'value, status_text',
     'table':                'col1, col2, col3, ...',
 }
 
 
 def _get_column_requirement_key(chart_type, gauge_style=None, line_style=None,
-                                 donut_style=None, rag_layout=None):
+                                 donut_style=None, rag_layout=None, kpi_style=None):
     """Resolve the column requirement key from chart type + variant."""
     if chart_type == 'gauge' and gauge_style:
         if gauge_style == 'traffic_light_rag' and rag_layout == 'scorecard':
@@ -189,6 +194,10 @@ def _get_column_requirement_key(chart_type, gauge_style=None, line_style=None,
         return f'donut_{donut_style}'
     if chart_type == 'line' and line_style in ('waterfall', 'combo', 'benchmark'):
         return f'line_{line_style}'
+    if chart_type == 'kpi' and kpi_style and kpi_style != 'stat_card':
+        key = f'kpi_{kpi_style}'
+        if key in SQL_COLUMN_REQUIREMENTS:
+            return key
     return chart_type
 
 
@@ -225,7 +234,7 @@ class AiSqlGenerator:
 
     def assemble_context(self, source_id, page_id, chart_type,
                          gauge_style=None, line_style=None,
-                         donut_style=None, rag_layout=None):
+                         donut_style=None, rag_layout=None, kpi_style=None):
         """Assemble schema context from the live system.
 
         Reads:
@@ -239,6 +248,7 @@ class AiSqlGenerator:
         context = {
             'chart_type': chart_type,
             'gauge_style': gauge_style,
+            'kpi_style': kpi_style,
         }
 
         # ── Primary table + columns ────────────────────────────────
@@ -288,7 +298,7 @@ class AiSqlGenerator:
 
         # ── Chart column requirements ──────────────────────────────
         req_key = _get_column_requirement_key(
-            chart_type, gauge_style, line_style, donut_style, rag_layout)
+            chart_type, gauge_style, line_style, donut_style, rag_layout, kpi_style)
         context['expected_columns'] = SQL_COLUMN_REQUIREMENTS.get(req_key, '')
 
         return context
@@ -321,6 +331,15 @@ class AiSqlGenerator:
         parts.append(f"CHART TYPE: {context.get('chart_type', 'bar')}")
         if context.get('gauge_style'):
             parts.append(f"GAUGE VARIANT: {context['gauge_style']}")
+        if context.get('kpi_style'):
+            parts.append(f"KPI VARIANT: {context['kpi_style']}")
+            if context['kpi_style'] == 'sparkline':
+                parts.append(
+                    "SPARKLINE NOTE: Include a 'sparkline_data' column using "
+                    "STRING_AGG(metric_value::text, ',' ORDER BY time_dimension) "
+                    "to provide trend data as a CSV string. The sparkline shows "
+                    "the metric's trajectory over time periods (e.g., years)."
+                )
         parts.append(f"EXPECTED COLUMN FORMAT: {context.get('expected_columns', '')}")
         parts.append('')
 

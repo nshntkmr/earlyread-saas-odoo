@@ -194,6 +194,7 @@ class DesignerAPI(http.Controller):
         line_style = body.get('line_style')
         donut_style = body.get('donut_style')
         rag_layout = body.get('rag_layout')
+        kpi_style = body.get('kpi_style')
         mode = body.get('mode', 'generate')   # 'generate' | 'suggest'
         prompt = body.get('prompt', '')
         previous_sql = body.get('previous_sql')
@@ -211,6 +212,7 @@ class DesignerAPI(http.Controller):
                 line_style=line_style,
                 donut_style=donut_style,
                 rag_layout=rag_layout,
+                kpi_style=kpi_style,
             )
 
             # Suggest mode: return schema-aware query suggestions

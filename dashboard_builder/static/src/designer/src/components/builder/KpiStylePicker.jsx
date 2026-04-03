@@ -293,20 +293,6 @@ export default function KpiStylePicker({
               Fill Area Under Line
             </label>
           </div>
-          <div className="wb-field-row">
-            <label className="wb-field-label">
-              Sparkline Column
-              <i className="fa fa-info-circle wb-flag-info"
-                 title="SQL column name returning comma-separated numbers, e.g. '12,15,11,9,14,16'. If empty, uses 'sparkline_data'." />
-            </label>
-            <input
-              type="text"
-              className="wb-input wb-input--sm"
-              placeholder="sparkline_data"
-              value={cfgVal(visualConfig, 'sparkline_column', '')}
-              onChange={e => handleCfg('sparkline_column', e.target.value)}
-            />
-          </div>
         </>
       )}
 
@@ -315,20 +301,6 @@ export default function KpiStylePicker({
         <>
           <div style={styles.sectionTitle}>Progress Bar Settings</div>
 
-          <div className="wb-field-row">
-            <label className="wb-field-label">
-              Target Column
-              <i className="fa fa-info-circle wb-flag-info"
-                 title="SQL column name for the target value. If empty, uses 'target'." />
-            </label>
-            <input
-              type="text"
-              className="wb-input wb-input--sm"
-              placeholder="target"
-              value={cfgVal(visualConfig, 'target_column', '')}
-              onChange={e => handleCfg('target_column', e.target.value)}
-            />
-          </div>
           <div className="wb-field-row">
             <label className="wb-field-label">Color Mode</label>
             <select
@@ -393,20 +365,6 @@ export default function KpiStylePicker({
           <div style={styles.sectionTitle}>Mini Gauge Settings</div>
 
           <div className="wb-field-row">
-            <label className="wb-field-label">
-              Target Column
-              <i className="fa fa-info-circle wb-flag-info"
-                 title="SQL column name for the target/max value. If empty, uses 'target'." />
-            </label>
-            <input
-              type="text"
-              className="wb-input wb-input--sm"
-              placeholder="target"
-              value={cfgVal(visualConfig, 'target_column', '')}
-              onChange={e => handleCfg('target_column', e.target.value)}
-            />
-          </div>
-          <div className="wb-field-row">
             <label className="wb-field-label">Ring Size (px)</label>
             <input
               type="number"
@@ -460,20 +418,6 @@ export default function KpiStylePicker({
             </>
           )}
 
-          <div className="wb-field-row">
-            <label className="wb-field-label">
-              Status Text Column
-              <i className="fa fa-info-circle wb-flag-info"
-                 title="SQL column for status text shown below (e.g. 'Below 80% target'). Optional." />
-            </label>
-            <input
-              type="text"
-              className="wb-input wb-input--sm"
-              placeholder="status_text"
-              value={cfgVal(visualConfig, 'mini_gauge_status_column', '')}
-              onChange={e => handleCfg('mini_gauge_status_column', e.target.value)}
-            />
-          </div>
         </>
       )}
 
@@ -482,34 +426,6 @@ export default function KpiStylePicker({
         <>
           <div style={styles.sectionTitle}>Comparison Settings</div>
 
-          <div className="wb-field-row">
-            <label className="wb-field-label">
-              Current Period Label Column
-              <i className="fa fa-info-circle wb-flag-info"
-                 title="SQL column for the current period label (e.g. '2024'). If empty, uses 'current_label'." />
-            </label>
-            <input
-              type="text"
-              className="wb-input wb-input--sm"
-              placeholder="current_label"
-              value={cfgVal(visualConfig, 'comparison_current_label_col', '')}
-              onChange={e => handleCfg('comparison_current_label_col', e.target.value)}
-            />
-          </div>
-          <div className="wb-field-row">
-            <label className="wb-field-label">
-              Prior Period Label Column
-              <i className="fa fa-info-circle wb-flag-info"
-                 title="SQL column for the prior period label (e.g. '2023'). If empty, uses 'prior_label'." />
-            </label>
-            <input
-              type="text"
-              className="wb-input wb-input--sm"
-              placeholder="prior_label"
-              value={cfgVal(visualConfig, 'comparison_prior_label_col', '')}
-              onChange={e => handleCfg('comparison_prior_label_col', e.target.value)}
-            />
-          </div>
           <div className="wb-toggle-group">
             <label className="wb-toggle-label">
               <input
