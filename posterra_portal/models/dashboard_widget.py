@@ -2937,14 +2937,33 @@ class DashboardWidget(models.Model):
                 result['target_formatted'] = self._format_kpi(target_val)
                 result['progress_pct'] = pct
 
-                # Auto-compute annotation: "12pp below target" / "3pp above target"
-                diff_pp = round(pct - 100, 1)
-                if diff_pp < 0:
-                    result['progress_annotation'] = f'{abs(diff_pp):.0f}pp below target'
-                elif diff_pp > 0:
-                    result['progress_annotation'] = f'{diff_pp:.0f}pp above target'
+                # Auto-compute annotation based on value_display mode
+                value_display = vc.get('value_display', 'percentage')
+                if value_display == 'numeric':
+                    # Numeric mode: show actual values with "vs benchmark"
+                    result['display_value'] = formatted  # actual formatted value (e.g. "2.36")
+                    abs_diff = round(current_val - target_val, 2)
+                    sign = '+' if abs_diff > 0 else ''
+                    if abs_diff == 0:
+                        result['progress_annotation'] = 'On target'
+                    else:
+                        pct_diff = round(
+                            ((current_val - target_val) / abs(target_val) * 100)
+                            if target_val else 0, 1
+                        )
+                        pct_sign = '+' if pct_diff > 0 else ''
+                        result['progress_annotation'] = (
+                            f'{sign}{abs_diff:.2f} ({pct_sign}{pct_diff:.1f}%) vs benchmark'
+                        )
                 else:
-                    result['progress_annotation'] = 'On target'
+                    # Percentage mode: "12pp below target" / "3pp above target"
+                    diff_pp = round(pct - 100, 1)
+                    if diff_pp < 0:
+                        result['progress_annotation'] = f'{abs(diff_pp):.0f}pp below target'
+                    elif diff_pp > 0:
+                        result['progress_annotation'] = f'{diff_pp:.0f}pp above target'
+                    else:
+                        result['progress_annotation'] = 'On target'
 
                 # Determine color from thresholds
                 if kpi_style == 'progress':
@@ -3012,7 +3031,7 @@ class DashboardWidget(models.Model):
                                 'fontSize': ring_size // 4,
                                 'fontWeight': 700,
                                 'color': bar_color,
-                                'formatter': f'{pct:.0f}%',
+                                'formatter': formatted if value_display == 'numeric' else f'{pct:.0f}%',
                                 'offsetCenter': [0, 0],
                             },
                             'data': [{'value': min(pct, 100)}],

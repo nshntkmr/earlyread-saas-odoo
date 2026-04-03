@@ -332,6 +332,25 @@ export default function KpiStylePicker({
         </>
       )}
 
+      {/* ── Value display (progress + mini_gauge) ──────────── */}
+      {(isProgress || isMiniGauge) && (
+        <div className="wb-field-row" style={{ marginTop: 12 }}>
+          <label className="wb-field-label">
+            Value Display
+            <i className="fa fa-info-circle wb-flag-info"
+               title="'Percentage' shows the value as % of target (e.g. 68%). 'Numeric' shows the actual value (e.g. 2.36) with 'vs benchmark' annotation. Use Numeric for non-percentage metrics like risk scores, dollar amounts, or counts." />
+          </label>
+          <select
+            className="wb-select"
+            value={cfgVal(visualConfig, 'value_display', 'percentage')}
+            onChange={e => handleCfg('value_display', e.target.value)}
+          >
+            <option value="percentage">Percentage (68% of target)</option>
+            <option value="numeric">Numeric (actual value: 2.36)</option>
+          </select>
+        </div>
+      )}
+
       {/* ── Progress bar settings ─────────────────────────── */}
       {isProgress && (
         <>
