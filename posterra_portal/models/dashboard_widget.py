@@ -2815,14 +2815,14 @@ class DashboardWidget(models.Model):
             'text_align': self.text_align or 'center',
         }
 
-        if self.chart_type in ('status_kpi', 'kpi_strip') and self.status_column:
+        if self.chart_type in ('kpi', 'status_kpi', 'kpi_strip') and self.status_column:
             status_idx = col_idx.get(self.status_column)
             status_val = str(rows[0][status_idx]).lower() if (rows and status_idx is not None) else 'neutral'
             icon_cls, css_mod = _STATUS_MAP.get(status_val, ('fa-circle', 'status-neutral'))
             result['icon_class'] = icon_cls
             result['status_css'] = css_mod
             result['status_val'] = status_val
-        elif self.chart_type in ('status_kpi', 'kpi_strip') and not self.status_column:
+        elif self.chart_type in ('kpi', 'status_kpi', 'kpi_strip') and not self.status_column:
             # Auto-trend: compare x_column (current) vs first y_column (prior)
             y_col_trend = (self.y_columns or '').split(',')[0].strip()
             if y_col_trend and y_col_trend in col_idx and rows:
