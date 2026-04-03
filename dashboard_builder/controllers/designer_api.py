@@ -196,6 +196,7 @@ class DesignerAPI(http.Controller):
         rag_layout = body.get('rag_layout')
         kpi_style = body.get('kpi_style')
         sparkline_metric = body.get('sparkline_metric')
+        value_display = body.get('value_display')
         mode = body.get('mode', 'generate')   # 'generate' | 'suggest'
         prompt = body.get('prompt', '')
         previous_sql = body.get('previous_sql')
@@ -215,6 +216,7 @@ class DesignerAPI(http.Controller):
                 rag_layout=rag_layout,
                 kpi_style=kpi_style,
                 sparkline_metric=sparkline_metric,
+                value_display=value_display,
             )
 
             # Suggest mode: return schema-aware query suggestions

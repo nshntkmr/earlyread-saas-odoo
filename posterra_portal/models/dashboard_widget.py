@@ -3112,6 +3112,16 @@ class DashboardWidget(models.Model):
             # custom text = shows different text inside the KPI body
             result['label'] = vc.get('kpi_label', '')
 
+            # Override value format from visual_config (builder-created widgets)
+            vc_format = vc.get('kpi_format', '')
+            if vc_format:
+                orig_fmt = self.kpi_format
+                try:
+                    self.kpi_format = vc_format
+                    result['formatted_value'] = self._format_kpi(raw_val)
+                finally:
+                    self.kpi_format = orig_fmt
+
         return result
 
     def _build_table_data(self, cols, rows):

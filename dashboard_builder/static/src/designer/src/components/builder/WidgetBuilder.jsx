@@ -446,6 +446,7 @@ export default function WidgetBuilder({
                   donutStyle={state.visualFlags?.donut_style}
                   ragLayout={state.visualFlags?.rag_layout}
                   kpiStyle={state.visualFlags?.kpi_style}
+                  valueDisplay={state.visualFlags?.value_display}
                   appContext={appContext}
                   apiBase={apiBase}
                   onSourcesChange={s => dispatch({ type: 'SET_SOURCES', value: s })}

@@ -72,7 +72,7 @@ function getSuggestions(chartType, gaugeStyle) {
 
 
 export default function AiSqlEditor({
-  sources, aiState = {}, chartType, gaugeStyle, lineStyle, donutStyle, ragLayout, kpiStyle,
+  sources, aiState = {}, chartType, gaugeStyle, lineStyle, donutStyle, ragLayout, kpiStyle, valueDisplay,
   appContext, apiBase,
   onSourcesChange, onUpdate, onPromptChange, onSwitchToCustomSql,
 }) {
@@ -119,6 +119,7 @@ export default function AiSqlEditor({
         donut_style: donutStyle || undefined,
         rag_layout: ragLayout || undefined,
         kpi_style: kpiStyle || undefined,
+        value_display: valueDisplay || undefined,
         sparkline_metric: (kpiStyle === 'sparkline' && sparklineMetric) ? sparklineMetric : undefined,
       }),
     })
@@ -165,6 +166,7 @@ export default function AiSqlEditor({
         donut_style: donutStyle || undefined,
         rag_layout: ragLayout || undefined,
         kpi_style: kpiStyle || undefined,
+        value_display: valueDisplay || undefined,
         sparkline_metric: (kpiStyle === 'sparkline' && sparklineMetric) ? sparklineMetric : undefined,
         prompt: userPrompt,
       }

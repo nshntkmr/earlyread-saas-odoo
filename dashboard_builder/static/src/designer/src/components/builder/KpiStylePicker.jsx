@@ -280,6 +280,23 @@ export default function KpiStylePicker({
           onChange={e => handleCfg('kpi_label', e.target.value)}
         />
       </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
+          Value Format
+          <i className="fa fa-info-circle wb-flag-info"
+             title="How the primary value is formatted. Number: 1,234. Currency: $1,234. Percent: 68.5%. Decimal: 2.36." />
+        </label>
+        <select
+          className="wb-select"
+          value={cfgVal(visualConfig, 'kpi_format', 'number')}
+          onChange={e => handleCfg('kpi_format', e.target.value)}
+        >
+          <option value="number">Number (1,234)</option>
+          <option value="currency">Currency ($1,234)</option>
+          <option value="percent">Percent (68.5%)</option>
+          <option value="decimal">Decimal (2.36)</option>
+        </select>
+      </div>
 
       {/* ── Common trend settings (stat_card, sparkline, comparison) ── */}
       {(ks === 'stat_card' || isSparkline || isComparison) && (

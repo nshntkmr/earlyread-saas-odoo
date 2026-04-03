@@ -235,7 +235,7 @@ class AiSqlGenerator:
     def assemble_context(self, source_id, page_id, chart_type,
                          gauge_style=None, line_style=None,
                          donut_style=None, rag_layout=None, kpi_style=None,
-                         sparkline_metric=None):
+                         sparkline_metric=None, value_display=None):
         """Assemble schema context from the live system.
 
         Reads:
@@ -251,6 +251,7 @@ class AiSqlGenerator:
             'gauge_style': gauge_style,
             'kpi_style': kpi_style,
             'sparkline_metric': sparkline_metric,
+            'value_display': value_display,
         }
 
         # ── Primary table + columns ────────────────────────────────
@@ -354,13 +355,20 @@ class AiSqlGenerator:
                     "not AVG(rate)." + metric_note
                 )
             if context['kpi_style'] in ('progress', 'mini_gauge'):
+                display_note = ''
+                if context.get('value_display') == 'numeric':
+                    display_note = (
+                        " VALUE DISPLAY is set to NUMERIC — the value will be "
+                        "shown as the actual number (e.g. 2.36) not as a percentage. "
+                        "Return raw metric values, not pre-multiplied by 100."
+                    )
                 parts.append(
                     "PROGRESS/GAUGE NOTE: Include a 'target' column representing "
                     "the benchmark value. For state benchmarks, compute the rate "
                     "across ALL providers in the selected state (not just the "
                     "selected HHA). For peer benchmarks, compute across similar "
                     "providers. The SQL should return: value (selected HHA's "
-                    "metric) and target (benchmark to compare against)."
+                    "metric) and target (benchmark to compare against)." + display_note
                 )
         parts.append(f"EXPECTED COLUMN FORMAT: {context.get('expected_columns', '')}")
         parts.append('')
