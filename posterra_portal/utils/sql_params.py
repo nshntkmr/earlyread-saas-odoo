@@ -63,4 +63,11 @@ def build_sql_params(filter_values_by_name, multiselect_params=None):
         else:
             sql_params[key] = val
 
+    # Ensure derived helper params (e.g. _year_single, _year_prior) are
+    # NULL-safe: empty strings become None so psycopg2 sends SQL NULL
+    # instead of '' which would crash on numeric column comparisons.
+    for key in list(sql_params):
+        if key.startswith('_') and sql_params[key] == '':
+            sql_params[key] = None
+
     return sql_params
