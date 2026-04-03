@@ -321,6 +321,35 @@ export default function KpiStylePicker({
           <div style={styles.sectionTitle}>Progress Bar Settings</div>
 
           <div className="wb-field-row">
+            <label className="wb-field-label">
+              Target Source
+              <i className="fa fa-info-circle wb-flag-info"
+                 title="'From SQL' reads the target from a 'target' column in your SQL query (dynamic benchmarks like state average). 'Static Value' uses a fixed number you enter below." />
+            </label>
+            <select
+              className="wb-select"
+              value={cfgVal(visualConfig, 'target_source', 'from_sql')}
+              onChange={e => handleCfg('target_source', e.target.value)}
+            >
+              <option value="from_sql">From SQL (dynamic benchmark)</option>
+              <option value="static">Static Value</option>
+            </select>
+          </div>
+
+          {cfgVal(visualConfig, 'target_source', 'from_sql') === 'static' && (
+            <div className="wb-field-row">
+              <label className="wb-field-label">Static Target Value</label>
+              <input
+                type="number"
+                className="wb-input wb-input--sm"
+                placeholder="e.g. 85 for 85% target"
+                value={cfgVal(visualConfig, 'static_target_value', '')}
+                onChange={e => handleCfg('static_target_value', e.target.value === '' ? '' : Number(e.target.value))}
+              />
+            </div>
+          )}
+
+          <div className="wb-field-row">
             <label className="wb-field-label">Color Mode</label>
             <select
               className="wb-select"
@@ -336,20 +365,28 @@ export default function KpiStylePicker({
           {cfgVal(visualConfig, 'progress_color_mode', 'traffic_light') === 'traffic_light' && (
             <>
               <div className="wb-field-row">
-                <label className="wb-field-label">Warning Threshold (%)</label>
+                <label className="wb-field-label">
+                  Warning Zone (% of target)
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="Value below this percentage of the target = red zone. Default: 80% means if your value is below 80% of the target, it shows red." />
+                </label>
                 <input
                   type="number"
                   className="wb-input wb-input--sm"
-                  value={cfgVal(visualConfig, 'progress_warn_threshold', 50)}
+                  value={cfgVal(visualConfig, 'progress_warn_threshold', 80)}
                   onChange={e => handleCfg('progress_warn_threshold', Number(e.target.value))}
                 />
               </div>
               <div className="wb-field-row">
-                <label className="wb-field-label">Good Threshold (%)</label>
+                <label className="wb-field-label">
+                  Good Zone (% of target)
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="Value at or above this percentage of the target = green zone. Default: 100% means meeting the target = green." />
+                </label>
                 <input
                   type="number"
                   className="wb-input wb-input--sm"
-                  value={cfgVal(visualConfig, 'progress_good_threshold', 80)}
+                  value={cfgVal(visualConfig, 'progress_good_threshold', 100)}
                   onChange={e => handleCfg('progress_good_threshold', Number(e.target.value))}
                 />
               </div>

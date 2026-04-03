@@ -353,6 +353,15 @@ class AiSqlGenerator:
                     "use SUM(numerator)/NULLIF(SUM(denominator),0) for aggregation, "
                     "not AVG(rate)." + metric_note
                 )
+            if context['kpi_style'] in ('progress', 'mini_gauge'):
+                parts.append(
+                    "PROGRESS/GAUGE NOTE: Include a 'target' column representing "
+                    "the benchmark value. For state benchmarks, compute the rate "
+                    "across ALL providers in the selected state (not just the "
+                    "selected HHA). For peer benchmarks, compute across similar "
+                    "providers. The SQL should return: value (selected HHA's "
+                    "metric) and target (benchmark to compare against)."
+                )
         parts.append(f"EXPECTED COLUMN FORMAT: {context.get('expected_columns', '')}")
         parts.append('')
 

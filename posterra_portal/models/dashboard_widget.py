@@ -2910,6 +2910,7 @@ class DashboardWidget(models.Model):
                         })
 
             elif kpi_style in ('progress', 'mini_gauge'):
+                target_source = vc.get('target_source', 'from_sql')
                 target_col = vc.get('target_column', '') or 'target'
                 current_val = 0.0
                 target_val = 0.0
@@ -2918,7 +2919,14 @@ class DashboardWidget(models.Model):
                     current_val = float(raw_val or 0)
                 except (TypeError, ValueError):
                     pass
-                if target_col in col_idx and rows:
+                if target_source == 'static':
+                    # Use admin-configured static target
+                    try:
+                        target_val = float(vc.get('static_target_value', 0) or 0)
+                    except (TypeError, ValueError):
+                        target_val = 0.0
+                elif target_col in col_idx and rows:
+                    # Read target from SQL column (dynamic benchmark)
                     try:
                         target_val = float(rows[0][col_idx[target_col]] or 0)
                     except (TypeError, ValueError):
