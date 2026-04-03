@@ -83,6 +83,7 @@ export default function AiSqlEditor({
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [showAllSuggestions, setShowAllSuggestions] = useState(false)
   const [suggestionsCache, setSuggestionsCache] = useState({}) // {source_id:chart_type: suggestions}
+  const [sparklineMetric, setSparklineMetric] = useState('')
 
   const { prompt = '', generatedSql = '', xColumn = '', yColumns = '',
           seriesColumn = '', explanation = '', warnings = [] } = aiState
@@ -118,6 +119,7 @@ export default function AiSqlEditor({
         donut_style: donutStyle || undefined,
         rag_layout: ragLayout || undefined,
         kpi_style: kpiStyle || undefined,
+        sparkline_metric: (kpiStyle === 'sparkline' && sparklineMetric) ? sparklineMetric : undefined,
       }),
     })
       .then(result => {
@@ -163,6 +165,7 @@ export default function AiSqlEditor({
         donut_style: donutStyle || undefined,
         rag_layout: ragLayout || undefined,
         kpi_style: kpiStyle || undefined,
+        sparkline_metric: (kpiStyle === 'sparkline' && sparklineMetric) ? sparklineMetric : undefined,
         prompt: userPrompt,
       }
       if (previousSql) body.previous_sql = previousSql
@@ -219,6 +222,34 @@ export default function AiSqlEditor({
         }}
         apiBase={apiBase}
       />
+
+      {/* ── Sparkline Metric selector (only for sparkline KPI) ───── */}
+      {kpiStyle === 'sparkline' && hasSource && (() => {
+        const numericCols = (sources[0]?.columns || []).filter(
+          c => ['integer', 'float', 'numeric', 'double precision', 'real', 'bigint', 'smallint'].includes((c.data_type || c.type || '').toLowerCase())
+        )
+        return numericCols.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <label className="wb-field-label">
+              Sparkline Metric Column
+              <i className="fa fa-info-circle wb-flag-info"
+                 title="Select the metric column for the sparkline trend. The AI will generate STRING_AGG across all years for this column. If left empty, the AI will infer from your prompt." />
+            </label>
+            <select
+              className="wb-select"
+              value={sparklineMetric}
+              onChange={e => setSparklineMetric(e.target.value)}
+            >
+              <option value="">(optional — AI infers from prompt)</option>
+              {numericCols.map(c => (
+                <option key={c.column_name || c.name} value={c.column_name || c.name}>
+                  {c.display_name || c.column_name || c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null
+      })()}
 
       {/* ── AI prompt section ────────────────────────────────────── */}
       <div style={{ marginTop: 20 }}>

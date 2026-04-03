@@ -264,6 +264,25 @@ export default function KpiStylePicker({
         })}
       </div>
 
+      {/* ── Common trend settings (stat_card, sparkline, comparison) ── */}
+      {(ks === 'stat_card' || isSparkline || isComparison) && (
+        <>
+          <div style={styles.sectionTitle}>Trend Settings</div>
+          <div className="wb-toggle-group">
+            <label className="wb-toggle-label">
+              <input
+                type="checkbox"
+                checked={cfgVal(visualConfig, 'trend_invert', false)}
+                onChange={e => handleCfg('trend_invert', e.target.checked)}
+              />
+              Lower is Better
+              <i className="fa fa-info-circle wb-flag-info"
+                 title="Invert trend colors: decrease = green (improving), increase = red (worsening). Use for metrics like hospitalization rate, mortality rate, rehospitalization rate." />
+            </label>
+          </div>
+        </>
+      )}
+
       {/* ── Sparkline settings ────────────────────────────── */}
       {isSparkline && (
         <>

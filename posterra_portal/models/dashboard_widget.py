@@ -2829,12 +2829,19 @@ class DashboardWidget(models.Model):
                 try:
                     current = float(raw_val or 0)
                     prior = float(rows[0][col_idx[y_col_trend]] or 0)
+                    # Check trend_invert from visual_config (lower is better)
+                    _vc_trend = {}
+                    try:
+                        _vc_trend = json.loads(self.visual_config or '{}') or {}
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                    invert = _vc_trend.get('trend_invert', False)
                     if current > prior:
                         result['icon_class'] = 'fa-arrow-up'
-                        result['status_css'] = 'status-up'
+                        result['status_css'] = 'status-down' if invert else 'status-up'
                     elif current < prior:
                         result['icon_class'] = 'fa-arrow-down'
-                        result['status_css'] = 'status-down'
+                        result['status_css'] = 'status-up' if invert else 'status-down'
                     else:
                         result['icon_class'] = 'fa-minus'
                         result['status_css'] = 'status-neutral'

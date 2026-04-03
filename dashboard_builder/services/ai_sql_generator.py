@@ -234,7 +234,8 @@ class AiSqlGenerator:
 
     def assemble_context(self, source_id, page_id, chart_type,
                          gauge_style=None, line_style=None,
-                         donut_style=None, rag_layout=None, kpi_style=None):
+                         donut_style=None, rag_layout=None, kpi_style=None,
+                         sparkline_metric=None):
         """Assemble schema context from the live system.
 
         Reads:
@@ -249,6 +250,7 @@ class AiSqlGenerator:
             'chart_type': chart_type,
             'gauge_style': gauge_style,
             'kpi_style': kpi_style,
+            'sparkline_metric': sparkline_metric,
         }
 
         # ── Primary table + columns ────────────────────────────────
@@ -334,11 +336,22 @@ class AiSqlGenerator:
         if context.get('kpi_style'):
             parts.append(f"KPI VARIANT: {context['kpi_style']}")
             if context['kpi_style'] == 'sparkline':
+                metric_note = ''
+                if context.get('sparkline_metric'):
+                    metric_note = (
+                        f" The user selected '{context['sparkline_metric']}' as the "
+                        f"sparkline metric column. Use this column for the trend."
+                    )
                 parts.append(
                     "SPARKLINE NOTE: Include a 'sparkline_data' column using "
-                    "STRING_AGG(metric_value::text, ',' ORDER BY time_dimension) "
-                    "to provide trend data as a CSV string. The sparkline shows "
-                    "the metric's trajectory over time periods (e.g., years)."
+                    "STRING_AGG(metric_value::text, ',' ORDER BY year) "
+                    "to provide trend data as a CSV string. "
+                    "CRITICAL: The CTE that computes yearly trend data for the sparkline "
+                    "must NOT filter by %(year)s — it needs ALL years to show the full "
+                    "trajectory. Only the current_year and prior_year CTEs should filter "
+                    "by year. For pre-computed rate columns (ending in _pct, _rate), "
+                    "use SUM(numerator)/NULLIF(SUM(denominator),0) for aggregation, "
+                    "not AVG(rate)." + metric_note
                 )
         parts.append(f"EXPECTED COLUMN FORMAT: {context.get('expected_columns', '')}")
         parts.append('')
