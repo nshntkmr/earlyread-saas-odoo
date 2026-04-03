@@ -94,14 +94,14 @@ export default function AiSqlEditor({
   // Static fallback suggestions
   const staticSuggestions = getSuggestions(chartType, gaugeStyle)
 
-  // Fetch dynamic suggestions when source + chart type changes
-  useEffect(() => {
+  // Reusable fetch function for suggestions (used by auto-fetch and manual button)
+  const fetchSuggestions = useCallback((force = false) => {
     if (!sourceId || !chartType) {
       setDynamicSuggestions([])
       return
     }
     const cacheKey = `${sourceId}:${chartType}:${gaugeStyle || ''}`
-    if (suggestionsCache[cacheKey]) {
+    if (!force && suggestionsCache[cacheKey]) {
       setDynamicSuggestions(suggestionsCache[cacheKey])
       return
     }
@@ -125,10 +125,14 @@ export default function AiSqlEditor({
         setSuggestionsCache(prev => ({ ...prev, [cacheKey]: suggs }))
       })
       .catch(() => {
-        // Fallback to static suggestions on error
         setDynamicSuggestions([])
       })
       .finally(() => setSuggestionsLoading(false))
+  }, [sourceId, chartType, gaugeStyle, pageId, apiBase, lineStyle, donutStyle, ragLayout, suggestionsCache])
+
+  // Auto-fetch dynamic suggestions when source + chart type changes
+  useEffect(() => {
+    fetchSuggestions(false)
   }, [sourceId, chartType, gaugeStyle]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use dynamic suggestions if available, otherwise static
@@ -230,46 +234,62 @@ export default function AiSqlEditor({
           style={{ resize: 'vertical', fontFamily: 'inherit' }}
         />
 
-        {/* ── Suggestion pills ───────────────────────────────────── */}
-        {!generatedSql && (
-          <div style={{ marginTop: 8 }}>
-            {suggestionsLoading ? (
-              <div style={{ fontSize: 11, color: '#6b7280' }}>
-                <span className="spinner-border spinner-border-sm me-2" style={{ width: 12, height: 12 }} />
-                Loading smart suggestions...
-              </div>
-            ) : visibleSuggestions.length > 0 ? (
-              <>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: '#6b7280', marginRight: 4, lineHeight: '24px' }}>
-                    {dynamicSuggestions.length > 0 ? '✨ Smart suggestions:' : 'Suggestions:'}
-                  </span>
-                  {visibleSuggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      className="wb-btn wb-btn--outline"
-                      style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, textAlign: 'left' }}
-                      onClick={() => onPromptChange && onPromptChange(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-                {allSuggestions.length > 5 && !showAllSuggestions && (
+        {/* ── Suggestion pills (always visible) ──────────────────── */}
+        <div style={{ marginTop: 8 }}>
+          {suggestionsLoading ? (
+            <div style={{ fontSize: 11, color: '#6b7280' }}>
+              <span className="spinner-border spinner-border-sm me-2" style={{ width: 12, height: 12 }} />
+              Loading smart suggestions...
+            </div>
+          ) : visibleSuggestions.length > 0 ? (
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontSize: 11, color: '#6b7280', marginRight: 4, lineHeight: '24px' }}>
+                  {dynamicSuggestions.length > 0 ? '✨ Smart suggestions:' : 'Suggestions:'}
+                </span>
+                {visibleSuggestions.map((s, i) => (
                   <button
+                    key={i}
                     type="button"
                     className="wb-btn wb-btn--outline"
-                    style={{ fontSize: 10, padding: '2px 8px', marginTop: 4 }}
-                    onClick={() => setShowAllSuggestions(true)}
+                    style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, textAlign: 'left' }}
+                    onClick={() => onPromptChange && onPromptChange(s)}
                   >
-                    Show {allSuggestions.length - 5} more suggestions...
+                    {s}
                   </button>
-                )}
-              </>
-            ) : null}
-          </div>
-        )}
+                ))}
+              </div>
+              {allSuggestions.length > 5 && !showAllSuggestions && (
+                <button
+                  type="button"
+                  className="wb-btn wb-btn--outline"
+                  style={{ fontSize: 10, padding: '2px 8px', marginTop: 4 }}
+                  onClick={() => setShowAllSuggestions(true)}
+                >
+                  Show {allSuggestions.length - 5} more suggestions...
+                </button>
+              )}
+            </>
+          ) : hasSource ? (
+            <div style={{ fontSize: 11, color: '#9ca3af' }}>
+              No suggestions loaded. Click refresh to generate.
+            </div>
+          ) : null}
+
+          {/* Refresh Suggestions button */}
+          {hasSource && (
+            <button
+              type="button"
+              className="wb-btn wb-btn--outline"
+              style={{ fontSize: 10, padding: '2px 8px', marginTop: 6, color: '#6b7280' }}
+              disabled={suggestionsLoading}
+              onClick={() => { setShowAllSuggestions(false); fetchSuggestions(true) }}
+            >
+              <i className="fa fa-refresh" style={{ marginRight: 4 }} />
+              {suggestionsLoading ? 'Loading...' : 'Refresh Suggestions'}
+            </button>
+          )}
+        </div>
 
         {/* ── Generate button ────────────────────────────────────── */}
         <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
