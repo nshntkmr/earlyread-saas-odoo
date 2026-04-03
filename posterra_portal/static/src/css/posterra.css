@@ -2027,6 +2027,156 @@
     color: #f59e0b;
 }
 
+/* ── KPI Card Generic (3 layouts) ─────────────────────────────────── */
+
+/* Standard layout: vertical stack with optional chart corner */
+.pv-kpi-card-standard {
+    padding: var(--w-space-2xl) var(--w-space-xl) var(--w-space-xl);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+.pv-kpi-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+}
+
+/* Mini chart positions */
+.pv-kpi-mini-chart--top-right {
+    position: absolute;
+    top: var(--w-space-lg);
+    right: var(--w-space-lg);
+    width: 80px;
+    pointer-events: none;
+}
+
+.pv-kpi-mini-chart--bottom {
+    margin-top: var(--w-space-md);
+    padding: 0 var(--w-space-sm);
+}
+
+.pv-kpi-mini-chart--left {
+    flex-shrink: 0;
+}
+
+/* Progress scale (0% ... annotation ... 100%) */
+.pv-kpi-progress-scale {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: clamp(0.5rem, 3cqw, 0.65rem);
+    color: var(--w-label-color);
+    margin-top: var(--w-space-xs);
+}
+
+.pv-kpi-progress-scale .status-up   { color: var(--w-status-up); font-weight: var(--w-weight-semi); }
+.pv-kpi-progress-scale .status-down { color: var(--w-status-down); font-weight: var(--w-weight-semi); }
+
+/* Target label */
+.pv-kpi-target-label {
+    font-size: clamp(0.5rem, 3cqw, 0.65rem);
+    color: var(--w-label-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--w-space-xs);
+}
+
+/* Split layout: chart left, text right */
+.pv-kpi-card-split {
+    padding: var(--w-space-xl);
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--w-space-xl);
+}
+
+.pv-kpi-card-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--w-space-xs);
+    min-width: 0;
+}
+
+/* Annotation text (e.g. "12pp below target") */
+.pv-kpi-annotation {
+    font-size: clamp(0.55rem, 3.5cqw, 0.7rem);
+    font-weight: var(--w-weight-semi);
+}
+.pv-kpi-annotation.status-up   { color: var(--w-status-up); }
+.pv-kpi-annotation.status-down { color: var(--w-status-down); }
+
+/* Dual-column layout (comparison) */
+.pv-kpi-card-dual {
+    padding: var(--w-space-xl);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.pv-kpi-card-dual-header {
+    margin-bottom: var(--w-space-md);
+    text-align: center;
+}
+
+.pv-kpi-card-dual-columns {
+    display: flex;
+    align-items: baseline;
+    gap: var(--w-space-lg);
+    width: 100%;
+    justify-content: center;
+}
+
+.pv-kpi-card-dual-col {
+    text-align: center;
+}
+
+.pv-kpi-card-dual-vs {
+    font-size: clamp(0.5rem, 3cqw, 0.65rem);
+    color: var(--w-label-color);
+    font-weight: var(--w-weight-semi);
+    text-transform: uppercase;
+}
+
+.pv-kpi-card-period-label {
+    font-size: clamp(0.5rem, 3cqw, 0.65rem);
+    color: var(--w-label-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--w-space-xs);
+}
+
+.pv-kpi-card-prior-value {
+    color: var(--w-value-secondary) !important;
+    font-weight: var(--w-weight-semi) !important;
+}
+
+/* RAG status card — colored left border */
+.pv-kpi-card--rag-green { border-left: 4px solid #10b981; }
+.pv-kpi-card--rag-amber { border-left: 4px solid #f59e0b; }
+.pv-kpi-card--rag-red   { border-left: 4px solid #e11d48; }
+
+.pv-kpi-rag-badge {
+    display: inline-block;
+    margin-top: var(--w-space-md);
+    padding: 3px 10px;
+    border-radius: var(--w-badge-radius, 12px);
+    font-size: clamp(0.55rem, 3.5cqw, 0.7rem);
+    font-weight: var(--w-weight-semi);
+}
+.pv-kpi-rag-badge--green   { color: #059669; background: #ecfdf5; }
+.pv-kpi-rag-badge--amber   { color: #92400e; background: #fffbeb; }
+.pv-kpi-rag-badge--red     { color: #9f1239; background: #fff1f2; }
+.pv-kpi-rag-badge--neutral { color: var(--w-status-neutral); background: var(--w-status-neutral-bg); }
+
 /* ── Widget grid layout ────────────────────────────────────────────── */
 .pv-content .row.g-3 {
     display: flex;

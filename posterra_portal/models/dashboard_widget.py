@@ -2858,6 +2858,222 @@ class DashboardWidget(models.Model):
                 result['secondary'] = str(prior_raw)
 
         result.update(self._get_typography_overrides())
+
+        # ── KPI variant enrichment (dashboard builder variants) ──────
+        vc = {}
+        try:
+            vc = json.loads(self.visual_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            pass
+        kpi_style = vc.get('kpi_style', '')
+        if kpi_style:
+            result['kpi_variant'] = kpi_style
+            result['visual_config'] = vc
+            colors = self._get_palette_colors()
+            primary_color = colors[0] if colors else '#0d9488'
+
+            if kpi_style == 'sparkline':
+                spark_col = vc.get('sparkline_column', '') or 'sparkline_data'
+                if spark_col in col_idx and rows:
+                    raw_spark = str(rows[0][col_idx[spark_col]] or '')
+                    try:
+                        points = [
+                            float(v.strip()) for v in raw_spark.split(',') if v.strip()
+                        ]
+                    except (ValueError, TypeError):
+                        points = []
+                    if len(points) >= 2:
+                        spark_color = vc.get('sparkline_color', '') or primary_color
+                        spark_fill = vc.get('sparkline_fill', True)
+                        result['echart_json'] = json.dumps({
+                            'grid': {'top': 2, 'right': 2, 'bottom': 2, 'left': 2},
+                            'xAxis': {'type': 'category', 'show': False,
+                                      'data': list(range(len(points)))},
+                            'yAxis': {'type': 'value', 'show': False},
+                            'series': [{
+                                'type': 'line',
+                                'data': points,
+                                'smooth': True,
+                                'symbol': 'none',
+                                'lineStyle': {'color': spark_color, 'width': 2},
+                                'areaStyle': {'color': spark_color, 'opacity': 0.12}
+                                             if spark_fill else None,
+                            }],
+                            'tooltip': {'show': False},
+                        })
+
+            elif kpi_style in ('progress', 'mini_gauge'):
+                target_col = vc.get('target_column', '') or 'target'
+                current_val = 0.0
+                target_val = 0.0
+                pct = 0.0
+                try:
+                    current_val = float(raw_val or 0)
+                except (TypeError, ValueError):
+                    pass
+                if target_col in col_idx and rows:
+                    try:
+                        target_val = float(rows[0][col_idx[target_col]] or 0)
+                    except (TypeError, ValueError):
+                        pass
+                if target_val:
+                    pct = round(current_val / target_val * 100, 1)
+                result['target_value'] = target_val
+                result['target_formatted'] = self._format_kpi(target_val)
+                result['progress_pct'] = pct
+
+                # Auto-compute annotation: "12pp below target" / "3pp above target"
+                diff_pp = round(pct - 100, 1)
+                if diff_pp < 0:
+                    result['progress_annotation'] = f'{abs(diff_pp):.0f}pp below target'
+                elif diff_pp > 0:
+                    result['progress_annotation'] = f'{diff_pp:.0f}pp above target'
+                else:
+                    result['progress_annotation'] = 'On target'
+
+                # Determine color from thresholds
+                if kpi_style == 'progress':
+                    color_mode = vc.get('progress_color_mode', 'traffic_light')
+                else:
+                    color_mode = vc.get('mini_gauge_color_mode', 'traffic_light')
+                if color_mode == 'traffic_light':
+                    warn = float(vc.get('progress_warn_threshold',
+                                        vc.get('mini_gauge_warn_threshold', 50)))
+                    good = float(vc.get('progress_good_threshold',
+                                        vc.get('mini_gauge_good_threshold', 80)))
+                    if pct >= good:
+                        bar_color = '#10b981'
+                    elif pct >= warn:
+                        bar_color = '#f59e0b'
+                    else:
+                        bar_color = '#ef4444'
+                else:
+                    bar_color = primary_color
+                result['bar_color'] = bar_color
+
+                # Build ECharts option
+                if kpi_style == 'progress':
+                    bar_h = int(vc.get('progress_bar_height', 8))
+                    result['echart_json'] = json.dumps({
+                        'grid': {'top': 0, 'right': 0, 'bottom': 0, 'left': 0},
+                        'xAxis': {'type': 'value', 'show': False, 'max': 100},
+                        'yAxis': {'type': 'category', 'show': False, 'data': ['']},
+                        'series': [
+                            {'type': 'bar', 'data': [100], 'barWidth': bar_h,
+                             'itemStyle': {'color': '#e5e7eb', 'borderRadius': bar_h // 2},
+                             'z': 1},
+                            {'type': 'bar', 'data': [min(pct, 100)], 'barWidth': bar_h,
+                             'barGap': '-100%',
+                             'itemStyle': {'color': bar_color, 'borderRadius': bar_h // 2},
+                             'z': 2},
+                        ],
+                        'tooltip': {'show': False},
+                    })
+                else:  # mini_gauge
+                    ring_size = int(vc.get('mini_gauge_size', 64))
+                    ring_thick = int(vc.get('mini_gauge_thickness', 6))
+                    result['echart_json'] = json.dumps({
+                        'series': [{
+                            'type': 'gauge',
+                            'startAngle': 90,
+                            'endAngle': -270,
+                            'min': 0, 'max': 100,
+                            'radius': '90%',
+                            'progress': {
+                                'show': True,
+                                'width': ring_thick,
+                                'roundCap': True,
+                                'itemStyle': {'color': bar_color},
+                            },
+                            'axisLine': {
+                                'lineStyle': {'width': ring_thick, 'color': [[1, '#e5e7eb']]},
+                            },
+                            'axisTick': {'show': False},
+                            'splitLine': {'show': False},
+                            'axisLabel': {'show': False},
+                            'pointer': {'show': False},
+                            'title': {'show': False},
+                            'detail': {
+                                'fontSize': ring_size // 4,
+                                'fontWeight': 700,
+                                'color': bar_color,
+                                'formatter': f'{pct:.0f}%',
+                                'offsetCenter': [0, 0],
+                            },
+                            'data': [{'value': min(pct, 100)}],
+                        }],
+                        'tooltip': {'show': False},
+                    })
+                    result['mini_gauge_size'] = ring_size
+
+                # Optional status text from SQL column
+                status_col = vc.get('mini_gauge_status_column', '') or 'status_text'
+                if status_col in col_idx and rows:
+                    result['gauge_status_text'] = str(rows[0][col_idx[status_col]] or '')
+
+            elif kpi_style == 'comparison':
+                cur_label_col = vc.get('comparison_current_label_col', '') or 'current_label'
+                pri_label_col = vc.get('comparison_prior_label_col', '') or 'prior_label'
+                if cur_label_col in col_idx and rows:
+                    result['current_label'] = str(rows[0][col_idx[cur_label_col]] or '')
+                if pri_label_col in col_idx and rows:
+                    result['prior_label'] = str(rows[0][col_idx[pri_label_col]] or '')
+                y_comp = (self.y_columns or '').split(',')[0].strip()
+                if y_comp and y_comp in col_idx and rows:
+                    try:
+                        cur = float(raw_val or 0)
+                        pri = float(rows[0][col_idx[y_comp]] or 0)
+                        result['prior_formatted'] = self._format_kpi(rows[0][col_idx[y_comp]])
+                        abs_diff = cur - pri
+                        pct_diff = round(((cur - pri) / abs(pri) * 100) if pri else 0, 1)
+                        result['absolute_diff'] = abs_diff
+                        result['pct_diff'] = pct_diff
+                        # Auto-compute diff annotation
+                        sign = '+' if abs_diff > 0 else ''
+                        result['diff_annotation'] = (
+                            f'{sign}{abs_diff:,.0f} ({sign}{pct_diff:.1f}%)'
+                        )
+                        if abs_diff > 0:
+                            result['diff_status'] = 'status-up'
+                        elif abs_diff < 0:
+                            result['diff_status'] = 'status-down'
+                        else:
+                            result['diff_status'] = 'status-neutral'
+                    except (TypeError, ValueError):
+                        pass
+
+            elif kpi_style == 'rag_status':
+                try:
+                    val_num = float(raw_val or 0)
+                    red_thresh = float(vc.get('rag_red_threshold', 70))
+                    green_thresh = float(vc.get('rag_green_threshold', 85))
+                    invert = vc.get('rag_invert', False)
+                    if invert:
+                        if val_num <= green_thresh:
+                            rag = 'green'
+                        elif val_num <= red_thresh:
+                            rag = 'amber'
+                        else:
+                            rag = 'red'
+                    else:
+                        if val_num >= green_thresh:
+                            rag = 'green'
+                        elif val_num >= red_thresh:
+                            rag = 'amber'
+                        else:
+                            rag = 'red'
+                    result['rag_color'] = rag
+                    badge_key = f'rag_badge_{rag}'
+                    defaults = {
+                        'rag_badge_green': 'On target',
+                        'rag_badge_amber': 'At risk',
+                        'rag_badge_red': 'Critical',
+                    }
+                    result['rag_badge'] = vc.get(badge_key, defaults.get(badge_key, ''))
+                except (TypeError, ValueError):
+                    result['rag_color'] = 'neutral'
+                    result['rag_badge'] = ''
+
         return result
 
     def _build_table_data(self, cols, rows):

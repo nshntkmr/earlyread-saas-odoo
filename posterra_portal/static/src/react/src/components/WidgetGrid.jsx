@@ -13,6 +13,7 @@ import BattleCard   from './widgets/BattleCard'
 import InsightPanel from './widgets/InsightPanel'
 import KPIStrip    from './widgets/KPIStrip'
 import GaugeRouter from './widgets/GaugeRouter'
+import KpiRouter   from './widgets/KpiRouter'
 
 // ── Drill-down ──────────────────────────────────────────────────────────────
 import DrillDownModal from './builder/DrillDownModal'
@@ -25,12 +26,12 @@ function resolveWidget(chartType) {
   switch (chartType) {
     case 'gauge':        return GaugeRouter
     case 'gauge_kpi':    return GaugeKPI
-    case 'kpi':          return KPICard
-    case 'status_kpi':   return StatusKPI
+    case 'kpi':          return KpiRouter
+    case 'status_kpi':   return KpiRouter
     case 'table':        return DataTable
     case 'battle_card':  return BattleCard
     case 'insight_panel':return InsightPanel
-    case 'kpi_strip':   return KPIStrip
+    case 'kpi_strip':   return KpiRouter
     default:             return KPICard   // safe fallback
   }
 }

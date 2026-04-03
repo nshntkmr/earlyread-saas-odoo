@@ -1023,6 +1023,28 @@ GAUGE_FLAGS = [
 ]
 
 
+# ── KPI Card Flags ──────────────────────────────────────────────────────────
+
+KPI_FLAGS = [
+    {
+        'flag': 'kpi_style',
+        'type': 'select',
+        'default': 'stat_card',
+        'label': 'KPI Style',
+        'help': 'Visual variant for the KPI card.',
+        'options': [
+            {'value': 'stat_card', 'label': 'Stat Card (trend badge)'},
+            {'value': 'sparkline', 'label': 'Stat Card + Sparkline'},
+            {'value': 'progress', 'label': 'Progress Bar (target)'},
+            {'value': 'mini_gauge', 'label': 'Mini Gauge Ring'},
+            {'value': 'comparison', 'label': 'Comparison (vs prior)'},
+            {'value': 'rag_status', 'label': 'RAG Status Card'},
+            {'value': 'strip', 'label': 'KPI Strip (compact)'},
+        ],
+    },
+]
+
+
 # ── Registry ─────────────────────────────────────────────────────────────────
 # Add new chart families here as they are implemented.
 
@@ -1032,6 +1054,8 @@ CHART_FLAGS = {
     'donut': DONUT_FLAGS,
     'line': LINE_FLAGS,
     'gauge': GAUGE_FLAGS,
+    'kpi': KPI_FLAGS,
+    'status_kpi': KPI_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
 }
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import DonutStylePicker from './DonutStylePicker'
 import LineStylePicker from './LineStylePicker'
 import GaugeStylePicker from './GaugeStylePicker'
+import KpiStylePicker from './KpiStylePicker'
 
 const CHART_TYPES = [
   { key: 'bar',           label: 'Bar',           icon: 'fa-bar-chart',       desc: 'Compare values across categories' },
@@ -10,8 +11,7 @@ const CHART_TYPES = [
   { key: 'donut',         label: 'Donut',         icon: 'fa-circle-o-notch',  desc: 'Proportions with center stat' },
   { key: 'gauge',         label: 'Gauge',         icon: 'fa-tachometer',      desc: 'Show a single value vs target' },
   { key: 'radar',         label: 'Radar',         icon: 'fa-bullseye',        desc: 'Multi-axis profile comparison' },
-  { key: 'kpi',           label: 'KPI Card',      icon: 'fa-hashtag',         desc: 'Single metric with formatting' },
-  { key: 'status_kpi',    label: 'Status KPI',    icon: 'fa-arrow-up',        desc: 'KPI with up/down status icon' },
+  { key: 'kpi',           label: 'KPI Card',      icon: 'fa-hashtag',         desc: 'Metric cards with 7 style variants' },
   { key: 'table',         label: 'Data Table',    icon: 'fa-table',           desc: 'Tabular data with sortable cols' },
   { key: 'scatter',       label: 'Scatter',       icon: 'fa-braille',         desc: 'X-Y correlation plot' },
   { key: 'heatmap',       label: 'Heatmap',       icon: 'fa-th',              desc: 'Color-coded matrix grid' },
@@ -141,9 +141,21 @@ export default function ChartTypePicker({
         </div>
       )}
 
+      {/* KPI style sub-picker */}
+      {selected === 'kpi' && (
+        <div style={{ marginTop: 16 }}>
+          <KpiStylePicker
+            selectedStyle={visualFlags.kpi_style || 'stat_card'}
+            onStyleChange={style => onFlagChange && onFlagChange('kpi_style', style)}
+            visualConfig={visualFlags}
+            onVisualConfigChange={(key, value) => onFlagChange && onFlagChange(key, value)}
+          />
+        </div>
+      )}
+
       {/* Dynamic chart-specific options from flag schema */}
-      {/* Skip when a custom StylePicker already handles all flags (line, donut, gauge) */}
-      {flagSchema.length > 0 && selected !== 'line' && selected !== 'donut' && selected !== 'gauge' && (
+      {/* Skip when a custom StylePicker already handles all flags (line, donut, gauge, kpi) */}
+      {flagSchema.length > 0 && selected !== 'line' && selected !== 'donut' && selected !== 'gauge' && selected !== 'kpi' && (
         <div className="wb-field-group" style={{ marginTop: 16 }}>
           <label className="wb-label">
             {CHART_TYPES.find(c => c.key === selected)?.label || 'Chart'} Options
