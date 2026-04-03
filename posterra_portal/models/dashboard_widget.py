@@ -2937,10 +2937,22 @@ class DashboardWidget(models.Model):
                 result['target_formatted'] = self._format_kpi(target_val)
                 result['progress_pct'] = pct
 
+                # Resolve benchmark label: SQL column > visual_config > default
+                bm_label = 'benchmark'
+                bm_col = 'benchmark_label'
+                if bm_col in col_idx and rows:
+                    bm_label = str(rows[0][col_idx[bm_col]] or '') or bm_label
+                elif vc.get('benchmark_label'):
+                    bm_label = vc['benchmark_label']
+                    # Strip leading "vs " if admin included it (we add it ourselves)
+                    if bm_label.lower().startswith('vs '):
+                        bm_label = bm_label[3:]
+                result['benchmark_label'] = bm_label
+
                 # Auto-compute annotation based on value_display mode
                 value_display = vc.get('value_display', 'percentage')
                 if value_display == 'numeric':
-                    # Numeric mode: show actual values with "vs benchmark"
+                    # Numeric mode: show actual values with "vs <benchmark_label>"
                     result['display_value'] = formatted  # actual formatted value (e.g. "2.36")
                     abs_diff = round(current_val - target_val, 2)
                     sign = '+' if abs_diff > 0 else ''
@@ -2953,17 +2965,17 @@ class DashboardWidget(models.Model):
                         )
                         pct_sign = '+' if pct_diff > 0 else ''
                         result['progress_annotation'] = (
-                            f'{sign}{abs_diff:.2f} ({pct_sign}{pct_diff:.1f}%) vs benchmark'
+                            f'{sign}{abs_diff:.2f} ({pct_sign}{pct_diff:.1f}%) vs {bm_label}'
                         )
                 else:
                     # Percentage mode: "12pp below target" / "3pp above target"
                     diff_pp = round(pct - 100, 1)
                     if diff_pp < 0:
-                        result['progress_annotation'] = f'{abs(diff_pp):.0f}pp below target'
+                        result['progress_annotation'] = f'{abs(diff_pp):.0f}pp below {bm_label}'
                     elif diff_pp > 0:
-                        result['progress_annotation'] = f'{diff_pp:.0f}pp above target'
+                        result['progress_annotation'] = f'{diff_pp:.0f}pp above {bm_label}'
                     else:
-                        result['progress_annotation'] = 'On target'
+                        result['progress_annotation'] = f'On {bm_label}'
 
                 # Determine color from thresholds
                 if kpi_style == 'progress':

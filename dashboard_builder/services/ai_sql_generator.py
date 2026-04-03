@@ -172,8 +172,8 @@ SQL_COLUMN_REQUIREMENTS = {
     'heatmap':              'x_category, y_category, intensity',
     'kpi':                  'value [, prior_value]',
     'kpi_sparkline':        'value [, prior_value], sparkline_data (CSV string via STRING_AGG of the metric over time periods)',
-    'kpi_progress':         'value, target',
-    'kpi_mini_gauge':       'value, target [, status_text]',
+    'kpi_progress':         'value, target [, benchmark_label]',
+    'kpi_mini_gauge':       'value, target [, benchmark_label, status_text]',
     'kpi_comparison':       'value, prior_value [, current_label, prior_label]',
     'kpi_rag_status':       'value',
     'status_kpi':           'value, status_text',
@@ -368,7 +368,11 @@ class AiSqlGenerator:
                     "across ALL providers in the selected state (not just the "
                     "selected HHA). For peer benchmarks, compute across similar "
                     "providers. The SQL should return: value (selected HHA's "
-                    "metric) and target (benchmark to compare against)." + display_note
+                    "metric) and target (benchmark to compare against). "
+                    "ALSO include a 'benchmark_label' column with a human-readable "
+                    "label for the benchmark (e.g., 'State Avg (Illinois)', "
+                    "'National Avg', 'Peer Group'). This label is shown in the "
+                    "annotation text (e.g., '-0.15 vs State Avg (Illinois)')." + display_note
                 )
         parts.append(f"EXPECTED COLUMN FORMAT: {context.get('expected_columns', '')}")
         parts.append('')

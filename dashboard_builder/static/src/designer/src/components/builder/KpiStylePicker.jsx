@@ -368,6 +368,24 @@ export default function KpiStylePicker({
         </div>
       )}
 
+      {/* ── Benchmark label (progress + mini_gauge) ────────── */}
+      {(isProgress || isMiniGauge) && (
+        <div className="wb-field-row" style={{ marginTop: 8 }}>
+          <label className="wb-field-label">
+            Benchmark Label (optional)
+            <i className="fa fa-info-circle wb-flag-info"
+               title="Static label for the benchmark annotation (e.g. 'vs State Avg', 'vs ACO Target'). If your SQL returns a 'benchmark_label' column, that takes priority (dynamic). Leave empty for default 'vs benchmark'." />
+          </label>
+          <input
+            type="text"
+            className="wb-input wb-input--sm"
+            placeholder="e.g. vs State Avg, vs ACO Target"
+            value={cfgVal(visualConfig, 'benchmark_label', '')}
+            onChange={e => handleCfg('benchmark_label', e.target.value)}
+          />
+        </div>
+      )}
+
       {/* ── Progress bar settings ─────────────────────────── */}
       {isProgress && (
         <>
