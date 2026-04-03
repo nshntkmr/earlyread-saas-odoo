@@ -2977,7 +2977,8 @@ class DashboardWidget(models.Model):
                     else:
                         result['progress_annotation'] = f'On {bm_label}'
 
-                # Determine color from thresholds
+                # Determine color from thresholds (respects trend_invert)
+                trend_invert = vc.get('trend_invert', False)
                 if kpi_style == 'progress':
                     color_mode = vc.get('progress_color_mode', 'traffic_light')
                 else:
@@ -2987,12 +2988,22 @@ class DashboardWidget(models.Model):
                                         vc.get('mini_gauge_warn_threshold', 50)))
                     good = float(vc.get('progress_good_threshold',
                                         vc.get('mini_gauge_good_threshold', 80)))
-                    if pct >= good:
-                        bar_color = '#10b981'
-                    elif pct >= warn:
-                        bar_color = '#f59e0b'
+                    if trend_invert:
+                        # Lower is better: above benchmark = bad (red)
+                        if pct >= good:
+                            bar_color = '#ef4444'   # red — above benchmark
+                        elif pct >= warn:
+                            bar_color = '#f59e0b'   # amber
+                        else:
+                            bar_color = '#10b981'   # green — below benchmark
                     else:
-                        bar_color = '#ef4444'
+                        # Higher is better (default): above benchmark = good
+                        if pct >= good:
+                            bar_color = '#10b981'
+                        elif pct >= warn:
+                            bar_color = '#f59e0b'
+                        else:
+                            bar_color = '#ef4444'
                 else:
                     bar_color = primary_color
                 result['bar_color'] = bar_color

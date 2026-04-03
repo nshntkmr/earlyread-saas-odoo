@@ -298,8 +298,8 @@ export default function KpiStylePicker({
         </select>
       </div>
 
-      {/* ── Common trend settings (stat_card, sparkline, comparison) ── */}
-      {(ks === 'stat_card' || isSparkline || isComparison) && (
+      {/* ── Common trend settings (all variants with directional semantics) */}
+      {(ks === 'stat_card' || isSparkline || isComparison || isProgress || isMiniGauge) && (
         <>
           <div style={styles.sectionTitle}>Trend Settings</div>
           <div className="wb-toggle-group">
