@@ -3089,6 +3089,10 @@ class DashboardWidget(models.Model):
                     result['rag_color'] = 'neutral'
                     result['rag_badge'] = ''
 
+            # Override inner label: empty = no duplication with card header,
+            # custom text = shows different text inside the KPI body
+            result['label'] = vc.get('kpi_label', '')
+
         return result
 
     def _build_table_data(self, cols, rows):

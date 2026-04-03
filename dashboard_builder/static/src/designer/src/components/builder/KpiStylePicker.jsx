@@ -264,6 +264,23 @@ export default function KpiStylePicker({
         })}
       </div>
 
+      {/* ── Common settings (all variants) ────────────────── */}
+      <div style={styles.sectionTitle}>Common Settings</div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
+          Card Label (optional)
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Text shown inside the KPI card body. Leave empty to avoid duplicating the widget title (card header already shows the title). Enter custom text for a different label inside the card." />
+        </label>
+        <input
+          type="text"
+          className="wb-input wb-input--sm"
+          placeholder="Leave empty — card header shows widget title"
+          value={cfgVal(visualConfig, 'kpi_label', '')}
+          onChange={e => handleCfg('kpi_label', e.target.value)}
+        />
+      </div>
+
       {/* ── Common trend settings (stat_card, sparkline, comparison) ── */}
       {(ks === 'stat_card' || isSparkline || isComparison) && (
         <>
