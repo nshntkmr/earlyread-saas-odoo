@@ -345,6 +345,13 @@
                                        style="font-family: monospace; min-height: 80px;"
                                        nolabel="1" colspan="2"/>
                             </group>
+                            <!-- Visual Config (display density, kpi_style, etc.) -->
+                            <group string="Visual Config">
+                                <field name="visual_config" widget="text"
+                                       placeholder='{"display_density":"standard","kpi_style":"stat_card"}'
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
                             <!-- Table Column Config (read-only, for debugging) -->
                             <group string="Table Column Config"
                                    invisible="chart_type != 'table' or not table_column_config">
