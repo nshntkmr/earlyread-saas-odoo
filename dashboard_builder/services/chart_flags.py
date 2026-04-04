@@ -1045,17 +1045,38 @@ KPI_FLAGS = [
 ]
 
 
+# ── Common Flags (all chart types) ──────────────────────────────────────────
+
+COMMON_FLAGS = [
+    {
+        'flag': 'display_density',
+        'type': 'select',
+        'default': 'standard',
+        'label': 'Display Density',
+        'help': 'Controls card padding, font sizes, and spacing. '
+                'Standard: generous (default). Compact: tighter (~120px). '
+                'Dense: minimal (~80px, competitor-style).',
+        'options': [
+            {'value': 'standard', 'label': 'Standard (spacious)'},
+            {'value': 'compact', 'label': 'Compact (tighter)'},
+            {'value': 'dense', 'label': 'Dense (minimal)'},
+        ],
+    },
+]
+
+
 # ── Registry ─────────────────────────────────────────────────────────────────
 # Add new chart families here as they are implemented.
+# COMMON_FLAGS are prepended to every chart type's flags.
 
 CHART_FLAGS = {
-    'bar': BAR_FLAGS,
-    'pie': PIE_FLAGS,
-    'donut': DONUT_FLAGS,
-    'line': LINE_FLAGS,
-    'gauge': GAUGE_FLAGS,
-    'kpi': KPI_FLAGS,
-    'status_kpi': KPI_FLAGS,
+    'bar': COMMON_FLAGS + BAR_FLAGS,
+    'pie': COMMON_FLAGS + PIE_FLAGS,
+    'donut': COMMON_FLAGS + DONUT_FLAGS,
+    'line': COMMON_FLAGS + LINE_FLAGS,
+    'gauge': COMMON_FLAGS + GAUGE_FLAGS,
+    'kpi': COMMON_FLAGS + KPI_FLAGS,
+    'status_kpi': COMMON_FLAGS + KPI_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
 }
 

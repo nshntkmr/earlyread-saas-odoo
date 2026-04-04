@@ -2120,6 +2120,58 @@
     font-size: clamp(0.65rem, 12cqw, 1.25rem);
 }
 
+/* ── Compact density — non-KPI widget types ──────────── */
+.pv-widget-card--compact-density .pv-widget-echart {
+    min-height: 150px;
+}
+.pv-widget-card--compact-density .pv-widget-battle {
+    padding: var(--w-space-sm) 0 var(--w-space-md);
+}
+.pv-widget-card--compact-density .pv-battle-header {
+    padding: 4px var(--w-space-lg);
+}
+.pv-widget-card--compact-density .pv-widget-insight {
+    padding: var(--w-space-md);
+}
+.pv-widget-card--compact-density .pv-gauge-kpi-wrap {
+    padding: 0 var(--w-space-xs) var(--w-space-md);
+}
+
+/* ── Dense density — non-KPI widget types ────────────── */
+.pv-widget-card--dense .pv-widget-echart {
+    min-height: 120px;
+}
+.pv-widget-card--dense .pv-widget-battle {
+    padding: var(--w-space-xs) 0 var(--w-space-sm);
+}
+.pv-widget-card--dense .pv-battle-header {
+    padding: 2px var(--w-space-md);
+    font-size: clamp(0.45rem, 3cqw, 0.6rem);
+}
+.pv-widget-card--dense .pv-battle-row {
+    padding-top: var(--w-space-xs);
+    padding-bottom: var(--w-space-xs);
+}
+.pv-widget-card--dense .pv-widget-insight {
+    padding: var(--w-space-sm);
+}
+.pv-widget-card--dense .pv-insight-classification {
+    font-size: clamp(0.55rem, 3.5cqw, 0.75rem);
+}
+.pv-widget-card--dense .pv-gauge-kpi-wrap {
+    padding: 0 var(--w-space-xs) var(--w-space-sm);
+}
+.pv-widget-card--dense .pv-gauge-kpi-sub-row {
+    padding: var(--w-space-sm) var(--w-space-md);
+    gap: var(--w-space-sm);
+}
+.pv-widget-card--dense .pv-gauge-kpi-sub-label {
+    font-size: clamp(0.45rem, 3cqw, 0.6rem);
+}
+.pv-widget-card--dense .pv-gauge-kpi-sub-value {
+    font-size: clamp(0.7rem, 6cqw, 1.1rem);
+}
+
 /* ── KPI Card Generic (3 layouts) ─────────────────────────────────── */
 
 /* Standard layout: vertical stack with optional chart corner */
