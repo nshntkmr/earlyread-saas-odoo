@@ -297,6 +297,22 @@ export default function KpiStylePicker({
           <option value="decimal">Decimal (2.36)</option>
         </select>
       </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
+          Display Density
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Controls card padding, font sizes, and spacing. Standard: generous spacing (default). Compact: tighter layout (~120px height). Dense: minimal spacing (~80px height) — matches competitor KPI strips." />
+        </label>
+        <select
+          className="wb-select"
+          value={cfgVal(visualConfig, 'display_density', 'standard')}
+          onChange={e => handleCfg('display_density', e.target.value)}
+        >
+          <option value="standard">Standard (spacious)</option>
+          <option value="compact">Compact (tighter)</option>
+          <option value="dense">Dense (minimal — competitor-style)</option>
+        </select>
+      </div>
 
       {/* ── Common trend settings (all variants with directional semantics) */}
       {(ks === 'stat_card' || isSparkline || isComparison || isProgress || isMiniGauge) && (

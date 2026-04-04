@@ -120,6 +120,15 @@ def _build_page_config_json(app, page, tabs, page_filters, filter_options,
     }, default=str)
 
 
+def _extract_vc_field(widget, field, default=''):
+    """Extract a field from widget.visual_config JSON, with fallback."""
+    try:
+        vc = json.loads(widget.visual_config or '{}') or {}
+        return vc.get(field, default)
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return default
+
+
 def _build_initial_widgets_json(widgets, widget_data):
     """Serialise initial widget data as JSON for the data-initial-widgets attribute.
 
@@ -151,6 +160,7 @@ def _build_initial_widgets_json(widgets, widget_data):
             'name':         w.name,
             'sequence':     w.sequence,
             'display_mode': w.display_mode or 'standard',
+            'display_density': _extract_vc_field(w, 'display_density', 'standard'),
             'icon_name':    w.icon_name or 'none',
             # Annotations (SQL-interpolated when %(col)s syntax used)
             'subtitle':           resolved_subtitle,

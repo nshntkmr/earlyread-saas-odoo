@@ -277,7 +277,10 @@ export default function WidgetGrid({ initialWidgets }) {
         }}
       >
         <div
-          className="pv-widget-card"
+          className={`pv-widget-card${
+            w.display_density === 'compact' ? ' pv-widget-card--compact-density' :
+            w.display_density === 'dense' ? ' pv-widget-card--dense' : ''
+          }`}
           style={{
             ...(!isCompact && w.height && isScalable ? { minHeight: w.height } : {}),
             ...(!isScalable && !isCompact ? { height: 'auto' } : {}),

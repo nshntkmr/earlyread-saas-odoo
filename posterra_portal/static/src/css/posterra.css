@@ -2027,6 +2027,99 @@
     color: #f59e0b;
 }
 
+/* ── Display Density Modifiers ────────────────────────────────────── */
+/* Applied per-widget via visual_config.display_density                */
+/* Standard = default (no modifier needed)                             */
+
+/* ── Compact density ─────────────────────────────────── */
+.pv-widget-card--compact-density {
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    border-color: #f0f0f0;
+}
+.pv-widget-card--compact-density .pv-widget-card-header {
+    padding: var(--w-space-md) var(--w-space-lg) 6px;
+}
+.pv-widget-card--compact-density .pv-widget-kpi,
+.pv-widget-card--compact-density .pv-widget-status-kpi {
+    padding: var(--w-space-lg) var(--w-space-md) var(--w-space-md);
+}
+.pv-widget-card--compact-density .pv-widget-kpi-value {
+    font-size: clamp(1rem, 4cqw, 1.5rem);
+}
+.pv-widget-card--compact-density .pv-widget-kpi-label {
+    margin-top: var(--w-space-xs);
+}
+.pv-widget-card--compact-density .pv-trend-badge {
+    margin-top: var(--w-space-xs);
+    padding: 2px 6px;
+}
+.pv-widget-card--compact-density .pv-category-icon {
+    width: 28px;
+    height: 28px;
+    margin-bottom: var(--w-space-xs);
+}
+.pv-widget-card--compact-density .pv-kpi-card-standard {
+    padding: var(--w-space-lg) var(--w-space-md) var(--w-space-md);
+}
+.pv-widget-card--compact-density .pv-kpi-card-split {
+    padding: var(--w-space-md);
+}
+
+/* ── Dense density (competitor-style) ────────────────── */
+.pv-widget-card--dense {
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    border-color: #f5f5f5;
+}
+.pv-widget-card--dense .pv-widget-card-header {
+    padding: var(--w-space-sm) var(--w-space-md) 4px;
+    border-bottom-color: var(--w-border-faint);
+}
+.pv-widget-card--dense .pv-widget-title {
+    font-size: clamp(0.55rem, 3.5cqw, 0.7rem);
+}
+.pv-widget-card--dense .pv-widget-kpi,
+.pv-widget-card--dense .pv-widget-status-kpi {
+    padding: var(--w-space-md) var(--w-space-sm) var(--w-space-sm);
+}
+.pv-widget-card--dense .pv-widget-kpi-value {
+    font-size: clamp(0.85rem, 3.5cqw, 1.25rem);
+}
+.pv-widget-card--dense .pv-widget-kpi-label {
+    margin-top: 1px;
+    font-size: clamp(0.45rem, 3cqw, 0.6rem);
+}
+.pv-widget-card--dense .pv-widget-kpi-secondary {
+    font-size: clamp(0.45rem, 3cqw, 0.6rem);
+    margin-top: 1px;
+}
+.pv-widget-card--dense .pv-trend-badge {
+    margin-top: 2px;
+    padding: 1px 4px;
+    font-size: clamp(0.45rem, 3cqw, 0.55rem);
+}
+.pv-widget-card--dense .pv-category-icon {
+    width: 22px;
+    height: 22px;
+    margin-bottom: 2px;
+}
+.pv-widget-card--dense .pv-category-icon svg {
+    width: 12px;
+    height: 12px;
+}
+.pv-widget-card--dense .pv-kpi-card-standard {
+    padding: var(--w-space-md) var(--w-space-sm) var(--w-space-sm);
+}
+.pv-widget-card--dense .pv-kpi-card-split {
+    padding: var(--w-space-sm);
+    gap: var(--w-space-md);
+}
+.pv-widget-card--dense .pv-kpi-strip {
+    padding: var(--w-space-sm);
+}
+.pv-widget-card--dense .pv-kpi-strip-value {
+    font-size: clamp(0.65rem, 12cqw, 1.25rem);
+}
+
 /* ── KPI Card Generic (3 layouts) ─────────────────────────────────── */
 
 /* Standard layout: vertical stack with optional chart corner */
