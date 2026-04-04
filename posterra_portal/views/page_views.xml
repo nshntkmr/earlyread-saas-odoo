@@ -28,6 +28,10 @@
         <field name="model">dashboard.page</field>
         <field name="arch" type="xml">
             <form string="Dashboard Page">
+                <header>
+                    <button name="action_save_as_template" type="object"
+                            string="Save as Template" icon="fa-save"/>
+                </header>
                 <sheet>
                     <widget name="web_ribbon" title="Inactive" bg_color="bg-danger"
                             invisible="is_active"/>

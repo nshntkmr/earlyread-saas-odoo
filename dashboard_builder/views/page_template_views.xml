@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.template — List view                               -->
+    <!-- ================================================================ -->
+    <record id="view_page_template_list" model="ir.ui.view">
+        <field name="name">dashboard.page.template.list</field>
+        <field name="model">dashboard.page.template</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="business_type" optional="show"/>
+                <field name="category" optional="show"/>
+                <field name="widget_count"/>
+                <field name="filter_count"/>
+                <field name="tab_count"/>
+                <field name="is_published"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.template — Form view                               -->
+    <!-- ================================================================ -->
+    <record id="view_page_template_form" model="ir.ui.view">
+        <field name="name">dashboard.page.template.form</field>
+        <field name="model">dashboard.page.template</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_use_template" type="object"
+                            string="Use Template" class="oe_highlight"
+                            icon="fa-plus-circle"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Template Name"/></h1>
+                    </div>
+                    <group>
+                        <group string="Details">
+                            <field name="description"/>
+                            <field name="business_type"/>
+                            <field name="category"/>
+                            <field name="is_published"/>
+                        </group>
+                        <group string="Contents">
+                            <field name="widget_count"/>
+                            <field name="filter_count"/>
+                            <field name="tab_count"/>
+                            <field name="schema_sources" widget="text" readonly="1"
+                                   style="font-family: monospace;"/>
+                        </group>
+                    </group>
+                    <group string="Preview Image">
+                        <field name="preview_image" widget="image"
+                               options="{'size': [600, 400]}"/>
+                    </group>
+                    <notebook>
+                        <page string="Page Config (JSON)" name="config">
+                            <field name="page_config" widget="text"
+                                   style="font-family: monospace; min-height: 400px;"
+                                   nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.template — Kanban view (gallery)                   -->
+    <!-- ================================================================ -->
+    <record id="view_page_template_kanban" model="ir.ui.view">
+        <field name="name">dashboard.page.template.kanban</field>
+        <field name="model">dashboard.page.template</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <field name="name"/>
+                <field name="business_type"/>
+                <field name="category"/>
+                <field name="widget_count"/>
+                <field name="preview_image"/>
+                <templates>
+                    <t t-name="card">
+                        <field name="preview_image" widget="image"
+                               options="{'size': [300, 200]}" class="w-100"/>
+                        <strong><field name="name"/></strong>
+                        <div>
+                            <field name="business_type" widget="badge"
+                                   decoration-info="1"/>
+                            <field name="category" widget="badge"
+                                   decoration-success="1"/>
+                        </div>
+                        <small><field name="widget_count"/> widgets</small>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.template — Search view                             -->
+    <!-- ================================================================ -->
+    <record id="view_page_template_search" model="ir.ui.view">
+        <field name="name">dashboard.page.template.search</field>
+        <field name="model">dashboard.page.template</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <filter name="published" string="Published"
+                        domain="[('is_published', '=', True)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="by_business_type" string="Business Type"
+                            context="{'group_by': 'business_type'}"/>
+                    <filter name="by_category" string="Category"
+                            context="{'group_by': 'category'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- dashboard.page.template — Action                                  -->
+    <!-- ================================================================ -->
+    <record id="action_page_template" model="ir.actions.act_window">
+        <field name="name">Page Templates</field>
+        <field name="res_model">dashboard.page.template</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_page_template_search"/>
+        <field name="context">{'search_default_published': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first page template
+            </p>
+            <p>
+                Save an existing page as a template to reuse its layout,
+                widgets, filters, and sections across apps and clients.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Use Template Wizard                                               -->
+    <!-- ================================================================ -->
+    <record id="view_page_template_wizard_form" model="ir.ui.view">
+        <field name="name">dashboard.page.template.wizard.form</field>
+        <field name="model">dashboard.page.template.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="template_id" readonly="1"/>
+                    <field name="app_id"/>
+                    <field name="nav_section_id"/>
+                    <field name="page_name" placeholder="Leave empty to use template name"/>
+                    <field name="page_key" placeholder="Leave empty to auto-generate"/>
+                </group>
+                <footer>
+                    <button name="action_apply" type="object"
+                            string="Create Page" class="oe_highlight"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- Menu item under Configuration                                     -->
+    <!-- ================================================================ -->
+    <menuitem id="menu_page_templates"
+              name="Page Templates"
+              parent="menu_dashboard_builder_config"
+              action="action_page_template"
+              sequence="25"/>
+
+</odoo>

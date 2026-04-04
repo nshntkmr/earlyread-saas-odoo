@@ -23,6 +23,7 @@
         'views/dashboard_schema_views.xml',
         'views/widget_definition_views.xml',
         'views/widget_template_views.xml',
+        'views/page_template_views.xml',
         'views/menuitems.xml',
         'views/designer_templates.xml',
     ],

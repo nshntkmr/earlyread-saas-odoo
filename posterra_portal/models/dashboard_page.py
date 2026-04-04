@@ -82,6 +82,30 @@ class DashboardPage(models.Model):
             res['sequence'] = (last.sequence if last else 0) + 10
         return res
 
+    def action_save_as_template(self):
+        """Save this page as a reusable template."""
+        self.ensure_one()
+        import json
+        Template = self.env['dashboard.page.template'].sudo()
+        page_config = Template.serialize_page(self)
+        # Collect unique schema source table names
+        source_tables = set()
+        for w in self.widget_ids:
+            if w.schema_source_id:
+                source_tables.add(w.schema_source_id.table_name)
+        template = Template.create({
+            'name': f'{self.name} Template',
+            'page_config': json.dumps(page_config, default=str),
+            'schema_sources': json.dumps(list(source_tables)),
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Page Template Created',
+            'res_model': 'dashboard.page.template',
+            'res_id': template.id,
+            'view_mode': 'form',
+        }
+
 
 class DashboardPageTab(models.Model):
     _name = 'dashboard.page.tab'

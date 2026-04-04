@@ -17,3 +17,9 @@ access_widget_tpl_system,dashboard.widget.template system,model_dashboard_widget
 access_widget_tpl_slot_user,dashboard.widget.template.slot user,model_dashboard_widget_template_slot,group_dashboard_builder_user,1,0,0,0
 access_widget_tpl_slot_admin,dashboard.widget.template.slot admin,model_dashboard_widget_template_slot,group_dashboard_builder_admin,1,1,1,1
 access_widget_tpl_slot_system,dashboard.widget.template.slot system,model_dashboard_widget_template_slot,base.group_system,1,1,1,1
+access_page_tpl_user,dashboard.page.template user,model_dashboard_page_template,group_dashboard_builder_user,1,0,0,0
+access_page_tpl_admin,dashboard.page.template admin,model_dashboard_page_template,group_dashboard_builder_admin,1,1,1,1
+access_page_tpl_system,dashboard.page.template system,model_dashboard_page_template,base.group_system,1,1,1,1
+access_page_tpl_wizard_user,dashboard.page.template.wizard user,model_dashboard_page_template_wizard,group_dashboard_builder_user,1,1,1,0
+access_page_tpl_wizard_admin,dashboard.page.template.wizard admin,model_dashboard_page_template_wizard,group_dashboard_builder_admin,1,1,1,1
+access_page_tpl_wizard_system,dashboard.page.template.wizard system,model_dashboard_page_template_wizard,base.group_system,1,1,1,1
