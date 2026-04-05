@@ -13,15 +13,19 @@ _BAR_COLORS = ['pv-bar-blue', 'pv-bar-purple', 'pv-bar-orange', 'pv-bar-teal']
 
 # ── Status label → CSS modifier ───────────────────────────────────────────────
 _STATUS_CLASS = {
-    'strong':   'strong',
-    'good':     'strong',
-    'moderate': 'moderate',
-    'warning':  'moderate',
-    'weak':     'weak',
-    'bad':      'weak',
-    'neutral':  'neutral',
-    'stable':   'neutral',
-    'normal':   'neutral',
+    'strong':           'strong',
+    'good':             'strong',
+    'top quartile':     'strong',
+    'moderate':         'moderate',
+    'warning':          'moderate',
+    'above median':     'moderate',
+    'weak':             'weak',
+    'bad':              'weak',
+    'below median':     'weak',
+    'bottom quartile':  'weak',
+    'neutral':          'neutral',
+    'stable':           'neutral',
+    'normal':           'neutral',
 }
 
 # ── DML / DDL keywords that must never appear in admin SQL ────────────────────
