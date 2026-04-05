@@ -10,14 +10,21 @@ const CHART_ICONS = {
   insight_panel: 'fa-lightbulb-o', gauge_kpi: 'fa-dashboard',
 }
 
-const CATEGORIES = [
-  { key: '',           label: 'All' },
-  { key: 'kpi',        label: 'KPI' },
-  { key: 'chart',      label: 'Chart' },
-  { key: 'table',      label: 'Table' },
-  { key: 'comparison', label: 'Comparison' },
-  { key: 'profile',    label: 'Profile' },
-  { key: 'insight',    label: 'Insight' },
+const CHART_TYPES = [
+  { key: '',              label: 'All',           icon: null },
+  { key: 'bar',           label: 'Bar',           icon: 'fa-bar-chart' },
+  { key: 'line',          label: 'Line',          icon: 'fa-line-chart' },
+  { key: 'pie',           label: 'Pie',           icon: 'fa-pie-chart' },
+  { key: 'donut',         label: 'Donut',         icon: 'fa-circle-o-notch' },
+  { key: 'gauge',         label: 'Gauge',         icon: 'fa-tachometer' },
+  { key: 'radar',         label: 'Radar',         icon: 'fa-bullseye' },
+  { key: 'kpi',           label: 'KPI',           icon: 'fa-hashtag' },
+  { key: 'table',         label: 'Table',         icon: 'fa-table' },
+  { key: 'scatter',       label: 'Scatter',       icon: 'fa-braille' },
+  { key: 'heatmap',       label: 'Heatmap',       icon: 'fa-th' },
+  { key: 'battle_card',   label: 'Battle Card',   icon: 'fa-columns' },
+  { key: 'insight_panel', label: 'Insight',        icon: 'fa-lightbulb-o' },
+  { key: 'gauge_kpi',     label: 'Gauge+KPI',     icon: 'fa-dashboard' },
 ]
 
 /**
@@ -27,20 +34,22 @@ export default function WidgetLibrary({ apiBase, appContext, onCreate, onEdit })
   const [definitions, setDefinitions] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('')
+  const [chartType, setChartType] = useState('')
   const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
     loadLibrary()
-  }, [category, apiBase, appContext?.app?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chartType, apiBase, appContext?.app?.id, appContext?.page?.id, appContext?.tab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadLibrary = async () => {
     setLoading(true)
     try {
       const params = {}
-      if (category) params.category = category
+      if (chartType) params.chart_type = chartType
       if (search) params.search = search
       if (appContext?.app?.id) params.app_id = appContext.app.id
+      if (appContext?.page?.id) params.page_id = appContext.page.id
+      if (appContext?.tab?.id) params.tab_id = appContext.tab.id
       const data = await designerFetch(libraryUrl(apiBase, params))
       setDefinitions(data)
     } catch (err) {
@@ -88,14 +97,16 @@ export default function WidgetLibrary({ apiBase, appContext, onCreate, onEdit })
       {/* Filters bar */}
       <div className="dd-filters-bar">
         <div className="dd-category-tabs">
-          {CATEGORIES.map(c => (
+          {CHART_TYPES.map(ct => (
             <button
-              key={c.key}
+              key={ct.key}
               type="button"
-              className={`dd-cat-tab ${category === c.key ? 'dd-cat-tab--active' : ''}`}
-              onClick={() => setCategory(c.key)}
+              className={`dd-cat-tab ${chartType === ct.key ? 'dd-cat-tab--active' : ''}`}
+              onClick={() => setChartType(ct.key)}
+              title={ct.label}
             >
-              {c.label}
+              {ct.icon && <i className={`fa ${ct.icon} me-1`} />}
+              {ct.label}
             </button>
           ))}
         </div>

@@ -164,12 +164,17 @@
 .dd-category-tabs {
     display: flex;
     gap: 4px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
 }
 
 .dd-cat-tab {
-    padding: 6px 14px;
-    font-size: 13px;
+    padding: 5px 10px;
+    font-size: 12px;
+    flex-shrink: 0;
+    white-space: nowrap;
     font-weight: 500;
     border: 1px solid var(--dd-gray-200);
     border-radius: 20px;

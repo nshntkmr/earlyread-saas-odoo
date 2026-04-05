@@ -365,6 +365,8 @@ class DesignerAPI(http.Controller):
         domain = [('is_active', '=', True)]
         if kw.get('category'):
             domain.append(('category', '=', kw['category']))
+        if kw.get('chart_type'):
+            domain.append(('chart_type', '=', kw['chart_type']))
         if kw.get('search'):
             domain.append(('name', 'ilike', kw['search']))
         has_app_ids = 'app_ids' in request.env['dashboard.widget.definition']._fields
@@ -375,8 +377,24 @@ class DesignerAPI(http.Controller):
             domain.append(('app_ids', '=', False))
             domain.append(('app_ids', 'in', [app_id]))
 
+        # Page/Tab filter: find definitions placed on a specific page/tab
+        if kw.get('page_id'):
+            try:
+                Widget = request.env['dashboard.widget'].sudo()
+                widget_domain = [('page_id', '=', int(kw['page_id']))]
+                if kw.get('tab_id'):
+                    widget_domain.append(('tab_id', '=', int(kw['tab_id'])))
+                widgets = Widget.search(widget_domain)
+                def_ids = list(set(widgets.mapped('definition_id').ids))
+                if def_ids:
+                    domain.append(('id', 'in', def_ids))
+                else:
+                    return _json_response([])  # no widgets on this page/tab
+            except (KeyError, ValueError):
+                pass  # dashboard.widget not installed or invalid ID
+
         defs = request.env['dashboard.widget.definition'].sudo().search(
-            domain, order='category, name')
+            domain, order='chart_type, name')
 
         return _json_response([{
             'id': d.id,
