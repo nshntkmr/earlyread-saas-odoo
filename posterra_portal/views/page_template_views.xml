@@ -169,7 +169,7 @@
     <!-- ================================================================ -->
     <menuitem id="menu_page_templates"
               name="Page Templates"
-              parent="menu_dashboard_builder_config"
+              parent="menu_posterra_config"
               action="action_page_template"
               sequence="25"/>
 

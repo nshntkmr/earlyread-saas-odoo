@@ -11,3 +11,4 @@ from . import dashboard_page_section
 from . import dashboard_filter_state
 from . import res_config_settings
 from . import dashboard_builder_ext
+from . import dashboard_page_template

@@ -29,6 +29,7 @@
         'views/saas_app_views.xml',        # Phase 5: Applications admin menu
         'views/widget_views.xml',
         'views/section_views.xml',
+        'views/page_template_views.xml',
         'data/saas_apps_data.xml',         # Phase 5: Posterra + MSSP app seed records
         'data/nav_sections_data.xml',
         'data/pages_data.xml',
