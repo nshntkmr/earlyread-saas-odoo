@@ -76,23 +76,14 @@
         <field name="model">dashboard.page.template</field>
         <field name="arch" type="xml">
             <kanban>
-                <field name="name"/>
-                <field name="business_type"/>
-                <field name="category"/>
-                <field name="widget_count"/>
-                <field name="preview_image"/>
                 <templates>
                     <t t-name="card">
                         <field name="preview_image" widget="image"
-                               options="{'size': [300, 200]}" class="w-100"/>
+                               options="{'size': [300, 200]}"/>
                         <strong><field name="name"/></strong>
-                        <div>
-                            <field name="business_type" widget="badge"
-                                   decoration-info="1"/>
-                            <field name="category" widget="badge"
-                                   decoration-success="1"/>
-                        </div>
-                        <small><field name="widget_count"/> widgets</small>
+                        <field name="business_type"/>
+                        <field name="category"/>
+                        <div><field name="widget_count"/> widgets</div>
                     </t>
                 </templates>
             </kanban>
@@ -110,12 +101,10 @@
                 <field name="name"/>
                 <filter name="published" string="Published"
                         domain="[('is_published', '=', True)]"/>
-                <group expand="0" string="Group By">
-                    <filter name="by_business_type" string="Business Type"
-                            context="{'group_by': 'business_type'}"/>
-                    <filter name="by_category" string="Category"
-                            context="{'group_by': 'category'}"/>
-                </group>
+                <filter name="by_business_type" string="Business Type"
+                        context="{'group_by': 'business_type'}"/>
+                <filter name="by_category" string="Category"
+                        context="{'group_by': 'category'}"/>
             </search>
         </field>
     </record>
