@@ -1062,6 +1062,21 @@ COMMON_FLAGS = [
             {'value': 'dense', 'label': 'Dense (minimal)'},
         ],
     },
+    {
+        'flag': 'card_padding',
+        'type': 'select',
+        'default': 'standard',
+        'label': 'Card Padding',
+        'help': 'Controls inner padding around widget content. '
+                'None: edge-to-edge (0px). Tight: minimal (4px). '
+                'Standard: default. Spacious: generous (24px).',
+        'options': [
+            {'value': 'none', 'label': 'None (edge-to-edge)'},
+            {'value': 'tight', 'label': 'Tight (4px)'},
+            {'value': 'standard', 'label': 'Standard (default)'},
+            {'value': 'spacious', 'label': 'Spacious (24px)'},
+        ],
+    },
 ]
 
 

@@ -280,6 +280,9 @@ export default function WidgetGrid({ initialWidgets }) {
           className={`pv-widget-card${
             w.display_density === 'compact' ? ' pv-widget-card--compact-density' :
             w.display_density === 'dense' ? ' pv-widget-card--dense' : ''
+          }${
+            w.card_padding && w.card_padding !== 'standard'
+              ? ` pv-widget-card--pad-${w.card_padding}` : ''
           }`}
           style={{
             ...(!isCompact && w.height && isScalable ? { minHeight: w.height } : {}),

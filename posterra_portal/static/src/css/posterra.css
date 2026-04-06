@@ -2027,6 +2027,38 @@
     color: #f59e0b;
 }
 
+/* ── Card Padding Modifiers ───────────────────────────────────────── */
+/* Applied per-widget via visual_config.card_padding                   */
+
+.pv-widget-card--pad-none .pv-widget-kpi,
+.pv-widget-card--pad-none .pv-widget-status-kpi,
+.pv-widget-card--pad-none .pv-kpi-strip,
+.pv-widget-card--pad-none .pv-kpi-card-standard,
+.pv-widget-card--pad-none .pv-kpi-card-split,
+.pv-widget-card--pad-none .pv-widget-battle,
+.pv-widget-card--pad-none .pv-widget-insight,
+.pv-widget-card--pad-none .pv-gauge-kpi-wrap { padding: 0; }
+.pv-widget-card--pad-none .pv-widget-card-header { padding: 4px 8px 2px; }
+
+.pv-widget-card--pad-tight .pv-widget-kpi,
+.pv-widget-card--pad-tight .pv-widget-status-kpi,
+.pv-widget-card--pad-tight .pv-kpi-strip,
+.pv-widget-card--pad-tight .pv-kpi-card-standard,
+.pv-widget-card--pad-tight .pv-kpi-card-split,
+.pv-widget-card--pad-tight .pv-widget-battle,
+.pv-widget-card--pad-tight .pv-widget-insight,
+.pv-widget-card--pad-tight .pv-gauge-kpi-wrap { padding: 4px; }
+.pv-widget-card--pad-tight .pv-widget-card-header { padding: 4px 8px 2px; }
+
+.pv-widget-card--pad-spacious .pv-widget-kpi,
+.pv-widget-card--pad-spacious .pv-widget-status-kpi,
+.pv-widget-card--pad-spacious .pv-kpi-strip,
+.pv-widget-card--pad-spacious .pv-kpi-card-standard,
+.pv-widget-card--pad-spacious .pv-kpi-card-split,
+.pv-widget-card--pad-spacious .pv-widget-battle,
+.pv-widget-card--pad-spacious .pv-widget-insight,
+.pv-widget-card--pad-spacious .pv-gauge-kpi-wrap { padding: 24px; }
+
 /* ── Display Density Modifiers ────────────────────────────────────── */
 /* Applied per-widget via visual_config.display_density                */
 /* Standard = default (no modifier needed)                             */

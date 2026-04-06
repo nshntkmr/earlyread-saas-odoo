@@ -161,6 +161,7 @@ def _build_initial_widgets_json(widgets, widget_data):
             'sequence':     w.sequence,
             'display_mode': w.display_mode or 'standard',
             'display_density': _extract_vc_field(w, 'display_density', 'standard'),
+            'card_padding': _extract_vc_field(w, 'card_padding', 'standard'),
             'icon_name':    w.icon_name or 'none',
             # Annotations (SQL-interpolated when %(col)s syntax used)
             'subtitle':           resolved_subtitle,
