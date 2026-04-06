@@ -313,6 +313,23 @@ export default function KpiStylePicker({
           <option value="dense">Dense (minimal — competitor-style)</option>
         </select>
       </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
+          Card Padding
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Controls inner padding around widget content. None: edge-to-edge (0px). Tight: minimal (4px). Standard: default. Spacious: generous (24px)." />
+        </label>
+        <select
+          className="wb-select"
+          value={cfgVal(visualConfig, 'card_padding', 'standard')}
+          onChange={e => handleCfg('card_padding', e.target.value)}
+        >
+          <option value="none">None (edge-to-edge)</option>
+          <option value="tight">Tight (4px)</option>
+          <option value="standard">Standard (default)</option>
+          <option value="spacious">Spacious (24px)</option>
+        </select>
+      </div>
 
       {/* ── Common trend settings (all variants with directional semantics) */}
       {(ks === 'stat_card' || isSparkline || isComparison || isProgress || isMiniGauge) && (
