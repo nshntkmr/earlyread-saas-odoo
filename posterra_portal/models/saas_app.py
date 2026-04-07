@@ -71,3 +71,104 @@ class SaaSApp(models.Model):
                 raise ValidationError(
                     f"App key '{app.app_key}' is already used by app '{duplicate.name}'."
                 )
+
+    # ── Auto-create security group for group-based apps ──────────────────────
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for app in records:
+            if app.access_mode == 'group' and app._needs_access_group():
+                app._ensure_access_group()
+        return records
+
+    def write(self, vals):
+        res = super().write(vals)
+        if vals.get('access_mode') == 'group':
+            for app in self:
+                if app.access_mode == 'group' and app._needs_access_group():
+                    app._ensure_access_group()
+        return res
+
+    def _needs_access_group(self):
+        """Check if this app needs an auto-created security group.
+
+        Returns True when:
+        - access_group_xmlid is empty (no group configured), OR
+        - access_group_xmlid is set but the referenced group no longer exists
+          (stale reference from a deleted group)
+        """
+        self.ensure_one()
+        if not self.access_group_xmlid:
+            return True
+        # Verify the referenced group actually exists
+        try:
+            group = self.env.ref(self.access_group_xmlid, raise_if_not_found=False)
+            return not group or not group.exists()
+        except Exception:
+            return True
+
+    def _ensure_access_group(self):
+        """Auto-create a security group for this group-based app.
+
+        Creates a res.groups record that inherits from base.group_portal,
+        registers a stable ir.model.data XML ID with noupdate=True (so
+        module upgrades never delete it), and sets access_group_xmlid
+        on this app record.
+
+        Safe to call multiple times -- if the group/XML ID already exist,
+        it links to the existing record instead of creating duplicates.
+
+        Triggered by:
+        - create() when access_mode='group' and no group is set
+        - write() when access_mode is switched to 'group'
+        - write() when existing group reference is stale (group was deleted)
+        """
+        self.ensure_one()
+        Group = self.env['res.groups'].sudo()
+        IMD = self.env['ir.model.data'].sudo()
+
+        # Build a stable XML ID from the app_key
+        safe_key = (self.app_key or 'app').replace('-', '_')
+        xmlid_name = 'group_%s_user' % safe_key
+        xmlid_full = 'posterra_portal.%s' % xmlid_name
+
+        # Check if the group already exists via XML ID
+        existing_imd = IMD.search([
+            ('module', '=', 'posterra_portal'),
+            ('name', '=', xmlid_name),
+            ('model', '=', 'res.groups'),
+        ], limit=1)
+
+        if existing_imd:
+            group = Group.browse(existing_imd.res_id)
+            if group.exists():
+                # Group exists and is valid -- just link it
+                self.access_group_xmlid = xmlid_full
+                return
+            # Stale ir.model.data pointing to deleted group -- clean up
+            existing_imd.unlink()
+
+        # Create the security group inheriting from Portal
+        portal_group = self.env.ref('base.group_portal', raise_if_not_found=False)
+        group_vals = {
+            'name': '%s Portal User' % self.name,
+            'comment': (
+                'Auto-created access group for the %s app (/my/%s). '
+                'Assign this group to portal users who need access.'
+            ) % (self.name, self.app_key),
+        }
+        if portal_group:
+            group_vals['implied_ids'] = [(4, portal_group.id)]
+        group = Group.create(group_vals)
+
+        # Register a stable XML ID with noupdate=True so -u never deletes it
+        IMD.create({
+            'module': 'posterra_portal',
+            'name': xmlid_name,
+            'model': 'res.groups',
+            'res_id': group.id,
+            'noupdate': True,
+        })
+
+        self.access_group_xmlid = xmlid_full

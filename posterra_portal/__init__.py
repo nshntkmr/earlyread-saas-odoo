@@ -147,6 +147,29 @@ def _migrate_depends_on_to_dependency_graph(env):
         )
 
 
+def _ensure_app_access_groups(env):
+    """Auto-create security groups for group-based apps that are missing them.
+
+    Handles:
+    - Apps where the group was manually created but deleted by a module upgrade
+    - Apps where access_group_xmlid is set but points to a non-existent group
+    - Apps where access_group_xmlid was never set
+
+    Idempotent: skips apps that already have a valid group.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    App = env['saas.app'].sudo()
+    group_apps = App.search([('access_mode', '=', 'group')])
+    for app in group_apps:
+        if app._needs_access_group():
+            _logger.info(
+                'Auto-creating security group for app %s (%s)',
+                app.name, app.app_key,
+            )
+            app._ensure_access_group()
+
+
 def post_init_hook(env):
     """Post-install/upgrade hook for posterra_portal.
 
@@ -155,6 +178,7 @@ def post_init_hook(env):
     3. Clean up duplicate filter records from the noupdate bug.
     4. Populate dashboard.page.app_id from portal_type (Phase 5 migration).
     5. Migrate legacy depends_on_filter_id to dependency graph.
+    6. Auto-create security groups for group-based apps missing their group.
     """
     # Fix noupdate flags BEFORE Odoo processes the XML data files
     _fix_filter_noupdate(env)
@@ -173,3 +197,6 @@ def post_init_hook(env):
 
     # Phase 8: migrate legacy filter dependencies to graph table
     _migrate_depends_on_to_dependency_graph(env)
+
+    # Auto-create security groups for group-based apps missing their group
+    _ensure_app_access_groups(env)
