@@ -149,7 +149,170 @@ SUGGEST_TOOL = {
 }
 
 
-# ── Chart type → expected column format ────────────────────────────────────
+# ── Intent system prompt — for the new split pipeline ────────────────────
+
+INTENT_SYSTEM_PROMPT = """You are a healthcare analytics query designer.
+
+Your job is to describe WHAT to compute, NOT how to filter. The system handles all filtering (WHERE clauses, year scoping, filter operators) automatically. You NEVER write WHERE clauses.
+
+RULES:
+1. Return structured intent using the generate_sql_intent tool.
+2. For each measure, provide a SQL aggregate expression (e.g. SUM(hha_admits), COUNT(DISTINCT hha_ccn)).
+3. For year-over-year comparison: add a second measure with the SAME expression and set is_prior_year=true.
+   The system will automatically wrap it in CASE WHEN for the prior year.
+4. For rates and ratios: compute as SUM(numerator) / NULLIF(SUM(denominator), 0) * multiplier.
+   NEVER use AVG() on pre-computed rate columns (marked NEVER AVG in column metadata).
+5. extra_conditions is ONLY for hardcoded business logic from the user's request
+   (e.g. "hha_rating >= '4'", "offers_physical_therapy_services = 'Yes'").
+   NEVER put page filter parameters in extra_conditions — they are handled automatically.
+6. Use mode="simple" for single SELECT queries (KPI, bar, line, donut, table, scatter, etc.).
+7. Use mode="union_all" for multi-metric widgets (bullet gauge, RAG scorecard, multi-ring gauge).
+8. Use mode="cte" for sparkline KPIs or complex queries requiring WITH clauses.
+9. Use mode="raw_override" only as a last resort when no other mode fits.
+
+COLUMN INTELLIGENCE:
+- Columns marked "NEVER AVG" are pre-computed rates. Compute from numerator/denominator pairs.
+- Columns with role "additive_measure" are safe to SUM directly.
+- Columns with role "dimension" are for grouping (GROUP BY / X-axis).
+- Columns with role "identifier" are for filtering, not aggregation.
+"""
+
+# ── Intent tool definition ───────────────────────────────────────────────
+
+GENERATE_SQL_INTENT_TOOL = {
+    'name': 'generate_sql_intent',
+    'description': 'Describe a dashboard widget query as structured intent. '
+                   'The system builds the SQL automatically with correct filtering.',
+    'input_schema': {
+        'type': 'object',
+        'properties': {
+            'mode': {
+                'type': 'string',
+                'enum': ['simple', 'union_all', 'cte', 'raw_override'],
+                'description': (
+                    'simple: single SELECT (KPI, bar, line, donut, table, scatter, etc.). '
+                    'union_all: multiple SELECTs combined (bullet gauge, RAG, multi-ring). '
+                    'cte: WITH clause for sparkline/complex queries. '
+                    'raw_override: full SQL escape hatch (must use {where_clause}).'
+                ),
+            },
+            'measures': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'expression': {
+                            'type': 'string',
+                            'description': 'SQL aggregate expression, e.g. SUM(hha_admits), '
+                                           'COUNT(DISTINCT hha_ccn), '
+                                           'ROUND(SUM(pt_visit+ot_visit+slp_visit)::numeric / NULLIF(SUM(hha_visits),0) * 100, 2)',
+                        },
+                        'alias': {
+                            'type': 'string',
+                            'description': 'Output column name, e.g. value, prior_value, admits, therapy_share',
+                        },
+                        'is_prior_year': {
+                            'type': 'boolean',
+                            'description': 'Set true for prior-year comparison. The system wraps the expression '
+                                           'with CASE WHEN year = prior_year automatically.',
+                        },
+                        'description': {
+                            'type': 'string',
+                            'description': 'Human-readable description of what this measure represents.',
+                        },
+                    },
+                    'required': ['expression', 'alias'],
+                },
+                'description': 'List of SELECT expressions to compute.',
+            },
+            'dimensions': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'column': {
+                            'type': 'string',
+                            'description': 'Column name for GROUP BY, e.g. hha_state, priority_group',
+                        },
+                        'alias': {
+                            'type': 'string',
+                            'description': 'Optional output alias.',
+                        },
+                    },
+                    'required': ['column'],
+                },
+                'description': 'Columns to GROUP BY (empty for KPIs, populated for bar/donut/table).',
+            },
+            'extra_conditions': {
+                'type': 'array',
+                'items': {'type': 'string'},
+                'description': 'Hardcoded business logic from the user request '
+                               '(e.g. "hha_rating >= \'4\'"). '
+                               'NEVER include page filter params — those are automatic.',
+            },
+            'order_by': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'column': {'type': 'string'},
+                        'direction': {'type': 'string', 'enum': ['ASC', 'DESC']},
+                    },
+                },
+                'description': 'ORDER BY clauses. Reference measure aliases or dimension columns.',
+            },
+            'limit': {
+                'type': 'integer',
+                'description': 'LIMIT clause value (e.g. 10 for top-10 queries).',
+            },
+            'x_column': {
+                'type': 'string',
+                'description': 'Column name for X axis / labels / metric name.',
+            },
+            'y_columns': {
+                'type': 'string',
+                'description': 'Comma-separated column names for Y axis / values.',
+            },
+            'series_column': {
+                'type': 'string',
+                'description': 'Column name for multi-series grouping (optional).',
+            },
+            'explanation': {
+                'type': 'string',
+                'description': 'Brief explanation of what the query computes.',
+            },
+            'warnings': {
+                'type': 'array',
+                'items': {'type': 'string'},
+                'description': 'Warnings about data quality, performance, or caveats.',
+            },
+            'union_blocks': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'measures': {'type': 'array'},
+                        'label': {'type': 'string'},
+                        'extra_conditions': {'type': 'array', 'items': {'type': 'string'}},
+                    },
+                },
+                'description': 'For union_all mode: each block produces one SELECT.',
+            },
+            'cte_sql': {
+                'type': 'string',
+                'description': 'For cte mode: full WITH ... AS ... SQL. Use {where_clause} placeholder.',
+            },
+            'raw_sql': {
+                'type': 'string',
+                'description': 'For raw_override mode: complete SQL. Must use {where_clause} or [[...]].',
+            },
+        },
+        'required': ['mode', 'measures', 'x_column', 'y_columns', 'explanation'],
+    },
+}
+
+
+# ── Chart type --> expected column format ────────────────────────────────────
 # Mirrors CustomSqlEditor.jsx SQL_COLUMN_HELP — used to tell Claude
 # what column shape the chart expects.
 
@@ -554,6 +717,191 @@ class AiSqlGenerator:
                     return result
 
         raise ValueError('AI could not refine the SQL. Try editing it manually.')
+
+    # ── Intent-based generation (new pipeline) ─────────────────────────
+
+    def generate_intent(self, context, user_prompt):
+        """Generate structured intent from natural language using Claude.
+
+        Instead of raw SQL, returns a structured dict describing WHAT to
+        compute (measures, dimensions, conditions). The SqlAssembler then
+        builds the correct SQL with proper WHERE clauses.
+
+        Returns: dict matching GENERATE_SQL_INTENT_TOOL schema.
+        """
+        if not self._api_key:
+            raise ValueError(
+                'AI SQL Generator is not configured. '
+                'Set dashboard_builder.ai_api_key and dashboard_builder.ai_endpoint '
+                'in Settings -> Technical -> System Parameters.')
+
+        client = self._get_client()
+        user_message = self._build_intent_user_message(context, user_prompt)
+
+        _logger.info('AI Intent Generate: chart=%s, prompt=%s',
+                     context.get('chart_type'), user_prompt[:100])
+
+        message = client.messages.create(
+            model=self._model,
+            max_tokens=4096,
+            system=INTENT_SYSTEM_PROMPT,
+            tools=[GENERATE_SQL_INTENT_TOOL],
+            tool_choice={'type': 'tool', 'name': 'generate_sql_intent'},
+            messages=[
+                {'role': 'user', 'content': user_message},
+            ],
+        )
+
+        for block in message.content:
+            if hasattr(block, 'type') and block.type == 'tool_use':
+                if block.name == 'generate_sql_intent':
+                    result = block.input
+                    _logger.info('AI Intent Generate: success, mode=%s, measures=%d',
+                                 result.get('mode', '?'),
+                                 len(result.get('measures', [])))
+                    return result
+
+        raise ValueError('AI did not return structured intent output. '
+                         'Please try rephrasing your request.')
+
+    def refine_intent(self, context, previous_intent, refinement_prompt):
+        """Modify existing intent based on a refinement request.
+
+        Returns: dict matching GENERATE_SQL_INTENT_TOOL schema.
+        """
+        client = self._get_client()
+        user_message = self._build_intent_user_message(
+            context,
+            'Modify this existing query intent based on the refinement request.\n\n'
+            'CURRENT INTENT:\n%s\n\n'
+            'REFINEMENT REQUEST: %s\n\n'
+            'Generate the updated intent that incorporates the requested changes.'
+            % (json.dumps(previous_intent, indent=2), refinement_prompt)
+        )
+
+        _logger.info('AI Intent Refine: request=%s', refinement_prompt[:100])
+
+        message = client.messages.create(
+            model=self._model,
+            max_tokens=4096,
+            system=INTENT_SYSTEM_PROMPT,
+            tools=[GENERATE_SQL_INTENT_TOOL],
+            tool_choice={'type': 'tool', 'name': 'generate_sql_intent'},
+            messages=[
+                {'role': 'user', 'content': user_message},
+            ],
+        )
+
+        for block in message.content:
+            if hasattr(block, 'type') and block.type == 'tool_use':
+                if block.name == 'generate_sql_intent':
+                    result = block.input
+                    _logger.info('AI Intent Refine: success')
+                    return result
+
+        raise ValueError('AI could not refine the intent. Try editing it manually.')
+
+    def fix_intent(self, context, previous_intent, error_message):
+        """Fix an intent that produced an error.
+
+        Returns: dict matching GENERATE_SQL_INTENT_TOOL schema.
+        """
+        client = self._get_client()
+        user_message = self._build_intent_user_message(
+            context,
+            'Fix this query intent that produced an error.\n\n'
+            'CURRENT INTENT:\n%s\n\n'
+            'ERROR:\n%s\n\n'
+            'Generate a corrected intent that fixes the error.'
+            % (json.dumps(previous_intent, indent=2), error_message)
+        )
+
+        _logger.info('AI Intent Fix: error=%s', error_message[:200])
+
+        message = client.messages.create(
+            model=self._model,
+            max_tokens=4096,
+            system=INTENT_SYSTEM_PROMPT,
+            tools=[GENERATE_SQL_INTENT_TOOL],
+            tool_choice={'type': 'tool', 'name': 'generate_sql_intent'},
+            messages=[
+                {'role': 'user', 'content': user_message},
+            ],
+        )
+
+        for block in message.content:
+            if hasattr(block, 'type') and block.type == 'tool_use':
+                if block.name == 'generate_sql_intent':
+                    result = block.input
+                    _logger.info('AI Intent Fix: success')
+                    return result
+
+        raise ValueError('AI could not fix the intent. Try editing it manually.')
+
+    def _build_intent_user_message(self, context, user_prompt):
+        """Build user message for intent mode — same schema context, no filter clause instructions."""
+        parts = []
+
+        parts.append('CHART TYPE: %s' % context.get('chart_type', 'bar'))
+        if context.get('gauge_style'):
+            parts.append('GAUGE VARIANT: %s' % context['gauge_style'])
+        if context.get('kpi_style'):
+            parts.append('KPI VARIANT: %s' % context['kpi_style'])
+            if context['kpi_style'] == 'sparkline':
+                metric_note = ''
+                if context.get('sparkline_metric'):
+                    metric_note = ' Use column "%s" for the sparkline trend.' % context['sparkline_metric']
+                parts.append(
+                    'SPARKLINE NOTE: Use mode="cte" with a CTE that computes '
+                    'a trend CSV via STRING_AGG(metric::text, \',\' ORDER BY year). '
+                    'The trend CTE needs ALL years (not filtered by year). '
+                    'For pre-computed rates, use SUM(num)/NULLIF(SUM(den),0).' + metric_note
+                )
+            if context['kpi_style'] in ('progress', 'mini_gauge'):
+                display_note = ''
+                if context.get('value_display') == 'numeric':
+                    display_note = ' Return raw metric values, not pre-multiplied by 100.'
+                parts.append(
+                    'PROGRESS/GAUGE NOTE: Include a measure with alias "target" '
+                    'representing the benchmark. Also include a measure with alias '
+                    '"benchmark_label" as a string label for the benchmark.' + display_note
+                )
+        parts.append('EXPECTED COLUMN FORMAT: %s' % context.get('expected_columns', ''))
+        parts.append('')
+
+        # Primary table
+        pt = context.get('primary_table', {})
+        if pt:
+            parts.append('PRIMARY TABLE: %s' % pt['table_name'])
+            parts.append('COLUMNS:')
+            for c in pt.get('columns', []):
+                parts.append(self._format_column_line(c))
+            parts.append('')
+
+        # Related tables
+        for rt in context.get('related_tables', []):
+            parts.append('RELATED TABLE: %s (join: %s ON %s = %s)' % (
+                rt['table_name'], rt['join_type'].upper(),
+                rt['join_from_column'], rt['join_to_column'],
+            ))
+            parts.append('COLUMNS:')
+            for c in rt.get('columns', []):
+                parts.append(self._format_column_line(c))
+            parts.append('')
+
+        # Minimal filter context — just tell the AI what's available
+        # (not HOW to use them — the assembler handles that)
+        pf = context.get('page_filters', [])
+        if pf:
+            parts.append('AVAILABLE PAGE FILTERS (handled automatically by the system):')
+            for f in pf:
+                vis = '' if f['is_visible'] else ' [HIDDEN]'
+                parts.append('  - %s%s' % (f['param'], vis))
+            parts.append('')
+
+        parts.append('USER REQUEST: %s' % user_prompt)
+
+        return '\n'.join(parts)
 
     # ── Suggest queries (schema-aware) ─────────────────────────────────
 

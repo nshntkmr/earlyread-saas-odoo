@@ -172,6 +172,8 @@ export default function AiSqlEditor({
       }
       if (previousSql) body.previous_sql = previousSql
       if (errorMessage) body.error_message = errorMessage
+      // Intent pipeline: send previous intent for round-tripping on refine/fix
+      if (aiState?.intent) body.previous_intent = aiState.intent
 
       const result = await designerFetch(`${apiBase}/ai-generate`, {
         method: 'POST',
@@ -188,6 +190,7 @@ export default function AiSqlEditor({
           seriesColumn: result.series_column || '',
           explanation: result.explanation || '',
           warnings: result.warnings || [],
+          intent: result.intent || null,  // store intent for round-tripping
         })
         setError(null)
       }
@@ -196,7 +199,7 @@ export default function AiSqlEditor({
     } finally {
       setLoading(false)
     }
-  }, [sourceId, pageId, chartType, gaugeStyle, lineStyle, donutStyle, ragLayout, apiBase, onUpdate])
+  }, [sourceId, pageId, chartType, gaugeStyle, lineStyle, donutStyle, ragLayout, kpiStyle, sparklineMetric, valueDisplay, apiBase, onUpdate, aiState])
 
   const handleGenerate = () => callAi(prompt)
   const handleRegenerate = () => callAi(prompt)

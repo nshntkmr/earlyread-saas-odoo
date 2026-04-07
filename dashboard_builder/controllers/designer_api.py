@@ -202,6 +202,8 @@ class DesignerAPI(http.Controller):
         previous_sql = body.get('previous_sql')
         error_message = body.get('error_message')
 
+        previous_intent = body.get('previous_intent')  # for intent-mode round-tripping
+
         if mode != 'suggest' and not prompt and not error_message:
             return _json_error(400, 'A prompt or error_message is required')
 
@@ -224,6 +226,18 @@ class DesignerAPI(http.Controller):
                 result = ai.suggest_queries(context)
                 return _json_response(result)
 
+            # ── Intent pipeline (new) ────────────────────────────────
+            # AI generates structured intent → SqlAssembler builds SQL
+            use_intent = request.env['ir.config_parameter'].sudo().get_param(
+                'dashboard_builder.ai_use_intent_mode', 'True'
+            )
+            if use_intent and use_intent.lower() not in ('false', '0', 'no'):
+                return self._ai_generate_intent(
+                    ai, context, prompt, previous_intent, error_message,
+                    source_id, page_id, body,
+                )
+
+            # ── Legacy pipeline (fallback) ───────────────────────────
             if error_message and previous_sql:
                 result = ai.fix_sql(context, previous_sql, error_message)
             elif previous_sql:
@@ -245,6 +259,86 @@ class DesignerAPI(http.Controller):
         except Exception as e:
             _logger.error('AI SQL generation failed: %s', e, exc_info=True)
             return _json_error(500, f'AI SQL generation failed: {e}')
+
+    def _ai_generate_intent(self, ai, context, prompt, previous_intent,
+                            error_message, source_id, page_id, body=None):
+        """Intent pipeline: AI returns intent → SqlAssembler builds SQL.
+
+        This eliminates all WHERE clause bugs by construction — the AI never
+        writes WHERE/filter clauses; the deterministic assembler does.
+        """
+        # 1. Get intent from AI
+        # Support transition: if user refines a legacy-generated result (no intent),
+        # fall back to legacy pipeline for that specific request
+        previous_sql = (body or {}).get('previous_sql')
+        if error_message and previous_intent:
+            intent = ai.fix_intent(context, previous_intent, error_message)
+        elif previous_intent:
+            intent = ai.refine_intent(context, previous_intent, prompt)
+        elif previous_sql and not previous_intent:
+            # Legacy refine: user has old SQL but no intent — use legacy pipeline
+            if error_message:
+                result = ai.fix_sql(context, previous_sql, error_message)
+            else:
+                result = ai.refine_sql(context, previous_sql, prompt)
+            from ..services.query_builder import QueryBuilder
+            qb = QueryBuilder(request.env)
+            is_valid, err = qb.validate_query(result.get('sql', ''))
+            if not is_valid:
+                return _json_error(400, 'AI generated invalid SQL: %s' % err)
+            return _json_response(result)
+        else:
+            intent = ai.generate_intent(context, prompt)
+
+        # 2. Load filter defs and source columns for the assembler
+        filter_defs = []
+        source_columns = None
+
+        if page_id:
+            PageFilter = request.env['dashboard.page.filter'].sudo()
+            filters = PageFilter.search([
+                ('page_id', '=', int(page_id)),
+                ('is_active', '=', True),
+            ])
+            filter_defs = [{
+                'param_name': f.param_name or f.field_name or '',
+                'db_column': (
+                    f.schema_column_id.column_name
+                    if f.schema_column_id
+                    else f.field_name or f.param_name or ''
+                ),
+                'is_multiselect': f.is_multiselect,
+                'col_type': (
+                    f.schema_column_id.data_type
+                    if f.schema_column_id
+                    else 'text'
+                ),
+            } for f in filters if (f.param_name or f.field_name)]
+
+        if source_id:
+            Source = request.env['dashboard.schema.source'].sudo()
+            source = Source.browse(int(source_id))
+            if source.exists():
+                source_columns = {c.column_name for c in source.column_ids}
+                table_name = source.table_name
+            else:
+                return _json_error(400, 'Schema source not found')
+        else:
+            return _json_error(400, 'source_id is required for intent mode')
+
+        # 3. Assemble SQL from intent + filter defs
+        from ..services.sql_assembler import SqlAssembler
+        assembler = SqlAssembler(table_name, filter_defs, source_columns)
+        result = assembler.assemble(intent)
+
+        # 4. Validate the assembled SQL
+        from ..services.query_builder import QueryBuilder
+        qb = QueryBuilder(request.env)
+        is_valid, err = qb.validate_query(result.get('sql', ''))
+        if not is_valid:
+            return _json_error(400, 'Assembled SQL is invalid: %s' % err)
+
+        return _json_response(result)
 
     # =========================================================================
     # PREVIEW ENDPOINT
