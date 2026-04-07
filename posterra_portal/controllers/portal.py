@@ -164,6 +164,8 @@ def _build_initial_widgets_json(widgets, widget_data):
             'card_padding': _extract_vc_field(w, 'card_padding', 'standard'),
             'icon_name':    w.icon_name or 'none',
             'icon_position': w.icon_position or 'title',
+            'title_icon_color': w._resolve_title_icon_color(),
+            'title_text_color': w._resolve_title_text_color(),
             # Annotations (SQL-interpolated when %(col)s syntax used)
             'subtitle':           resolved_subtitle,
             'footnote':           resolved_footnote,

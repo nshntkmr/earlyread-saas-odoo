@@ -73,6 +73,17 @@ _ICON_COLOR_MAP = {
     'gray':    {'bg': '#f3f4f6', 'fg': '#6b7280'},
 }
 
+# Title-position colors (flat colors, no background badge)
+_TITLE_COLOR_MAP = {
+    'teal':    '#0d9488',
+    'blue':    '#2563eb',
+    'green':   '#16a34a',
+    'red':     '#dc2626',
+    'orange':  '#ea580c',
+    'purple':  '#9333ea',
+    'black':   '#111827',
+}
+
 # ── DML / DDL keywords that must never appear in admin SQL ─────────────────
 _BLOCKED_KEYWORDS = re.compile(
     r'\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|GRANT|REVOKE|COPY|EXECUTE)\b',
@@ -179,6 +190,44 @@ class DashboardWidget(models.Model):
             '"Next to Widget Title" shows it in the card header after the title. '
             '"Inside Card Body" shows it inside the widget content area (legacy KPI behavior).')
 
+    # ── Title-position appearance (static, admin-configured) ─────────────────
+    title_icon_color = fields.Selection([
+        ('default', 'Default (Gray)'),
+        ('teal',    'Teal'),
+        ('blue',    'Blue'),
+        ('green',   'Green'),
+        ('red',     'Red'),
+        ('orange',  'Orange'),
+        ('purple',  'Purple'),
+        ('black',   'Black'),
+        ('custom',  'Custom'),
+    ], default='default', string='Title Icon Color',
+       help='Static color for the icon when displayed next to the widget title. '
+            'Only applies when Icon Position = "Next to Widget Title".')
+
+    title_icon_custom_color = fields.Char(
+        string='Title Icon Custom Color (hex)',
+        help='Hex color for the title icon, e.g. #0d9488. Only used when Title Icon Color is "Custom".')
+
+    title_text_color = fields.Selection([
+        ('default', 'Default (Dark Gray)'),
+        ('teal',    'Teal'),
+        ('blue',    'Blue'),
+        ('green',   'Green'),
+        ('red',     'Red'),
+        ('orange',  'Orange'),
+        ('purple',  'Purple'),
+        ('black',   'Black'),
+        ('custom',  'Custom'),
+    ], default='default', string='Title Text Color',
+       help='Static color for the widget title text. '
+            'Only applies when Icon Position = "Next to Widget Title".')
+
+    title_text_custom_color = fields.Char(
+        string='Title Text Custom Color (hex)',
+        help='Hex color for the widget title, e.g. #1e40af. Only used when Title Text Color is "Custom".')
+
+    # ── Body-position icon color (status-based / static) ──────────────────
     icon_color = fields.Selection([
         ('default', 'Default (Status-based)'),
         ('teal',    'Teal'),
@@ -189,12 +238,14 @@ class DashboardWidget(models.Model):
         ('purple',  'Purple'),
         ('gray',    'Gray'),
         ('custom',  'Custom'),
-    ], default='default', string='Icon Color',
-       help='Color for the icon badge. Default uses status-based colors. Custom uses the hex value below.')
+    ], default='default', string='Body Icon Color',
+       help='Color for the icon when displayed inside card body. '
+            'Default uses status-based colors (green=up, red=down). '
+            'Only applies when Icon Position = "Inside Card Body".')
 
     icon_custom_color = fields.Char(
-        string='Icon Custom Color (hex)',
-        help='Hex color for the icon foreground, e.g. #1e40af. Only used when Icon Color is "Custom".')
+        string='Body Icon Custom Color (hex)',
+        help='Hex color for the body icon foreground, e.g. #1e40af. Only used when Body Icon Color is "Custom".')
 
     icon_custom_bg = fields.Char(
         string='Icon Custom Background (hex)',
@@ -3418,6 +3469,26 @@ class DashboardWidget(models.Model):
     # =========================================================================
     # Typography style helper
     # =========================================================================
+
+    def _resolve_title_icon_color(self):
+        """Resolve the title-position icon color to a hex string (or empty)."""
+        self.ensure_one()
+        val = self.title_icon_color or 'default'
+        if val == 'default':
+            return ''
+        if val == 'custom':
+            return self.title_icon_custom_color or ''
+        return _TITLE_COLOR_MAP.get(val, '')
+
+    def _resolve_title_text_color(self):
+        """Resolve the title text color to a hex string (or empty)."""
+        self.ensure_one()
+        val = self.title_text_color or 'default'
+        if val == 'default':
+            return ''
+        if val == 'custom':
+            return self.title_text_custom_color or ''
+        return _TITLE_COLOR_MAP.get(val, '')
 
     def _get_typography_overrides(self):
         """Return a dict of typography overrides (only non-default values)."""

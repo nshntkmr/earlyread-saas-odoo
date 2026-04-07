@@ -75,8 +75,20 @@
                             <field name="icon_name"/>
                             <field name="icon_position"
                                    invisible="icon_name == 'none'"/>
+                            <!-- Title-position colors (static) -->
+                            <field name="title_icon_color"
+                                   invisible="icon_name == 'none' or icon_position != 'title'"/>
+                            <field name="title_icon_custom_color"
+                                   invisible="title_icon_color != 'custom'"
+                                   placeholder="#0d9488"/>
+                            <field name="title_text_color"
+                                   invisible="icon_name == 'none' or icon_position != 'title'"/>
+                            <field name="title_text_custom_color"
+                                   invisible="title_text_color != 'custom'"
+                                   placeholder="#1e40af"/>
+                            <!-- Body-position colors (status-based) -->
                             <field name="icon_color"
-                                   invisible="icon_name == 'none'"/>
+                                   invisible="icon_name == 'none' or icon_position != 'body'"/>
                             <field name="icon_custom_color"
                                    invisible="icon_color != 'custom'"
                                    placeholder="#1e40af"/>

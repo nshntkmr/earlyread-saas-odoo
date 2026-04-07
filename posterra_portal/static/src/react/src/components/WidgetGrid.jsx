@@ -295,15 +295,20 @@ export default function WidgetGrid({ initialWidgets }) {
           {!isCompact && (
             <div className="pv-widget-card-header">
               {w.icon_name && w.icon_name !== 'none' && w.icon_position === 'title' && (
-                <span className="pv-widget-title-icon">
+                <span
+                  className="pv-widget-title-icon"
+                  style={w.title_icon_color ? { color: w.title_icon_color } : undefined}
+                >
                   <CategoryIcon name={w.icon_name} />
                 </span>
               )}
               <span
                 className="pv-widget-title"
-                style={(w.label_font_weight || w.label_color)
-                  ? { ...(w.label_font_weight && { fontWeight: w.label_font_weight }), ...(w.label_color && { color: w.label_color }) }
-                  : undefined}
+                style={w.title_text_color
+                  ? { color: w.title_text_color }
+                  : (w.label_font_weight || w.label_color)
+                    ? { ...(w.label_font_weight && { fontWeight: w.label_font_weight }), ...(w.label_color && { color: w.label_color }) }
+                    : undefined}
               >{w.name}</span>
               {w.annotation_type === 'badge' && w.annotation_text && (
                 <span className="pv-widget-badge badge bg-light text-dark ms-2">
