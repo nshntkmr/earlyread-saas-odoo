@@ -171,6 +171,14 @@ class DashboardWidget(models.Model):
     ], default='none', string='Icon',
        help='SVG icon displayed next to the KPI value.')
 
+    icon_position = fields.Selection([
+        ('body',  'Inside Card Body'),
+        ('title', 'Next to Widget Title'),
+    ], default='title', string='Icon Position',
+       help='Where the icon appears on the widget card. '
+            '"Next to Widget Title" shows it in the card header after the title. '
+            '"Inside Card Body" shows it inside the widget content area (legacy KPI behavior).')
+
     icon_color = fields.Selection([
         ('default', 'Default (Status-based)'),
         ('teal',    'Teal'),
@@ -2810,6 +2818,7 @@ class DashboardWidget(models.Model):
             'formatted_value': formatted,
             'label': self.name,
             'icon_name': self.icon_name or 'none',
+            'icon_position': self.icon_position or 'title',
             'display_mode': self.display_mode or 'standard',
             'kpi_layout': self.kpi_layout or 'vertical',
             'text_align': self.text_align or 'center',

@@ -1492,6 +1492,18 @@
     color: var(--w-value-secondary);
 }
 
+.pv-widget-title-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.pv-widget-title-icon svg {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+}
+
 .pv-widget-error {
     padding: var(--w-space-xl);
     color: var(--w-status-error);

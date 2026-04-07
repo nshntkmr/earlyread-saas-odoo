@@ -15,6 +15,9 @@ import KPIStrip    from './widgets/KPIStrip'
 import GaugeRouter from './widgets/GaugeRouter'
 import KpiRouter   from './widgets/KpiRouter'
 
+// ── Icons ──────────────────────────────────────────────────────────────────
+import CategoryIcon from './widgets/CategoryIcons'
+
 // ── Drill-down ──────────────────────────────────────────────────────────────
 import DrillDownModal from './builder/DrillDownModal'
 
@@ -291,6 +294,11 @@ export default function WidgetGrid({ initialWidgets }) {
         >
           {!isCompact && (
             <div className="pv-widget-card-header">
+              {w.icon_name && w.icon_name !== 'none' && w.icon_position === 'title' && (
+                <span className="pv-widget-title-icon">
+                  <CategoryIcon name={w.icon_name} />
+                </span>
+              )}
               <span
                 className="pv-widget-title"
                 style={(w.label_font_weight || w.label_color)

@@ -26,7 +26,8 @@ export default function KPICard({ data = {}, name }) {
     return <KPIStrip data={data} name={name} />
   }
 
-  const showIcon = icon_name && icon_name !== 'none'
+  const iconPosition = data.icon_position || 'title'
+  const showIcon = icon_name && icon_name !== 'none' && iconPosition === 'body'
   const iconStyle = (icon_color || icon_bg)
     ? { ...(icon_color && { color: icon_color }), ...(icon_bg && { background: icon_bg }) }
     : undefined
