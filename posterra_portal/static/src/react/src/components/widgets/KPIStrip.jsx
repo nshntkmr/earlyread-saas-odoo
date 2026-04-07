@@ -17,10 +17,10 @@ import CategoryIcon from './CategoryIcons'
  * }
  */
 export default function KPIStrip({ data = {}, name }) {
-  const { formatted_value, label, secondary, icon_name, status_css, kpi_layout,
-          label_font_weight, value_font_weight, label_color, value_color, text_align,
-          icon_color, icon_bg } = data
-  const showIcon = icon_name && icon_name !== 'none'
+  const { formatted_value, label, secondary, icon_name, icon_position, status_css,
+          kpi_layout, label_font_weight, value_font_weight, label_color, value_color,
+          text_align, icon_color, icon_bg } = data
+  const showIcon = icon_name && icon_name !== 'none' && icon_position !== 'title'
   const iconStyle = (icon_color || icon_bg)
     ? { ...(icon_color && { color: icon_color }), ...(icon_bg && { background: icon_bg }) }
     : undefined

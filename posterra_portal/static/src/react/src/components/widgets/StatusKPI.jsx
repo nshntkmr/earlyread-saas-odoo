@@ -20,15 +20,15 @@ import KPIStrip from './KPIStrip'
  * }
  */
 export default function StatusKPI({ data = {}, name }) {
-  const { formatted_value, label, secondary, icon_name, display_mode, status_css,
-          kpi_layout, label_font_weight, value_font_weight, label_color, value_color, text_align,
-          icon_color, icon_bg } = data
+  const { formatted_value, label, secondary, icon_name, icon_position, display_mode,
+          status_css, kpi_layout, label_font_weight, value_font_weight, label_color,
+          value_color, text_align, icon_color, icon_bg } = data
 
   if (display_mode === 'compact') {
     return <KPIStrip data={data} name={name} />
   }
 
-  const showIcon = icon_name && icon_name !== 'none'
+  const showIcon = icon_name && icon_name !== 'none' && icon_position !== 'title'
   const iconStyle = (icon_color || icon_bg)
     ? { ...(icon_color && { color: icon_color }), ...(icon_bg && { background: icon_bg }) }
     : undefined

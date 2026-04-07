@@ -17,11 +17,11 @@ import CategoryIcon from './CategoryIcons'
 export default function KpiCardGeneric({ data = {}, name }) {
   const {
     kpi_variant, formatted_value, label, secondary, status_css, icon_name,
-    label_font_weight, value_font_weight, label_color, value_color, text_align,
-    icon_color, icon_bg,
+    icon_position, label_font_weight, value_font_weight, label_color, value_color,
+    text_align, icon_color, icon_bg,
   } = data
 
-  const showIcon = icon_name && icon_name !== 'none'
+  const showIcon = icon_name && icon_name !== 'none' && icon_position !== 'title'
   const valueStyle = (value_font_weight || value_color)
     ? { ...(value_font_weight && { fontWeight: value_font_weight }), ...(value_color && { color: value_color }) }
     : undefined
