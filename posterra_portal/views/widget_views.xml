@@ -72,10 +72,11 @@
                                    invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
                             <field name="text_align"
                                    invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
-                            <field name="icon_name"
-                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
+                            <field name="icon_name"/>
+                            <field name="icon_position"
+                                   invisible="icon_name == 'none'"/>
                             <field name="icon_color"
-                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip') or icon_name == 'none'"/>
+                                   invisible="icon_name == 'none'"/>
                             <field name="icon_custom_color"
                                    invisible="icon_color != 'custom'"
                                    placeholder="#1e40af"/>
