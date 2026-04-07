@@ -250,14 +250,14 @@ def test_1_7_year_parentheses():
     where_idx = sql.index('WHERE')
     where_part = sql[where_idx:]
 
-    assert where_part.startswith('WHERE ("year"'), \
-        'WHERE must start with parenthesized year scope, got:\n%s' % where_part
+    assert 'WHERE 1=1' in where_part, \
+        'WHERE must start with 1=1, got:\n%s' % where_part
     assert 'OR "year"' in where_part, 'OR for prior year must be present'
 
     # Find the year scope line and verify it's wrapped in parens
     year_line = [l.strip() for l in where_part.split('\n') if 'OR "year"' in l][0]
-    assert year_line.startswith('(') or year_line.startswith('WHERE ('), \
-        'Year scope line must start with (: got %r' % year_line
+    assert year_line.startswith('AND (') or year_line.startswith('('), \
+        'Year scope line must be wrapped in parens: got %r' % year_line
     assert year_line.endswith(')'), \
         'Year scope line must end with ): got %r' % year_line
     print('  PASS: test_1_7_year_parentheses')

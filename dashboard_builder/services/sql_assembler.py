@@ -298,7 +298,8 @@ class SqlAssembler:
           with parentheses to prevent OR from bypassing other filters
         - extra_conditions -> hardcoded business logic from user's request
         """
-        parts = []
+        parts = []      # mandatory conditions (year scope, extra_conditions)
+        clauses = []    # optional filter clauses ([[AND ...]])
 
         # 1. Year scoping (if YoY comparison needed)
         year_param = self._find_year_filter()
@@ -363,16 +364,25 @@ class SqlAssembler:
                 col_ref = '"%s"::text' % db_col
 
             if is_multi:
-                parts.append('[[AND %s IN %%(%s)s]]' % (col_ref, param))
+                clauses.append('[[AND %s IN %%(%s)s]]' % (col_ref, param))
             else:
-                parts.append('[[AND %s = %%(%s)s]]' % (col_ref, param))
+                clauses.append('[[AND %s = %%(%s)s]]' % (col_ref, param))
 
-        if not parts:
-            return 'WHERE 1=1'
+        # Build the WHERE clause. Always start with WHERE 1=1 so all
+        # subsequent parts can use AND (mandatory) or [[AND ...]] (optional).
+        # The [[...]] wrapper is resolved at runtime: when the param is
+        # empty/"All", the entire [[...]] including the AND is dropped.
+        where_lines = ['WHERE 1=1']
 
-        # First part is not optional (year scope or extra condition) — no [[]]
-        # Remaining parts are optional filter clauses
-        return 'WHERE ' + '\n  AND '.join(parts)
+        # Mandatory parts (year scope, extra conditions)
+        for p in parts:
+            where_lines.append('  AND %s' % p)
+
+        # Optional filter clauses (dropped when param is "All"/empty)
+        for c in clauses:
+            where_lines.append('  %s' % c)
+
+        return '\n'.join(where_lines)
 
     # =====================================================================
     # Year filter detection
