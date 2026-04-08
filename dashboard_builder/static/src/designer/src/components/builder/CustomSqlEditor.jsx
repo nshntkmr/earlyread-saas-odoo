@@ -110,7 +110,7 @@ export default function CustomSqlEditor({
       }
       const result = await designerFetch(previewUrl(apiBase), {
         method: 'POST',
-        body: JSON.stringify({ mode: 'custom_sql', sql, params }),
+        body: JSON.stringify({ mode: 'custom_sql', sql, params, page_id: appContext?.page?.id }),
       })
       onUpdate({ testResult: { columns: result.columns, rows: result.rows, error: null } })
     } catch (err) {
