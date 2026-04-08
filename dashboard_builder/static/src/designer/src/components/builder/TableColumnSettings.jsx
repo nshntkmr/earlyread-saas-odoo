@@ -371,6 +371,14 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
                 ))}
               </select>
             </div>
+            <div className="tcs-row">
+              <label className="tcs-label">Header Tooltip</label>
+              <input type="text" className="tcs-input"
+                placeholder="Info text shown on column header hover"
+                value={column.headerTooltip || ''}
+                onChange={e => set('headerTooltip', e.target.value || null)}
+              />
+            </div>
           </div>
         )}
       </div>
