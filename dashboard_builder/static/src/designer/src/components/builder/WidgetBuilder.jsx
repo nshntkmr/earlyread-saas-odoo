@@ -396,7 +396,12 @@ export default function WidgetBuilder({
               selected={state.chartType}
               onSelect={v => {
                 dispatch({ type: 'SET_CHART_TYPE', value: v })
-                dispatch({ type: 'SET_VISUAL_FLAGS', value: {} })
+                // Set sensible defaults for chart types that require visual flags.
+                // KPI defaults to stat_card style — without this, the kpi_style
+                // flag is missing from visual_config and the widget renders
+                // without the trend arrow variant.
+                const defaults = v === 'kpi' ? { kpi_style: 'stat_card' } : {}
+                dispatch({ type: 'SET_VISUAL_FLAGS', value: defaults })
               }}
               visualFlags={state.visualFlags}
               onFlagChange={(flag, value) => dispatch({ type: 'SET_VISUAL_FLAG', flag, value })}
