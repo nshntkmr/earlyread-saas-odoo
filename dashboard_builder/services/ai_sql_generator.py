@@ -267,11 +267,11 @@ GENERATE_SQL_INTENT_TOOL = {
             },
             'x_column': {
                 'type': 'string',
-                'description': 'Column name for X axis / labels / metric name.',
+                'description': 'Output alias for X axis / labels. Must match a dimension alias or measure alias from this intent.',
             },
             'y_columns': {
                 'type': 'string',
-                'description': 'Comma-separated column names for Y axis / values.',
+                'description': 'Comma-separated output aliases for Y axis / values. Must match measure aliases from this intent.',
             },
             'series_column': {
                 'type': 'string',

@@ -96,11 +96,16 @@ class SqlAssembler:
             _logger.warning('SqlAssembler.assemble failed: %s', exc)
             raise ValueError('SQL assembly failed: %s' % exc) from exc
 
+        # Derive x_column and y_columns from the actual measure/dimension
+        # aliases in the intent — not from the AI's x_column/y_columns fields
+        # which may use source column names instead of output aliases.
+        x_col, y_cols, series_col = self._derive_column_mapping(intent)
+
         return {
             'sql': sql,
-            'x_column': intent.get('x_column', ''),
-            'y_columns': intent.get('y_columns', ''),
-            'series_column': intent.get('series_column', ''),
+            'x_column': x_col,
+            'y_columns': y_cols,
+            'series_column': series_col,
             'explanation': intent.get('explanation', ''),
             'warnings': intent.get('warnings', []),
             'intent': intent,
@@ -298,8 +303,7 @@ class SqlAssembler:
           with parentheses to prevent OR from bypassing other filters
         - extra_conditions -> hardcoded business logic from user's request
         """
-        parts = []      # mandatory conditions (year scope, extra_conditions)
-        clauses = []    # optional filter clauses ([[AND ...]])
+        parts = []
 
         # 1. Year scoping (if YoY comparison needed)
         year_param = self._find_year_filter()
@@ -364,25 +368,16 @@ class SqlAssembler:
                 col_ref = '"%s"::text' % db_col
 
             if is_multi:
-                clauses.append('[[AND %s IN %%(%s)s]]' % (col_ref, param))
+                parts.append('[[AND %s IN %%(%s)s]]' % (col_ref, param))
             else:
-                clauses.append('[[AND %s = %%(%s)s]]' % (col_ref, param))
+                parts.append('[[AND %s = %%(%s)s]]' % (col_ref, param))
 
-        # Build the WHERE clause. Always start with WHERE 1=1 so all
-        # subsequent parts can use AND (mandatory) or [[AND ...]] (optional).
-        # The [[...]] wrapper is resolved at runtime: when the param is
-        # empty/"All", the entire [[...]] including the AND is dropped.
-        where_lines = ['WHERE 1=1']
+        if not parts:
+            return 'WHERE 1=1'
 
-        # Mandatory parts (year scope, extra conditions)
-        for p in parts:
-            where_lines.append('  AND %s' % p)
-
-        # Optional filter clauses (dropped when param is "All"/empty)
-        for c in clauses:
-            where_lines.append('  %s' % c)
-
-        return '\n'.join(where_lines)
+        # First part is not optional (year scope or extra condition) — no [[]]
+        # Remaining parts are optional filter clauses
+        return 'WHERE ' + '\n  AND '.join(parts)
 
     # =====================================================================
     # Year filter detection
@@ -405,6 +400,47 @@ class SqlAssembler:
             if fdef.get('param_name') == param_name:
                 return fdef
         return None
+
+    # =====================================================================
+    # Column mapping derivation
+    # =====================================================================
+
+    def _derive_column_mapping(self, intent):
+        """Derive x_column, y_columns, series_column from intent aliases.
+
+        The AI may return x_column/y_columns using source column names
+        (e.g. 'hha_state', 'admits_2022') instead of the SQL output aliases
+        (e.g. 'x_value', '2022'). This method derives the correct values
+        from the measures and dimensions in the intent.
+
+        Returns (x_column, y_columns, series_column) tuple of strings.
+        """
+        dimensions = intent.get('dimensions', [])
+        measures = intent.get('measures', [])
+        series_col = intent.get('series_column', '')
+
+        # x_column: first dimension's alias, or fall back to AI's x_column
+        x_col = intent.get('x_column', '')
+        if dimensions:
+            d = dimensions[0]
+            x_col = d.get('alias') or d.get('column', x_col)
+
+        # y_columns: all measure aliases, comma-separated
+        if measures:
+            measure_aliases = [m.get('alias', '') for m in measures if m.get('alias')]
+            if measure_aliases:
+                y_cols = ','.join(measure_aliases)
+            else:
+                y_cols = intent.get('y_columns', '')
+        else:
+            y_cols = intent.get('y_columns', '')
+
+        # series_column: if a second dimension exists, use its alias
+        if not series_col and len(dimensions) > 1:
+            d2 = dimensions[1]
+            series_col = d2.get('alias') or d2.get('column', '')
+
+        return x_col, y_cols, series_col
 
     # =====================================================================
     # Prior-year rewriting
