@@ -328,7 +328,8 @@ class DesignerAPI(http.Controller):
 
         # 3. Assemble SQL from intent + filter defs
         from ..services.sql_assembler import SqlAssembler
-        assembler = SqlAssembler(table_name, filter_defs, source_columns)
+        chart_type = context.get('chart_type', 'bar')
+        assembler = SqlAssembler(table_name, filter_defs, source_columns, chart_type=chart_type)
         result = assembler.assemble(intent)
 
         # 4. Validate the assembled SQL

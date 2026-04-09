@@ -24,6 +24,13 @@ _BLOCKED_KEYWORDS_RE = re.compile(
 )
 _BLOCKED_CHARS_RE = re.compile(r'[;]')  # No statement terminators
 
+# Chart types that REQUIRE at least one dimension (GROUP BY column).
+# Without a dimension, these charts render a single data point — useless.
+# New chart types only need to be added here if they require GROUP BY.
+_DIMENSIONAL_CHARTS = frozenset({
+    'bar', 'donut', 'pie', 'line', 'radar', 'scatter', 'heatmap',
+})
+
 # Regex to find aggregate functions: SUM(...), COUNT(...), COUNT(DISTINCT ...),
 # AVG(...), MIN(...), MAX(...)
 # Captures the function name and the full argument (including nested parens).
@@ -47,9 +54,13 @@ class SqlAssembler:
     source_columns : set[str] | None
         Column names available in the schema source. When provided, filter
         clauses for columns not in this set are skipped. None = accept all.
+    chart_type : str | None
+        The widget chart type (e.g. 'bar', 'kpi', 'donut'). When provided,
+        the assembler validates that dimensional charts have at least one
+        dimension in the intent.
     """
 
-    def __init__(self, table_name, filter_defs, source_columns=None):
+    def __init__(self, table_name, filter_defs, source_columns=None, chart_type=None):
         if not table_name or not _IDENT_RE.match(table_name):
             raise ValueError(
                 'Invalid table name: %r. Must be alphanumeric/underscore.' % table_name
@@ -57,6 +68,7 @@ class SqlAssembler:
         self.table_name = table_name
         self.filter_defs = filter_defs or []
         self.source_columns = set(source_columns) if source_columns else None
+        self.chart_type = chart_type
 
     # =====================================================================
     # Public API
@@ -81,6 +93,19 @@ class SqlAssembler:
             {sql, x_column, y_columns, series_column, explanation, warnings, intent}
         """
         mode = intent.get('mode', 'simple')
+
+        # Validate: dimensional charts MUST have at least one dimension
+        if self.chart_type and self.chart_type in _DIMENSIONAL_CHARTS:
+            dims = intent.get('dimensions', [])
+            if not dims:
+                raise ValueError(
+                    'Chart type "%s" requires at least one dimension (GROUP BY column). '
+                    'The AI did not include a dimension in its response. '
+                    'Please rephrase your prompt to specify what to group by '
+                    '(e.g., "by state", "per provider", "breakdown by category").'
+                    % self.chart_type
+                )
+
         try:
             if mode == 'simple':
                 sql = self._assemble_simple(intent)

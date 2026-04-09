@@ -250,14 +250,14 @@ def test_1_7_year_parentheses():
     where_idx = sql.index('WHERE')
     where_part = sql[where_idx:]
 
-    assert 'WHERE 1=1' in where_part, \
-        'WHERE must start with 1=1, got:\n%s' % where_part
+    assert where_part.startswith('WHERE ("year"'), \
+        'WHERE must start with parenthesized year scope, got:\n%s' % where_part
     assert 'OR "year"' in where_part, 'OR for prior year must be present'
 
     # Find the year scope line and verify it's wrapped in parens
     year_line = [l.strip() for l in where_part.split('\n') if 'OR "year"' in l][0]
-    assert year_line.startswith('AND (') or year_line.startswith('('), \
-        'Year scope line must be wrapped in parens: got %r' % year_line
+    assert year_line.startswith('(') or year_line.startswith('WHERE ('), \
+        'Year scope line must start with (: got %r' % year_line
     assert year_line.endswith(')'), \
         'Year scope line must end with ): got %r' % year_line
     print('  PASS: test_1_7_year_parentheses')
@@ -402,6 +402,63 @@ def test_1_13_count_distinct_yoy():
 
 
 # =========================================================================
+# Test 1.14: Dimensional chart without dimensions — rejected
+# =========================================================================
+def test_1_14_bar_without_dimension():
+    intent = {
+        'mode': 'simple',
+        'measures': [{'expression': 'SUM(hha_admits)', 'alias': 'admits'}],
+        'dimensions': [],
+        'x_column': 'admits',
+        'y_columns': 'admits',
+        'explanation': 'Bar chart without dimension',
+    }
+    try:
+        SqlAssembler(TABLE, INHOME_FILTERS, COLUMNS, chart_type='bar').assemble(intent)
+        assert False, 'Should have raised ValueError for bar without dimension'
+    except ValueError as e:
+        assert 'requires at least one dimension' in str(e)
+    print('  PASS: test_1_14_bar_without_dimension')
+
+
+# =========================================================================
+# Test 1.15: KPI without dimensions — allowed
+# =========================================================================
+def test_1_15_kpi_without_dimension():
+    intent = {
+        'mode': 'simple',
+        'measures': [{'expression': 'COUNT(*)', 'alias': 'value'}],
+        'dimensions': [],
+        'x_column': 'value',
+        'y_columns': '',
+        'explanation': 'KPI without dimension is valid',
+    }
+    result = SqlAssembler(TABLE, INHOME_FILTERS, COLUMNS, chart_type='kpi').assemble(intent)
+    assert 'GROUP BY' not in result['sql'], 'KPI should not have GROUP BY'
+    print('  PASS: test_1_15_kpi_without_dimension')
+
+
+# =========================================================================
+# Test 1.16: Donut without dimensions — rejected
+# =========================================================================
+def test_1_16_donut_without_dimension():
+    intent = {
+        'mode': 'simple',
+        'measures': [{'expression': 'COUNT(*)', 'alias': 'cnt'}],
+        'dimensions': [],
+        'x_column': 'cnt',
+        'y_columns': 'cnt',
+        'explanation': 'Donut without dimension',
+    }
+    try:
+        SqlAssembler(TABLE, INHOME_FILTERS, COLUMNS, chart_type='donut').assemble(intent)
+        assert False, 'Should have raised ValueError for donut without dimension'
+    except ValueError as e:
+        assert 'requires at least one dimension' in str(e)
+    print('  PASS: test_1_16_donut_without_dimension')
+
+
+# =========================================================================
 # Run all tests
 # =========================================================================
 if __name__ == '__main__':
@@ -419,6 +476,9 @@ if __name__ == '__main__':
         test_1_11_raw_override,
         test_1_12_invalid_table,
         test_1_13_count_distinct_yoy,
+        test_1_14_bar_without_dimension,
+        test_1_15_kpi_without_dimension,
+        test_1_16_donut_without_dimension,
     ]
 
     print('Running SqlAssembler unit tests...\n')

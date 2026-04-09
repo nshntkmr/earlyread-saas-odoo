@@ -251,7 +251,15 @@ GENERATE_SQL_INTENT_TOOL = {
                     },
                     'required': ['column'],
                 },
-                'description': 'Columns to GROUP BY (empty for KPIs, populated for bar/donut/table).',
+                'description': (
+                    'Columns for GROUP BY / X-axis labeling. '
+                    'REQUIRED for chart types that show multiple categories '
+                    '(bar, donut, pie, line, radar, scatter, heatmap, table). '
+                    'Empty ONLY for single-value widgets (KPI, gauge). '
+                    'Each dimension becomes a row in the output -- without dimensions, '
+                    'the query returns one aggregated row which cannot be charted. '
+                    'When the user says "per HHA", "by state", "for each county" -- that is a dimension.'
+                ),
             },
             'extra_conditions': {
                 'type': 'array',
@@ -319,6 +327,51 @@ GENERATE_SQL_INTENT_TOOL = {
         },
         'required': ['mode', 'measures', 'x_column', 'y_columns', 'explanation'],
     },
+    # Generic input examples — 3 structural patterns that cover all chart types.
+    # Uses placeholder names so they work across any healthcare dataset.
+    'input_examples': [
+        # Pattern 1: Single-value KPI (NO dimensions)
+        {
+            'mode': 'simple',
+            'measures': [
+                {'expression': 'COUNT(DISTINCT provider_id)', 'alias': 'value'},
+                {'expression': 'COUNT(DISTINCT provider_id)', 'alias': 'prior_value', 'is_prior_year': True},
+            ],
+            'dimensions': [],
+            'x_column': 'value',
+            'y_columns': 'prior_value',
+            'explanation': 'KPI: single aggregate value with year-over-year comparison. No dimensions needed.',
+        },
+        # Pattern 2: Category chart — bar/donut/pie (MUST have dimension)
+        {
+            'mode': 'simple',
+            'measures': [
+                {'expression': 'SUM(total_episodes)', 'alias': 'episodes'},
+            ],
+            'dimensions': [
+                {'column': 'state_name', 'alias': 'state'},
+            ],
+            'order_by': [{'column': 'episodes', 'direction': 'DESC'}],
+            'x_column': 'state',
+            'y_columns': 'episodes',
+            'explanation': 'Bar/donut chart: one dimension for X-axis labels, one measure for values.',
+        },
+        # Pattern 3: Multi-measure stacked bar (dimension + multiple measures)
+        {
+            'mode': 'simple',
+            'measures': [
+                {'expression': 'SUM(service_a_count)', 'alias': 'service_a'},
+                {'expression': 'SUM(service_b_count)', 'alias': 'service_b'},
+                {'expression': 'SUM(service_c_count)', 'alias': 'service_c'},
+            ],
+            'dimensions': [
+                {'column': "provider_id || ' - ' || provider_name", 'alias': 'provider'},
+            ],
+            'x_column': 'provider',
+            'y_columns': 'service_a,service_b,service_c',
+            'explanation': 'Stacked bar: one dimension for entity labels, multiple measures as stacked series.',
+        },
+    ],
 }
 
 
