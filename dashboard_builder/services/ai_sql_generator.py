@@ -169,6 +169,16 @@ RULES:
 7. Use mode="union_all" for multi-metric widgets (bullet gauge, RAG scorecard, multi-ring gauge).
 8. Use mode="cte" for sparkline KPIs or complex queries requiring WITH clauses.
 9. Use mode="raw_override" only as a last resort when no other mode fits.
+10. CHART TYPE determines whether dimensions are REQUIRED:
+    - KPI, gauge: NO dimensions needed (single aggregate value).
+    - Bar, donut, pie, line, radar, scatter, heatmap: MUST include at least one dimension
+      in the dimensions array. This becomes the X-axis / category / GROUP BY column.
+      Without a dimension, the query returns one row with no labels — useless for a chart.
+    - Table: dimensions are the non-aggregated columns (GROUP BY columns that identify each row).
+    - When the user says "per HHA", "by state", "for each county", "breakdown by" — that is a dimension.
+    - The dimension column should use a human-readable label (e.g. hha_name, hha_state, priority_group).
+    - For "per HHA" comparisons, use hha_ccn concatenated with hha_name as the dimension
+      expression: hha_ccn || ' - ' || hha_name, with alias "hha".
 
 COLUMN INTELLIGENCE:
 - Columns marked "NEVER AVG" are pre-computed rates. Compute from numerator/denominator pairs.
