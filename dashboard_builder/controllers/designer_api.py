@@ -329,8 +329,22 @@ class DesignerAPI(http.Controller):
         # 3. Assemble SQL from intent + filter defs
         from ..services.sql_assembler import SqlAssembler
         chart_type = context.get('chart_type', 'bar')
+        _logger.info(
+            'Intent pipeline: chart_type=%s, mode=%s, measures=%d, dimensions=%d',
+            chart_type,
+            intent.get('mode', 'simple'),
+            len(intent.get('measures', [])),
+            len(intent.get('dimensions', [])),
+        )
         assembler = SqlAssembler(table_name, filter_defs, source_columns, chart_type=chart_type)
-        result = assembler.assemble(intent)
+        try:
+            result = assembler.assemble(intent)
+        except ValueError as assembler_err:
+            _logger.warning(
+                'SqlAssembler validation failed: %s | intent=%s',
+                assembler_err, intent,
+            )
+            return _json_error(400, str(assembler_err))
 
         # 4. Validate the assembled SQL
         from ..services.query_builder import QueryBuilder

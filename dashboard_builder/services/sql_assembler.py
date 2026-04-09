@@ -327,8 +327,22 @@ class SqlAssembler:
         - Year scoping for YoY -> (year IN %(year)s OR year = %(_year_prior)s)
           with parentheses to prevent OR from bypassing other filters
         - extra_conditions -> hardcoded business logic from user's request
+
+        Structure:
+          WHERE 1=1
+            AND <year_scope>        -- mandatory (only if YoY)
+            AND <extra_condition>   -- mandatory (from intent)
+            [[AND col = %(p)s]]     -- optional filter clause
+            [[AND col2 IN %(p2)s]]  -- optional filter clause
+
+        The WHERE 1=1 prefix ensures all subsequent clauses can be optional
+        without creating invalid SQL. Mandatory parts use explicit AND;
+        optional filter clauses keep their [[AND ...]] wrapper intact so
+        the resolve_optional_clauses runtime can drop them cleanly when
+        the filter is empty/all.
         """
-        parts = []
+        mandatory_parts = []  # year scope, extra_conditions (always with AND)
+        optional_clauses = []  # filter clauses ([[AND ...]] wrapped)
 
         # 1. Year scoping (if YoY comparison needed)
         year_param = self._find_year_filter()
@@ -345,7 +359,7 @@ class SqlAssembler:
                 ' OR '
                 '"{col}"{cast} = %(_year_prior)s{cast})'
             ).replace('{col}', year_col).replace('{cast}', cast).replace('{param}', year_param)
-            parts.append(year_scope)
+            mandatory_parts.append(year_scope)
 
         # 2. Extra conditions from intent (business logic)
         for cond in (extra_conditions or []):
@@ -363,9 +377,9 @@ class SqlAssembler:
                     'SqlAssembler: blocked extra_condition with semicolon: %r', cond_clean
                 )
                 continue
-            parts.append(cond_clean)
+            mandatory_parts.append(cond_clean)
 
-        # 3. Page filter clauses (deterministic, from filter_defs)
+        # 3. Page filter clauses (optional, from filter_defs)
         for fdef in self.filter_defs:
             param = fdef.get('param_name', '')
             db_col = fdef.get('db_column', '')
@@ -393,16 +407,22 @@ class SqlAssembler:
                 col_ref = '"%s"::text' % db_col
 
             if is_multi:
-                parts.append('[[AND %s IN %%(%s)s]]' % (col_ref, param))
+                optional_clauses.append('[[AND %s IN %%(%s)s]]' % (col_ref, param))
             else:
-                parts.append('[[AND %s = %%(%s)s]]' % (col_ref, param))
+                optional_clauses.append('[[AND %s = %%(%s)s]]' % (col_ref, param))
 
-        if not parts:
+        # Build the final WHERE clause
+        if not mandatory_parts and not optional_clauses:
             return 'WHERE 1=1'
 
-        # First part is not optional (year scope or extra condition) — no [[]]
-        # Remaining parts are optional filter clauses
-        return 'WHERE ' + '\n  AND '.join(parts)
+        where_lines = ['WHERE 1=1']
+        # Mandatory parts (year scope, extra conditions) use explicit AND
+        for p in mandatory_parts:
+            where_lines.append('  AND %s' % p)
+        # Optional filter clauses already include [[AND ...]] wrapper
+        for c in optional_clauses:
+            where_lines.append('  %s' % c)
+        return '\n'.join(where_lines)
 
     # =====================================================================
     # Year filter detection

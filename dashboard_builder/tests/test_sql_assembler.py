@@ -250,14 +250,16 @@ def test_1_7_year_parentheses():
     where_idx = sql.index('WHERE')
     where_part = sql[where_idx:]
 
-    assert where_part.startswith('WHERE ("year"'), \
-        'WHERE must start with parenthesized year scope, got:\n%s' % where_part
+    # New format: WHERE 1=1\n  AND (year scope)\n  [[AND filter]]...
+    assert where_part.startswith('WHERE 1=1'), \
+        'WHERE must start with "WHERE 1=1" prefix, got:\n%s' % where_part
     assert 'OR "year"' in where_part, 'OR for prior year must be present'
 
     # Find the year scope line and verify it's wrapped in parens
     year_line = [l.strip() for l in where_part.split('\n') if 'OR "year"' in l][0]
-    assert year_line.startswith('(') or year_line.startswith('WHERE ('), \
-        'Year scope line must start with (: got %r' % year_line
+    # Line format: 'AND ("year"::text IN ... OR "year"::text = ...)'
+    assert year_line.startswith('AND ('), \
+        'Year scope line must start with "AND (": got %r' % year_line
     assert year_line.endswith(')'), \
         'Year scope line must end with ): got %r' % year_line
     print('  PASS: test_1_7_year_parentheses')
@@ -439,6 +441,65 @@ def test_1_15_kpi_without_dimension():
 
 
 # =========================================================================
+# Test 1.17: Regression — WHERE clause must NOT have double AND
+# (catches the bug where filter clauses were joined with AND instead of
+# being kept as [[AND ...]] on separate lines)
+# =========================================================================
+def test_1_17_no_double_and_in_where():
+    """Regression test for the 'double AND' bug.
+
+    The _build_where() method must NOT produce patterns like:
+        WHERE [[AND col = %(p)s]]
+          AND [[AND col2 = %(p2)s]]
+
+    Correct pattern:
+        WHERE 1=1
+          [[AND col = %(p)s]]
+          [[AND col2 = %(p2)s]]
+    """
+    intent = {
+        'mode': 'simple',
+        'measures': [{'expression': 'SUM(hha_admits)', 'alias': 'admits'}],
+        'dimensions': [{'column': 'hha_state'}],
+        'x_column': 'hha_state',
+        'y_columns': 'admits',
+        'explanation': 'Bar chart',
+    }
+    result = SqlAssembler(TABLE, INHOME_FILTERS, COLUMNS, chart_type='bar').assemble(intent)
+    sql = result['sql']
+
+    # Must start with WHERE 1=1
+    assert 'WHERE 1=1' in sql, 'WHERE must start with 1=1 prefix, got:\n%s' % sql
+
+    # Find the WHERE section
+    where_idx = sql.index('WHERE 1=1')
+    where_section = sql[where_idx:]
+
+    # Look for the first [[AND ...]] clause
+    first_bracket_idx = where_section.find('[[AND')
+    assert first_bracket_idx > 0, 'Expected at least one [[AND ...]] optional clause'
+
+    # The character BEFORE [[AND must NOT be a plain 'AND '
+    # (it should be whitespace/newline/space only)
+    chars_before = where_section[:first_bracket_idx]
+    # Get the last line before the [[AND
+    last_line = chars_before.rsplit('\n', 1)[-1]
+    assert 'AND ' not in last_line.strip(), \
+        'Double AND bug detected! Filter clause preceded by plain AND: %r\nFull SQL:\n%s' % (
+            last_line, sql)
+
+    # Count [[AND occurrences — they should match the number of filters
+    # and none should be wrapped with additional 'AND '
+    bracket_count = where_section.count('[[AND')
+    and_bracket_count = where_section.count('AND [[AND')
+    assert and_bracket_count == 0, \
+        'Found %d "AND [[AND" patterns (double AND bug). Expected 0.\nSQL:\n%s' % (
+            and_bracket_count, sql)
+
+    print('  PASS: test_1_17_no_double_and_in_where')
+
+
+# =========================================================================
 # Test 1.16: Donut without dimensions — rejected
 # =========================================================================
 def test_1_16_donut_without_dimension():
@@ -479,6 +540,7 @@ if __name__ == '__main__':
         test_1_14_bar_without_dimension,
         test_1_15_kpi_without_dimension,
         test_1_16_donut_without_dimension,
+        test_1_17_no_double_and_in_where,
     ]
 
     print('Running SqlAssembler unit tests...\n')
