@@ -235,11 +235,12 @@ export default function WidgetGrid({ initialWidgets }) {
     // Compact mode: kpi_strip chart type or display_mode === 'compact'
     const isCompact = w.chart_type === 'kpi_strip' || w.display_mode === 'compact'
 
-    // Scalable widgets (ECharts, tables) get the configured height passed through.
-    // Non-scalable widgets (gauge variants, KPI, battle card) render at natural size.
+    // Scalable widgets (ECharts, tables) fill available height.
+    // Non-scalable widgets (gauge variants, KPI, battle card) render at natural size
+    // but still receive height prop so admin can constrain them for compact layouts.
     const isGaugeNonEchart = w.chart_type === 'gauge' && w.data?.gauge_variant
     const isScalable = SCALABLE_TYPES.has(w.chart_type) && !isGaugeNonEchart
-    const componentHeight = isScalable ? w.height : undefined
+    const componentHeight = w.height || undefined
 
     // Extra props for interactive widgets
     const extraProps = {}
