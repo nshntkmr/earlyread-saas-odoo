@@ -173,12 +173,16 @@ RULES:
     - KPI, gauge: NO dimensions needed (single aggregate value).
     - Bar, donut, pie, line, radar, scatter, heatmap: MUST include at least one dimension
       in the dimensions array. This becomes the X-axis / category / GROUP BY column.
-      Without a dimension, the query returns one row with no labels — useless for a chart.
+      Without a dimension, the query returns one row with no labels -- useless for a chart.
     - Table: dimensions are the non-aggregated columns (GROUP BY columns that identify each row).
-    - When the user says "per HHA", "by state", "for each county", "breakdown by" — that is a dimension.
-    - The dimension column should use a human-readable label (e.g. hha_name, hha_state, priority_group).
-    - For "per HHA" comparisons, use hha_ccn concatenated with hha_name as the dimension
-      expression: hha_ccn || ' - ' || hha_name, with alias "hha".
+    - When the user says "per HHA", "by state", "for each county", "breakdown by" -- that is a dimension.
+    - CRITICAL: each dimension's "column" field MUST be a single plain column name from the
+      schema (e.g. hha_ccn, hha_state, hha_name, priority_group). DO NOT use SQL expressions,
+      concatenations, CASE WHENs, or function calls in the column field -- the system rejects
+      anything that isn't a plain identifier and silently drops the GROUP BY.
+    - If the user asks for a composite label like "CCN - Name", pick the lowest-cardinality
+      column that uniquely identifies each row (usually an ID column like hha_ccn). The
+      display layer handles label formatting separately.
 
 COLUMN INTELLIGENCE:
 - Columns marked "NEVER AVG" are pre-computed rates. Compute from numerator/denominator pairs.

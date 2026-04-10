@@ -17,16 +17,16 @@ _PALETTES = {
     'mono':       ['#374151', '#6b7280', '#9ca3af', '#d1d5db', '#e5e7eb', '#f3f4f6'],
 }
 
-# ── status_column value → (fa icon class, CSS modifier) ────────────────────
+# ── status_column value → (fa icon class, CSS modifier, display label) ──────
 _STATUS_MAP = {
-    'up':          ('fa-arrow-up',            'status-up'),
-    'disciplined': ('fa-arrow-up',            'status-up'),
-    'growing':     ('fa-arrow-up',            'status-up'),
-    'down':        ('fa-arrow-down',          'status-down'),
-    'retreated':   ('fa-arrow-down',          'status-down'),
-    'warning':     ('fa-exclamation-triangle','status-warning'),
-    'neutral':     ('fa-minus',               'status-neutral'),
-    'stable':      ('fa-minus',               'status-neutral'),
+    'up':          ('fa fa-arrow-up',            'status-up',      'Strong Performer'),
+    'disciplined': ('fa fa-arrow-up',            'status-up',      'Disciplined'),
+    'growing':     ('fa fa-arrow-up',            'status-up',      'Growing'),
+    'down':        ('fa fa-arrow-down',          'status-down',    'Underperforming'),
+    'retreated':   ('fa fa-arrow-down',          'status-down',    'Retreated'),
+    'warning':     ('fa fa-exclamation-triangle','status-warning', 'Needs Attention'),
+    'neutral':     ('fa fa-minus',               'status-neutral', 'Neutral'),
+    'stable':      ('fa fa-minus',               'status-neutral', 'Stable'),
 }
 
 # ── Typography mapping dicts ─────────────────────────────────────────────────
@@ -890,7 +890,11 @@ class DashboardWidget(models.Model):
         if not y_col_list and len(cols) > 1:
             y_col_list = [cols[1]]
 
-        option = {'tooltip': {'trigger': 'axis'}, 'animation': True}
+        option = {
+            'tooltip': {'trigger': 'axis'},
+            'animation': True,
+            'grid': {'containLabel': True},
+        }
 
         # Inject palette colors
         colors = self._get_palette_colors()
@@ -2878,7 +2882,7 @@ class DashboardWidget(models.Model):
         if self.chart_type in ('kpi', 'status_kpi', 'kpi_strip') and self.status_column:
             status_idx = col_idx.get(self.status_column)
             status_val = str(rows[0][status_idx]).lower() if (rows and status_idx is not None) else 'neutral'
-            icon_cls, css_mod = _STATUS_MAP.get(status_val, ('fa-circle', 'status-neutral'))
+            icon_cls, css_mod, _lbl = _STATUS_MAP.get(status_val, ('fa fa-circle', 'status-neutral', 'Neutral'))
             result['icon_class'] = icon_cls
             result['status_css'] = css_mod
             result['status_val'] = status_val
@@ -3276,14 +3280,22 @@ class DashboardWidget(models.Model):
                 result = 'win' if you_f < them_f else 'lose'
 
             diff = abs(you_f - them_f)
+            # Normalize bar percentages: larger value = 100%, smaller scales proportionally
+            max_val = max(you_f, them_f, 0.001)  # avoid division by zero
+            you_bar = (you_f / max_val) * 100
+            them_bar = (them_f / max_val) * 100
             battle_rows.append({
-                'label':     lbl,
-                'you':       str(you),
-                'them':      str(them),
-                'you_f':     you_f,
-                'them_f':    them_f,
-                'result':    result,
-                'advantage': f'+{diff:.1f}' if result == 'win' else (f'-{diff:.1f}' if result == 'lose' else 'Even'),
+                # Field names match BattleCard.jsx expectations
+                'metric':            lbl,
+                'your_value':        str(you),
+                'competitor_value':  str(them),
+                'your_bar_pct':      round(you_bar, 1),
+                'competitor_bar_pct': round(them_bar, 1),
+                'result':            result,
+                'advantage':         f'+{diff:.1f}' if result == 'win' else (f'-{diff:.1f}' if result == 'lose' else 'Even'),
+                # Keep legacy field names for backward compat
+                'label': lbl, 'you': str(you), 'them': str(them),
+                'you_f': you_f, 'them_f': them_f,
             })
 
         wins  = sum(1 for r in battle_rows if r['result'] == 'win')
@@ -3309,14 +3321,15 @@ class DashboardWidget(models.Model):
 
         # Determine classification and status CSS
         classification = str(row.get('classification') or '').lower()
-        _, css_mod = _STATUS_MAP.get(classification, ('fa-info-circle', 'status-neutral'))
-        icon_cls, _ = _STATUS_MAP.get(classification, ('fa-info-circle', 'status-neutral'))
+        icon_cls, css_mod, display_label = _STATUS_MAP.get(
+            classification, ('fa fa-info-circle', 'status-neutral', 'Neutral')
+        )
 
         narrative = self._build_narrative(row, portal_ctx)
 
         result = {
             'type':           'insight_panel',
-            'classification': row.get('classification') or '',
+            'classification': display_label,
             'icon_class':     icon_cls,
             'status_css':     css_mod,
             'metric1_label':  self.metric1_label or '',

@@ -34,8 +34,10 @@ function AGGridTable({ data, onCellClick }) {
 
   const handleCellClicked = useCallback((event) => {
     const colDef = event.colDef
-    // Check for click action in column config
-    if (colDef.cellRendererParams?.pageKey && onCellClick) {
+    const action = colDef.clickAction || 'none'
+
+    // Backward compat: legacy cellRendererParams.pageKey → go_to_page
+    if (action === 'none' && colDef.cellRendererParams?.pageKey && onCellClick) {
       const params = colDef.cellRendererParams
       onCellClick({
         column: colDef.field,
@@ -48,6 +50,55 @@ function AGGridTable({ data, onCellClick }) {
           filter_param: params.filterParam || colDef.field,
         },
       })
+      return
+    }
+
+    if (action === 'none') return
+
+    // Resolve value: actionValueField reads from a different column in row data
+    // e.g. display = "147000 - VNA HEALTH CARE" but actionValueField = "hha_ccn" → passes "147000"
+    const valueField = colDef.actionValueField
+    const rawValue = valueField ? event.data?.[valueField] : event.value
+    const value = rawValue != null ? String(rawValue) : ''
+
+    switch (action) {
+      case 'filter_page': {
+        const param = colDef.actionFilterParam || colDef.field
+        const url = new URL(window.location)
+        url.searchParams.set(param, value)
+        window.location.href = url.toString()
+        break
+      }
+      case 'go_to_page': {
+        const pageKey = colDef.actionPageKey || colDef.cellRendererParams?.pageKey || ''
+        const tabKey = colDef.actionTabKey || colDef.cellRendererParams?.tabKey || ''
+        const param = colDef.actionFilterParam || colDef.cellRendererParams?.filterParam || colDef.field
+        if (!pageKey) return
+        let targetUrl = window.location.pathname.replace(/\/[^/]+$/, `/${pageKey}`)
+        if (tabKey) targetUrl += `?tab=${tabKey}`
+        if (param && value) {
+          targetUrl += (targetUrl.includes('?') ? '&' : '?') + `${param}=${encodeURIComponent(value)}`
+        }
+        window.location.href = targetUrl
+        break
+      }
+      case 'show_details': {
+        if (onCellClick) {
+          onCellClick({
+            column: colDef.field,
+            value: value,
+            row: event.data,
+            linkConfig: { action: 'show_details' },
+          })
+        }
+        break
+      }
+      case 'open_url': {
+        const tpl = colDef.actionUrlTemplate || ''
+        const finalUrl = tpl.replace(/\{value\}/g, encodeURIComponent(value))
+        if (finalUrl) window.open(finalUrl, '_blank', 'noopener')
+        break
+      }
     }
   }, [onCellClick])
 

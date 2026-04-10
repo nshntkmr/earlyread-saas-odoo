@@ -232,6 +232,52 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
           </div>
         )}
 
+        {/* Bar Inline renderer params */}
+        {column.cellRenderer === 'barInline' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Max (100% reference)</label>
+                <input type="number" className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.max ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      max: raw === '' ? null : Number(raw),
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Bar color (hex)</label>
+                <input type="text" className="tcs-input"
+                  placeholder="#3b82f6"
+                  value={column.cellRendererParams?.color ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    color: e.target.value || null,
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Multiply by 100</label>
+                <input type="checkbox"
+                  checked={column.cellRendererParams?.multiply === true}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    multiply: e.target.checked,
+                  })}
+                />
+              </div>
+            </div>
+            <div className="tcs-help-text">
+              Value / Max = bar fill percentage. Leave Max empty to use 100 (values are already percentages) or set the column's expected maximum (e.g. 250000 for visit counts).
+            </div>
+          </div>
+        )}
+
         {/* Composite renderer params — line config */}
         {column.cellRenderer === 'composite' && (
           <CompositeParamsEditor
@@ -454,6 +500,39 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
                     onChange={e => set('actionFilterParam', e.target.value)}
                     placeholder="e.g. hha_ccn"
                   />
+                </div>
+                <div className="tcs-row">
+                  <label className="tcs-label">Value Field (from row data)</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionValueField || ''}
+                    onChange={e => set('actionValueField', e.target.value)}
+                    placeholder="Leave empty to use cell value"
+                  />
+                </div>
+              </>
+            )}
+            {column.clickAction === 'filter_page' && (
+              <>
+                <div className="tcs-row">
+                  <label className="tcs-label">Filter Param (URL key)</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionFilterParam || ''}
+                    onChange={e => set('actionFilterParam', e.target.value)}
+                    placeholder="e.g. hha_ccn"
+                  />
+                </div>
+                <div className="tcs-row">
+                  <label className="tcs-label">Value Field (from row data)</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionValueField || ''}
+                    onChange={e => set('actionValueField', e.target.value)}
+                    placeholder="Leave empty to use cell value"
+                  />
+                  <div className="tcs-help-text">
+                    Read the click value from a different SQL column in the row.
+                    E.g., display shows "147000 - VNA HEALTH CARE" but set this
+                    to hha_ccn to pass just "147000" as the filter value.
+                  </div>
                 </div>
               </>
             )}

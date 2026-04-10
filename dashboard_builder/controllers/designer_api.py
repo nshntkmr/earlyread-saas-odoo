@@ -226,18 +226,44 @@ class DesignerAPI(http.Controller):
                 result = ai.suggest_queries(context)
                 return _json_response(result)
 
-            # ── Intent pipeline (new) ────────────────────────────────
-            # AI generates structured intent → SqlAssembler builds SQL
-            use_intent = request.env['ir.config_parameter'].sudo().get_param(
-                'dashboard_builder.ai_use_intent_mode', 'True'
+            # ── Intent pipeline ──────────────────────────────────────
+            # AI generates structured intent -> SqlAssembler builds SQL.
+            #
+            # Feature gate: dashboard_builder.ai_use_intent_mode
+            #   Missing           -> intent pipeline (default True)
+            #   'True' (any case) -> intent pipeline
+            #   'False'/'0'/'no'  -> legacy pipeline (explicit opt-out only)
+            #
+            # When the intent pipeline is active, there is NO silent fallback
+            # to the legacy generator. If generate_intent() fails, the error
+            # propagates to the frontend with a clear message.
+            use_intent_raw = request.env['ir.config_parameter'].sudo().get_param(
+                'dashboard_builder.ai_use_intent_mode'
             )
-            if use_intent and use_intent.lower() not in ('false', '0', 'no'):
+            # Default to True when the parameter is missing, empty, or False.
+            # Odoo's get_param() returns False (not None) for missing params,
+            # so we use a truthiness check rather than identity check.
+            if not use_intent_raw:
+                use_intent = True
+            else:
+                # Coerce to string in case Odoo returns a non-string value
+                use_intent = str(use_intent_raw).strip().lower() not in ('false', '0', 'no')
+
+            if use_intent:
+                _logger.info(
+                    "AI Intent Generate: chart=%s, prompt=%s",
+                    chart_type, (prompt or '')[:80],
+                )
                 return self._ai_generate_intent(
                     ai, context, prompt, previous_intent, error_message,
                     source_id, page_id, body,
                 )
 
-            # ── Legacy pipeline (fallback) ───────────────────────────
+            # ── Legacy pipeline (opt-in only via feature gate) ───────
+            _logger.info(
+                "AI Legacy Generate: chart=%s, prompt=%s",
+                chart_type, (prompt or '')[:80],
+            )
             if error_message and previous_sql:
                 result = ai.fix_sql(context, previous_sql, error_message)
             elif previous_sql:
@@ -262,32 +288,37 @@ class DesignerAPI(http.Controller):
 
     def _ai_generate_intent(self, ai, context, prompt, previous_intent,
                             error_message, source_id, page_id, body=None):
-        """Intent pipeline: AI returns intent → SqlAssembler builds SQL.
+        """Intent pipeline: AI returns intent -> SqlAssembler builds SQL.
 
-        This eliminates all WHERE clause bugs by construction — the AI never
+        This eliminates WHERE clause bugs by construction -- the AI never
         writes WHERE/filter clauses; the deterministic assembler does.
+
+        NO silent fallback to the legacy pipeline. If intent generation
+        fails, the error is surfaced to the frontend with a clear message.
+
+        Routing (based on request body):
+          - error_message + previous_intent -> fix_intent()
+          - previous_intent                 -> refine_intent()
+          - (no previous_intent)            -> generate_intent() fresh
+
+        If the frontend sent previous_sql but no previous_intent
+        (legacy-generated result being refined), we start a fresh intent
+        generation using the user's current prompt. We do NOT call the
+        legacy refine_sql() -- that path produced the double-AND bug.
         """
         # 1. Get intent from AI
-        # Support transition: if user refines a legacy-generated result (no intent),
-        # fall back to legacy pipeline for that specific request
-        previous_sql = (body or {}).get('previous_sql')
         if error_message and previous_intent:
+            _logger.info('Intent route: fix_intent')
             intent = ai.fix_intent(context, previous_intent, error_message)
         elif previous_intent:
+            _logger.info('Intent route: refine_intent')
             intent = ai.refine_intent(context, previous_intent, prompt)
-        elif previous_sql and not previous_intent:
-            # Legacy refine: user has old SQL but no intent — use legacy pipeline
-            if error_message:
-                result = ai.fix_sql(context, previous_sql, error_message)
-            else:
-                result = ai.refine_sql(context, previous_sql, prompt)
-            from ..services.query_builder import QueryBuilder
-            qb = QueryBuilder(request.env)
-            is_valid, err = qb.validate_query(result.get('sql', ''))
-            if not is_valid:
-                return _json_error(400, 'AI generated invalid SQL: %s' % err)
-            return _json_response(result)
         else:
+            # Fresh generation -- also covers the transition case where the
+            # frontend has previous_sql but no previous_intent. We do NOT
+            # fall back to the legacy refine_sql here: the assembler is the
+            # only trusted SQL producer.
+            _logger.info('Intent route: generate_intent (fresh)')
             intent = ai.generate_intent(context, prompt)
 
         # 2. Load filter defs and source columns for the assembler

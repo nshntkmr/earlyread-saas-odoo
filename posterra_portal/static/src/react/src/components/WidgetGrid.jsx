@@ -252,8 +252,13 @@ export default function WidgetGrid({ initialWidgets }) {
       extraProps.clickAction = w.click_action
       extraProps.onChartClick = (clickData) => handleWidgetClick(w, clickData)
     }
-    if (isTable && w.column_link_config) {
-      extraProps.columnLinkConfig = w.column_link_config
+    if (isTable) {
+      if (w.column_link_config) {
+        extraProps.columnLinkConfig = w.column_link_config
+      }
+      // Always pass onCellClick for AG Grid tables — column-level clickAction
+      // handles its own dispatch in DataTable.jsx (filter_page, go_to_page, open_url).
+      // show_details needs WidgetGrid's drillState, so it dispatches through onCellClick.
       extraProps.onCellClick = (clickData) => handleWidgetClick(w, {
         name: clickData.column,
         value: clickData.value,
