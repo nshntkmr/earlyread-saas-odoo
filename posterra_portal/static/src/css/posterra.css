@@ -2369,7 +2369,7 @@
 /* ── Widget grid layout (CSS Grid — 12 columns) ──────────────────── */
 .pv-widget-grid {
     display: grid;
-    grid-template-columns: repeat(12, 1fr);
+    grid-template-columns: repeat(24, 1fr);
     grid-auto-rows: minmax(80px, auto);
     grid-auto-flow: dense;
     gap: 1rem;

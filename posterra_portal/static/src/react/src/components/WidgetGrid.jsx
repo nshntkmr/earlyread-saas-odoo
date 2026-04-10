@@ -212,16 +212,11 @@ export default function WidgetGrid({ initialWidgets }) {
     )
   }
 
-  // ── CSS Grid: convert percentage width to 12-column grid span ───
+  // ── CSS Grid: convert percentage width to 24-column grid span ───
+  // 24 columns gives finer control (supports 4%, 8%, 12%, 14% widths)
   const pctToGridCols = (pct) => {
     const p = pct || 50
-    // Map common percentages to exact grid columns, else round
-    if (p <= 25) return 3
-    if (p <= 33) return 4
-    if (p <= 50) return 6
-    if (p <= 67) return 8
-    if (p <= 75) return 9
-    return 12
+    return Math.max(1, Math.round((p / 100) * 24))
   }
 
   // Widget types that scale their content to fill available height (ECharts canvas,
