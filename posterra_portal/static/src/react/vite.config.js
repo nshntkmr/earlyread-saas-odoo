@@ -49,6 +49,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@posterra/grid-utils'],
   },
+  // Base path for chunk imports — ensures dynamic import() resolves to the
+  // correct Odoo static file URL, not relative to the page URL.
+  base: '/posterra_portal/static/src/react/dist/',
   build: {
     outDir: 'dist',
     rollupOptions: {
