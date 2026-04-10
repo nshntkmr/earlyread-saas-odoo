@@ -1220,6 +1220,57 @@ MAP_FLAGS = [
         'help': 'Radius of influence for each point in pixels.',
         'show_when': {'marker_mode': 'heatmap'},
     },
+    # ── Layer Panel flags (generic sidebar) ──
+    {
+        'flag': 'show_layer_panel',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Show Layer Panel',
+        'help': 'Show the sidebar panel for toggling entity layers on/off.',
+    },
+    {
+        'flag': 'layer_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Layer Group Column',
+        'help': 'SQL column to group markers into layers (e.g., hha_brand_name, hospital_system, lab_network).',
+    },
+    {
+        'flag': 'layer_label',
+        'type': 'text',
+        'default': 'Layers',
+        'label': 'Panel Header Label',
+        'help': 'Header text for the layer panel (e.g., "Brand Layers", "Systems", "Networks").',
+    },
+    {
+        'flag': 'layer_filter_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Layer Filter Column',
+        'help': 'SQL column for the dropdown filter in the panel (e.g., hha_state).',
+    },
+    {
+        'flag': 'layer_summary_columns',
+        'type': 'text',
+        'default': '',
+        'label': 'Layer Summary Metrics',
+        'help': 'Comma-separated metric columns shown on each layer card (e.g., hha_admits,therapy_share).',
+    },
+    # ── 3D Globe flags ──
+    {
+        'flag': 'show_3d_globe',
+        'type': 'boolean',
+        'default': True,
+        'label': '3D Globe View',
+        'help': 'Enable 3D globe perspective with tilted camera.',
+    },
+    {
+        'flag': 'default_pitch',
+        'type': 'number',
+        'default': 45,
+        'label': 'Camera Tilt (degrees)',
+        'help': '0 = flat top-down, 45 = moderate tilt, 60 = dramatic perspective.',
+    },
 ]
 
 
