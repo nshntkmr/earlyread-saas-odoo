@@ -18,6 +18,7 @@ const CHART_TYPES = [
   { key: 'battle_card',   label: 'Battle Card',   icon: 'fa-columns',         desc: 'You vs competitor side-by-side' },
   { key: 'insight_panel', label: 'Insight Panel',  icon: 'fa-lightbulb-o',     desc: 'Narrative text with metrics' },
   { key: 'gauge_kpi',     label: 'Gauge + KPI',   icon: 'fa-dashboard',       desc: 'Gauge with sub-KPI breakdown' },
+  { key: 'map',           label: 'Map',           icon: 'fa-map-marker',      desc: 'Geographic point/area visualization' },
 ]
 
 /**

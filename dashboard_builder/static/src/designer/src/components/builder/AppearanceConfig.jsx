@@ -114,6 +114,25 @@ export default function AppearanceConfig({ appearance, chartType, onUpdate }) {
         </div>
       )}
 
+      {/* Row Span — for tall widgets like maps */}
+      <div className="wb-field-group">
+        <label className="wb-label">Row Span</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="number"
+            className="wb-input"
+            style={{ width: 80 }}
+            min={1}
+            max={4}
+            value={appearance.rowSpan || 1}
+            onChange={e => update('rowSpan', Math.min(4, Math.max(1, Number(e.target.value) || 1)))}
+          />
+          <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+            {(appearance.rowSpan || 1) === 1 ? 'row (default)' : 'rows'}
+          </span>
+        </div>
+      </div>
+
       {/* Bar-specific options */}
       {chartType === 'bar' && (
         <div className="wb-field-group">

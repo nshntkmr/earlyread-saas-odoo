@@ -156,6 +156,7 @@ def _build_initial_widgets_json(widgets, widget_data):
             'tab_key':      w.tab_id.key if w.tab_id else None,
             'col_span':     w.width_pct or {'3': 25, '4': 33, '6': 50, '8': 67, '12': 100}.get(w.col_span, 50),
             'max_col_span': w.max_width_pct or 0,
+            'row_span':     w.row_span or 1,
             'height':       w.chart_height,
             'name':         w.name,
             'sequence':     w.sequence,

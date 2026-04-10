@@ -576,6 +576,7 @@ class DesignerAPI(http.Controller):
             'y_columns': defn.y_columns or '',
             'series_column': defn.series_column or '',
             'default_col_span': defn.default_col_span,
+            'default_row_span': defn.default_row_span or 1,
             'chart_height': defn.chart_height,
             'color_palette': defn.color_palette,
             'bar_stack': defn.bar_stack,
@@ -619,6 +620,7 @@ class DesignerAPI(http.Controller):
                 'data_mode': mode,
                 'category': body.get('category', 'chart'),
                 'default_col_span': str(body.get('col_span', 6)),
+                'default_row_span': int(body.get('row_span', 1)),
                 'chart_height': body.get('chart_height', 350),
                 'color_palette': body.get('color_palette', 'healthcare'),
                 'bar_stack': bool(body.get('bar_stack', False)),
@@ -766,6 +768,8 @@ class DesignerAPI(http.Controller):
 
         if 'col_span' in body:
             update_vals['default_col_span'] = str(body['col_span'])
+        if 'row_span' in body:
+            update_vals['default_row_span'] = int(body['row_span'])
 
         if 'builder_config' in body:
             config = body['builder_config']
@@ -1105,6 +1109,7 @@ class DesignerAPI(http.Controller):
                 'chart_type': defn.chart_type,
                 'page_id': page_id,
                 'col_span': body.get('col_span', defn.default_col_span) or '6',
+                'row_span': defn.default_row_span or 1,
                 'chart_height': defn.chart_height,
                 'color_palette': defn.color_palette,
                 'bar_stack': defn.bar_stack,

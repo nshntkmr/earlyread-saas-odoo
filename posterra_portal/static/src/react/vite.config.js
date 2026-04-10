@@ -55,14 +55,20 @@ export default defineConfig({
       // Explicit JS entry point (no index.html needed — Odoo serves the HTML)
       input: 'src/main.jsx',
       output: {
-        // IIFE format: wraps bundle in (function(){...})() so no import/export
-        // statements leak to Odoo's asset bundler. Required because AG Grid's
-        // error messages contain string-literal "import" statements that Odoo
-        // misinterprets as real ESM imports and tries to resolve as AMD modules.
-        format: 'iife',
-        // Fixed filenames so __manifest__.py never needs updating after builds
+        // ESM format: enables real code splitting via dynamic import().
+        // Heavy libraries (MapLibre ~600KB) are split into separate chunks
+        // and only downloaded on pages that use them.
+        //
+        // Previously IIFE to avoid Odoo's AMD resolver, but portal.js is
+        // loaded via <script type="module"> in the template — NOT through
+        // web.assets_frontend — so Odoo's bundler never processes it.
+        // The odooSafeImports plugin still mangles AG Grid string-literals
+        // as extra safety.
+        format: 'es',
+        // Fixed entry filename so the template <script> tag never needs updating.
+        // Chunk files get content-hashed names for cache busting.
         entryFileNames: 'portal.js',
-        chunkFileNames: '[name].js',
+        chunkFileNames: 'chunks/[name]-[hash].js',
         assetFileNames: '[name].[ext]',  // → portal.css
       },
     },

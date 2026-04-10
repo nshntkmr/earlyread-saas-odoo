@@ -373,6 +373,7 @@ class PosterraWidgetAPI(http.Controller):
                 'chart_type':   w.chart_type,
                 'col_span':     w.width_pct or {'3': 25, '4': 33, '6': 50, '8': 67, '12': 100}.get(w.col_span, 50),
                 'max_col_span': w.max_width_pct or 0,
+                'row_span':     w.row_span or 1,
                 'chart_height': w.chart_height,
                 'tab_id':       w.tab_id.id if w.tab_id else None,
                 'tab_key':      tab_key,

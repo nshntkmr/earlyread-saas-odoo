@@ -44,6 +44,7 @@ class DashboardWidgetDefinition(models.Model):
         ('battle_card',   'Battle Card'),
         ('insight_panel', 'Insight Panel'),
         ('gauge_kpi',     'Gauge + KPI'),
+        ('map',           'Map'),
     ], required=True, default='bar')
     chart_height      = fields.Integer(default=350, string='Default Height (px)')
     color_palette     = fields.Selection([
@@ -66,6 +67,10 @@ class DashboardWidgetDefinition(models.Model):
         default=0, string='Default Width (%)',
         help='Custom default width as a percentage (1–100). '
              'When set, overrides the preset Width.')
+    default_row_span = fields.Integer(
+        default=1, string='Default Row Span',
+        help='How many grid rows this widget spans by default. '
+             'Use 2+ for tall widgets like maps.')
 
     # ── Data Source ──────────────────────────────────────────────────────────
     data_mode = fields.Selection([

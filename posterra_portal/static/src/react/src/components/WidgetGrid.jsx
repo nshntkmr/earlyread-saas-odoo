@@ -15,6 +15,9 @@ import KPIStrip    from './widgets/KPIStrip'
 import GaugeRouter from './widgets/GaugeRouter'
 import KpiRouter   from './widgets/KpiRouter'
 
+// Lazy-load MapWidget to avoid 600KB+ MapLibre bundle on non-map pages
+const MapWidget = React.lazy(() => import('./widgets/MapWidget'))
+
 // ── Icons ──────────────────────────────────────────────────────────────────
 import CategoryIcon from './widgets/CategoryIcons'
 
@@ -35,6 +38,7 @@ function resolveWidget(chartType) {
     case 'battle_card':  return BattleCard
     case 'insight_panel':return InsightPanel
     case 'kpi_strip':   return KpiRouter
+    case 'map':          return MapWidget
     default:             return KPICard   // safe fallback
   }
 }
@@ -208,29 +212,25 @@ export default function WidgetGrid({ initialWidgets }) {
     )
   }
 
-  // ── Auto row-break: group widgets into rows based on cumulative width ───
-  const rows = []
-  let currentRow = [], usedWidth = 0
-  for (const w of visibleWidgets) {
-    const widthPct = w.col_span || 50
-    if (currentRow.length > 0 && usedWidth + widthPct > 100) {
-      rows.push(currentRow)
-      currentRow = [w]
-      usedWidth = widthPct
-    } else {
-      currentRow.push(w)
-      usedWidth += widthPct
-    }
+  // ── CSS Grid: convert percentage width to 12-column grid span ───
+  const pctToGridCols = (pct) => {
+    const p = pct || 50
+    // Map common percentages to exact grid columns, else round
+    if (p <= 25) return 3
+    if (p <= 33) return 4
+    if (p <= 50) return 6
+    if (p <= 67) return 8
+    if (p <= 75) return 9
+    return 12
   }
-  if (currentRow.length) rows.push(currentRow)
 
   // Widget types that scale their content to fill available height (ECharts canvas,
   // tables with more rows, gauge_kpi composite). Non-scalable widgets (traffic light,
   // bullet, percentile, KPI, battle card, insight) render at their natural height
   // and top-align within the card — they don't benefit from extra vertical space.
-  const SCALABLE_TYPES = new Set([...ECHART_TYPES, 'table', 'gauge_kpi'])
+  const SCALABLE_TYPES = new Set([...ECHART_TYPES, 'table', 'gauge_kpi', 'map'])
 
-  const renderWidget = (w, rowTotalWidth) => {
+  const renderWidget = (w) => {
     const WidgetComponent = resolveWidget(w.chart_type)
     const isLoading = !!loading[w.id]
     const error = errors[w.id]
@@ -265,23 +265,18 @@ export default function WidgetGrid({ initialWidgets }) {
       })
     }
 
-    // Scale widget width to fill underfilled rows, capped by max_col_span
-    const rawWidth = w.col_span || 50
-    let scaledWidth = rawWidth
-    if (rowTotalWidth > 0 && rowTotalWidth < 100) {
-      scaledWidth = (rawWidth / rowTotalWidth) * 100
-    }
-    if (w.max_col_span > 0 && scaledWidth > w.max_col_span) {
-      scaledWidth = w.max_col_span
-    }
+    // CSS Grid placement: column span from width, row span for tall widgets
+    const gridColSpan = pctToGridCols(w.col_span)
+    const gridRowSpan = w.row_span || 1
 
     return (
       <div
         key={w.id}
         className="pv-widget-col"
         style={{
-          width: `${scaledWidth}%`,
-          ...(!isScalable && !isCompact ? { alignSelf: 'flex-start' } : {}),
+          gridColumn: `span ${gridColSpan}`,
+          gridRow: `span ${gridRowSpan}`,
+          ...(!isScalable && !isCompact ? { alignSelf: 'start' } : {}),
         }}
       >
         <div
@@ -353,14 +348,12 @@ export default function WidgetGrid({ initialWidgets }) {
 
   return (
     <div className="pv-content">
-      {rows.map((rowWidgets, rowIdx) => {
-        const rowTotal = rowWidgets.reduce((sum, w) => sum + (w.col_span || 50), 0)
-        return (
-          <div className="row g-3" key={rowIdx}>
-            {rowWidgets.map(w => renderWidget(w, rowTotal))}
-          </div>
-        )
-      })}
+      <React.Suspense fallback={null}>
+      <div className="pv-widget-grid">
+        {visibleWidgets.map(w => renderWidget(w))}
+      </div>
+
+      </React.Suspense>
 
       {/* Drill-Down Modal */}
       {drillState && (

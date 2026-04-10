@@ -106,12 +106,12 @@
                     <!-- Filter bar, tab bar, sections, and widget grid rendered by  -->
                     <!-- React.  Sections are server-rendered in a hidden container  -->
                     <!-- below and relocated into React's tree by SectionHost.jsx.   -->
-                    <!-- portal.js is loaded as a plain <script> instead of through  -->
-                    <!-- Odoo's web.assets_frontend to bypass the AMD module resolver -->
-                    <!-- (AG Grid's bundled error messages contain module name strings-->
-                    <!-- that Odoo's resolver incorrectly tries to resolve).          -->
+                    <!-- portal.js loaded as ESM module (NOT through Odoo's              -->
+                    <!-- web.assets_frontend) to enable code splitting. Heavy libs   -->
+                    <!-- like MapLibre are split into separate chunks and only loaded -->
+                    <!-- on pages that use them. type="module" is deferred by default.-->
                     <!-- ============================================================ -->
-                    <script src="/posterra_portal/static/src/react/dist/portal.js" defer="defer"/>
+                    <script type="module" src="/posterra_portal/static/src/react/dist/portal.js"/>
                     <div id="app-root"
                          t-att-data-page-config="page_config_json"
                          t-att-data-initial-widgets="initial_widget_data_json"

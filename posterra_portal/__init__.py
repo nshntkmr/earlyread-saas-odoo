@@ -200,3 +200,7 @@ def post_init_hook(env):
 
     # Auto-create security groups for group-based apps missing their group
     _ensure_app_access_groups(env)
+
+    # Load ZIP centroid data for map widgets
+    from .data.load_zip_centroids import load_zip_centroids
+    load_zip_centroids(env)

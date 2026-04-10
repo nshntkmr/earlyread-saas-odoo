@@ -1047,6 +1047,182 @@ KPI_FLAGS = [
 
 # ── Common Flags (all chart types) ──────────────────────────────────────────
 
+# ── Map Chart Flags ──────────────────────────────────────────────────────────
+
+MAP_FLAGS = [
+    {
+        'flag': 'map_style',
+        'type': 'select',
+        'default': 'light',
+        'label': 'Map Style',
+        'help': 'Base map tile style.',
+        'options': [
+            {'value': 'light', 'label': 'Light'},
+            {'value': 'streets', 'label': 'Streets'},
+            {'value': 'dark', 'label': 'Dark'},
+            {'value': 'satellite', 'label': 'Satellite'},
+        ],
+    },
+    {
+        'flag': 'marker_mode',
+        'type': 'select',
+        'default': 'points',
+        'label': 'Marker Mode',
+        'help': 'How data is visualized on the map.',
+        'options': [
+            {'value': 'points', 'label': 'Point Markers'},
+            {'value': 'bubble', 'label': 'Bubble (size by metric)'},
+            {'value': 'choropleth', 'label': 'Choropleth (region fill)'},
+            {'value': 'heatmap', 'label': 'Heatmap (density)'},
+        ],
+    },
+    {
+        'flag': 'clustering',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Cluster Nearby Markers',
+        'help': 'Group nearby markers into clusters. Only applies to point/bubble modes.',
+        'show_when': {'marker_mode': 'points'},
+    },
+    {
+        'flag': 'default_zoom',
+        'type': 'number',
+        'default': 4,
+        'label': 'Default Zoom Level',
+        'help': '1 = world, 4 = country, 8 = state, 12 = city, 15 = street.',
+    },
+    {
+        'flag': 'default_center_lat',
+        'type': 'number',
+        'default': 39.83,
+        'label': 'Default Center Latitude',
+        'help': 'Initial map center latitude. Default: geographic center of US.',
+    },
+    {
+        'flag': 'default_center_lng',
+        'type': 'number',
+        'default': -98.58,
+        'label': 'Default Center Longitude',
+        'help': 'Initial map center longitude. Default: geographic center of US.',
+    },
+    {
+        'flag': 'popup_columns',
+        'type': 'text',
+        'default': '',
+        'label': 'Popup Info Columns',
+        'help': 'Comma-separated SQL column names to show in marker/region popup on click.',
+    },
+    {
+        'flag': 'color_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Color-By Column',
+        'help': 'SQL column whose distinct values determine marker color (e.g., brand_name, category).',
+    },
+    {
+        'flag': 'size_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Size-By Column',
+        'help': 'SQL column whose numeric value scales marker size (bubble mode).',
+        'show_when': {'marker_mode': 'bubble'},
+    },
+    {
+        'flag': 'show_radius',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Show Radius Overlay',
+        'help': 'Draw a circle radius around the selected marker.',
+    },
+    {
+        'flag': 'radius_miles',
+        'type': 'number',
+        'default': 25,
+        'label': 'Radius (miles)',
+        'show_when': {'show_radius': True},
+    },
+    {
+        'flag': 'click_filter_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Click → Filter Column',
+        'help': 'SQL column value to push as filter when a marker/region is clicked.',
+    },
+    {
+        'flag': 'click_filter_param',
+        'type': 'text',
+        'default': '',
+        'label': 'Click → Filter Param',
+        'help': 'Dashboard filter param name to set on click (e.g., hha_ccn, hha_state).',
+    },
+    # ── Choropleth-specific flags ──
+    {
+        'flag': 'choropleth_level',
+        'type': 'select',
+        'default': 'state',
+        'label': 'Choropleth Level',
+        'help': 'Geographic boundary level for region fills.',
+        'show_when': {'marker_mode': 'choropleth'},
+        'options': [
+            {'value': 'state', 'label': 'State'},
+            {'value': 'county', 'label': 'County'},
+        ],
+    },
+    {
+        'flag': 'choropleth_join_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Region Join Column',
+        'help': 'SQL column with state abbreviation (e.g., FL) or county FIPS code to join to GeoJSON.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_metric_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Metric Column',
+        'help': 'SQL column with numeric value for color graduation.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_color_scale',
+        'type': 'select',
+        'default': 'sequential',
+        'label': 'Color Scale',
+        'show_when': {'marker_mode': 'choropleth'},
+        'options': [
+            {'value': 'sequential', 'label': 'Sequential (light → dark)'},
+            {'value': 'diverging', 'label': 'Diverging (red → blue)'},
+        ],
+    },
+    {
+        'flag': 'choropleth_ranges',
+        'type': 'text',
+        'default': '',
+        'label': 'Range Breakpoints',
+        'help': 'Comma-separated values for color breaks (e.g., 1,10,100,1000,10000). Auto-calculated if empty.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    # ── Heatmap-specific flags ──
+    {
+        'flag': 'heatmap_weight_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Weight Column',
+        'help': 'Optional numeric column to weight heatmap intensity (e.g., admissions). Uniform weight if empty.',
+        'show_when': {'marker_mode': 'heatmap'},
+    },
+    {
+        'flag': 'heatmap_radius',
+        'type': 'number',
+        'default': 20,
+        'label': 'Heatmap Radius (px)',
+        'help': 'Radius of influence for each point in pixels.',
+        'show_when': {'marker_mode': 'heatmap'},
+    },
+]
+
+
 COMMON_FLAGS = [
     {
         'flag': 'display_density',
@@ -1093,6 +1269,7 @@ CHART_FLAGS = {
     'kpi': COMMON_FLAGS + KPI_FLAGS,
     'status_kpi': COMMON_FLAGS + KPI_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
+    'map': MAP_FLAGS,
 }
 
 

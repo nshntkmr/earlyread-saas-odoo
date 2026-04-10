@@ -132,6 +132,11 @@ class DashboardWidget(models.Model):
         help='Maximum width this widget can scale to (1–100%). '
              '0 = no limit. Limits auto-scaling when row is underfilled.')
     chart_height = fields.Integer(default=350, string='Height (px)')
+    row_span = fields.Integer(
+        default=1, string='Row Span',
+        help='How many grid rows this widget spans. '
+             'Use 2+ for tall widgets (e.g., maps) that should have '
+             'smaller widgets stacked beside them.')
     chart_type = fields.Selection([
         ('bar',          'Bar'),
         ('line',         'Line'),
@@ -148,6 +153,7 @@ class DashboardWidget(models.Model):
         ('insight_panel','Insight Panel'),
         ('gauge_kpi',    'Gauge + KPI Breakdown'),
         ('kpi_strip',    'KPI Strip — Compact'),
+        ('map',          'Map'),
     ], required=True, default='bar', string='Chart Type')
 
     display_mode = fields.Selection([
@@ -565,6 +571,7 @@ class DashboardWidget(models.Model):
         self.name = defn.name
         self.chart_type = defn.chart_type
         self.col_span = defn.default_col_span or '6'
+        self.row_span = defn.default_row_span or 1
         self.chart_height = defn.chart_height or 350
         self.color_palette = defn.color_palette or 'healthcare'
         self.color_custom_json = defn.color_custom_json
@@ -709,6 +716,8 @@ class DashboardWidget(models.Model):
                     result = {'echart_json': json.dumps(option, default=str)}
                 # Typography overrides for all gauge variants
                 result.update(self._get_typography_overrides())
+            elif self.chart_type == 'map':
+                result = self._build_map_data(cols, rows)
             else:
                 # Run annotation query once and pass to both chart builder and interpolation
                 ann_row = self._get_annotation_row(portal_ctx)
@@ -3310,6 +3319,201 @@ class DashboardWidget(models.Model):
         }
         result.update(self._get_typography_overrides())
         return result
+
+    # ── Map data builder ──────────────────────────────────────────────────────
+    def _build_map_data(self, cols, rows):
+        """Convert SQL result to GeoJSON FeatureCollection for MapWidget.
+
+        Expects SQL columns to include 'latitude' and 'longitude' (or 'lat'/'lng').
+        All other columns become properties on each GeoJSON feature.
+        Returns: { type, geojson, bounds, map_config }
+        """
+        col_idx = {c: i for i, c in enumerate(cols)}
+
+        # Find lat/lng column indices with fallback names
+        lat_key = next(
+            (k for k in ('latitude', 'lat', 'y') if k in col_idx), None
+        )
+        lng_key = next(
+            (k for k in ('longitude', 'lng', 'lon', 'x') if k in col_idx), None
+        )
+
+        # Parse visual config
+        vc = {}
+        if self.definition_id and self.definition_id.visual_config:
+            try:
+                vc = json.loads(self.definition_id.visual_config) or {}
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if self.visual_config:
+            try:
+                vc_inst = json.loads(self.visual_config) or {}
+                vc.update(vc_inst)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        marker_mode = vc.get('marker_mode', 'points')
+
+        # For choropleth mode, return aggregated data (no lat/lng needed)
+        if marker_mode == 'choropleth':
+            return self._build_map_choropleth(cols, rows, col_idx, vc)
+
+        # For point/bubble/heatmap modes, build GeoJSON features
+        features = []
+        min_lat = min_lng = float('inf')
+        max_lat = max_lng = float('-inf')
+
+        if lat_key is None or lng_key is None:
+            _logger.warning(
+                'Map widget %s: SQL result missing latitude/longitude columns. '
+                'Found columns: %s', self.id, cols
+            )
+            return {
+                'type': 'map',
+                'geojson': {'type': 'FeatureCollection', 'features': []},
+                'bounds': None,
+                'map_config': vc,
+                'error': 'SQL must include latitude and longitude columns.',
+            }
+
+        lat_i = col_idx[lat_key]
+        lng_i = col_idx[lng_key]
+
+        for row in rows:
+            lat = row[lat_i]
+            lng = row[lng_i]
+            if lat is None or lng is None:
+                continue
+            try:
+                lat = float(lat)
+                lng = float(lng)
+            except (ValueError, TypeError):
+                continue
+
+            # Build properties from all non-geo columns
+            props = {}
+            for c in cols:
+                if c in (lat_key, lng_key):
+                    continue
+                val = row[col_idx[c]]
+                # JSON-safe: convert Decimal, date, etc.
+                if hasattr(val, '__float__'):
+                    val = float(val)
+                elif val is not None:
+                    val = str(val)
+                props[c] = val
+
+            features.append({
+                'type': 'Feature',
+                'geometry': {
+                    'type': 'Point',
+                    'coordinates': [lng, lat],
+                },
+                'properties': props,
+            })
+
+            # Track bounds
+            if lat < min_lat:
+                min_lat = lat
+            if lat > max_lat:
+                max_lat = lat
+            if lng < min_lng:
+                min_lng = lng
+            if lng > max_lng:
+                max_lng = lng
+
+        bounds = None
+        if features:
+            bounds = [min_lng, min_lat, max_lng, max_lat]
+
+        return {
+            'type': 'map',
+            'geojson': {
+                'type': 'FeatureCollection',
+                'features': features,
+            },
+            'bounds': bounds,
+            'map_config': vc,
+        }
+
+    def _build_map_choropleth(self, cols, rows, col_idx, vc):
+        """Build choropleth data: aggregated metrics per region (no GeoJSON features).
+
+        Returns region_code → metric_value mapping for client-side join
+        with static GeoJSON boundary files.
+        """
+        join_col = vc.get('choropleth_join_column', '')
+        metric_col = vc.get('choropleth_metric_column', '')
+
+        if not join_col or join_col not in col_idx:
+            return {
+                'type': 'map',
+                'choropleth_data': {},
+                'map_config': vc,
+                'error': f'choropleth_join_column "{join_col}" not found in SQL columns: {cols}',
+            }
+        if not metric_col or metric_col not in col_idx:
+            return {
+                'type': 'map',
+                'choropleth_data': {},
+                'map_config': vc,
+                'error': f'choropleth_metric_column "{metric_col}" not found in SQL columns: {cols}',
+            }
+
+        join_i = col_idx[join_col]
+        metric_i = col_idx[metric_col]
+
+        region_data = {}
+        all_metrics = []
+        for row in rows:
+            region = row[join_i]
+            metric = row[metric_i]
+            if region is None:
+                continue
+            region = str(region).strip()
+            try:
+                metric = float(metric) if metric is not None else 0
+            except (ValueError, TypeError):
+                metric = 0
+            region_data[region] = metric
+            all_metrics.append(metric)
+
+        # Build popup data: all columns per region
+        popup_data = {}
+        for row in rows:
+            region = row[join_i]
+            if region is None:
+                continue
+            region = str(region).strip()
+            props = {}
+            for c in cols:
+                val = row[col_idx[c]]
+                if hasattr(val, '__float__'):
+                    val = float(val)
+                elif val is not None:
+                    val = str(val)
+                props[c] = val
+            popup_data[region] = props
+
+        # Auto-calculate range breakpoints if not provided
+        ranges = vc.get('choropleth_ranges', '')
+        if not ranges and all_metrics:
+            import math
+            mn = min(all_metrics)
+            mx = max(all_metrics)
+            if mx > mn:
+                step = (mx - mn) / 5
+                ranges = ','.join(
+                    str(round(mn + step * i)) for i in range(1, 5)
+                )
+
+        return {
+            'type': 'map',
+            'choropleth_data': region_data,
+            'choropleth_popup_data': popup_data,
+            'choropleth_ranges': ranges,
+            'map_config': vc,
+        }
 
     def _build_insight_data(self, cols, rows, portal_ctx):
         """Build dict for insight_panel widgets."""
