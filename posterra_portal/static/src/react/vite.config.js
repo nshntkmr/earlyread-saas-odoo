@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 /**
  * Rollup plugin: neutralize AG Grid's string-literal module references so
@@ -42,6 +43,7 @@ export default defineConfig({
       include: ['src/**/*.jsx', /grid-utils\/.*\.jsx$/],
     }),
     odooSafeImports(),
+    tailwindcss(),
   ],
   // Prevent Vite from caching @posterra/grid-utils (file: symlink).
   // Without this, Vite may use a stale pre-bundled version that's missing

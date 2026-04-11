@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Scope Tailwind to #app-root so it can't affect Odoo admin/login/builder */
+@layer base {
+  /* Disable preflight resets — Bootstrap already loaded by Odoo */
+  *, ::before, ::after {
+    /* Don't override Odoo's box-sizing */
+  }
+}

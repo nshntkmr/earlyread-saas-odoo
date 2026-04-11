@@ -1,108 +1,79 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import Map, { Source, Layer, Popup, NavigationControl } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import '../../styles/tailwind.css'
 
-// ── Basemap styles (free CARTO) ─────────────────────────────────────────────
+// ── Basemap styles ──────────────────────────────────────────────────────────
 const MAP_STYLES = {
-  light:     { url: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',    label: 'Light',     icon: '☀' },
-  streets:   { url: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',     label: 'Streets',   icon: '🗺' },
-  satellite: { url: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',     label: 'Satellite', icon: '🛰' },
+  light:     { url: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',    label: 'Light',     icon: '☀️' },
+  streets:   { url: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',     label: 'Streets',   icon: '🗺️' },
+  satellite: { url: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',     label: 'Satellite', icon: '🛰️' },
   dark:      { url: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json', label: 'Dark',      icon: '🌙' },
 }
 
-const BRAND_COLORS = [
-  '#3b82f6','#ef4444','#22c55e','#f97316','#a855f7',
-  '#06b6d4','#eab308','#ec4899','#6366f1','#84cc16',
-]
+const BRAND_COLORS = ['#3b82f6','#ef4444','#22c55e','#f97316','#a855f7','#06b6d4','#eab308','#ec4899','#6366f1','#84cc16']
 const OTHERS_COLOR = '#94a3b8'
-
 const CHOROPLETH_SEQ = ['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#4292c6','#2171b5','#08519c','#08306b']
 const CHOROPLETH_DIV = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d1e5f0','#92c5de','#4393c3','#2166ac']
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-const fmt = v => {
-  if (v == null) return '—'
-  const n = Number(v); if (isNaN(n)) return String(v)
-  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1)+'M'
-  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(1)+'K'
-  return n.toLocaleString()
-}
-
-const haversine = (lat1,lng1,lat2,lng2) => {
-  const R=3958.8, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
-}
-
-const makeCircle = (c, miles) => {
-  const s=64, km=miles*1.60934, r=[]
-  const dx=km/(111.32*Math.cos(c[1]*Math.PI/180)), dy=km/110.574
-  for(let i=0;i<=s;i++){const t=i/s*2*Math.PI;r.push([c[0]+dx*Math.cos(t),c[1]+dy*Math.sin(t)])}
-  return {type:'Feature',geometry:{type:'Polygon',coordinates:[r]}}
-}
-
-const fitFeatures = (map, ff, opts={}) => {
-  if(!ff.length||!map) return
-  let mnX=Infinity,mnY=Infinity,mxX=-Infinity,mxY=-Infinity
-  ff.forEach(f=>{const[x,y]=f.geometry.coordinates;if(x<mnX)mnX=x;if(x>mxX)mxX=x;if(y<mnY)mnY=y;if(y>mxY)mxY=y})
-  map.fitBounds([[mnX,mnY],[mxX,mxY]],{padding:60,maxZoom:12,duration:600,...opts})
-}
-
-const csvToArr = s => (s||'').split(',').map(x=>x.trim()).filter(Boolean)
+const fmt = v => { if(v==null) return '—'; const n=Number(v); if(isNaN(n)) return String(v); if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M'; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K'; return n.toLocaleString() }
+const haversine = (lat1,lng1,lat2,lng2) => { const R=3958.8,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)) }
+const makeCircle = (c,miles) => { const s=64,km=miles*1.60934,r=[]; const dx=km/(111.32*Math.cos(c[1]*Math.PI/180)),dy=km/110.574; for(let i=0;i<=s;i++){const t=i/s*2*Math.PI;r.push([c[0]+dx*Math.cos(t),c[1]+dy*Math.sin(t)])} return{type:'Feature',geometry:{type:'Polygon',coordinates:[r]}} }
+const fitFF = (map,ff,opts={}) => { if(!ff.length||!map)return; let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity; ff.forEach(f=>{const[x,y]=f.geometry.coordinates;if(x<a)a=x;if(x>c)c=x;if(y<b)b=y;if(y>d)d=y}); map.fitBounds([[a,b],[c,d]],{padding:60,maxZoom:12,duration:600,...opts}) }
+const csv = s => (s||'').split(',').map(x=>x.trim()).filter(Boolean)
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
+// MAIN MAP WIDGET
 // ═════════════════════════════════════════════════════════════════════════════
 export default function MapWidget({ data, height, name }) {
   const mapRef = useRef(null)
   const cfg = data?.map_config || {}
 
-  // Config
   const [mapStyle, setMapStyle] = useState(cfg.map_style || 'streets')
   const clustering = cfg.clustering !== false
   const markerMode = cfg.marker_mode || 'points'
   const colorCol = cfg.color_column || ''
   const sizeCol = cfg.size_column || ''
-  const popupCols = useMemo(() => csvToArr(cfg.popup_columns), [cfg.popup_columns])
-  const searchCols = useMemo(() => csvToArr(cfg.search_columns), [cfg.search_columns])
-  const summaryCols = useMemo(() => csvToArr(cfg.brand_summary_columns), [cfg.brand_summary_columns])
+  const popupCols = useMemo(() => csv(cfg.popup_columns), [cfg.popup_columns])
+  const searchCols = useMemo(() => csv(cfg.search_columns), [cfg.search_columns])
+  const summaryCols = useMemo(() => csv(cfg.brand_summary_columns), [cfg.brand_summary_columns])
   const catCol = cfg.brand_category_column || ''
+  const panelLabel = cfg.panel_label || 'Brand Layers'
   const radiusMin = cfg.radius_min || 5
   const radiusMax = cfg.radius_max || 200
   const radiusDef = cfg.radius_default || 25
 
-  // State: panels
+  // Panel visibility
   const [showBrandPanel, setShowBrandPanel] = useState(true)
   const [showRadiusPanel, setShowRadiusPanel] = useState(false)
 
-  // State: brands
-  const [brandEntries, setBrandEntries] = useState([]) // [{name, color, visible}]
+  // Brand state
+  const [brandEntries, setBrandEntries] = useState([])
   const [brandSearch, setBrandSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('')
   const [hiddenBrands, setHiddenBrands] = useState(new Set())
 
-  // State: radius
+  // Radius state
   const [radiusDist, setRadiusDist] = useState(radiusDef)
-  const [radiusCenter, setRadiusCenter] = useState(null) // [lng, lat]
+  const [radiusCenter, setRadiusCenter] = useState(null)
   const [placementMode, setPlacementMode] = useState(false)
 
-  // State: popup
+  // Popup
   const [popupInfo, setPopupInfo] = useState(null)
 
-  // ── Data ────────────────────────────────────────────────────────────────
+  // Data
   const geojson = data?.geojson || { type: 'FeatureCollection', features: [] }
   const allFeatures = geojson.features || []
 
-  // All searchable columns (fallback to all string props if search_columns not set)
   const effectiveSearchCols = useMemo(() => {
     if (searchCols.length > 0) return searchCols
     if (!allFeatures.length) return []
-    const sample = allFeatures[0].properties
-    return Object.keys(sample).filter(k => typeof sample[k] === 'string' || !isNaN(Number(sample[k])))
+    return Object.keys(allFeatures[0].properties).filter(k => typeof allFeatures[0].properties[k] === 'string')
   }, [searchCols, allFeatures])
 
-  // All unique brands from color_column
+  // All brands from color_column
   const allBrands = useMemo(() => {
     if (!colorCol) return []
     const m = {}
@@ -116,116 +87,69 @@ export default function MapWidget({ data, height, name }) {
     return Object.values(m).sort((a,b) => b.count - a.count)
   }, [allFeatures, colorCol, catCol, summaryCols])
 
-  // All unique states for filter dropdown
   const allStates = useMemo(() => {
-    const s = new Set()
-    allFeatures.forEach(f => {
-      const v = f.properties.hha_state || f.properties.state; if (v) s.add(v)
-    })
-    return [...s].sort()
+    const s = new Set(); allFeatures.forEach(f => { const v = f.properties.hha_state || f.properties.state; if(v) s.add(v) }); return [...s].sort()
   }, [allFeatures])
 
-  // ── Filtered features ──────────────────────────────────────────────────
+  // Filtered features
   const visibleFeatures = useMemo(() => {
     let ff = allFeatures
-
-    // State filter
-    if (stateFilter) {
-      ff = ff.filter(f => (f.properties.hha_state || f.properties.state) === stateFilter)
-    }
-
-    // Brand visibility
-    if (hiddenBrands.size > 0 && colorCol) {
-      ff = ff.filter(f => !hiddenBrands.has(f.properties[colorCol]))
-    }
-
-    // Only show brands in brandEntries (if any are added)
+    if (stateFilter) ff = ff.filter(f => (f.properties.hha_state || f.properties.state) === stateFilter)
+    if (hiddenBrands.size > 0 && colorCol) ff = ff.filter(f => !hiddenBrands.has(f.properties[colorCol]))
     if (brandEntries.length > 0 && colorCol) {
-      const activeNames = new Set(brandEntries.map(e => e.name))
-      ff = ff.filter(f => activeNames.has(f.properties[colorCol]))
+      const names = new Set(brandEntries.map(e => e.name))
+      ff = ff.filter(f => names.has(f.properties[colorCol]))
     }
-
     return ff
   }, [allFeatures, stateFilter, hiddenBrands, brandEntries, colorCol])
 
-  const filteredGeoJSON = useMemo(() => ({
-    type: 'FeatureCollection', features: visibleFeatures,
-  }), [visibleFeatures])
+  const filteredGeoJSON = useMemo(() => ({ type: 'FeatureCollection', features: visibleFeatures }), [visibleFeatures])
 
-  // Features within radius
+  // Radius features
   const featuresInRadius = useMemo(() => {
     if (!radiusCenter || radiusDist <= 0) return []
-    return visibleFeatures.filter(f => {
-      const [lng,lat] = f.geometry.coordinates
-      return haversine(radiusCenter[1], radiusCenter[0], lat, lng) <= radiusDist
-    })
+    return visibleFeatures.filter(f => { const [lng,lat]=f.geometry.coordinates; return haversine(radiusCenter[1],radiusCenter[0],lat,lng)<=radiusDist })
   }, [visibleFeatures, radiusCenter, radiusDist])
 
-  // Brands in radius
   const brandsInRadius = useMemo(() => {
     if (!colorCol || !featuresInRadius.length) return []
-    const m = {}
-    featuresInRadius.forEach(f => {
-      const b = f.properties[colorCol]; if (!b) return
-      m[b] = (m[b]||0) + 1
-    })
+    const m = {}; featuresInRadius.forEach(f => { const b=f.properties[colorCol]; if(b) m[b]=(m[b]||0)+1 })
     return Object.entries(m).sort((a,b) => b[1]-a[1])
   }, [featuresInRadius, colorCol])
 
-  // ── Brand panel search results ─────────────────────────────────────────
+  // Search results
   const brandSearchResults = useMemo(() => {
     if (!brandSearch || brandSearch.length < 1) return []
     const lower = brandSearch.toLowerCase()
     const inPanel = new Set(brandEntries.map(e => e.name))
-    return allBrands
-      .filter(b => !inPanel.has(b.name) && b.name.toLowerCase().includes(lower))
-      .slice(0, 8)
+    return allBrands.filter(b => !inPanel.has(b.name) && b.name.toLowerCase().includes(lower)).slice(0, 8)
   }, [brandSearch, allBrands, brandEntries])
 
-  // ── Fit bounds on load ─────────────────────────────────────────────────
+  // Fit bounds
   useEffect(() => {
     if (!mapRef.current || !data?.bounds) return
     const [w,s,e,n] = data.bounds
     mapRef.current.fitBounds([[w,s],[e,n]], { padding:60, maxZoom:12, duration:800 })
   }, [data?.bounds])
 
-  // ── Map click ──────────────────────────────────────────────────────────
+  // Map click
   const onClick = useCallback((e) => {
-    // Placement mode: set radius center
-    if (placementMode) {
-      setRadiusCenter([e.lngLat.lng, e.lngLat.lat])
-      setPlacementMode(false)
-      return
-    }
-
+    if (placementMode) { setRadiusCenter([e.lngLat.lng, e.lngLat.lat]); setPlacementMode(false); return }
     const f = e.features?.[0]
     if (f?.properties?.cluster) {
       const src = mapRef.current?.getSource('map-points')
-      src?.getClusterExpansionZoom?.(f.properties.cluster_id, (err, zoom) => {
-        if (!err) mapRef.current.easeTo({ center: f.geometry.coordinates, zoom: Math.min(zoom, 15) })
-      })
+      src?.getClusterExpansionZoom?.(f.properties.cluster_id, (err, zoom) => { if(!err) mapRef.current.easeTo({center:f.geometry.coordinates,zoom:Math.min(zoom,15)}) })
       return
     }
-    if (f && !f.properties.cluster) {
-      setPopupInfo({ coords: f.geometry.coordinates.slice(), properties: f.properties })
-      return
-    }
+    if (f && !f.properties.cluster) { setPopupInfo({ coords: f.geometry.coordinates.slice(), properties: f.properties }); return }
     setPopupInfo(null)
   }, [placementMode])
 
-  // ── Radius GeoJSON ─────────────────────────────────────────────────────
-  const radiusGeoJSON = useMemo(() => {
-    if (!radiusCenter) return null
-    return makeCircle(radiusCenter, radiusDist)
-  }, [radiusCenter, radiusDist])
+  const radiusGeoJSON = useMemo(() => radiusCenter ? makeCircle(radiusCenter, radiusDist) : null, [radiusCenter, radiusDist])
 
-  // ── Circle paint expressions ───────────────────────────────────────────
   const circleColor = useMemo(() => {
     if (!colorCol || brandEntries.length === 0) return '#3b82f6'
-    const expr = ['match', ['get', colorCol]]
-    brandEntries.forEach(e => { expr.push(e.name, e.color) })
-    expr.push(OTHERS_COLOR)
-    return expr
+    const expr = ['match', ['get', colorCol]]; brandEntries.forEach(e => expr.push(e.name, e.color)); expr.push(OTHERS_COLOR); return expr
   }, [colorCol, brandEntries])
 
   const circleRadius = useMemo(() => {
@@ -233,37 +157,26 @@ export default function MapWidget({ data, height, name }) {
     return ['interpolate',['linear'],['get',sizeCol],0,4,100,8,1000,14,10000,22,100000,32]
   }, [markerMode, sizeCol])
 
-  // ── Brand panel actions ────────────────────────────────────────────────
+  // Brand actions
   const addBrand = (name) => {
     if (brandEntries.some(e => e.name === name)) return
-    const color = BRAND_COLORS[brandEntries.length % BRAND_COLORS.length]
-    setBrandEntries(prev => [...prev, { name, color, visible: true }])
+    setBrandEntries(prev => [...prev, { name, color: BRAND_COLORS[prev.length % BRAND_COLORS.length], visible: true }])
     setBrandSearch('')
-    // Fit to brand locations
     const ff = allFeatures.filter(f => f.properties[colorCol] === name)
-    if (ff.length && mapRef.current) fitFeatures(mapRef.current, ff)
+    if (ff.length && mapRef.current) fitFF(mapRef.current, ff)
   }
+  const removeBrand = (name) => { setBrandEntries(prev => prev.filter(e => e.name !== name)); setHiddenBrands(prev => { const n = new Set(prev); n.delete(name); return n }) }
+  const toggleBrand = (name) => { setHiddenBrands(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n }) }
 
-  const removeBrand = (name) => {
-    setBrandEntries(prev => prev.filter(e => e.name !== name))
-    setHiddenBrands(prev => { const n = new Set(prev); n.delete(name); return n })
-  }
-
-  const toggleBrandVis = (name) => {
-    setHiddenBrands(prev => {
-      const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n
-    })
-  }
-
-  // ── Choropleth shortcut ────────────────────────────────────────────────
+  // Choropleth shortcut
   if (markerMode === 'choropleth' && data?.choropleth_data) {
     return (
-      <div className="pv-map-widget" style={{ height: height || 500 }}>
-        <div className="pv-map-canvas">
+      <div className="flex flex-col w-full rounded-xl overflow-hidden bg-white" style={{ height: height || 500 }}>
+        <div className="flex-1 relative">
           <Map ref={mapRef} mapStyle={MAP_STYLES[mapStyle]?.url || MAP_STYLES.streets.url}
-            initialViewState={{ longitude: cfg.default_center_lng||-98.58, latitude: cfg.default_center_lat||39.83, zoom: cfg.default_zoom||3.5 }}
-            style={{ width:'100%', height:'100%' }} interactiveLayerIds={['choropleth-fill']}
-            onClick={e => { const f=e.features?.[0]; if(f) setPopupInfo({ coords:[e.lngLat.lng,e.lngLat.lat], properties: data.choropleth_popup_data?.[f.properties.STUSPS||f.properties.NAME]||f.properties }) }}>
+            initialViewState={{longitude:cfg.default_center_lng||-98.58,latitude:cfg.default_center_lat||39.83,zoom:cfg.default_zoom||3.5}}
+            style={{width:'100%',height:'100%'}} interactiveLayerIds={['choropleth-fill']}
+            onClick={e=>{const f=e.features?.[0];if(f)setPopupInfo({coords:[e.lngLat.lng,e.lngLat.lat],properties:data.choropleth_popup_data?.[f.properties.STUSPS||f.properties.NAME]||f.properties})}}>
             <NavigationControl position="top-right" />
             <ChoroplethLayers data={data} cfg={cfg} />
             {popupInfo && <Popup longitude={popupInfo.coords[0]} latitude={popupInfo.coords[1]} onClose={()=>setPopupInfo(null)} closeOnClick={false} className="pv-map-popup" maxWidth="320px">
@@ -273,67 +186,188 @@ export default function MapWidget({ data, height, name }) {
           <StyleSwitcher active={mapStyle} onChange={setMapStyle} />
           <ChoroplethLegend data={data} cfg={cfg} />
         </div>
-        <StatusBar total={Object.keys(data.choropleth_data).length} label="regions" />
       </div>
     )
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // POINT / BUBBLE / HEATMAP MODE
+  // POINT / BUBBLE / HEATMAP
   // ══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="pv-map-widget" style={{ height: height || 500 }}>
-      <div className="pv-map-canvas" style={{ cursor: placementMode ? 'crosshair' : undefined }}>
+    <div className="flex flex-col w-full rounded-xl overflow-hidden bg-white" style={{ height: height || 500 }}>
+      <div className="flex-1 relative" style={{ cursor: placementMode ? 'crosshair' : undefined }}>
 
-        {/* Brand Layers Panel (left) */}
+        {/* ── Brand Layers Panel (left) ────────────────────────── */}
         {showBrandPanel && colorCol && (
-          <BrandLayersPanel
-            allBrands={allBrands}
-            entries={brandEntries}
-            hidden={hiddenBrands}
-            search={brandSearch}
-            setSearch={setBrandSearch}
-            results={brandSearchResults}
-            onAdd={addBrand}
-            onRemove={removeBrand}
-            onToggle={toggleBrandVis}
-            states={allStates}
-            stateFilter={stateFilter}
-            setStateFilter={setStateFilter}
-            summaryCols={summaryCols}
-            catCol={catCol}
-            visibleCount={visibleFeatures.length}
-            onClose={() => setShowBrandPanel(false)}
-          />
+          <div className="absolute top-3 left-3 z-10 w-80 bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col" style={{ maxHeight: 'calc(100% - 70px)' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🏷️</span>
+                <span className="font-bold text-gray-900 text-sm">{panelLabel}</span>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => { setBrandSearch(''); }} className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-base font-semibold">+</button>
+                <button onClick={() => setShowBrandPanel(false)} className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-base">✕</button>
+              </div>
+            </div>
+
+            {/* State filter */}
+            {allStates.length > 0 && (
+              <div className="px-4 py-2">
+                <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:border-blue-500">
+                  <option value="">All States</option>
+                  {allStates.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Search */}
+            <div className="px-4 py-2 relative">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                <input
+                  type="text" placeholder="Search brands..."
+                  value={brandSearch} onChange={e => setBrandSearch(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
+                  autoFocus={brandEntries.length === 0}
+                />
+                {brandSearch && <button onClick={() => setBrandSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">✕</button>}
+              </div>
+              {/* Search dropdown */}
+              {brandSearchResults.length > 0 && (
+                <div className="absolute left-4 right-4 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                  {brandSearchResults.map(b => (
+                    <div key={b.name} onClick={() => addBrand(b.name)}
+                      className="px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                      <div className="font-semibold text-gray-900 text-sm">{b.name}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {b.count} locations{summaryCols.slice(0,2).map(c => <span key={c}> · {fmt(b.metrics[c])}</span>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Summary */}
+            <div className="px-4 py-1.5 text-xs text-gray-500 border-b border-gray-50">
+              Showing {visibleFeatures.length.toLocaleString()} locations{brandEntries.length > 0 ? ` from ${brandEntries.length} brands` : ''}
+            </div>
+
+            {/* Brand cards */}
+            <div className="flex-1 overflow-y-auto">
+              {brandEntries.map(e => {
+                const brand = allBrands.find(b => b.name === e.name)
+                const isHidden = hiddenBrands.has(e.name)
+                return (
+                  <div key={e.name} className={`px-4 py-3 border-b border-gray-50 ${isHidden ? 'opacity-40' : ''}`}>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked={!isHidden} onChange={() => toggleBrand(e.name)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
+                      <span className="font-semibold text-gray-900 text-sm flex-1 truncate">{e.name}</span>
+                      <button onClick={() => toggleBrand(e.name)} className="text-gray-400 hover:text-gray-600 text-sm">{isHidden ? '👁️‍🗨️' : '👁️'}</button>
+                    </div>
+                    {brand?.category && <div className="ml-9 text-xs text-gray-500 mt-0.5">{brand.category}</div>}
+                    {brand && summaryCols.length > 0 && (
+                      <div className="flex gap-6 ml-9 mt-2">
+                        {summaryCols.map(c => (
+                          <div key={c}>
+                            <div className="text-xs text-gray-400 capitalize">{c.replace(/^hha_/,'').replace(/_/g,' ')}</div>
+                            <div className="text-sm font-bold text-gray-900">{fmt(brand.metrics[c])}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
 
-        {/* Search Radius Panel (right) */}
+        {/* ── Search Radius Panel (right) ──────────────────────── */}
         {showRadiusPanel && (
-          <SearchRadiusPanel
-            distance={radiusDist}
-            setDistance={setRadiusDist}
-            center={radiusCenter}
-            setCenter={setRadiusCenter}
-            min={radiusMin}
-            max={radiusMax}
-            placementMode={placementMode}
-            setPlacementMode={setPlacementMode}
-            locationsInRadius={featuresInRadius.length}
-            brandsInRadius={brandsInRadius}
-            onClose={() => setShowRadiusPanel(false)}
-            onClear={() => { setRadiusCenter(null); setPlacementMode(false) }}
-          />
+          <div className="absolute top-3 right-3 z-10 w-72 bg-white rounded-xl shadow-lg border border-gray-100">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">◎</span>
+                <span className="font-bold text-gray-900 text-sm">Search Radius</span>
+              </div>
+              <button onClick={() => setShowRadiusPanel(false)} className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-base">✕</button>
+            </div>
+
+            {/* Set center button */}
+            <div className="flex gap-2 px-4 py-3">
+              <button
+                onClick={() => setPlacementMode(!placementMode)}
+                className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                  placementMode
+                    ? 'bg-blue-500 text-white border-blue-500 animate-pulse'
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                }`}>
+                ◎ {placementMode ? 'Click on map...' : 'Set Radius Center'}
+              </button>
+              {radiusCenter && (
+                <button onClick={() => { setRadiusCenter(null); setPlacementMode(false) }}
+                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500">🗑️</button>
+              )}
+            </div>
+
+            {/* Slider */}
+            <div className="px-4 pb-3">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs text-gray-500">Radius Distance</span>
+                <span className="text-sm font-bold text-blue-600">{radiusDist} miles</span>
+              </div>
+              <input type="range" min={radiusMin} max={radiusMax} value={radiusDist}
+                onChange={e => setRadiusDist(Number(e.target.value))}
+                className="w-full h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-500"
+                style={{ accentColor: '#3b82f6' }} />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>{radiusMin} mi</span><span>{Math.round((radiusMin+radiusMax)/2)} mi</span><span>{radiusMax} mi</span>
+              </div>
+            </div>
+
+            {/* Info */}
+            {radiusCenter && (
+              <div className="px-4 pb-4 space-y-0">
+                <div className="flex justify-between py-2 border-t border-gray-100 text-xs text-gray-600">
+                  <span>Center Point</span><span className="font-medium">{radiusCenter[1].toFixed(4)}, {radiusCenter[0].toFixed(4)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-t border-gray-100 text-xs text-gray-600">
+                  <span>Locations in Radius</span><span className="font-bold text-gray-900 text-base">{featuresInRadius.length}</span>
+                </div>
+                <div className="flex justify-between py-2 border-t border-gray-100 text-xs text-gray-600">
+                  <span>Approximate Area</span><span className="font-medium">{Math.round(Math.PI * radiusDist * radiusDist).toLocaleString()} sq mi</span>
+                </div>
+                {brandsInRadius.length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="text-xs font-semibold text-gray-600 mb-2">Brands in Radius</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {brandsInRadius.map(([name, count]) => (
+                        <span key={name} className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                          {name} ({count})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Map */}
+        {/* ── Map ──────────────────────────────────────────────── */}
         <Map ref={mapRef} mapStyle={MAP_STYLES[mapStyle]?.url || MAP_STYLES.streets.url}
-          initialViewState={{ longitude: cfg.default_center_lng||-98.58, latitude: cfg.default_center_lat||39.83, zoom: cfg.default_zoom||3.5 }}
-          style={{ width:'100%', height:'100%' }}
+          initialViewState={{longitude:cfg.default_center_lng||-98.58,latitude:cfg.default_center_lat||39.83,zoom:cfg.default_zoom||3.5}}
+          style={{width:'100%',height:'100%'}}
           interactiveLayerIds={markerMode==='heatmap'?[]:['point-markers','cluster-circles']}
           onClick={onClick}>
-
           <NavigationControl position="top-right" />
-
           <Source id="map-points" type="geojson" data={filteredGeoJSON}
             cluster={clustering && markerMode!=='heatmap'} clusterMaxZoom={14} clusterRadius={50}>
             {markerMode==='heatmap' ? (
@@ -359,14 +393,12 @@ export default function MapWidget({ data, height, name }) {
               }} />
             </>)}
           </Source>
-
           {radiusGeoJSON && (
             <Source id="radius-overlay" type="geojson" data={radiusGeoJSON}>
               <Layer id="radius-fill" type="fill" paint={{'fill-color':'#3b82f6','fill-opacity':0.08}} />
               <Layer id="radius-border" type="line" paint={{'line-color':'#3b82f6','line-width':2,'line-dasharray':[3,2]}} />
             </Source>
           )}
-
           {popupInfo && <Popup longitude={popupInfo.coords[0]} latitude={popupInfo.coords[1]}
             onClose={()=>setPopupInfo(null)} closeOnClick={false} className="pv-map-popup" maxWidth="320px">
             <MapPopup properties={popupInfo.properties} columns={popupCols}
@@ -374,207 +406,64 @@ export default function MapWidget({ data, height, name }) {
           </Popup>}
         </Map>
 
-        {/* Style switcher (vertical, bottom-left) */}
+        {/* ── Style Switcher (bottom-left, vertical) ──────────── */}
         <StyleSwitcher active={mapStyle} onChange={setMapStyle} />
 
-        {/* Panel toggle buttons (bottom center) */}
-        <div className="pv-map-panel-toggles">
+        {/* ── Legend (bottom-right) ────────────────────────────── */}
+        {brandEntries.length > 0 && (
+          <div className="absolute bottom-3 right-14 z-5 bg-white/95 rounded-lg shadow-md px-3 py-2.5 text-xs backdrop-blur-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="font-semibold text-gray-900">Legend</span>
+            </div>
+            {brandEntries.map(e => (
+              <div key={e.name} className="flex items-center gap-2 py-0.5">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: hiddenBrands.has(e.name) ? '#d1d5db' : e.color }} />
+                <span className="text-gray-600">{e.name}</span>
+              </div>
+            ))}
+            {radiusCenter && (
+              <div className="flex items-center gap-2 py-0.5">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-dashed border-blue-500 flex-shrink-0" />
+                <span className="text-gray-600">Search Radius</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Panel toggle buttons (bottom center) ────────────── */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-5 flex gap-2">
           {colorCol && !showBrandPanel && (
-            <button className="pv-map-toggle-btn" onClick={() => setShowBrandPanel(true)}>🏷 Layers</button>
+            <button onClick={() => setShowBrandPanel(true)}
+              className="px-4 py-1.5 rounded-full bg-white/95 border border-gray-200 text-xs font-medium text-gray-600 shadow-sm hover:border-blue-400 hover:text-blue-600 backdrop-blur-sm transition-colors">
+              🏷️ Layers
+            </button>
           )}
           {!showRadiusPanel && (
-            <button className="pv-map-toggle-btn" onClick={() => setShowRadiusPanel(true)}>◎ Radius</button>
+            <button onClick={() => setShowRadiusPanel(true)}
+              className="px-4 py-1.5 rounded-full bg-white/95 border border-gray-200 text-xs font-medium text-gray-600 shadow-sm hover:border-blue-400 hover:text-blue-600 backdrop-blur-sm transition-colors">
+              ◎ Radius
+            </button>
           )}
         </div>
       </div>
 
-      <StatusBar total={visibleFeatures.length} allTotal={allFeatures.length} label="agencies"
-        stateFilter={stateFilter} radiusCenter={radiusCenter} radiusDist={radiusDist}
-        radiusCount={featuresInRadius.length} brandCount={brandEntries.length} />
-    </div>
-  )
-}
-
-
-// ═════════════════════════════════════════════════════════════════════════════
-// BRAND LAYERS PANEL (left floating)
-// ═════════════════════════════════════════════════════════════════════════════
-function BrandLayersPanel({
-  allBrands, entries, hidden, search, setSearch, results,
-  onAdd, onRemove, onToggle, states, stateFilter, setStateFilter,
-  summaryCols, catCol, visibleCount, onClose,
-}) {
-  const [showSearch, setShowSearch] = useState(false)
-  const brandCount = entries.length
-  const locCount = visibleCount
-
-  return (
-    <div className="pv-map-float-panel pv-map-brand-panel">
-      {/* Header */}
-      <div className="pv-map-panel-header">
-        <span className="pv-map-panel-title">🏷 Brand Layers</span>
-        <div className="pv-map-panel-actions">
-          <button className="pv-map-panel-btn" onClick={() => setShowSearch(!showSearch)} title="Add brand">+</button>
-          <button className="pv-map-panel-btn" onClick={onClose} title="Close">✕</button>
-        </div>
-      </div>
-
-      {/* State filter */}
-      {states.length > 0 && (
-        <div className="pv-map-panel-filter">
-          <select value={stateFilter} onChange={e => setStateFilter(e.target.value)} className="pv-map-panel-select">
-            <option value="">All States</option>
-            {states.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      )}
-
-      {/* Search / Add */}
-      {(showSearch || entries.length === 0) && (
-        <div className="pv-map-panel-search">
-          <input
-            type="text"
-            placeholder="Search brands..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pv-map-panel-input"
-            autoFocus
-          />
-          {search && <button className="pv-map-panel-input-clear" onClick={() => setSearch('')}>✕</button>}
-          {results.length > 0 && (
-            <div className="pv-map-panel-dropdown">
-              {results.map(b => (
-                <div key={b.name} className="pv-map-panel-dropdown-item" onClick={() => onAdd(b.name)}>
-                  <div className="pv-map-panel-dropdown-name">{b.name}</div>
-                  <div className="pv-map-panel-dropdown-meta">
-                    {b.count} locations
-                    {summaryCols.slice(0,2).map(c => <span key={c}> · {fmt(b.metrics[c])}</span>)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Summary */}
-      <div className="pv-map-panel-summary">
-        Showing {locCount.toLocaleString()} locations{brandCount > 0 ? ` from ${brandCount} brands` : ''}
-      </div>
-
-      {/* Brand cards */}
-      <div className="pv-map-panel-list">
-        {entries.map(e => {
-          const brand = allBrands.find(b => b.name === e.name)
-          const isHidden = hidden.has(e.name)
-          return (
-            <div key={e.name} className={`pv-map-brand-card ${isHidden ? 'pv-map-brand-card--hidden' : ''}`}>
-              <div className="pv-map-brand-card-top">
-                <input type="checkbox" checked={!isHidden} onChange={() => onToggle(e.name)} className="pv-map-brand-check" />
-                <span className="pv-map-brand-dot" style={{ backgroundColor: e.color }} />
-                <span className="pv-map-brand-name">{e.name}</span>
-                <button className="pv-map-brand-eye" onClick={() => onToggle(e.name)} title={isHidden ? 'Show' : 'Hide'}>
-                  {isHidden ? '👁‍🗨' : '👁'}
-                </button>
-              </div>
-              {brand?.category && <div className="pv-map-brand-category">{brand.category}</div>}
-              {brand && summaryCols.length > 0 && (
-                <div className="pv-map-brand-metrics">
-                  {summaryCols.map(c => (
-                    <div key={c} className="pv-map-brand-metric">
-                      <span className="pv-map-brand-metric-label">{c.replace(/^hha_/,'').replace(/_/g,' ')}</span>
-                      <span className="pv-map-brand-metric-value">{fmt(brand.metrics[c])}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-
-// ═════════════════════════════════════════════════════════════════════════════
-// SEARCH RADIUS PANEL (right floating)
-// ═════════════════════════════════════════════════════════════════════════════
-function SearchRadiusPanel({
-  distance, setDistance, center, setCenter, min, max,
-  placementMode, setPlacementMode, locationsInRadius, brandsInRadius,
-  onClose, onClear,
-}) {
-  const area = center ? Math.round(Math.PI * distance * distance) : 0
-
-  return (
-    <div className="pv-map-float-panel pv-map-radius-panel">
-      {/* Header */}
-      <div className="pv-map-panel-header">
-        <span className="pv-map-panel-title">◎ Search Radius</span>
-        <button className="pv-map-panel-btn" onClick={onClose} title="Close">✕</button>
-      </div>
-
-      {/* Place / Clear buttons */}
-      <div className="pv-map-radius-actions">
-        <button
-          className={`pv-map-radius-place ${placementMode ? 'pv-map-radius-place--active' : ''}`}
-          onClick={() => setPlacementMode(!placementMode)}
-        >
-          ◎ {placementMode ? 'Click on map...' : 'Click map to place'}
-        </button>
-        {center && (
-          <button className="pv-map-radius-clear" onClick={onClear} title="Clear radius">🗑</button>
-        )}
-      </div>
-
-      {/* Slider */}
-      <div className="pv-map-radius-slider-section">
-        <div className="pv-map-radius-slider-header">
-          <span>Radius Distance</span>
-          <span className="pv-map-radius-slider-value">{distance} miles</span>
-        </div>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={distance}
-          onChange={e => setDistance(Number(e.target.value))}
-          className="pv-map-radius-slider"
-        />
-        <div className="pv-map-radius-slider-labels">
-          <span>{min} mi</span>
-          <span>{Math.round((min+max)/2)} mi</span>
-          <span>{max} mi</span>
-        </div>
-      </div>
-
-      {/* Info */}
-      {center && (
-        <div className="pv-map-radius-info">
-          <div className="pv-map-radius-info-row">
-            <span>Center Point</span>
-            <span>{center[1].toFixed(4)}, {center[0].toFixed(4)}</span>
-          </div>
-          <div className="pv-map-radius-info-row">
-            <span>Locations in Radius</span>
-            <span className="pv-map-radius-info-bold">{locationsInRadius}</span>
-          </div>
-          <div className="pv-map-radius-info-row">
-            <span>Approximate Area</span>
-            <span>{area.toLocaleString()} sq mi</span>
-          </div>
-
-          {brandsInRadius.length > 0 && (
-            <div className="pv-map-radius-brands">
-              <div className="pv-map-radius-brands-label">Brands in Radius</div>
-              <div className="pv-map-radius-brands-chips">
-                {brandsInRadius.map(([name, count]) => (
-                  <span key={name} className="pv-map-radius-chip">{name} ({count})</span>
+      {/* ── Bottom Summary Bar ──────────────────────────────────── */}
+      {brandEntries.length > 0 && (
+        <div className="flex items-center gap-6 px-4 py-2 bg-gray-900 text-white overflow-x-auto">
+          {brandEntries.map(e => {
+            const brand = allBrands.find(b => b.name === e.name)
+            if (!brand) return null
+            return (
+              <div key={e.name} className="flex items-center gap-3 flex-shrink-0 text-xs">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
+                <span className="font-semibold whitespace-nowrap">{e.name}</span>
+                <span className="text-gray-400">{brand.count} locations</span>
+                {summaryCols.map(c => (
+                  <span key={c} className="text-gray-300">{fmt(brand.metrics[c])}</span>
                 ))}
               </div>
-            </div>
-          )}
+            )
+          })}
         </div>
       )}
     </div>
@@ -587,13 +476,14 @@ function SearchRadiusPanel({
 // ═════════════════════════════════════════════════════════════════════════════
 function StyleSwitcher({ active, onChange }) {
   return (
-    <div className="pv-map-style-vert">
+    <div className="absolute bottom-3 left-3 z-5 flex flex-col bg-white/95 rounded-lg shadow-md overflow-hidden backdrop-blur-sm border border-gray-100">
       {Object.entries(MAP_STYLES).map(([k, { label, icon }]) => (
-        <button key={k}
-          className={`pv-map-style-vert-btn ${active===k ? 'pv-map-style-vert-btn--active' : ''}`}
-          onClick={() => onChange(k)}>
-          <span className="pv-map-style-vert-icon">{icon}</span>
-          <span className="pv-map-style-vert-label">{label}</span>
+        <button key={k} onClick={() => onChange(k)}
+          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors text-left ${
+            active === k ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+          }`}>
+          <span className="text-base w-5 text-center">{icon}</span>
+          <span>{label}</span>
         </button>
       ))}
     </div>
@@ -609,19 +499,18 @@ function MapPopup({ properties, columns, color }) {
   const keys = columns.length > 0 ? columns : Object.keys(properties)
   const titleKey = keys[0], metricKeys = keys.slice(1)
   return (
-    <div className="pv-map-popup-card">
-      <div className="pv-map-popup-header">
-        {color && <span className="pv-map-popup-dot" style={{backgroundColor:color}} />}
-        <span className="pv-map-popup-title">{properties[titleKey]||'Unknown'}</span>
+    <div className="text-sm">
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border-b border-gray-200">
+        {color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor:color}} />}
+        <span className="font-bold text-gray-900">{properties[titleKey]||'Unknown'}</span>
       </div>
-      <div className="pv-map-popup-metrics">
-        {metricKeys.map(k => {
-          const v = properties[k]; if(v==null) return null
-          return (<div key={k} className="pv-map-popup-metric">
-            <span className="pv-map-popup-metric-label">{k.replace(/_/g,' ')}</span>
-            <span className="pv-map-popup-metric-value">{fmt(v)}</span>
-          </div>)
-        })}
+      <div className="px-3 py-2">
+        {metricKeys.map(k => { const v=properties[k]; if(v==null) return null; return (
+          <div key={k} className="flex justify-between py-1 border-b border-gray-50 last:border-0">
+            <span className="text-gray-500 capitalize text-xs">{k.replace(/_/g,' ')}</span>
+            <span className="font-semibold text-gray-900">{fmt(v)}</span>
+          </div>
+        )})}
       </div>
     </div>
   )
@@ -629,22 +518,7 @@ function MapPopup({ properties, columns, color }) {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-// STATUS BAR
-// ═════════════════════════════════════════════════════════════════════════════
-function StatusBar({ total, allTotal, label, stateFilter, radiusCenter, radiusDist, radiusCount, brandCount }) {
-  return (
-    <div className="pv-map-status">
-      <span>Showing <strong>{total.toLocaleString()}</strong>{allTotal && total<allTotal ? ` of ${allTotal.toLocaleString()}` : ''} {label}</span>
-      {stateFilter && <span className="pv-map-status-tag">📍 {stateFilter}</span>}
-      {brandCount > 0 && <span className="pv-map-status-tag">🏷 {brandCount} brands</span>}
-      {radiusCenter && <span className="pv-map-status-tag">◎ {radiusDist} mi · {radiusCount} in radius</span>}
-    </div>
-  )
-}
-
-
-// ═════════════════════════════════════════════════════════════════════════════
-// CHOROPLETH (unchanged)
+// CHOROPLETH (unchanged logic, Tailwind styling)
 // ═════════════════════════════════════════════════════════════════════════════
 function ChoroplethLayers({ data, cfg }) {
   const [boundaries, setBoundaries] = useState(null)
@@ -672,8 +546,13 @@ function ChoroplethLegend({ data, cfg }) {
   const step=Math.floor(cs.length/(ranges.length+1))
   const items=[{label:`< ${fmt(ranges[0])}`,color:cs[0]}]
   ranges.forEach((bp,i)=>{const next=ranges[i+1];items.push({label:next?`${fmt(bp)} – ${fmt(next)}`:`${fmt(bp)}+`,color:cs[Math.min((i+1)*step,cs.length-1)]})})
-  return(<div className="pv-map-float-panel pv-map-choropleth-legend">
-    <div className="pv-map-panel-header"><span className="pv-map-panel-title">Legend</span></div>
-    {items.map((it,i)=>(<div key={i} className="pv-map-choropleth-item"><span className="pv-map-choropleth-swatch" style={{backgroundColor:it.color}} /><span>{it.label}</span></div>))}
-  </div>)
+  return(
+    <div className="absolute bottom-3 right-14 z-5 bg-white/95 rounded-lg shadow-md px-3 py-2.5 backdrop-blur-sm border border-gray-100">
+      <div className="font-semibold text-gray-900 text-xs mb-1.5">Legend</div>
+      {items.map((it,i)=>(<div key={i} className="flex items-center gap-2 py-0.5 text-xs">
+        <span className="w-5 h-3 rounded-sm flex-shrink-0" style={{backgroundColor:it.color}} />
+        <span className="text-gray-600">{it.label}</span>
+      </div>))}
+    </div>
+  )
 }
