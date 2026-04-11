@@ -2382,9 +2382,9 @@
     min-width: 0;  /* prevent grid blowout from wide content */
 }
 
-/* ── Map Widget — User-Centric UI ─────────────────────────────────── */
+/* ── Map Widget — Floating Panel UI ───────────────────────────────── */
 
-/* Widget wrapper: stacks topbar + map canvas + status bar */
+/* Widget wrapper */
 .pv-map-widget {
     display: flex;
     flex-direction: column;
@@ -2394,343 +2394,282 @@
     background: #fff;
 }
 
-/* ── Top bar (search + radius) ────────────────────────────────── */
-.pv-map-topbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    background: #f8fafc;
-    border-bottom: 1px solid #e5e7eb;
-    flex-wrap: wrap;
-}
-
-/* ── Search bar ───────────────────────────────────────────────── */
-.pv-map-search {
-    flex: 1;
-    min-width: 200px;
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-.pv-map-search-icon {
-    position: absolute;
-    left: 10px;
-    font-size: 0.85rem;
-    z-index: 1;
-    pointer-events: none;
-}
-.pv-map-search-input {
-    width: 100%;
-    padding: 7px 32px 7px 32px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    font-size: 0.82rem;
-    outline: none;
-    background: #fff;
-    transition: border-color 0.15s, box-shadow 0.15s;
-}
-.pv-map-search-input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-}
-.pv-map-search-clear {
-    position: absolute;
-    right: 8px;
-    background: none;
-    border: none;
-    color: #9ca3af;
-    font-size: 1rem;
-    cursor: pointer;
-    padding: 2px 4px;
-    line-height: 1;
-}
-.pv-map-search-clear:hover { color: #374151; }
-
-/* Search dropdown */
-.pv-map-search-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    z-index: 20;
-    max-height: 280px;
-    overflow-y: auto;
-    margin-top: 4px;
-}
-.pv-map-search-result {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-.pv-map-search-result:hover { background: #f1f5f9; }
-.pv-map-search-result-icon { font-size: 0.9rem; flex-shrink: 0; }
-.pv-map-search-result-text { font-weight: 500; color: #1e293b; flex: 1; }
-.pv-map-search-result-meta { font-size: 0.72rem; color: #9ca3af; white-space: nowrap; }
-
-/* ── Radius selector (pills) ─────────────────────────────────── */
-.pv-map-radius {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-}
-.pv-map-radius-label {
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: #475569;
-    margin-right: 2px;
-}
-.pv-map-radius-btn {
-    padding: 4px 10px;
-    border: 1px solid #d1d5db;
-    background: #fff;
-    border-radius: 6px;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.12s;
-}
-.pv-map-radius-btn:hover { background: #f1f5f9; }
-.pv-map-radius-btn--active {
-    background: #3b82f6;
-    color: #fff;
-    border-color: #3b82f6;
-}
-
-/* ── Map Canvas ───────────────────────────────────────────────── */
+/* Map canvas (fills available space) */
 .pv-map-canvas {
     flex: 1;
     position: relative;
     min-height: 300px;
 }
 
-/* ── Style Switcher (bottom-left pills) ──────────────────────── */
-.pv-map-style-switcher {
+/* ── Shared floating panel base ──────────────────────────────── */
+.pv-map-float-panel {
     position: absolute;
-    bottom: 28px;
-    left: 12px;
-    z-index: 5;
-    display: flex;
-    background: rgba(255,255,255,0.95);
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.15);
-    backdrop-filter: blur(6px);
-}
-.pv-map-style-btn {
-    padding: 5px 12px;
-    border: none;
-    background: transparent;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.12s;
-    border-right: 1px solid #e5e7eb;
-}
-.pv-map-style-btn:last-child { border-right: none; }
-.pv-map-style-btn:hover { background: #f1f5f9; }
-.pv-map-style-btn--active { background: #3b82f6; color: #fff; }
-.pv-map-style-btn--active:hover { background: #2563eb; }
-
-/* ── Interactive Legend (bottom-right) ────────────────────────── */
-.pv-map-legend {
-    position: absolute;
-    bottom: 28px;
-    right: 50px;
-    background: rgba(255,255,255,0.95);
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 0.78rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-    z-index: 5;
-    max-height: 300px;
-    overflow-y: auto;
-    backdrop-filter: blur(6px);
-    min-width: 180px;
-}
-.pv-map-legend--choropleth { right: 50px; }
-.pv-map-legend-title {
-    font-weight: 600;
+    z-index: 10;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
     font-size: 0.82rem;
-    color: #1e293b;
-    margin-bottom: 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #f1f5f9;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
-.pv-map-legend-entry {
+.pv-map-panel-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-    cursor: pointer;
-    transition: opacity 0.12s;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
 }
-.pv-map-legend-entry:hover { opacity: 0.8; }
-.pv-map-legend-entry--hidden { opacity: 0.35; }
-.pv-map-legend-entry--others { cursor: default; opacity: 0.6; }
-.pv-map-legend-entry--radius { cursor: default; }
-.pv-map-legend-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
+.pv-map-panel-title {
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: #0f172a;
 }
-.pv-map-legend-dot--radius {
-    background: transparent;
-    border: 2px dashed #3b82f6;
-}
-.pv-map-legend-swatch {
-    width: 20px;
-    height: 12px;
-    border-radius: 2px;
-    flex-shrink: 0;
-}
-.pv-map-legend-name {
-    flex: 1;
-    color: #374151;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.pv-map-legend-count {
-    font-size: 0.7rem;
-    color: #9ca3af;
-    flex-shrink: 0;
-}
-.pv-map-legend-remove {
-    background: none;
-    border: none;
-    color: #d1d5db;
-    font-size: 0.85rem;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    flex-shrink: 0;
-}
-.pv-map-legend-remove:hover { color: #ef4444; }
-
-/* Legend "+" add flow */
-.pv-map-legend-add {
-    margin-top: 6px;
-    padding-top: 6px;
-    border-top: 1px solid #f1f5f9;
-}
-.pv-map-legend-add-btn {
-    background: none;
-    border: 1px dashed #d1d5db;
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 0.75rem;
-    color: #3b82f6;
-    cursor: pointer;
-    width: 100%;
+.pv-map-panel-actions { display: flex; gap: 4px; }
+.pv-map-panel-btn {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #e5e7eb; border-radius: 6px;
+    background: #fff; color: #475569; cursor: pointer;
+    font-size: 1rem; font-weight: 600;
     transition: all 0.12s;
 }
-.pv-map-legend-add-btn:hover { background: #eff6ff; border-color: #93c5fd; }
-.pv-map-legend-add-panel { }
-.pv-map-legend-add-input {
-    width: 100%;
-    padding: 5px 8px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    outline: none;
-    margin-bottom: 4px;
+.pv-map-panel-btn:hover { background: #f1f5f9; }
+
+/* ── Brand Layers Panel (left) ───────────────────────────────── */
+.pv-map-brand-panel {
+    top: 12px; left: 12px;
+    width: 320px;
+    max-height: calc(100% - 80px);
 }
-.pv-map-legend-add-input:focus { border-color: #3b82f6; }
-.pv-map-legend-add-list {
-    max-height: 120px;
-    overflow-y: auto;
+.pv-map-panel-filter { padding: 8px 16px; }
+.pv-map-panel-select {
+    width: 100%; padding: 7px 10px;
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    font-size: 0.82rem; background: #fff; color: #374151; cursor: pointer;
 }
-.pv-map-legend-add-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 6px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-size: 0.75rem;
+.pv-map-panel-search {
+    padding: 8px 16px; position: relative;
 }
-.pv-map-legend-add-item:hover { background: #f1f5f9; }
-.pv-map-legend-add-count { color: #9ca3af; }
-.pv-map-legend-add-close {
-    background: none;
-    border: none;
-    color: #9ca3af;
-    font-size: 0.72rem;
-    cursor: pointer;
-    padding: 2px 0;
-    margin-top: 2px;
+.pv-map-panel-input {
+    width: 100%; padding: 8px 32px 8px 12px;
+    border: 2px solid #e5e7eb; border-radius: 8px;
+    font-size: 0.82rem; outline: none;
+    transition: border-color 0.15s;
 }
-.pv-map-legend-add-close:hover { color: #374151; }
+.pv-map-panel-input:focus { border-color: #3b82f6; }
+.pv-map-panel-input-clear {
+    position: absolute; right: 24px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: #9ca3af; font-size: 1rem; cursor: pointer;
+}
+.pv-map-panel-dropdown {
+    position: absolute; top: 100%; left: 16px; right: 16px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 20;
+    max-height: 240px; overflow-y: auto; margin-top: 2px;
+}
+.pv-map-panel-dropdown-item {
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f8fafc;
+    transition: background 0.1s;
+}
+.pv-map-panel-dropdown-item:hover { background: #f1f5f9; }
+.pv-map-panel-dropdown-item:last-child { border-bottom: none; }
+.pv-map-panel-dropdown-name { font-weight: 600; color: #1e293b; }
+.pv-map-panel-dropdown-meta { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
+
+.pv-map-panel-summary {
+    padding: 6px 16px; font-size: 0.75rem; color: #64748b;
+    border-bottom: 1px solid #f1f5f9;
+}
+.pv-map-panel-list { flex: 1; overflow-y: auto; }
+
+/* ── Brand Cards ─────────────────────────────────────────────── */
+.pv-map-brand-card {
+    padding: 12px 16px; border-bottom: 1px solid #f1f5f9;
+    transition: opacity 0.15s;
+}
+.pv-map-brand-card--hidden { opacity: 0.35; }
+.pv-map-brand-card-top {
+    display: flex; align-items: center; gap: 8px;
+}
+.pv-map-brand-check {
+    width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer;
+}
+.pv-map-brand-dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+}
+.pv-map-brand-name {
+    flex: 1; font-weight: 600; color: #1e293b;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pv-map-brand-eye {
+    background: none; border: none; cursor: pointer;
+    font-size: 1rem; opacity: 0.5; transition: opacity 0.12s;
+}
+.pv-map-brand-eye:hover { opacity: 1; }
+.pv-map-brand-category {
+    margin: 2px 0 0 36px; font-size: 0.72rem; color: #64748b;
+}
+.pv-map-brand-metrics {
+    display: flex; gap: 16px; margin: 6px 0 0 36px;
+}
+.pv-map-brand-metric-label {
+    font-size: 0.68rem; color: #9ca3af; text-transform: capitalize;
+}
+.pv-map-brand-metric-value {
+    font-size: 0.85rem; font-weight: 700; color: #1e293b;
+}
+
+/* ── Search Radius Panel (right) ─────────────────────────────── */
+.pv-map-radius-panel {
+    top: 12px; right: 12px;
+    width: 300px;
+}
+.pv-map-radius-actions {
+    display: flex; gap: 8px; padding: 12px 16px;
+}
+.pv-map-radius-place {
+    flex: 1; padding: 8px; border: 2px solid #3b82f6;
+    border-radius: 8px; background: #fff; color: #3b82f6;
+    font-weight: 600; font-size: 0.82rem; cursor: pointer;
+    transition: all 0.15s;
+}
+.pv-map-radius-place:hover { background: #eff6ff; }
+.pv-map-radius-place--active {
+    background: #3b82f6; color: #fff; animation: pulse-border 1.5s infinite;
+}
+@keyframes pulse-border { 0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.3)} 50%{box-shadow:0 0 0 6px rgba(59,130,246,0)} }
+.pv-map-radius-clear {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    background: #fff; cursor: pointer; font-size: 1.1rem;
+    transition: all 0.12s;
+}
+.pv-map-radius-clear:hover { background: #fef2f2; border-color: #fca5a5; }
+
+.pv-map-radius-slider-section { padding: 0 16px 12px; }
+.pv-map-radius-slider-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px; font-size: 0.78rem; color: #475569;
+}
+.pv-map-radius-slider-value { font-weight: 700; color: #3b82f6; font-size: 0.92rem; }
+.pv-map-radius-slider {
+    width: 100%; height: 6px; -webkit-appearance: none; appearance: none;
+    background: #e2e8f0; border-radius: 3px; outline: none;
+}
+.pv-map-radius-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    background: #3b82f6; border-radius: 50%; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.pv-map-radius-slider-labels {
+    display: flex; justify-content: space-between;
+    font-size: 0.68rem; color: #9ca3af; margin-top: 4px;
+}
+
+.pv-map-radius-info { padding: 0 16px 16px; }
+.pv-map-radius-info-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; border-bottom: 1px solid #f1f5f9;
+    font-size: 0.78rem; color: #475569;
+}
+.pv-map-radius-info-row:last-child { border-bottom: none; }
+.pv-map-radius-info-bold { font-weight: 700; color: #1e293b; font-size: 0.92rem; }
+.pv-map-radius-brands { margin-top: 10px; }
+.pv-map-radius-brands-label {
+    font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px;
+}
+.pv-map-radius-brands-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pv-map-radius-chip {
+    padding: 4px 10px; border-radius: 20px; font-size: 0.72rem;
+    font-weight: 500; background: #eff6ff; color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+/* ── Vertical Style Switcher (bottom-left) ───────────────────── */
+.pv-map-style-vert {
+    position: absolute; bottom: 12px; left: 12px; z-index: 5;
+    display: flex; flex-direction: column; gap: 2px;
+    background: rgba(255,255,255,0.95); border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12); overflow: hidden;
+    backdrop-filter: blur(6px);
+}
+.pv-map-style-vert-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 14px; border: none; background: transparent;
+    font-size: 0.78rem; color: #475569; cursor: pointer;
+    transition: all 0.12s; text-align: left;
+}
+.pv-map-style-vert-btn:hover { background: #f1f5f9; }
+.pv-map-style-vert-btn--active { background: #eff6ff; color: #2563eb; font-weight: 600; }
+.pv-map-style-vert-icon { font-size: 1rem; width: 20px; text-align: center; }
+.pv-map-style-vert-label { }
+
+/* ── Panel Toggle Buttons (bottom center) ────────────────────── */
+.pv-map-panel-toggles {
+    position: absolute; bottom: 12px; left: 50%;
+    transform: translateX(-50%); z-index: 5;
+    display: flex; gap: 8px;
+}
+.pv-map-toggle-btn {
+    padding: 6px 16px; border-radius: 20px;
+    border: 1px solid #e5e7eb; background: rgba(255,255,255,0.95);
+    font-size: 0.78rem; font-weight: 500; color: #475569;
+    cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    transition: all 0.12s; backdrop-filter: blur(6px);
+}
+.pv-map-toggle-btn:hover { background: #fff; border-color: #3b82f6; color: #3b82f6; }
 
 /* ── Popup (card design) ─────────────────────────────────────── */
 .pv-map-popup .maplibregl-popup-content {
-    padding: 0;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    max-width: 320px;
+    padding: 0; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15); max-width: 320px;
 }
-.pv-map-popup .maplibregl-popup-close-button {
-    font-size: 18px;
-    color: #6b7280;
-    right: 6px;
-    top: 6px;
-}
+.pv-map-popup .maplibregl-popup-close-button { font-size: 18px; color: #6b7280; right: 6px; top: 6px; }
 .pv-map-popup-card { font-size: 0.82rem; }
 .pv-map-popup-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 14px 8px;
-    background: #f8fafc;
-    border-bottom: 1px solid #e5e7eb;
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px 8px; background: #f8fafc; border-bottom: 1px solid #e5e7eb;
 }
 .pv-map-popup-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .pv-map-popup-title { font-weight: 700; font-size: 0.88rem; color: #0f172a; }
 .pv-map-popup-metrics { padding: 8px 14px 12px; }
 .pv-map-popup-metric {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 0;
+    display: flex; justify-content: space-between; padding: 4px 0;
     border-bottom: 1px solid #f1f5f9;
 }
 .pv-map-popup-metric:last-child { border-bottom: none; }
 .pv-map-popup-metric-label { color: #6b7280; text-transform: capitalize; font-size: 0.78rem; }
 .pv-map-popup-metric-value { font-weight: 600; color: #1e293b; }
 
+/* ── Choropleth Legend (floating panel) ──────────────────────── */
+.pv-map-choropleth-legend {
+    bottom: 12px; right: 50px; width: auto; min-width: 160px;
+}
+.pv-map-choropleth-item {
+    display: flex; align-items: center; gap: 8px; padding: 3px 16px;
+    font-size: 0.75rem; color: #374151;
+}
+.pv-map-choropleth-swatch { width: 20px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+
 /* ── Status Bar ───────────────────────────────────────────────── */
 .pv-map-status {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 12px;
-    background: #f8fafc;
-    border-top: 1px solid #e5e7eb;
-    font-size: 0.78rem;
-    color: #64748b;
+    display: flex; align-items: center; gap: 12px;
+    padding: 6px 12px; background: #f8fafc;
+    border-top: 1px solid #e5e7eb; font-size: 0.78rem; color: #64748b;
 }
 .pv-map-status strong { color: #1e293b; font-weight: 600; }
 .pv-map-status-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: #eff6ff;
-    color: #2563eb;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.72rem;
-    font-weight: 500;
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #eff6ff; color: #2563eb; padding: 2px 8px;
+    border-radius: 4px; font-size: 0.72rem; font-weight: 500;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .pv-map-brand-panel { width: 260px; }
+    .pv-map-radius-panel { width: 260px; }
 }
 
 /* --- Responsive: collapse grid to single column on mobile --- */
