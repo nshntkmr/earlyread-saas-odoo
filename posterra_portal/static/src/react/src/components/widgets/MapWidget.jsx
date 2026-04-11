@@ -385,7 +385,7 @@ export default function MapWidget({ data, height, name }) {
           <Source id="map-points" type="geojson" data={filteredGeoJSON}
             cluster={clustering && markerMode!=='heatmap'} clusterMaxZoom={14} clusterRadius={50}>
             {markerMode==='heatmap' ? (
-              <Layer id="heatmap-layer" type="heatmap" paint={{
+              <Layer id="heatmap-layer" source="map-points" type="heatmap" paint={{
                 'heatmap-weight':cfg.heatmap_weight_column?['interpolate',['linear'],['get',cfg.heatmap_weight_column],0,0,10000,1]:1,
                 'heatmap-intensity':['interpolate',['linear'],['zoom'],0,1,12,3],
                 'heatmap-radius':['interpolate',['linear'],['zoom'],0,cfg.heatmap_radius||20,12,(cfg.heatmap_radius||20)*2],
@@ -393,15 +393,15 @@ export default function MapWidget({ data, height, name }) {
                 'heatmap-opacity':['interpolate',['linear'],['zoom'],7,1,14,0],
               }} />
             ) : (<>
-              <Layer id="cluster-circles" type="circle" filter={['has','point_count']} paint={{
+              <Layer id="cluster-circles" source="map-points" type="circle" filter={['has','point_count']} paint={{
                 'circle-color':['step',['get','point_count'],'#51bbd6',10,'#f1f075',50,'#f28cb1'],
                 'circle-radius':['step',['get','point_count'],18,10,24,50,32],
                 'circle-stroke-width':2,'circle-stroke-color':'#fff','circle-opacity':0.9,
               }} />
-              <Layer id="cluster-count" type="symbol" filter={['has','point_count']} layout={{
+              <Layer id="cluster-count" source="map-points" type="symbol" filter={['has','point_count']} layout={{
                 'text-field':'{point_count_abbreviated}','text-font':['Open Sans Bold'],'text-size':12,
               }} />
-              <Layer id="point-markers" type="circle" filter={['!',['has','point_count']]} paint={{
+              <Layer id="point-markers" source="map-points" type="circle" filter={['!',['has','point_count']]} paint={{
                 'circle-color':circleColor,'circle-radius':circleRadius,
                 'circle-stroke-width':2,'circle-stroke-color':'#fff','circle-opacity':0.9,
               }} />
@@ -409,8 +409,8 @@ export default function MapWidget({ data, height, name }) {
           </Source>
           {radiusGeoJSON && (
             <Source id="radius-overlay" type="geojson" data={radiusGeoJSON}>
-              <Layer id="radius-fill" type="fill" paint={{'fill-color':'#3b82f6','fill-opacity':0.08}} />
-              <Layer id="radius-border" type="line" paint={{'line-color':'#3b82f6','line-width':2,'line-dasharray':[3,2]}} />
+              <Layer id="radius-fill" source="radius-overlay" type="fill" paint={{'fill-color':'#3b82f6','fill-opacity':0.08}} />
+              <Layer id="radius-border" source="radius-overlay" type="line" paint={{'line-color':'#3b82f6','line-width':2,'line-dasharray':[3,2]}} />
             </Source>
           )}
           {popupInfo && <Popup longitude={popupInfo.coords[0]} latitude={popupInfo.coords[1]}
@@ -546,8 +546,8 @@ function ChoroplethLayers({ data, cfg }) {
   let fillColor=OTHERS_COLOR
   if(ranges.length){const expr=['step',['coalesce',['get','_metric'],0],cs[0]];const step=Math.floor(cs.length/(ranges.length+1));ranges.forEach((bp,i)=>{expr.push(bp,cs[Math.min((i+1)*step,cs.length-1)])});fillColor=expr}
   return(<Source id="choropleth-boundaries" type="geojson" data={enriched}>
-    <Layer id="choropleth-fill" type="fill" paint={{'fill-color':fillColor,'fill-opacity':0.7}} />
-    <Layer id="choropleth-border" type="line" paint={{'line-color':'#fff','line-width':1}} />
+    <Layer id="choropleth-fill" source="choropleth-boundaries" type="fill" paint={{'fill-color':fillColor,'fill-opacity':0.7}} />
+    <Layer id="choropleth-border" source="choropleth-boundaries" type="line" paint={{'line-color':'#fff','line-width':1}} />
   </Source>)
 }
 
