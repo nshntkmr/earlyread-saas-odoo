@@ -53,7 +53,6 @@ export default function MapWidget({ data, height, name }) {
   // Brand state
   const [brandEntries, setBrandEntries] = useState([])
   const [brandSearch, setBrandSearch] = useState('')
-  const [stateFilter, setStateFilter] = useState('')
   const [hiddenBrands, setHiddenBrands] = useState(new Set())
 
   // Radius state
@@ -99,21 +98,15 @@ export default function MapWidget({ data, height, name }) {
     return Object.values(m).sort((a,b) => b.count - a.count)
   }, [allFeatures, colorCol, catCol, summaryCols])
 
-  const allStates = useMemo(() => {
-    const s = new Set(); allFeatures.forEach(f => { const v = f.properties.hha_state || f.properties.state; if(v) s.add(v) }); return [...s].sort()
-  }, [allFeatures])
-
   // Filtered features
   const visibleFeatures = useMemo(() => {
     let ff = allFeatures
-    if (stateFilter) ff = ff.filter(f => (f.properties.hha_state || f.properties.state) === stateFilter)
     if (hiddenBrands.size > 0 && colorCol) ff = ff.filter(f => !hiddenBrands.has(f.properties[colorCol]))
-    if (brandEntries.length > 0 && colorCol) {
-      const names = new Set(brandEntries.map(e => e.name))
-      ff = ff.filter(f => names.has(f.properties[colorCol]))
+    if (brandEntries.length > 0) {
+      ff = ff.filter(f => brandEntries.some(e => String(f.properties[e.column || colorCol]) === e.name))
     }
     return ff
-  }, [allFeatures, stateFilter, hiddenBrands, brandEntries, colorCol])
+  }, [allFeatures, hiddenBrands, brandEntries, colorCol])
 
   const filteredGeoJSON = useMemo(() => ({ type: 'FeatureCollection', features: visibleFeatures }), [visibleFeatures])
 
@@ -129,13 +122,36 @@ export default function MapWidget({ data, height, name }) {
     return Object.entries(m).sort((a,b) => b[1]-a[1])
   }, [featuresInRadius, colorCol])
 
-  // Search results
+  // Search results — searches ALL configured searchable columns, not just brands
   const brandSearchResults = useMemo(() => {
     if (!brandSearch || brandSearch.length < 1) return []
     const lower = brandSearch.toLowerCase()
     const inPanel = new Set(brandEntries.map(e => e.name))
-    return allBrands.filter(b => !inPanel.has(b.name) && b.name.toLowerCase().includes(lower)).slice(0, 8)
-  }, [brandSearch, allBrands, brandEntries])
+    const cols = effectiveSearchCols.length > 0 ? effectiveSearchCols : [colorCol]
+
+    // Collect unique matching values across all searchable columns
+    const resultMap = {}
+    allFeatures.forEach(f => {
+      cols.forEach(col => {
+        const val = f.properties[col]
+        if (!val) return
+        const str = String(val)
+        if (!str.toLowerCase().includes(lower)) return
+        const key = `${col}:${str}`
+        if (!resultMap[key]) {
+          resultMap[key] = { name: str, column: col, count: 0, metrics: {}, category: '' }
+        }
+        resultMap[key].count++
+        if (catCol && f.properties[catCol]) resultMap[key].category = f.properties[catCol]
+        summaryCols.forEach(c => { resultMap[key].metrics[c] = (resultMap[key].metrics[c]||0) + (Number(f.properties[c])||0) })
+      })
+    })
+
+    return Object.values(resultMap)
+      .filter(r => !inPanel.has(r.name))
+      .sort((a,b) => b.count - a.count)
+      .slice(0, 12)
+  }, [brandSearch, allFeatures, brandEntries, effectiveSearchCols, colorCol, catCol, summaryCols])
 
   // Fit bounds
   useEffect(() => {
@@ -169,12 +185,13 @@ export default function MapWidget({ data, height, name }) {
     return ['interpolate',['linear'],['get',sizeCol],0,4,100,8,1000,14,10000,22,100000,32]
   }, [markerMode, sizeCol])
 
-  // Brand actions
-  const addBrand = (name) => {
+  // Brand/entity actions — column tells us which property to filter by
+  const addBrand = (name, column) => {
     if (brandEntries.some(e => e.name === name)) return
-    setBrandEntries(prev => [...prev, { name, color: BRAND_COLORS[prev.length % BRAND_COLORS.length], visible: true }])
+    const col = column || colorCol
+    setBrandEntries(prev => [...prev, { name, color: BRAND_COLORS[prev.length % BRAND_COLORS.length], visible: true, column: col }])
     setBrandSearch('')
-    const ff = allFeatures.filter(f => f.properties[colorCol] === name)
+    const ff = allFeatures.filter(f => String(f.properties[col]) === name)
     if (ff.length && mapRef.current) fitFF(mapRef.current, ff)
   }
   const removeBrand = (name) => { setBrandEntries(prev => prev.filter(e => e.name !== name)); setHiddenBrands(prev => { const n = new Set(prev); n.delete(name); return n }) }
@@ -224,17 +241,6 @@ export default function MapWidget({ data, height, name }) {
               </div>
             </div>
 
-            {/* State filter */}
-            {allStates.length > 0 && (
-              <div className="px-4 py-2">
-                <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:border-blue-500">
-                  <option value="">All States</option>
-                  {allStates.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            )}
-
             {/* Search (toggleable via + button) */}
             {showAddSearch && (
               <div className="px-4 py-2 relative">
@@ -252,11 +258,14 @@ export default function MapWidget({ data, height, name }) {
                 {brandSearchResults.length > 0 && (
                   <div className="absolute left-4 right-4 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
                     {brandSearchResults.map(b => (
-                      <div key={b.name} onClick={() => { addBrand(b.name); setShowAddSearch(false); }}
+                      <div key={`${b.column}:${b.name}`} onClick={() => { addBrand(b.name, b.column); setShowAddSearch(false); }}
                         className="px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b border-gray-50 last:border-0">
-                        <div className="font-semibold text-gray-900 text-sm">{b.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900 text-sm">{b.name}</span>
+                          <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{b.column.replace(/^hha_/,'').replace(/_/g,' ')}</span>
+                        </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          {b.count} locations{summaryCols.slice(0,2).map(c => <span key={c}> · {fmt(b.metrics[c])}</span>)}
+                          {b.count} matches{summaryCols.slice(0,2).map(c => <span key={c}> · {fmt(b.metrics[c])}</span>)}
                         </div>
                       </div>
                     ))}
