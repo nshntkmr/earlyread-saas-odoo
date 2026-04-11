@@ -175,15 +175,35 @@ export default function MapWidget({ data, height, name }) {
     if (f?.properties?.cluster) {
       const map = mapRef.current
       const src = map?.getSource('map-points')
+      const currentZoom = map?.getZoom() || 4
+
+      // Try to get cluster expansion zoom
       if (src?.getClusterExpansionZoom) {
-        // MapLibre v5+ returns a Promise, older versions use callback
         const result = src.getClusterExpansionZoom(f.properties.cluster_id)
         if (result && typeof result.then === 'function') {
-          result.then(zoom => { map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(zoom, 15) }) })
+          result.then(zoom => {
+            if (zoom <= currentZoom + 0.5 || currentZoom >= 14) {
+              // Can't expand further — show list of all features at this location
+              const clusterLeaves = src.getClusterLeaves(f.properties.cluster_id, 20, 0)
+              if (clusterLeaves && typeof clusterLeaves.then === 'function') {
+                clusterLeaves.then(leaves => {
+                  setPopupInfo({
+                    coords: f.geometry.coordinates.slice(),
+                    properties: null,
+                    clusterItems: leaves.map(l => l.properties),
+                  })
+                })
+              }
+            } else {
+              map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(zoom, 15) })
+            }
+          })
+          return
         }
-      } else {
-        // Fallback: just zoom in by 2 levels
-        map?.easeTo({ center: f.geometry.coordinates, zoom: (map.getZoom() || 4) + 2 })
+      }
+      // Fallback: zoom in by 2 levels
+      if (currentZoom < 14) {
+        map?.easeTo({ center: f.geometry.coordinates, zoom: currentZoom + 2 })
       }
       return
     }
@@ -441,9 +461,10 @@ export default function MapWidget({ data, height, name }) {
             </Source>
           )}
           {popupInfo && <Popup longitude={popupInfo.coords[0]} latitude={popupInfo.coords[1]}
-            onClose={()=>setPopupInfo(null)} closeOnClick={false} className="pv-map-popup" maxWidth="320px">
+            onClose={()=>setPopupInfo(null)} closeOnClick={false} className="pv-map-popup" maxWidth="360px">
             <MapPopup properties={popupInfo.properties} columns={popupCols}
-              color={brandEntries.find(e=>e.name===popupInfo.properties?.[colorCol])?.color} />
+              color={brandEntries.find(e=>e.name===popupInfo.properties?.[colorCol])?.color}
+              clusterItems={popupInfo.clusterItems} />
           </Popup>}
         </Map>
 
@@ -533,7 +554,31 @@ function StyleSwitcher({ active, onChange }) {
 // ═════════════════════════════════════════════════════════════════════════════
 // POPUP
 // ═════════════════════════════════════════════════════════════════════════════
-function MapPopup({ properties, columns, color }) {
+function MapPopup({ properties, columns, color, clusterItems }) {
+  // Cluster list popup — multiple features at same location
+  if (clusterItems && clusterItems.length > 0) {
+    const keys = columns.length > 0 ? columns : Object.keys(clusterItems[0])
+    const titleKey = keys[0], metricKeys = keys.slice(1, 4) // show first 3 metrics
+    return (
+      <div className="text-sm max-h-72 overflow-y-auto">
+        <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 font-bold text-gray-900 sticky top-0">
+          {clusterItems.length} locations at this point
+        </div>
+        {clusterItems.map((item, i) => (
+          <div key={i} className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50">
+            <div className="font-semibold text-gray-900 text-xs">{item[titleKey] || 'Unknown'}</div>
+            <div className="flex gap-3 mt-0.5">
+              {metricKeys.map(k => { const v = item[k]; if (v == null) return null; return (
+                <span key={k} className="text-xs text-gray-500">{k.replace(/^hha_/,'').replace(/_/g,' ')}: <span className="font-medium text-gray-700">{fmt(v, k)}</span></span>
+              )})}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Single feature popup
   if (!properties) return null
   const keys = columns.length > 0 ? columns : Object.keys(properties)
   const titleKey = keys[0], metricKeys = keys.slice(1)
