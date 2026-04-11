@@ -161,12 +161,15 @@ export default function MapWidget({ data, height, name }) {
       .slice(0, 12)
   }, [brandSearch, allFeatures, brandEntries, effectiveSearchCols, colorCol, catCol, summaryCols])
 
-  // Fit bounds
+  // Fit bounds — use onLoad callback since mapRef may not be ready on first render
+  const [mapLoaded, setMapLoaded] = useState(false)
+  const onMapLoad = useCallback(() => { setMapLoaded(true) }, [])
+
   useEffect(() => {
-    if (!mapRef.current || !data?.bounds) return
+    if (!mapLoaded || !mapRef.current || !data?.bounds) return
     const [w,s,e,n] = data.bounds
-    mapRef.current.fitBounds([[w,s],[e,n]], { padding:60, maxZoom:12, duration:800 })
-  }, [data?.bounds])
+    mapRef.current.fitBounds([[w,s],[e,n]], { padding:60, maxZoom:14, duration:800 })
+  }, [data?.bounds, mapLoaded])
 
   // Map click
   const onClick = useCallback((e) => {
@@ -243,6 +246,7 @@ export default function MapWidget({ data, height, name }) {
           <Map ref={mapRef} mapStyle={MAP_STYLES[mapStyle]?.url || MAP_STYLES.streets.url}
             initialViewState={{longitude:cfg.default_center_lng||-98.58,latitude:cfg.default_center_lat||39.83,zoom:cfg.default_zoom||3.5}}
             style={{width:'100%',height:'100%'}} interactiveLayerIds={['choropleth-fill']}
+            onLoad={onMapLoad}
             onClick={e=>{const f=e.features?.[0];if(f)setPopupInfo({coords:[e.lngLat.lng,e.lngLat.lat],properties:data.choropleth_popup_data?.[f.properties.STUSPS||f.properties.NAME]||f.properties})}}>
             <NavigationControl position="bottom-right" />
             <ChoroplethLayers data={data} cfg={cfg} />
@@ -427,7 +431,8 @@ export default function MapWidget({ data, height, name }) {
           initialViewState={{longitude:cfg.default_center_lng||-98.58,latitude:cfg.default_center_lat||39.83,zoom:cfg.default_zoom||3.5}}
           style={{width:'100%',height:'100%'}}
           interactiveLayerIds={markerMode==='heatmap'?[]:['point-markers','cluster-circles']}
-          onClick={onClick}>
+          onClick={onClick}
+          onLoad={onMapLoad}>
           <NavigationControl position="bottom-right" />
           <Source id="map-points" type="geojson" data={filteredGeoJSON}
             cluster={clustering && markerMode!=='heatmap'} clusterMaxZoom={14} clusterRadius={50}>
