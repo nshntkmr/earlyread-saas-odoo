@@ -48,6 +48,7 @@ export default function MapWidget({ data, height, name }) {
   // Panel visibility
   const [showBrandPanel, setShowBrandPanel] = useState(true)
   const [showRadiusPanel, setShowRadiusPanel] = useState(false)
+  const [showAddSearch, setShowAddSearch] = useState(true) // search input visible by default
 
   // Brand state
   const [brandEntries, setBrandEntries] = useState([])
@@ -66,6 +67,17 @@ export default function MapWidget({ data, height, name }) {
   // Data
   const geojson = data?.geojson || { type: 'FeatureCollection', features: [] }
   const allFeatures = geojson.features || []
+
+  // Debug: log data to help diagnose loading issues
+  useEffect(() => {
+    console.log('[MapWidget] data received:', {
+      hasGeojson: !!data?.geojson,
+      featureCount: allFeatures.length,
+      hasChoropleth: !!data?.choropleth_data,
+      mapConfig: cfg,
+      sampleFeature: allFeatures[0]?.properties,
+    })
+  }, [data])
 
   const effectiveSearchCols = useMemo(() => {
     if (searchCols.length > 0) return searchCols
@@ -207,7 +219,7 @@ export default function MapWidget({ data, height, name }) {
                 <span className="font-bold text-gray-900 text-sm">{panelLabel}</span>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => { setBrandSearch(''); }} className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-base font-semibold">+</button>
+                <button onClick={() => { setShowAddSearch(true); setBrandSearch(''); }} className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-base font-semibold" title="Add brand">+</button>
                 <button onClick={() => setShowBrandPanel(false)} className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-base">✕</button>
               </div>
             </div>
@@ -223,33 +235,35 @@ export default function MapWidget({ data, height, name }) {
               </div>
             )}
 
-            {/* Search */}
-            <div className="px-4 py-2 relative">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-                <input
-                  type="text" placeholder="Search brands..."
-                  value={brandSearch} onChange={e => setBrandSearch(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
-                  autoFocus={brandEntries.length === 0}
-                />
-                {brandSearch && <button onClick={() => setBrandSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">✕</button>}
-              </div>
-              {/* Search dropdown */}
-              {brandSearchResults.length > 0 && (
-                <div className="absolute left-4 right-4 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
-                  {brandSearchResults.map(b => (
-                    <div key={b.name} onClick={() => addBrand(b.name)}
-                      className="px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b border-gray-50 last:border-0">
-                      <div className="font-semibold text-gray-900 text-sm">{b.name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {b.count} locations{summaryCols.slice(0,2).map(c => <span key={c}> · {fmt(b.metrics[c])}</span>)}
-                      </div>
-                    </div>
-                  ))}
+            {/* Search (toggleable via + button) */}
+            {showAddSearch && (
+              <div className="px-4 py-2 relative">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                  <input
+                    type="text" placeholder="Search brands..."
+                    value={brandSearch} onChange={e => setBrandSearch(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
+                    autoFocus
+                  />
+                  {brandSearch && <button onClick={() => setBrandSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">✕</button>}
                 </div>
-              )}
-            </div>
+                {/* Search dropdown */}
+                {brandSearchResults.length > 0 && (
+                  <div className="absolute left-4 right-4 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                    {brandSearchResults.map(b => (
+                      <div key={b.name} onClick={() => { addBrand(b.name); setShowAddSearch(false); }}
+                        className="px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                        <div className="font-semibold text-gray-900 text-sm">{b.name}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {b.count} locations{summaryCols.slice(0,2).map(c => <span key={c}> · {fmt(b.metrics[c])}</span>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Summary */}
             <div className="px-4 py-1.5 text-xs text-gray-500 border-b border-gray-50">
@@ -430,21 +444,19 @@ export default function MapWidget({ data, height, name }) {
           </div>
         )}
 
-        {/* ── Panel toggle buttons (bottom center) ────────────── */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-5 flex gap-2">
-          {colorCol && !showBrandPanel && (
-            <button onClick={() => setShowBrandPanel(true)}
-              className="px-4 py-1.5 rounded-full bg-white/95 border border-gray-200 text-xs font-medium text-gray-600 shadow-sm hover:border-blue-400 hover:text-blue-600 backdrop-blur-sm transition-colors">
-              🏷️ Layers
-            </button>
-          )}
-          {!showRadiusPanel && (
-            <button onClick={() => setShowRadiusPanel(true)}
-              className="px-4 py-1.5 rounded-full bg-white/95 border border-gray-200 text-xs font-medium text-gray-600 shadow-sm hover:border-blue-400 hover:text-blue-600 backdrop-blur-sm transition-colors">
-              ◎ Radius
-            </button>
-          )}
-        </div>
+        {/* ── Panel toggle buttons (top corners) ────────────── */}
+        {colorCol && !showBrandPanel && (
+          <button onClick={() => { setShowBrandPanel(true); setShowAddSearch(true); }}
+            className="absolute top-3 left-3 z-10 px-4 py-2 rounded-lg bg-white/95 border border-gray-200 text-xs font-medium text-gray-600 shadow-md hover:border-blue-400 hover:text-blue-600 backdrop-blur-sm transition-colors">
+            🏷️ Layers
+          </button>
+        )}
+        {!showRadiusPanel && (
+          <button onClick={() => setShowRadiusPanel(true)}
+            className="absolute top-3 right-3 z-10 px-4 py-2 rounded-lg bg-white/95 border border-gray-200 text-xs font-medium text-gray-600 shadow-md hover:border-blue-400 hover:text-blue-600 backdrop-blur-sm transition-colors">
+            ◎ Radius
+          </button>
+        )}
       </div>
 
       {/* ── Bottom Summary Bar ──────────────────────────────────── */}

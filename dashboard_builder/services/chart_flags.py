@@ -1222,6 +1222,13 @@ MAP_FLAGS = [
     },
     # ── Brand Layers panel flags ──
     {
+        'flag': 'panel_label',
+        'type': 'text',
+        'default': 'Brand Layers',
+        'label': 'Panel Label',
+        'help': 'Header text for the layers panel (e.g., "Brand Layers", "Hospital Systems", "Lab Networks").',
+    },
+    {
         'flag': 'brand_category_column',
         'type': 'text',
         'default': '',
