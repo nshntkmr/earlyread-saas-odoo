@@ -289,12 +289,12 @@ export default function MapWidget({ data, height, name }) {
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
                   <input
-                    type="text" placeholder="Search brands..."
+                    type="text" placeholder={`Search ${panelLabel.toLowerCase().replace('layers','').trim() || 'items'}...`}
                     value={brandSearch} onChange={e => setBrandSearch(e.target.value)}
                     className="w-full pl-9 pr-8 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
                     autoFocus
                   />
-                  {brandSearch && <button onClick={() => setBrandSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">✕</button>}
+                  {brandSearch && <button onClick={() => setBrandSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 text-xs font-bold">✕</button>}
                 </div>
                 {/* Search dropdown */}
                 {brandSearchResults.length > 0 && (
