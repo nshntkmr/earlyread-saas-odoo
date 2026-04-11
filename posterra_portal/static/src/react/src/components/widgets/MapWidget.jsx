@@ -17,7 +17,15 @@ const CHOROPLETH_SEQ = ['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#4292
 const CHOROPLETH_DIV = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d1e5f0','#92c5de','#4393c3','#2166ac']
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-const fmt = v => { if(v==null) return '—'; const n=Number(v); if(isNaN(n)) return String(v); if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M'; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K'; return n.toLocaleString() }
+const fmt = (v, col) => {
+  if (v == null) return '—'
+  // Don't format IDs — columns containing ccn, npi, zip, id, fips, code should show raw value
+  if (col && /ccn|npi|zip|_id$|fips|code|phone|tele/i.test(col)) return String(v)
+  const n = Number(v); if (isNaN(n)) return String(v)
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1)+'M'
+  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(1)+'K'
+  return n.toLocaleString()
+}
 const haversine = (lat1,lng1,lat2,lng2) => { const R=3958.8,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)) }
 const makeCircle = (c,miles) => { const s=64,km=miles*1.60934,r=[]; const dx=km/(111.32*Math.cos(c[1]*Math.PI/180)),dy=km/110.574; for(let i=0;i<=s;i++){const t=i/s*2*Math.PI;r.push([c[0]+dx*Math.cos(t),c[1]+dy*Math.sin(t)])} return{type:'Feature',geometry:{type:'Polygon',coordinates:[r]}} }
 const fitFF = (map,ff,opts={}) => { if(!ff.length||!map)return; let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity; ff.forEach(f=>{const[x,y]=f.geometry.coordinates;if(x<a)a=x;if(x>c)c=x;if(y<b)b=y;if(y>d)d=y}); map.fitBounds([[a,b],[c,d]],{padding:60,maxZoom:12,duration:600,...opts}) }
@@ -539,7 +547,7 @@ function MapPopup({ properties, columns, color }) {
         {metricKeys.map(k => { const v=properties[k]; if(v==null) return null; return (
           <div key={k} className="flex justify-between py-1 border-b border-gray-50 last:border-0">
             <span className="text-gray-500 capitalize text-xs">{k.replace(/_/g,' ')}</span>
-            <span className="font-semibold text-gray-900">{fmt(v)}</span>
+            <span className="font-semibold text-gray-900">{fmt(v, k)}</span>
           </div>
         )})}
       </div>
