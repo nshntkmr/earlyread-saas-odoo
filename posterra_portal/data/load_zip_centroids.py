@@ -40,18 +40,23 @@ def load_zip_centroids(env):
         _logger.warning("No rows found in %s", CSV_FILE)
         return
 
-    # Bulk insert using execute_values pattern
+    # Bulk insert — include Odoo audit columns (create_uid, create_date, write_uid, write_date)
     cr.execute("DELETE FROM geo_zip_centroid")
-    batch_size = 5000
+    batch_size = 1000
     for i in range(0, len(rows), batch_size):
         batch = rows[i:i + batch_size]
-        args = ','.join(
-            cr.mogrify("(%s, %s, %s)", r).decode()
-            for r in batch
-        )
+        values_list = []
+        for (zip_code, lat, lng) in batch:
+            values_list.append(
+                cr.mogrify(
+                    "(%s, %s, %s, 1, NOW() AT TIME ZONE 'UTC', 1, NOW() AT TIME ZONE 'UTC')",
+                    (zip_code, lat, lng)
+                ).decode()
+            )
         cr.execute(
-            "INSERT INTO geo_zip_centroid (zip_code, latitude, longitude) "
-            "VALUES " + args
+            "INSERT INTO geo_zip_centroid "
+            "(zip_code, latitude, longitude, create_uid, create_date, write_uid, write_date) "
+            "VALUES " + ','.join(values_list)
         )
 
     _logger.info("Loaded %d ZIP centroids into geo_zip_centroid.", len(rows))
