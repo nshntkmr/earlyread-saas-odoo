@@ -165,8 +165,18 @@ export default function MapWidget({ data, height, name }) {
     if (placementMode) { setRadiusCenter([e.lngLat.lng, e.lngLat.lat]); setPlacementMode(false); return }
     const f = e.features?.[0]
     if (f?.properties?.cluster) {
-      const src = mapRef.current?.getSource('map-points')
-      src?.getClusterExpansionZoom?.(f.properties.cluster_id, (err, zoom) => { if(!err) mapRef.current.easeTo({center:f.geometry.coordinates,zoom:Math.min(zoom,15)}) })
+      const map = mapRef.current
+      const src = map?.getSource('map-points')
+      if (src?.getClusterExpansionZoom) {
+        // MapLibre v5+ returns a Promise, older versions use callback
+        const result = src.getClusterExpansionZoom(f.properties.cluster_id)
+        if (result && typeof result.then === 'function') {
+          result.then(zoom => { map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(zoom, 15) }) })
+        }
+      } else {
+        // Fallback: just zoom in by 2 levels
+        map?.easeTo({ center: f.geometry.coordinates, zoom: (map.getZoom() || 4) + 2 })
+      }
       return
     }
     if (f && !f.properties.cluster) { setPopupInfo({ coords: f.geometry.coordinates.slice(), properties: f.properties }); return }
@@ -206,7 +216,7 @@ export default function MapWidget({ data, height, name }) {
             initialViewState={{longitude:cfg.default_center_lng||-98.58,latitude:cfg.default_center_lat||39.83,zoom:cfg.default_zoom||3.5}}
             style={{width:'100%',height:'100%'}} interactiveLayerIds={['choropleth-fill']}
             onClick={e=>{const f=e.features?.[0];if(f)setPopupInfo({coords:[e.lngLat.lng,e.lngLat.lat],properties:data.choropleth_popup_data?.[f.properties.STUSPS||f.properties.NAME]||f.properties})}}>
-            <NavigationControl position="top-right" />
+            <NavigationControl position="bottom-right" />
             <ChoroplethLayers data={data} cfg={cfg} />
             {popupInfo && <Popup longitude={popupInfo.coords[0]} latitude={popupInfo.coords[1]} onClose={()=>setPopupInfo(null)} closeOnClick={false} className="pv-map-popup" maxWidth="320px">
               <MapPopup properties={popupInfo.properties} columns={popupCols} />
@@ -390,7 +400,7 @@ export default function MapWidget({ data, height, name }) {
           style={{width:'100%',height:'100%'}}
           interactiveLayerIds={markerMode==='heatmap'?[]:['point-markers','cluster-circles']}
           onClick={onClick}>
-          <NavigationControl position="top-right" />
+          <NavigationControl position="bottom-right" />
           <Source id="map-points" type="geojson" data={filteredGeoJSON}
             cluster={clustering && markerMode!=='heatmap'} clusterMaxZoom={14} clusterRadius={50}>
             {markerMode==='heatmap' ? (
