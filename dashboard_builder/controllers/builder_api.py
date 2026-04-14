@@ -647,7 +647,57 @@ class BuilderAPI(http.Controller):
             'gauge_color_mode': defn.gauge_color_mode,
             'echart_override': defn.echart_override or '',
             'instance_count': defn.instance_count,
+            # Widget-Scoped Controls
+            'scope_mode': defn.scope_mode or 'none',
+            'scope_ui': defn.scope_ui or 'dropdown',
+            'scope_query_mode': defn.scope_query_mode or 'parameter',
+            'scope_param_name': defn.scope_param_name or '',
+            'scope_label': defn.scope_label or '',
+            'scope_default_value': defn.scope_default_value or '',
+            'search_enabled': defn.search_enabled or False,
+            'search_placeholder': defn.search_placeholder or 'Search...',
+            'visual_config': defn.visual_config or '',
+            'default_width_pct': defn.default_width_pct or 0,
+            'default_row_span': defn.default_row_span or 1,
+            'bar_stack': defn.bar_stack or False,
+            'table_column_config': '',
         }
+
+        # Include scope options from the first widget instance (if any)
+        scope_options = []
+        try:
+            Widget = request.env['dashboard.widget']
+            instances = Widget.sudo().search(
+                [('definition_id', '=', defn.id)], limit=1)
+            if instances:
+                for o in instances[0].scope_option_ids.sorted('sequence'):
+                    scope_options.append({
+                        'label': o.label or '',
+                        'value': o.value or '',
+                        'icon': o.icon or '',
+                        'sequence': o.sequence,
+                        'query_sql': o.query_sql or '',
+                        'schema_source_table': (
+                            o.schema_source_id.table_name
+                            if o.schema_source_id else ''),
+                        'where_clause_exclude': o.where_clause_exclude or '',
+                        'table_column_config': o.table_column_config or '',
+                        'x_column': o.x_column or '',
+                        'y_columns': o.y_columns or '',
+                        'series_column': o.series_column or '',
+                        'click_action': o.click_action or 'none',
+                        'action_page_key': o.action_page_key or '',
+                        'action_tab_key': o.action_tab_key or '',
+                        'action_pass_value_as': o.action_pass_value_as or '',
+                        'drill_detail_columns': o.drill_detail_columns or '',
+                        'action_url_template': o.action_url_template or '',
+                    })
+                # Also get table_column_config from instance
+                if instances[0].table_column_config:
+                    data['table_column_config'] = instances[0].table_column_config
+        except Exception:
+            pass  # dashboard.widget may not exist
+        data['scope_options'] = scope_options
 
         return _json_resp(data)
 

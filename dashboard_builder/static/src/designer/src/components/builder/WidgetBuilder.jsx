@@ -291,6 +291,58 @@ function reducer(state, action) {
               : []
           } catch { return [] }
         })(),
+        // Widget-Scoped Controls
+        scopeMode: d.scope_mode || 'none',
+        scopeUi: d.scope_ui || 'toggle',
+        scopeQueryMode: d.scope_query_mode || 'parameter',
+        scopeParamName: d.scope_param_name || '',
+        scopeLabel: d.scope_label || '',
+        scopeDefaultValue: d.scope_default_value || '',
+        searchEnabled: d.search_enabled || false,
+        searchPlaceholder: d.search_placeholder || 'Search...',
+        activeScopeIdx: 0,
+        // Restore scope options + per-option configs
+        scopeOptions: (d.scope_options || []).map(o => ({
+          label: o.label || '',
+          value: o.value || '',
+          icon: o.icon || '',
+        })),
+        optionConfigs: (d.scope_options || []).map(o => ({
+          dataMode: o.query_sql ? 'custom_sql' : 'custom_sql',
+          sources: [],
+          joins: [],
+          customSql: {
+            sql: o.query_sql || '',
+            xColumn: o.x_column || '',
+            yColumns: o.y_columns || '',
+            seriesColumn: o.series_column || '',
+            testResult: null,
+            testParams: {},
+          },
+          xColumn: o.x_column || '',
+          columns: [],
+          seriesColumn: o.series_column || '',
+          orderBy: '',
+          limit: '',
+          filters: [],
+          clickAction: o.click_action || 'none',
+          actionPageKey: o.action_page_key || '',
+          actionTabKey: o.action_tab_key || '',
+          actionPassValueAs: o.action_pass_value_as || '',
+          drillDetailColumns: o.drill_detail_columns || '',
+          actionUrlTemplate: o.action_url_template || '',
+          tableColumnConfig: (() => {
+            try {
+              return o.table_column_config
+                ? (typeof o.table_column_config === 'string'
+                    ? JSON.parse(o.table_column_config)
+                    : o.table_column_config)
+                : []
+            } catch { return [] }
+          })(),
+          generatedSql: '',
+          aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] },
+        })),
       }
     }
     case 'RESET':
@@ -794,27 +846,37 @@ function buildCreatePayload(state) {
     } : {}),
   }
 
-  if (state.dataMode === 'custom_sql') {
+  // When scope is configured, use first option's config as the main widget SQL
+  // (so the widget has a valid SQL even without toggle interaction)
+  const effectiveConfig = (state.scopeMode !== 'none' && state.optionConfigs?.length)
+    ? state.optionConfigs[0]
+    : state
+  const effectiveDataMode = effectiveConfig.dataMode || state.dataMode
+
+  if (effectiveDataMode === 'custom_sql') {
+    const cs = effectiveConfig.customSql || state.customSql || {}
     return {
       ...base,
-      query_sql: state.customSql.sql || '',
-      x_column: state.customSql.xColumn || '',
-      y_columns: state.customSql.yColumns || '',
-      series_column: state.customSql.seriesColumn || '',
+      data_mode: 'custom_sql',
+      query_sql: cs.sql || '',
+      x_column: cs.xColumn || '',
+      y_columns: cs.yColumns || '',
+      series_column: cs.seriesColumn || '',
     }
   }
 
   // AI mode: save as custom_sql — the generated SQL is the artifact
-  if (state.dataMode === 'ai') {
+  if (effectiveDataMode === 'ai') {
+    const ai = effectiveConfig.aiState || state.aiState || {}
     return {
       ...base,
       data_mode: 'custom_sql',  // stored as custom_sql for portal execution
-      query_sql: state.aiState.generatedSql || '',
-      x_column: state.aiState.xColumn || '',
-      y_columns: state.aiState.yColumns || '',
-      series_column: state.aiState.seriesColumn || '',
+      query_sql: ai.generatedSql || '',
+      x_column: ai.xColumn || '',
+      y_columns: ai.yColumns || '',
+      series_column: ai.seriesColumn || '',
       builder_config: JSON.stringify({
-        ai_prompt: state.aiState.prompt,
+        ai_prompt: ai.prompt || '',
         ai_generated: true,
       }),
     }
