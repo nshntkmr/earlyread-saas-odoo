@@ -463,8 +463,54 @@ class BuilderAPI(http.Controller):
                     'generated_sql': qb.build_select_query(config),
                 })
 
+        # Sync scope fields to definition (so Edit/GET returns current values)
+        if widget.definition_id:
+            scope_sync = {}
+            for fld in ('scope_mode', 'scope_ui', 'scope_query_mode',
+                        'scope_param_name', 'scope_label', 'scope_default_value',
+                        'search_enabled', 'search_placeholder'):
+                if fld in body:
+                    scope_sync[fld] = body[fld]
+            if scope_sync:
+                widget.definition_id.sudo().write(scope_sync)
+
         try:
             widget.write(update_vals)
+
+            # Recreate scope_option child records (only when scope_options key present)
+            if 'scope_options' in body:
+                widget.scope_option_ids.unlink()  # Delete old options
+                scope_options = body.get('scope_options') or []
+                if scope_options:
+                    ScopeOption = request.env['dashboard.widget.scope.option']
+                    Source = request.env['dashboard.schema.source']
+                    for opt in scope_options:
+                        opt_vals = {
+                            'widget_id': widget.id,
+                            'label': opt.get('label', ''),
+                            'value': opt.get('value', ''),
+                            'icon': opt.get('icon', ''),
+                            'sequence': opt.get('sequence', 10),
+                            'query_sql': opt.get('query_sql', ''),
+                            'table_column_config': opt.get('table_column_config', ''),
+                            'x_column': opt.get('x_column', ''),
+                            'y_columns': opt.get('y_columns', ''),
+                            'series_column': opt.get('series_column', ''),
+                            'click_action': opt.get('click_action', 'none'),
+                            'action_page_key': opt.get('action_page_key', ''),
+                            'action_tab_key': opt.get('action_tab_key', ''),
+                            'action_pass_value_as': opt.get('action_pass_value_as', ''),
+                            'drill_detail_columns': opt.get('drill_detail_columns', ''),
+                            'action_url_template': opt.get('action_url_template', ''),
+                        }
+                        table_name = opt.get('schema_source_table', '')
+                        if table_name:
+                            src = Source.search(
+                                [('table_name', '=', table_name)], limit=1)
+                            if src:
+                                opt_vals['schema_source_id'] = src.id
+                        ScopeOption.sudo().create(opt_vals)
+
             return _json_resp({'widget_id': widget.id, 'name': widget.name})
         except Exception as e:
             _logger.exception("Builder update error")
