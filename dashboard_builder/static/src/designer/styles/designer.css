@@ -2235,6 +2235,56 @@
     align-items: center;
     gap: 8px;
 }
+/* Option Tab Bar (per-scope tabs at top of builder steps) */
+.wb-option-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #e2e8f0;
+}
+.wb-option-tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    background: none;
+    color: #64748b;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.wb-option-tab:hover {
+    color: #334155;
+    background: #f8fafc;
+}
+.wb-option-tab.active {
+    color: #0066cc;
+    border-bottom-color: #0066cc;
+    font-weight: 600;
+}
+.wb-option-tab i {
+    font-size: 12px;
+}
+
+/* Scope option number badge */
+.wb-scope-option-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
 .wb-scope-option-sql {
     margin-top: 8px;
     border-top: 1px solid #e2e8f0;

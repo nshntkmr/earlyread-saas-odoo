@@ -11,28 +11,42 @@ import FilterActionConfig from './FilterActionConfig'
 import LivePreview        from './LivePreview'
 import TableConfigurator  from './TableConfigurator'
 import AiSqlEditor        from './AiSqlEditor'
+import WidgetControlsStep from './WidgetControlsStep'
+import OptionTabBar        from './OptionTabBar'
 
-const CHART_STEPS = [
-  { key: 'chart_type',   label: 'Chart Type' },
-  { key: 'data_source',  label: 'Data Source' },
-  { key: 'columns',      label: 'Columns' },
-  { key: 'filters',      label: 'Filters & Actions' },
-  { key: 'preview',      label: 'Preview & Save' },
-]
-
-const TABLE_STEPS = [
-  { key: 'chart_type',   label: 'Chart Type' },
-  { key: 'data_source',  label: 'Data Source' },
-  { key: 'filters',      label: 'Filters & Actions' },
-  { key: 'configure',    label: 'Configure Table' },
-]
-
-function getSteps(chartType) {
-  return chartType === 'table' ? TABLE_STEPS : CHART_STEPS
+function getSteps(chartType, scopeMode) {
+  const steps = [
+    { key: 'chart_type', label: 'Chart Type' },
+    { key: 'controls',   label: 'Widget Controls' },
+  ]
+  steps.push({ key: 'data_source', label: 'Data Source' })
+  if (chartType !== 'table') {
+    steps.push({ key: 'columns', label: 'Columns' })
+  }
+  steps.push({ key: 'filters', label: 'Filters & Actions' })
+  steps.push(chartType === 'table'
+    ? { key: 'configure', label: 'Configure Table' }
+    : { key: 'preview', label: 'Preview & Save' }
+  )
+  return steps
 }
 
-// Keep STEPS reference for backward compat in reducer (uses length for bounds)
+// Keep legacy constants for backward compat
+const CHART_STEPS = getSteps('bar', 'none')
+const TABLE_STEPS = getSteps('table', 'none')
 const STEPS = CHART_STEPS
+
+/**
+ * getActiveConfig — returns the config object for the currently active scope option.
+ * When scopeMode = 'none', returns the top-level state (backward compatible).
+ * When scopeMode = 'independent', returns optionConfigs[activeScopeIdx].
+ */
+function getActiveConfig(state) {
+  if (state.scopeMode !== 'none' && state.optionConfigs?.length > 0) {
+    return state.optionConfigs[state.activeScopeIdx || 0] || state
+  }
+  return state
+}
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -78,7 +92,9 @@ const initialState = {
   scopeParamName: '',
   scopeLabel: '',
   scopeDefaultValue: '',
-  scopeOptions: [],          // [{label, value, icon, dataMode, sql, ...}]
+  scopeOptions: [],          // [{label, value, icon}] — option identity
+  optionConfigs: [],         // per-option full config (dataMode, sources, customSql, etc.)
+  activeScopeIdx: 0,         // which option tab is active in steps 2-5
   searchEnabled: false,
   searchPlaceholder: 'Search...',
 
@@ -115,46 +131,86 @@ const initialState = {
   },
 }
 
+// Helper: route a state update to optionConfigs[activeScopeIdx] when scope is active
+function _routeToOption(state, updates) {
+  if (state.scopeMode !== 'none' && state.optionConfigs?.length > 0) {
+    const idx = state.activeScopeIdx || 0
+    const configs = [...state.optionConfigs]
+    configs[idx] = { ...configs[idx], ...updates }
+    return { ...state, optionConfigs: configs }
+  }
+  return { ...state, ...updates }
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case 'SET_STEP':
       return { ...state, step: action.step }
     case 'NEXT': {
-      const maxStep = getSteps(state.chartType).length - 1
+      const maxStep = getSteps(state.chartType, state.scopeMode).length - 1
       return { ...state, step: Math.min(state.step + 1, maxStep) }
     }
     case 'PREV':
       return { ...state, step: Math.max(state.step - 1, 0) }
     case 'SET_CHART_TYPE':
       return { ...state, chartType: action.value }
+    case 'SET_ACTIVE_SCOPE_IDX':
+      return { ...state, activeScopeIdx: action.value }
+    // Per-option config actions — routed via _routeToOption
     case 'SET_DATA_MODE':
-      return { ...state, dataMode: action.value }
+      return _routeToOption(state, { dataMode: action.value })
     case 'SET_SOURCES':
-      return { ...state, sources: action.value }
+      return _routeToOption(state, { sources: action.value })
     case 'SET_JOINS':
-      return { ...state, joins: action.value }
-    case 'UPDATE_CUSTOM_SQL':
-      return { ...state, customSql: { ...state.customSql, ...action.value } }
-    case 'SET_AI_PROMPT':
-      return { ...state, aiState: { ...state.aiState, prompt: action.value } }
-    case 'SET_AI_RESULT':
-      return { ...state, aiState: { ...state.aiState, ...action.value } }
+      return _routeToOption(state, { joins: action.value })
+    case 'UPDATE_CUSTOM_SQL': {
+      const cfg = getActiveConfig(state)
+      return _routeToOption(state, { customSql: { ...(cfg.customSql || {}), ...action.value } })
+    }
+    case 'SET_AI_PROMPT': {
+      const cfg = getActiveConfig(state)
+      return _routeToOption(state, { aiState: { ...(cfg.aiState || {}), prompt: action.value } })
+    }
+    case 'SET_AI_RESULT': {
+      const cfg = getActiveConfig(state)
+      return _routeToOption(state, { aiState: { ...(cfg.aiState || {}), ...action.value } })
+    }
     case 'CLEAR_AI_STATE':
-      return { ...state, aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] } }
+      return _routeToOption(state, { aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] } })
     case 'SET_X_COLUMN':
-      return { ...state, xColumn: action.value }
+      return _routeToOption(state, { xColumn: action.value })
     case 'SET_COLUMNS':
-      return { ...state, columns: action.value }
+      return _routeToOption(state, { columns: action.value })
     case 'SET_SERIES_COLUMN':
-      return { ...state, seriesColumn: action.value }
+      return _routeToOption(state, { seriesColumn: action.value })
     case 'SET_ORDER_BY':
-      return { ...state, orderBy: action.value }
+      return _routeToOption(state, { orderBy: action.value })
     case 'SET_LIMIT':
-      return { ...state, limit: action.value }
+      return _routeToOption(state, { limit: action.value })
     case 'UPDATE_COLUMN_MAPPER':
-      return { ...state, ...action.value }
+      return _routeToOption(state, action.value)
     case 'UPDATE_FILTERS':
-      return { ...state, ...action.value }
+      // Filter/action updates and scope config updates both come through here
+      // Scope-level fields (scopeMode, scopeOptions, etc.) go to top-level state
+      // Per-option fields (filters, clickAction, etc.) go to active option
+      const scopeKeys = new Set([
+        'scopeMode', 'scopeUi', 'scopeQueryMode', 'scopeParamName',
+        'scopeLabel', 'scopeDefaultValue', 'scopeOptions', 'optionConfigs',
+        'searchEnabled', 'searchPlaceholder',
+      ])
+      const topLevel = {}
+      const optionLevel = {}
+      for (const [k, v] of Object.entries(action.value)) {
+        if (scopeKeys.has(k)) topLevel[k] = v
+        else optionLevel[k] = v
+      }
+      let newState = Object.keys(topLevel).length
+        ? { ...state, ...topLevel }
+        : state
+      if (Object.keys(optionLevel).length) {
+        newState = _routeToOption(newState, optionLevel)
+      }
+      return newState
     case 'SET_VISUAL_FLAG':
       return { ...state, visualFlags: { ...state.visualFlags, [action.flag]: action.value } }
     case 'SET_VISUAL_FLAGS':
@@ -162,9 +218,9 @@ function reducer(state, action) {
     case 'SET_APPEARANCE':
       return { ...state, appearance: action.value }
     case 'SET_GENERATED_SQL':
-      return { ...state, generatedSql: action.value }
+      return _routeToOption(state, { generatedSql: action.value })
     case 'SET_TABLE_COLUMN_CONFIG':
-      return { ...state, tableColumnConfig: action.value }
+      return _routeToOption(state, { tableColumnConfig: action.value })
     case 'LOAD_DEFINITION': {
       const d = action.value
       // Parse builder_config to restore visual builder state (sources, columns, filters, etc.)
@@ -341,12 +397,15 @@ export default function WidgetBuilder({
     )
   }
 
-  const activeSteps = getSteps(state.chartType)
+  const activeSteps = getSteps(state.chartType, state.scopeMode)
   const currentStep = activeSteps[state.step] || activeSteps[0]
+  const currentStepKey = currentStep?.key || ''
   const canNext = state.step < activeSteps.length - 1
   const canPrev = state.step > 0
   const isEditing = !!editId
-  const isTableConfigStep = state.chartType === 'table' && state.step === 3
+  const isTableConfigStep = currentStepKey === 'configure'
+  const hasScope = state.scopeMode !== 'none' && state.scopeOptions?.length > 0
+  const ac = getActiveConfig(state)  // active option config (or top-level state)
 
   return (
     <div className="dd-page">
@@ -385,13 +444,13 @@ export default function WidgetBuilder({
 
         {/* Instruction text */}
         <div className="dd-wizard-instruction">
-          {state.step === 0 && 'Choose how this widget displays data.'}
-          {state.step === 1 && 'Select your data source — visual table builder or custom SQL.'}
-          {state.step === 2 && state.chartType === 'table' && 'Add WHERE filters and configure click actions.'}
-          {state.step === 2 && state.chartType !== 'table' && 'Map columns to axes and configure aggregation.'}
-          {state.step === 3 && state.chartType === 'table' && 'Configure table columns and preview with real data.'}
-          {state.step === 3 && state.chartType !== 'table' && 'Add filters and configure click actions.'}
-          {state.step === 4 && 'Preview your widget and save it to the library.'}
+          {currentStepKey === 'chart_type' && 'Choose how this widget displays data.'}
+          {currentStepKey === 'controls' && 'Add toggle buttons, dropdown filters, or search bar (optional).'}
+          {currentStepKey === 'data_source' && 'Select your data source — visual table builder or custom SQL.'}
+          {currentStepKey === 'columns' && 'Map columns to axes and configure aggregation.'}
+          {currentStepKey === 'filters' && 'Add WHERE filters and configure click actions.'}
+          {currentStepKey === 'configure' && 'Configure table columns and preview with real data.'}
+          {currentStepKey === 'preview' && 'Preview your widget and save it to the library.'}
         </div>
 
         {/* Body */}
@@ -403,8 +462,8 @@ export default function WidgetBuilder({
             </div>
           )}
 
-          {/* Step 1: Chart Type */}
-          {state.step === 0 && (
+          {/* Step 0: Chart Type */}
+          {currentStepKey === 'chart_type' && (
             <ChartTypePicker
               selected={state.chartType}
               onSelect={v => {
@@ -423,41 +482,63 @@ export default function WidgetBuilder({
             />
           )}
 
+          {/* Step 1: Widget Controls */}
+          {currentStepKey === 'controls' && (
+            <WidgetControlsStep
+              scopeMode={state.scopeMode}
+              scopeUi={state.scopeUi}
+              scopeParamName={state.scopeParamName}
+              scopeLabel={state.scopeLabel}
+              searchEnabled={state.searchEnabled}
+              searchPlaceholder={state.searchPlaceholder}
+              scopeOptions={state.scopeOptions}
+              optionConfigs={state.optionConfigs}
+              onUpdate={v => dispatch({ type: 'UPDATE_FILTERS', value: v })}
+            />
+          )}
+
           {/* Step 2: Data Source */}
-          {state.step === 1 && (
+          {currentStepKey === 'data_source' && (
             <div>
+              {hasScope && (
+                <OptionTabBar
+                  options={state.scopeOptions}
+                  activeIdx={state.activeScopeIdx}
+                  onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
+                />
+              )}
               <h3 className="wb-step-title">Data Source</h3>
               <div className="wb-field-group">
                 <div className="wb-mode-toggle">
                   <button
                     type="button"
-                    className={`wb-btn ${(state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? 'wb-btn--primary' : 'wb-btn--outline'}`}
+                    className={`wb-btn ${(ac.dataMode === 'visual' || ac.dataMode === 'visual_builder') ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'visual' })}
                   >
                     <i className="fa fa-mouse-pointer me-1" /> Visual Builder
                   </button>
                   <button
                     type="button"
-                    className={`wb-btn ${state.dataMode === 'custom_sql' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
+                    className={`wb-btn ${ac.dataMode === 'custom_sql' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'custom_sql' })}
                   >
                     <i className="fa fa-code me-1" /> Custom SQL
                   </button>
                   <button
                     type="button"
-                    className={`wb-btn ${state.dataMode === 'ai' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
+                    className={`wb-btn ${ac.dataMode === 'ai' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'ai' })}
-                    style={state.dataMode === 'ai' ? { background: '#7c3aed', borderColor: '#7c3aed' } : {}}
+                    style={ac.dataMode === 'ai' ? { background: '#7c3aed', borderColor: '#7c3aed' } : {}}
                   >
                     <i className="fa fa-magic me-1" /> AI Assistant
                   </button>
                 </div>
               </div>
 
-              {state.dataMode === 'ai' ? (
+              {ac.dataMode === 'ai' ? (
                 <AiSqlEditor
-                  sources={state.sources}
-                  aiState={state.aiState}
+                  sources={ac.sources || []}
+                  aiState={ac.aiState || {}}
                   chartType={state.chartType}
                   gaugeStyle={state.visualFlags?.gauge_style}
                   lineStyle={state.visualFlags?.line_style}
@@ -475,10 +556,10 @@ export default function WidgetBuilder({
                     dispatch({ type: 'UPDATE_CUSTOM_SQL', value: { sql, xColumn: xCol, yColumns: yCols, seriesColumn: seriesCol || '' } })
                   }}
                 />
-              ) : (state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
+              ) : (ac.dataMode === 'visual' || ac.dataMode === 'visual_builder') ? (
                 <TableJoinBuilder
-                  sources={state.sources}
-                  joins={state.joins}
+                  sources={ac.sources || []}
+                  joins={ac.joins || []}
                   onUpdate={({ sources, joins }) => {
                     if (sources !== undefined) dispatch({ type: 'SET_SOURCES', value: sources })
                     if (joins !== undefined) dispatch({ type: 'SET_JOINS', value: joins })
@@ -487,12 +568,12 @@ export default function WidgetBuilder({
                 />
               ) : (
                 <CustomSqlEditor
-                  sql={state.customSql.sql}
-                  xColumn={state.customSql.xColumn}
-                  yColumns={state.customSql.yColumns}
-                  seriesColumn={state.customSql.seriesColumn}
-                  testResult={state.customSql.testResult}
-                  testParams={state.customSql.testParams}
+                  sql={(ac.customSql || {}).sql || ''}
+                  xColumn={(ac.customSql || {}).xColumn || ''}
+                  yColumns={(ac.customSql || {}).yColumns || ''}
+                  seriesColumn={(ac.customSql || {}).seriesColumn || ''}
+                  testResult={(ac.customSql || {}).testResult}
+                  testParams={(ac.customSql || {}).testParams || {}}
                   onUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
                   apiBase={apiBase}
                   appContext={appContext}
@@ -505,67 +586,83 @@ export default function WidgetBuilder({
             </div>
           )}
 
-          {/* Step 3: Columns (chart types — visual mode) */}
-          {state.step === 2 && state.chartType !== 'table' && (
-            (state.dataMode === 'visual' || state.dataMode === 'visual_builder') ? (
-              <ColumnMapper
-                sources={state.sources}
-                columns={state.columns}
-                xColumn={state.xColumn}
-                seriesColumn={state.seriesColumn}
-                orderBy={state.orderBy}
-                limit={state.limit}
-                chartType={state.chartType}
-                visualFlags={state.visualFlags}
-                onUpdate={v => dispatch({ type: 'UPDATE_COLUMN_MAPPER', value: v })}
-              />
-            ) : (
-              <div className="wb-step-skip">
-                <i className="fa fa-info-circle me-2" />
-                Column mapping is configured in the Custom SQL step. Click <strong>Next</strong> to continue.
-              </div>
-            )
+          {/* Columns step (chart types — visual mode) */}
+          {currentStepKey === 'columns' && (
+            <>
+              {hasScope && (
+                <OptionTabBar
+                  options={state.scopeOptions}
+                  activeIdx={state.activeScopeIdx}
+                  onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
+                />
+              )}
+              {(ac.dataMode === 'visual' || ac.dataMode === 'visual_builder') ? (
+                <ColumnMapper
+                  sources={ac.sources || []}
+                  columns={ac.columns || []}
+                  xColumn={ac.xColumn || ''}
+                  seriesColumn={ac.seriesColumn || ''}
+                  orderBy={ac.orderBy || ''}
+                  limit={ac.limit || ''}
+                  chartType={state.chartType}
+                  visualFlags={state.visualFlags}
+                  onUpdate={v => dispatch({ type: 'UPDATE_COLUMN_MAPPER', value: v })}
+                />
+              ) : (
+                <div className="wb-step-skip">
+                  <i className="fa fa-info-circle me-2" />
+                  Column mapping is configured in the Custom SQL step. Click <strong>Next</strong> to continue.
+                </div>
+              )}
+            </>
           )}
 
-          {/* Step 3 (tables) / Step 4 (charts): Filters & Actions */}
-          {((state.step === 2 && state.chartType === 'table') ||
-            (state.step === 3 && state.chartType !== 'table')) && (
+          {/* Filters & Actions step */}
+          {currentStepKey === 'filters' && (
+            <>
+            {hasScope && (
+              <OptionTabBar
+                options={state.scopeOptions}
+                activeIdx={state.activeScopeIdx}
+                onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
+              />
+            )}
             <FilterActionConfig
-              dataSourceMode={state.dataMode}
-              sources={state.sources}
-              filters={state.filters}
-              clickAction={state.clickAction}
-              actionPageKey={state.actionPageKey}
-              actionTabKey={state.actionTabKey}
-              actionPassValueAs={state.actionPassValueAs}
-              drillDetailColumns={state.drillDetailColumns}
-              actionUrlTemplate={state.actionUrlTemplate}
-              scopeMode={state.scopeMode}
-              scopeUi={state.scopeUi}
-              scopeQueryMode={state.scopeQueryMode}
-              scopeParamName={state.scopeParamName}
-              scopeLabel={state.scopeLabel}
-              scopeDefaultValue={state.scopeDefaultValue}
-              scopeOptions={state.scopeOptions}
-              searchEnabled={state.searchEnabled}
-              searchPlaceholder={state.searchPlaceholder}
+              dataSourceMode={ac.dataMode || 'custom_sql'}
+              sources={ac.sources || []}
+              filters={ac.filters || []}
+              clickAction={ac.clickAction || 'none'}
+              actionPageKey={ac.actionPageKey || ''}
+              actionTabKey={ac.actionTabKey || ''}
+              actionPassValueAs={ac.actionPassValueAs || ''}
+              drillDetailColumns={ac.drillDetailColumns || ''}
+              actionUrlTemplate={ac.actionUrlTemplate || ''}
               chartType={state.chartType}
               onUpdate={v => dispatch({ type: 'UPDATE_FILTERS', value: v })}
               apiBase={apiBase}
             />
+            </>
           )}
 
-          {/* Step 4 (tables): Table Configurator + Preview & Save */}
-          {state.step === 3 && state.chartType === 'table' && (
+          {/* Table Configurator step */}
+          {currentStepKey === 'configure' && (
+            <>
+            {hasScope && (
+              <OptionTabBar
+                options={state.scopeOptions}
+                activeIdx={state.activeScopeIdx}
+                onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
+              />
+            )}
             <TableConfigurator
-              sources={state.sources}
-              joins={state.joins}
-              dataMode={state.dataMode}
-              customSql={state.customSql}
-              filters={state.filters}
+              sources={ac.sources || []}
+              joins={ac.joins || []}
+              dataMode={ac.dataMode || 'custom_sql'}
+              customSql={ac.customSql || {}}
+              filters={ac.filters || []}
               visualFlags={state.visualFlags}
               appearance={state.appearance}
-              tableColumnConfig={state.tableColumnConfig}
+              tableColumnConfig={ac.tableColumnConfig || []}
               builderState={state}
               onUpdate={dispatch}
               onSave={handleSave}
@@ -574,21 +671,31 @@ export default function WidgetBuilder({
               appContext={appContext}
               editId={editId}
             />
+            </>
           )}
 
-          {/* Step 5 (charts): Preview & Save */}
-          {state.step === 4 && state.chartType !== 'table' && (
-            <LivePreview
-              builderState={state}
-              generatedSql={state.generatedSql}
-              onSqlGenerated={sql => dispatch({ type: 'SET_GENERATED_SQL', value: sql })}
-              onSave={handleSave}
-              saving={saving}
-              apiBase={apiBase}
-              appContext={appContext}
-              onAppearanceChange={v => dispatch({ type: 'SET_APPEARANCE', value: v })}
-              editId={editId}
-            />
+          {/* Preview & Save step (charts) */}
+          {currentStepKey === 'preview' && (
+            <>
+              {hasScope && (
+                <OptionTabBar
+                  options={state.scopeOptions}
+                  activeIdx={state.activeScopeIdx}
+                  onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
+                />
+              )}
+              <LivePreview
+                builderState={state}
+                generatedSql={ac.generatedSql || ''}
+                onSqlGenerated={sql => dispatch({ type: 'SET_GENERATED_SQL', value: sql })}
+                onSave={handleSave}
+                saving={saving}
+                apiBase={apiBase}
+                appContext={appContext}
+                onAppearanceChange={v => dispatch({ type: 'SET_APPEARANCE', value: v })}
+                editId={editId}
+              />
+            </>
           )}
         </div>
 
