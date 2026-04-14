@@ -484,6 +484,28 @@
                                                            style="min-height: 80px; font-family: monospace;"/>
                                                 </group>
                                             </group>
+                                            <group string="Click Action (Query Mode)">
+                                                <group>
+                                                    <field name="click_action"/>
+                                                    <field name="action_page_key"
+                                                           invisible="click_action != 'go_to_page'"
+                                                           placeholder="e.g. hospital_detail"/>
+                                                    <field name="action_tab_key"
+                                                           invisible="click_action != 'go_to_page'"
+                                                           placeholder="optional"/>
+                                                    <field name="action_pass_value_as"
+                                                           invisible="click_action != 'go_to_page'"
+                                                           placeholder="e.g. hospital_ccn"/>
+                                                </group>
+                                                <group>
+                                                    <field name="drill_detail_columns"
+                                                           invisible="click_action != 'show_details'"
+                                                           placeholder="comma-separated columns"/>
+                                                    <field name="action_url_template"
+                                                           invisible="click_action != 'open_url'"
+                                                           placeholder="/my/app/detail/{value}"/>
+                                                </group>
+                                            </group>
                                         </sheet>
                                     </form>
                                 </field>

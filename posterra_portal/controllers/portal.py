@@ -200,6 +200,11 @@ def _build_initial_widgets_json(widgets, widget_data):
                         'label': o.label or '',
                         'icon': o.icon or '',
                         'has_sql': bool(o.query_sql),
+                        'click_action': o.click_action or 'none',
+                        'action_page_key': o.action_page_key or '',
+                        'action_tab_key': o.action_tab_key or '',
+                        'action_pass_value_as': o.action_pass_value_as or '',
+                        'action_url_template': o.action_url_template or '',
                     } for o in active_opts]
                 else:
                     _scope['options'] = w.get_scope_options()

@@ -62,6 +62,20 @@ class DashboardWidgetScopeOption(models.Model):
     series_column = fields.Char(string='Series Column',
         help='Series/grouping column for chart widgets in query mode.')
 
+    # ── Per-Option Click Actions ──────────────────────────────────────────────
+    click_action = fields.Selection([
+        ('none', 'No Action'),
+        ('filter_page', 'Filter Page'),
+        ('go_to_page', 'Go to Page'),
+        ('show_details', 'Show Details'),
+        ('open_url', 'Open URL'),
+    ], default='none', string='Click Action')
+    action_page_key = fields.Char(string='Target Page Key')
+    action_tab_key = fields.Char(string='Target Tab Key')
+    action_pass_value_as = fields.Char(string='Pass Value As')
+    drill_detail_columns = fields.Char(string='Detail Columns')
+    action_url_template = fields.Char(string='URL Template')
+
     # ── Validation ────────────────────────────────────────────────────────────
 
     @api.constrains('query_sql')

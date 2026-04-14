@@ -280,6 +280,12 @@ class DashboardPageTemplate(models.Model):
                     'x_column': o.x_column or '',
                     'y_columns': o.y_columns or '',
                     'series_column': o.series_column or '',
+                    'click_action': o.click_action or 'none',
+                    'action_page_key': o.action_page_key or '',
+                    'action_tab_key': o.action_tab_key or '',
+                    'action_pass_value_as': o.action_pass_value_as or '',
+                    'drill_detail_columns': o.drill_detail_columns or '',
+                    'action_url_template': o.action_url_template or '',
                 })
             if scope_opts:
                 wdata['scope_options'] = scope_opts
@@ -607,6 +613,12 @@ class DashboardPageTemplate(models.Model):
                     'x_column': opt.get('x_column', ''),
                     'y_columns': opt.get('y_columns', ''),
                     'series_column': opt.get('series_column', ''),
+                    'click_action': opt.get('click_action', 'none'),
+                    'action_page_key': opt.get('action_page_key', ''),
+                    'action_tab_key': opt.get('action_tab_key', ''),
+                    'action_pass_value_as': opt.get('action_pass_value_as', ''),
+                    'drill_detail_columns': opt.get('drill_detail_columns', ''),
+                    'action_url_template': opt.get('action_url_template', ''),
                 }
                 opt_table = opt.get('schema_source_table', '')
                 if opt_table:

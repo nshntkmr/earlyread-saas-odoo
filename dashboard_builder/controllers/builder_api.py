@@ -373,6 +373,13 @@ class BuilderAPI(http.Controller):
                             'x_column': opt.get('x_column', ''),
                             'y_columns': opt.get('y_columns', ''),
                             'series_column': opt.get('series_column', ''),
+                            # Per-option click actions
+                            'click_action': opt.get('click_action', 'none'),
+                            'action_page_key': opt.get('action_page_key', ''),
+                            'action_tab_key': opt.get('action_tab_key', ''),
+                            'action_pass_value_as': opt.get('action_pass_value_as', ''),
+                            'drill_detail_columns': opt.get('drill_detail_columns', ''),
+                            'action_url_template': opt.get('action_url_template', ''),
                         }
                         table_name = opt.get('schema_source_table', '')
                         if table_name:
