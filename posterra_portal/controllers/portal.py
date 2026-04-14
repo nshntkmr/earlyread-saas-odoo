@@ -175,6 +175,42 @@ def _build_initial_widgets_json(widgets, widget_data):
             'annotation_position': w.annotation_position or 'top_right',
             'data':         wd,
         }
+
+        # ── Scope config ──
+        _scope = {'mode': w.scope_mode or 'none'}
+        if w.scope_mode in ('dependent', 'independent'):
+            _scope['ui'] = w.scope_ui or 'dropdown'
+            _scope['query_mode'] = w.scope_query_mode or 'parameter'
+            _scope['label'] = w.scope_label or ''
+            _scope['default_value'] = w.scope_default_value or ''
+            _scope['param_name'] = ''
+            if w.scope_mode == 'dependent' and w.scope_filter_id:
+                pf = w.scope_filter_id
+                _scope['param_name'] = pf.param_name or pf.field_name or ''
+                _scope['filter_param'] = _scope['param_name']
+                _scope['filter_id'] = pf.id
+                _scope['options'] = []  # React reads from pageConfig.filters
+            elif w.scope_mode == 'independent':
+                _scope['param_name'] = w.scope_param_name or ''
+                if w.scope_query_mode == 'query':
+                    active_opts = w.scope_option_ids.filtered('is_active').sorted('sequence')
+                    _scope['options'] = [{
+                        'id': o.id,
+                        'value': o.value or '',
+                        'label': o.label or '',
+                        'icon': o.icon or '',
+                        'has_sql': bool(o.query_sql),
+                    } for o in active_opts]
+                else:
+                    _scope['options'] = w.get_scope_options()
+        result[str(w.id)]['scope'] = _scope
+
+        # ── Search config ──
+        result[str(w.id)]['search'] = (
+            {'placeholder': w.search_placeholder or 'Search...'}
+            if w.search_enabled else None
+        )
+
     return json.dumps(result, default=str)
 
 
@@ -755,22 +791,23 @@ class PosterraPortal(CustomerPortal):
         section_data = {sec.id: sec.get_portal_data(portal_ctx) for sec in page_sections}
 
         # ── 10b. Page header badges ───────────────────────────────────
-        # SQL-driven badges rendered in the page header (right of title).
-        # Each badge is a lightweight query returning a single "value" column.
-        badge_items = []
+        # SQL-driven badges for the page header. Passed to React via
+        # data-initial-badges so they refresh on filter Apply (not QWeb).
+        initial_badges = []
         if current_page:
             active_badges = current_page.badge_ids.filtered(lambda b: b.is_active)
             for badge in active_badges:
                 value = badge.execute_badge_sql(portal_ctx)
-                if value:  # skip badges with empty/null results
-                    badge_items.append({
-                        'icon': badge.icon or '',
-                        'value': value,
-                        'font_size': badge.font_size or 0,
-                        'text_color': badge.text_color or '',
-                        'icon_color': badge.icon_color or '',
-                        'is_link': badge.is_link,
-                    })
+                initial_badges.append({
+                    'id': badge.id,
+                    'icon': badge.icon or '',
+                    'value': value or '',
+                    'font_size': badge.font_size or 0,
+                    'text_color': badge.text_color or '',
+                    'icon_color': badge.icon_color or '',
+                    'is_link': badge.is_link,
+                })
+        initial_badges_json = json.dumps(initial_badges)
 
         # ── 11. Phase 7 — React shell data ─────────────────────────────
         # Build JSON blobs and a fresh JWT for the React app-root div.
@@ -820,8 +857,8 @@ class PosterraPortal(CustomerPortal):
             # Page sections
             'page_sections': page_sections,
             'section_data':  section_data,
-            # Page header badges
-            'badge_items':   badge_items,
+            # Page header badges (React-rendered)
+            'initial_badges_json': initial_badges_json,
             # Phase 7 — React shell data (embedded as data-* on #app-root)
             'portal_access_token':      portal_access_token,
             'page_config_json':         page_config_json,

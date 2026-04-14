@@ -486,7 +486,41 @@ class PosterraWidgetAPI(http.Controller):
             _logger.warning('api_widget_data: portal_ctx error widget=%s: %s', widget_id, exc)
             return _json_error(500, f'Context build error: {exc}')
 
-        # ── Execute widget data logic (unchanged) ─────────────────────────
+        # ── Widget-scoped control override ───────────────────────────────
+        _scope_option_id = kw.pop('_scope_option_id', None)
+
+        if widget.scope_query_mode == 'query' and _scope_option_id:
+            # Query Mode: use the selected option's SQL instead of widget's
+            try:
+                opt = request.env['dashboard.widget.scope.option'].sudo().browse(
+                    int(_scope_option_id))
+                if (opt.exists() and opt.widget_id.id == widget.id
+                        and opt.is_active and opt.query_sql):
+                    raw_data = opt.execute_option_sql(portal_ctx)
+                    clean_data = _normalise_widget_data(raw_data)
+                    return _json_response({
+                        'widget_id':  widget.id,
+                        'chart_type': widget.chart_type,
+                        'data':       clean_data,
+                        '_scope_option_id': opt.id,
+                    })
+            except (ValueError, TypeError):
+                pass  # fall through to normal execution
+
+        if widget.scope_mode in ('dependent', 'independent'):
+            # Parameter Mode: inject scope param into sql_params
+            pname = ''
+            if widget.scope_mode == 'dependent' and widget.scope_filter_id:
+                pname = (widget.scope_filter_id.param_name
+                         or widget.scope_filter_id.field_name or '')
+            elif widget.scope_mode == 'independent':
+                pname = widget.scope_param_name or ''
+            if pname:
+                scope_val = (kw.get(pname) or '').strip()
+                if scope_val and scope_val.lower() not in ('', 'all'):
+                    portal_ctx['sql_params'][pname] = scope_val
+
+        # ── Execute widget data logic ─────────────────────────────────────
         raw_data = widget.get_portal_data(portal_ctx)
 
         # ── Normalise for JSON (parse echart_json string → echart_option dict)
@@ -773,6 +807,59 @@ class PosterraWidgetAPI(http.Controller):
             'filter_id': fid,
             'options':   options,
         })
+
+    # ------------------------------------------------------------------ #
+    # GET /api/v1/page/<page_id>/badges                                    #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/page/<int:page_id>/badges',
+        type='http',
+        auth='none',
+        methods=['GET', 'OPTIONS'],
+        csrf=False,
+        readonly=True,
+    )
+    def api_page_badges(self, page_id, **kw):
+        """Return badge values for a page, using current filter params.
+
+        Called by React BadgeBar when filters change (Apply).
+        Uses the same _build_portal_ctx() as widget/section endpoints.
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _json_response({})
+
+        try:
+            user, app = _get_api_user()
+        except ValueError as exc:
+            return _json_error(401, str(exc))
+
+        page = request.env['dashboard.page'].sudo().browse(page_id)
+        if not page.exists():
+            return _json_error(404, f'Page {page_id} not found')
+        if page.app_id.id != app.id:
+            return _json_error(403, 'Page does not belong to your app')
+
+        try:
+            portal_ctx = _build_portal_ctx(page, user, app, kw)
+        except Exception as exc:
+            _logger.warning('api_page_badges: portal_ctx error page=%s: %s', page_id, exc)
+            return _json_error(500, f'Context build error: {exc}')
+
+        active_badges = page.badge_ids.filtered(lambda b: b.is_active)
+        badges = []
+        for badge in active_badges:
+            value = badge.execute_badge_sql(portal_ctx)
+            badges.append({
+                'id': badge.id,
+                'icon': badge.icon or '',
+                'value': value or '',
+                'font_size': badge.font_size or 0,
+                'text_color': badge.text_color or '',
+                'icon_color': badge.icon_color or '',
+                'is_link': badge.is_link,
+            })
+
+        return _json_response({'badges': badges})
 
     # ------------------------------------------------------------------ #
     # POST /api/v1/filters/resolve                                        #

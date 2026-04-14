@@ -137,6 +137,51 @@ class DashboardWidget(models.Model):
         help='How many grid rows this widget spans. '
              'Use 2+ for tall widgets (e.g., maps) that should have '
              'smaller widgets stacked beside them.')
+
+    # ── Widget-Scoped Controls ────────────────────────────────────────────
+    scope_mode = fields.Selection([
+        ('none', 'No Controls'),
+        ('dependent', 'Linked to Page Filter'),
+        ('independent', 'Custom Options'),
+    ], default='none', string='Scope Mode',
+        help='Adds a widget-level control (toggle/dropdown) that filters '
+             'only this widget. Other widgets are unaffected.')
+    scope_ui = fields.Selection([
+        ('dropdown', 'Dropdown'),
+        ('toggle', 'Toggle Buttons'),
+    ], default='dropdown', string='Scope UI',
+        help='Dropdown renders a select element. Toggle renders a button group.')
+    scope_query_mode = fields.Selection([
+        ('parameter', 'Same SQL, Different Parameter'),
+        ('query', 'Different SQL Per Option'),
+    ], default='parameter', string='Toggle Query Mode',
+        help='Parameter: one SQL query with %(param)s changed per option.\n'
+             'Query: each option can have its own SQL query (different columns/tables).')
+    scope_filter_id = fields.Many2one(
+        'dashboard.page.filter', string='Linked Filter',
+        ondelete='set null', domain="[('page_id','=',page_id)]",
+        help="Dependent mode: control mirrors this page filter's options.")
+    scope_schema_source_id = fields.Many2one(
+        'dashboard.schema.source', string='Scope Source',
+        ondelete='set null',
+        help='MV/table for dropdown options. Not needed when using static options.')
+    scope_value_column = fields.Char(string='Scope Value Column',
+        help='Column for option value (e.g., hha_state_cd)')
+    scope_label_column = fields.Char(string='Scope Label Column',
+        help='Column for option label. Falls back to value column if blank.')
+    scope_param_name = fields.Char(string='Scope SQL Param',
+        help='Param name used in widget SQL: [[AND col = %(param)s]].\n'
+             'Only for parameter mode.')
+    scope_label = fields.Char(string='Control Label',
+        help='Label on dropdown (e.g., "All States") or tooltip for toggle.')
+    scope_default_value = fields.Char(string='Scope Default Value',
+        help='Initial value. Blank = first option or "All" (no filter).')
+    scope_option_ids = fields.One2many(
+        'dashboard.widget.scope.option', 'widget_id', string='Scope Options')
+    search_enabled = fields.Boolean(default=False, string='Enable Search',
+        help='Show a search bar in widget header. Client-side filtering for tables.')
+    search_placeholder = fields.Char(default='Search...', string='Search Placeholder')
+
     chart_type = fields.Selection([
         ('bar',          'Bar'),
         ('line',         'Line'),
@@ -626,6 +671,64 @@ class DashboardWidget(models.Model):
             if w.query_sql and '{where_clause}' in w.query_sql and not w.schema_source_id:
                 raise ValidationError(
                     'A Schema Source is required when using {where_clause} in SQL.')
+
+    # =========================================================================
+    # Widget-Scoped Controls helpers
+    # =========================================================================
+
+    def get_scope_options(self):
+        """Return [{value, label, icon}, ...] for the scope control.
+
+        Priority: scope_option_ids (child records) > schema source query.
+        """
+        self.ensure_one()
+        # Child records take priority
+        if self.scope_option_ids:
+            return [{
+                'value': o.value or '',
+                'label': o.label or o.value or '',
+                'icon': o.icon or '',
+            } for o in self.scope_option_ids.filtered('is_active').sorted('sequence')]
+        # Schema source fallback (for dropdown with dynamic options)
+        if self.scope_schema_source_id and self.scope_value_column:
+            table = self.scope_schema_source_id.table_name
+            val_col = self.scope_value_column
+            lbl_col = self.scope_label_column or val_col
+            sql = (
+                f"SELECT DISTINCT {val_col} AS value, {lbl_col} AS label "
+                f"FROM {table} WHERE {val_col} IS NOT NULL ORDER BY {lbl_col}"
+            )
+            self.env.cr.execute(sql)
+            return [
+                {'value': str(r['value']), 'label': str(r['label']), 'icon': ''}
+                for r in self.env.cr.dictfetchall()
+            ]
+        return []
+
+    def _format_scope_result(self, cols, rows):
+        """Format SQL result based on chart_type for scope option query mode.
+
+        Called by dashboard.widget.scope.option.execute_option_sql() when the
+        option has its own SQL (query mode). Returns the same dict shape that
+        get_portal_data() returns so React can render the result unchanged.
+        """
+        self.ensure_one()
+        if self.chart_type == 'table':
+            return self._build_table_data(cols, rows)
+        elif self.chart_type in ('kpi', 'status_kpi', 'kpi_strip'):
+            return self._build_kpi_data(cols, rows, {})
+        elif self.chart_type == 'battle_card':
+            return self._build_battle_data(cols, rows)
+        elif self.chart_type == 'insight_panel':
+            return self._build_insight_data(cols, rows, {})
+        elif self.chart_type == 'gauge_kpi':
+            return self._build_gauge_kpi_data(cols, rows)
+        elif self.chart_type == 'map':
+            return self._build_map_data(cols, rows)
+        else:
+            # ECharts types (bar, line, pie, donut, gauge, radar, scatter, heatmap)
+            option = self._build_echart_option(cols, rows)
+            return {'echart_json': json.dumps(option, default=str)}
 
     # =========================================================================
     # Public entry point called by controller

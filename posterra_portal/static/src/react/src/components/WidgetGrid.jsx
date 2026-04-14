@@ -21,6 +21,9 @@ const MapWidget = React.lazy(() => import('./widgets/MapWidget'))
 // ── Icons ──────────────────────────────────────────────────────────────────
 import CategoryIcon from './widgets/CategoryIcons'
 
+// ── Widget-scoped controls ──────────────────────────────────────────────────
+import WidgetControls from './WidgetControls'
+
 // ── Drill-down ──────────────────────────────────────────────────────────────
 import DrillDownModal from './builder/DrillDownModal'
 
@@ -64,11 +67,47 @@ export default function WidgetGrid({ initialWidgets }) {
   // error state per widget
   const [errors, setErrors] = useState({})
 
+  // Widget-scoped control state
+  const [scopeValues, setScopeValues] = useState({})      // { widgetId: scopeValue }
+  const [scopeOptionIds, setScopeOptionIds] = useState({}) // { widgetId: optionId } (query mode)
+  const [searchTexts, setSearchTexts] = useState({})
+
   // Drill-down modal
   const [drillState, setDrillState] = useState(null) // { widgetId, clickColumn, clickValue }
 
   // Track whether this is the initial mount (skip refetch on first render)
   const isFirst = useRef(true)
+
+  // ── Widget-scoped control handler ─────────────────────────────────────────
+  const handleScopeChange = useCallback(async (widgetId, newValue, optionId) => {
+    setScopeValues(prev => ({ ...prev, [widgetId]: newValue }))
+    if (optionId != null) setScopeOptionIds(prev => ({ ...prev, [widgetId]: optionId }))
+
+    const w = widgetData[String(widgetId)]
+    if (!w) return
+
+    // Build params: page filters + scope param
+    const params = { ...filterValues }
+    if (w.scope?.query_mode === 'query' && optionId) {
+      params._scope_option_id = optionId  // Query mode: send option ID
+    } else if (w.scope?.param_name && newValue) {
+      params[w.scope.param_name] = newValue  // Parameter mode: send param value
+    }
+
+    setLoading(prev => ({ ...prev, [widgetId]: true }))
+    try {
+      const url = widgetDataUrl(apiBase, widgetId, params)
+      const result = await apiFetch(url, accessToken, {}, refreshToken)
+      setWidgetData(prev => ({
+        ...prev,
+        [String(widgetId)]: { ...prev[String(widgetId)], data: result.data },
+      }))
+    } catch (err) {
+      setErrors(prev => ({ ...prev, [widgetId]: err.message || 'Failed to load' }))
+    } finally {
+      setLoading(prev => ({ ...prev, [widgetId]: false }))
+    }
+  }, [widgetData, filterValues, apiBase, accessToken, refreshToken])
 
   // ── Refetch when filterValues changes (after Apply) ───────────────────────
   useEffect(() => {
@@ -103,7 +142,15 @@ export default function WidgetGrid({ initialWidgets }) {
     // Fire all fetches in parallel
     visibleWidgets.forEach(async (w) => {
       try {
-        const url = widgetDataUrl(apiBase, w.id, filterValues)
+        // Include scope param if widget has active scope control
+        const params = { ...filterValues }
+        const sv = scopeValues[w.id]
+        if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
+          params._scope_option_id = scopeOptionIds[w.id]
+        } else if (w.scope?.param_name && sv) {
+          params[w.scope.param_name] = sv
+        }
+        const url = widgetDataUrl(apiBase, w.id, params)
         const result = await apiFetch(url, accessToken, {}, refreshToken)
         setWidgetData(prev => ({
           ...prev,
@@ -136,7 +183,15 @@ export default function WidgetGrid({ initialWidgets }) {
     // Fetch each deferred widget in parallel
     deferredWidgets.forEach(async (w) => {
       try {
-        const url = widgetDataUrl(apiBase, w.id, filterValues)
+        // Include scope param if widget has active scope control
+        const params = { ...filterValues }
+        const sv = scopeValues[w.id]
+        if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
+          params._scope_option_id = scopeOptionIds[w.id]
+        } else if (w.scope?.param_name && sv) {
+          params[w.scope.param_name] = sv
+        }
+        const url = widgetDataUrl(apiBase, w.id, params)
         const result = await apiFetch(url, accessToken, {}, refreshToken)
         setWidgetData(prev => ({
           ...prev,
@@ -249,6 +304,10 @@ export default function WidgetGrid({ initialWidgets }) {
       extraProps.onChartClick = (clickData) => handleWidgetClick(w, clickData)
     }
     if (isTable) {
+      // Pass search text for AG Grid quickFilterText
+      if (w.search && searchTexts[w.id]) {
+        extraProps.searchText = searchTexts[w.id]
+      }
       if (w.column_link_config) {
         extraProps.columnLinkConfig = w.column_link_config
       }
@@ -306,6 +365,15 @@ export default function WidgetGrid({ initialWidgets }) {
                     ? { ...(w.label_font_weight && { fontWeight: w.label_font_weight }), ...(w.label_color && { color: w.label_color }) }
                     : undefined}
               >{w.name}</span>
+              {/* Widget-scoped controls (toggle/dropdown/search) */}
+              <WidgetControls
+                scope={w.scope}
+                search={w.search}
+                scopeValue={scopeValues[w.id] ?? w.scope?.default_value ?? ''}
+                onScopeChange={(val, optId) => handleScopeChange(w.id, val, optId)}
+                searchText={searchTexts[w.id] || ''}
+                onSearchChange={(val) => setSearchTexts(prev => ({ ...prev, [w.id]: val }))}
+              />
               {w.annotation_type === 'badge' && w.annotation_text && (
                 <span className="pv-widget-badge badge bg-light text-dark ms-2">
                   {w.annotation_text}

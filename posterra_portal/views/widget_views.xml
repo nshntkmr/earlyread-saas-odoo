@@ -383,6 +383,97 @@
                             </group>
                         </page>
 
+                        <!-- ──────────────────────────── Controls tab ──── -->
+                        <page string="Controls" name="controls">
+                            <group>
+                                <group string="Scope Control">
+                                    <field name="scope_mode"/>
+                                    <field name="scope_ui"
+                                           invisible="scope_mode == 'none'"/>
+                                    <field name="scope_query_mode"
+                                           invisible="scope_mode == 'none'"/>
+                                </group>
+                                <group string="Search">
+                                    <field name="search_enabled"/>
+                                    <field name="search_placeholder"
+                                           invisible="not search_enabled"/>
+                                </group>
+                            </group>
+
+                            <!-- Dependent mode -->
+                            <group string="Linked Page Filter"
+                                   invisible="scope_mode != 'dependent'">
+                                <field name="scope_filter_id"
+                                       domain="[('page_id','=',page_id)]"
+                                       options="{'no_create': True}"/>
+                                <field name="scope_label"
+                                       placeholder="e.g. All States"/>
+                                <field name="scope_default_value"/>
+                            </group>
+
+                            <!-- Independent + Parameter mode -->
+                            <group string="Parameter Source"
+                                   invisible="scope_mode != 'independent' or scope_query_mode != 'parameter'">
+                                <group>
+                                    <field name="scope_param_name"
+                                           placeholder="e.g. source_type"/>
+                                    <field name="scope_label"
+                                           placeholder="e.g. All States"/>
+                                    <field name="scope_default_value"/>
+                                </group>
+                                <group>
+                                    <field name="scope_schema_source_id"/>
+                                    <field name="scope_value_column"
+                                           placeholder="e.g. hha_state_cd"/>
+                                    <field name="scope_label_column"
+                                           placeholder="e.g. hha_state"/>
+                                </group>
+                            </group>
+
+                            <!-- Scope Options (independent mode) -->
+                            <group string="Scope Options"
+                                   invisible="scope_mode != 'independent'">
+                                <field name="scope_option_ids" nolabel="1" colspan="2">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="label"/>
+                                        <field name="value" placeholder="empty = All"/>
+                                        <field name="icon" placeholder="fa-hospital-o"/>
+                                        <field name="is_active"/>
+                                    </list>
+                                    <form>
+                                        <sheet>
+                                            <group>
+                                                <group string="Option">
+                                                    <field name="label"/>
+                                                    <field name="value"
+                                                           placeholder="empty = All"/>
+                                                    <field name="icon"
+                                                           placeholder="fa-hospital-o"/>
+                                                    <field name="sequence"/>
+                                                    <field name="is_active"/>
+                                                </group>
+                                                <group string="Schema Source (Query Mode)">
+                                                    <field name="schema_source_id"/>
+                                                    <field name="where_clause_exclude"/>
+                                                </group>
+                                            </group>
+                                            <group string="SQL Query (Query Mode)">
+                                                <p class="text-muted">
+                                                    Leave empty for Parameter Mode (widget's main SQL with %(param)s).
+                                                    Set SQL for Query Mode (replaces widget SQL when this option is active).
+                                                </p>
+                                                <field name="query_sql" widget="text"
+                                                       placeholder="SELECT ... FROM ... WHERE {where_clause}"
+                                                       style="min-height: 120px; font-family: monospace;"
+                                                       nolabel="1" colspan="2"/>
+                                            </group>
+                                        </sheet>
+                                    </form>
+                                </field>
+                            </group>
+                        </page>
+
                     </notebook>
                 </sheet>
             </form>

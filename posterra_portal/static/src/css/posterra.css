@@ -287,7 +287,7 @@
     white-space: nowrap;
 }
 .pv-page-badge-icon {
-    color: #9ca3af;
+    color: #64748b;
     font-size: 12px;
     flex-shrink: 0;
 }
@@ -303,6 +303,117 @@
 .pv-page-badge a:hover {
     color: var(--pv-primary);
     text-decoration: underline;
+}
+
+/* --- Widget-Scoped Controls --- */
+.pv-widget-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* Toggle Button Group */
+.pv-widget-toggle-group {
+    display: inline-flex;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.pv-widget-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-right: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+.pv-widget-toggle-btn:last-child {
+    border-right: none;
+}
+.pv-widget-toggle-btn:hover {
+    background: #f8fafc;
+}
+.pv-widget-toggle-btn.active {
+    background: var(--pv-primary, #0066cc);
+    color: #ffffff;
+}
+.pv-widget-toggle-btn.active i {
+    color: #ffffff;
+}
+.pv-widget-toggle-btn i {
+    font-size: 10px;
+}
+
+/* Scope Dropdown */
+.pv-widget-scope-select {
+    padding: 3px 24px 3px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    cursor: pointer;
+}
+.pv-widget-scope-select:focus {
+    border-color: var(--pv-primary, #0066cc);
+    outline: none;
+}
+
+/* Search Bar */
+.pv-widget-search-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.pv-widget-search-icon {
+    position: absolute;
+    left: 8px;
+    font-size: 11px;
+    color: #9ca3af;
+    pointer-events: none;
+}
+.pv-widget-search {
+    padding: 4px 10px 4px 26px;
+    font-size: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    width: 180px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pv-widget-search:focus {
+    border-color: var(--pv-primary, #0066cc);
+    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+.pv-widget-search::placeholder {
+    color: #9ca3af;
+}
+
+/* Compact/dense density adjustments */
+.pv-widget-card--compact-density .pv-widget-toggle-btn {
+    padding: 2px 8px;
+    font-size: 10px;
+}
+.pv-widget-card--compact-density .pv-widget-search {
+    width: 140px;
+    font-size: 11px;
+}
+.pv-widget-card--dense .pv-widget-controls {
+    gap: 4px;
+}
+.pv-widget-card--dense .pv-widget-toggle-btn {
+    padding: 1px 6px;
+    font-size: 9px;
 }
 
 /* --- Tab Bar --- */
@@ -2741,6 +2852,18 @@
         justify-content: flex-start;
         font-size: 12px;
         padding: 4px 16px 8px;
+    }
+
+    .pv-widget-card-header {
+        flex-wrap: wrap;
+    }
+    .pv-widget-controls {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 6px;
+    }
+    .pv-widget-search {
+        width: 100%;
     }
 
     .pv-tab-bar {

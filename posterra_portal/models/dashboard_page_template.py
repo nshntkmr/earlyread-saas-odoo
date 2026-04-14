@@ -247,6 +247,39 @@ class DashboardPageTemplate(models.Model):
                     'gauge_sub_label_columns': w.gauge_sub_label_columns or '',
                     'gauge_alert_column': w.gauge_alert_column or '',
                 })
+            # Scope control fields
+            wdata.update({
+                'scope_mode': w.scope_mode or 'none',
+                'scope_ui': w.scope_ui or 'dropdown',
+                'scope_query_mode': w.scope_query_mode or 'parameter',
+                'scope_param_name': w.scope_param_name or '',
+                'scope_label': w.scope_label or '',
+                'scope_default_value': w.scope_default_value or '',
+                'scope_filter_param': (
+                    (w.scope_filter_id.param_name or '') if w.scope_filter_id else ''),
+                'scope_schema_source_table': (
+                    w.scope_schema_source_id.table_name if w.scope_schema_source_id else ''),
+                'scope_value_column': w.scope_value_column or '',
+                'scope_label_column': w.scope_label_column or '',
+                'search_enabled': w.search_enabled,
+                'search_placeholder': w.search_placeholder or '',
+            })
+            # Scope options (child records)
+            scope_opts = []
+            for o in w.scope_option_ids.filtered('is_active').sorted('sequence'):
+                scope_opts.append({
+                    'label': o.label,
+                    'value': o.value or '',
+                    'icon': o.icon or '',
+                    'sequence': o.sequence,
+                    'query_sql': o.query_sql or '',
+                    'schema_source_table': (
+                        o.schema_source_id.table_name if o.schema_source_id else ''),
+                    'where_clause_exclude': o.where_clause_exclude or '',
+                })
+            if scope_opts:
+                wdata['scope_options'] = scope_opts
+
             widgets.append(wdata)
 
         # ── Sections ───────────────────────────────────────────────
@@ -535,7 +568,44 @@ class DashboardPageTemplate(models.Model):
                 if fld in w:
                     wvals[fld] = w[fld]
 
-            Widget.create(wvals)
+            # Scope control fields
+            for fld in ('scope_mode', 'scope_ui', 'scope_query_mode',
+                        'scope_param_name', 'scope_label', 'scope_default_value',
+                        'scope_value_column', 'scope_label_column',
+                        'search_enabled', 'search_placeholder'):
+                if fld in w:
+                    wvals[fld] = w[fld]
+            # Resolve scope_filter by param_name
+            scope_fp = w.get('scope_filter_param', '')
+            if scope_fp and filter_map.get(scope_fp):
+                wvals['scope_filter_id'] = filter_map[scope_fp]
+            # Resolve scope_schema_source
+            scope_table = w.get('scope_schema_source_table', '')
+            if scope_table:
+                scope_src = Source.search([('table_name', '=', scope_table)], limit=1)
+                if scope_src:
+                    wvals['scope_schema_source_id'] = scope_src.id
+
+            new_widget = Widget.create(wvals)
+
+            # Create scope options (child records)
+            ScopeOption = self.env['dashboard.widget.scope.option']
+            for opt in w.get('scope_options', []):
+                opt_vals = {
+                    'widget_id': new_widget.id,
+                    'label': opt.get('label', ''),
+                    'value': opt.get('value', ''),
+                    'icon': opt.get('icon', ''),
+                    'sequence': opt.get('sequence', 10),
+                    'query_sql': opt.get('query_sql', ''),
+                    'where_clause_exclude': opt.get('where_clause_exclude', ''),
+                }
+                opt_table = opt.get('schema_source_table', '')
+                if opt_table:
+                    opt_src = Source.search([('table_name', '=', opt_table)], limit=1)
+                    if opt_src:
+                        opt_vals['schema_source_id'] = opt_src.id
+                ScopeOption.create(opt_vals)
 
         # ── Create sections ────────────────────────────────────────
         Section = self.env.get('dashboard.page.section')

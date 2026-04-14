@@ -12,7 +12,7 @@ void CELL_RENDERERS
 ModuleRegistry.registerModules([AllCommunityModule])
 
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
-function AGGridTable({ data, onCellClick }) {
+function AGGridTable({ data, onCellClick, searchText }) {
   const { columnDefs, rowData = [], row_count, visual_config: vc = {} } = data
   const gridRef = useRef(null)
 
@@ -125,6 +125,7 @@ function AGGridTable({ data, onCellClick }) {
           enableCellTextSelection={true}
           onCellClicked={handleCellClicked}
           animateRows={false}
+          quickFilterText={searchText || ''}
         />
       </div>
       {displayMode !== 'pagination' && row_count != null && (
@@ -226,10 +227,10 @@ function LegacyTable({ data, columnLinkConfig, onCellClick }) {
  *   columnLinkConfig — legacy column link map (only used in legacy mode)
  *   onCellClick     — ({ column, value, row, linkConfig }) => void
  */
-export default function DataTable({ data = {}, columnLinkConfig, onCellClick }) {
+export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText }) {
   // AG Grid mode: has columnDefs from table_column_config
   if (data.columnDefs) {
-    return <AGGridTable data={data} onCellClick={onCellClick} />
+    return <AGGridTable data={data} onCellClick={onCellClick} searchText={searchText} />
   }
 
   // Legacy mode: plain cols/rows (backward compat for existing widgets)
