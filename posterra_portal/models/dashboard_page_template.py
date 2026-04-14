@@ -297,6 +297,23 @@ class DashboardPageTemplate(models.Model):
                 }
                 sections.append(sdata)
 
+        # ── Badges ──
+        badges = []
+        for b in page.badge_ids.filtered('is_active'):
+            badges.append({
+                'name': b.name,
+                'icon': b.icon or '',
+                'sequence': b.sequence,
+                'is_active': b.is_active,
+                'query_sql': b.query_sql or '',
+                'schema_source_table': b.schema_source_id.table_name if b.schema_source_id else '',
+                'where_clause_exclude': b.where_clause_exclude or '',
+                'font_size': b.font_size,
+                'text_color': b.text_color or '',
+                'icon_color': b.icon_color or '',
+                'is_link': b.is_link,
+            })
+
         return {
             'page': page_data,
             'tabs': tabs,
@@ -304,6 +321,7 @@ class DashboardPageTemplate(models.Model):
             'filter_dependencies': filter_deps,
             'widgets': widgets,
             'sections': sections,
+            'badges': badges,
         }
 
     # ── Deserialization: JSON → Page ────────────────────────────────────
@@ -577,12 +595,36 @@ class DashboardPageTemplate(models.Model):
 
                 Section.sudo().create(svals)
 
+        # ── Badges ──
+        Badge = self.env['dashboard.page.badge']
+        for bdata in cfg.get('badges', []):
+            bvals = {
+                'page_id': page.id,
+                'name': bdata.get('name', 'Badge'),
+                'icon': bdata.get('icon', ''),
+                'sequence': bdata.get('sequence', 10),
+                'is_active': bdata.get('is_active', True),
+                'query_sql': bdata.get('query_sql', ''),
+                'where_clause_exclude': bdata.get('where_clause_exclude', ''),
+                'font_size': bdata.get('font_size', 0),
+                'text_color': bdata.get('text_color', ''),
+                'icon_color': bdata.get('icon_color', ''),
+                'is_link': bdata.get('is_link', False),
+            }
+            table_name = bdata.get('schema_source_table', '')
+            if table_name:
+                source = Source.search([('table_name', '=', table_name)], limit=1)
+                if source:
+                    bvals['schema_source_id'] = source.id
+            Badge.sudo().create(bvals)
+
         widget_count = len(cfg.get('widgets', []))
+        badge_count = len(cfg.get('badges', []))
         _logger.info(
-            'Template %s: created %d tabs, %d filters, %d deps, %d widgets, %d sections on page %s',
+            'Template %s: created %d tabs, %d filters, %d deps, %d widgets, %d sections, %d badges on page %s',
             self.name, len(cfg.get('tabs', [])), len(cfg.get('filters', [])),
             len(cfg.get('filter_dependencies', [])), widget_count,
-            len(cfg.get('sections', [])), page.name,
+            len(cfg.get('sections', [])), badge_count, page.name,
         )
         return page
 

@@ -218,6 +218,22 @@
                             </field>
                         </page>
 
+                        <page string="Badges" name="badges">
+                            <field name="badge_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name" placeholder="e.g. Location Count"/>
+                                    <field name="icon" placeholder="fa-building"/>
+                                    <field name="query_sql" widget="text"
+                                           placeholder="SELECT ... as value FROM ... WHERE {where_clause}"
+                                           style="min-height: 40px;"/>
+                                    <field name="schema_source_id"/>
+                                    <field name="is_active"/>
+                                    <field name="is_link"/>
+                                </list>
+                            </field>
+                        </page>
+
                         <page string="Annotations" name="annotations">
                             <group>
                                 <group>

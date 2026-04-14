@@ -14,5 +14,7 @@
 "access_page_template_system","dashboard.page.template system","model_dashboard_page_template","base.group_system",1,1,1,1
 "access_page_template_wizard_admin","dashboard.page.template.wizard admin","model_dashboard_page_template_wizard","posterra_portal.group_posterra_admin",1,1,1,1
 "access_page_template_wizard_system","dashboard.page.template.wizard system","model_dashboard_page_template_wizard","base.group_system",1,1,1,1
+"access_dashboard_page_badge_portal","dashboard.page.badge portal","model_dashboard_page_badge","posterra_portal.group_posterra_user",1,0,0,0
+"access_dashboard_page_badge_admin","dashboard.page.badge admin","model_dashboard_page_badge","posterra_portal.group_posterra_admin",1,1,1,1
 "access_geo_zip_centroid_portal","geo.zip.centroid portal","model_geo_zip_centroid","posterra_portal.group_posterra_user",1,0,0,0
 "access_geo_zip_centroid_admin","geo.zip.centroid admin","model_geo_zip_centroid","posterra_portal.group_posterra_admin",1,1,1,1

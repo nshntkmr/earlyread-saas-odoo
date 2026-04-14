@@ -754,6 +754,24 @@ class PosterraPortal(CustomerPortal):
         ], order='sequence asc')
         section_data = {sec.id: sec.get_portal_data(portal_ctx) for sec in page_sections}
 
+        # ── 10b. Page header badges ───────────────────────────────────
+        # SQL-driven badges rendered in the page header (right of title).
+        # Each badge is a lightweight query returning a single "value" column.
+        badge_items = []
+        if current_page:
+            active_badges = current_page.badge_ids.filtered(lambda b: b.is_active)
+            for badge in active_badges:
+                value = badge.execute_badge_sql(portal_ctx)
+                if value:  # skip badges with empty/null results
+                    badge_items.append({
+                        'icon': badge.icon or '',
+                        'value': value,
+                        'font_size': badge.font_size or 0,
+                        'text_color': badge.text_color or '',
+                        'icon_color': badge.icon_color or '',
+                        'is_link': badge.is_link,
+                    })
+
         # ── 11. Phase 7 — React shell data ─────────────────────────────
         # Build JSON blobs and a fresh JWT for the React app-root div.
         # These are embedded as data-* attributes; React reads them on mount.
@@ -802,6 +820,8 @@ class PosterraPortal(CustomerPortal):
             # Page sections
             'page_sections': page_sections,
             'section_data':  section_data,
+            # Page header badges
+            'badge_items':   badge_items,
             # Phase 7 — React shell data (embedded as data-* on #app-root)
             'portal_access_token':      portal_access_token,
             'page_config_json':         page_config_json,

@@ -64,6 +64,7 @@ class DashboardPage(models.Model):
     filter_dependency_ids = fields.One2many(
         'dashboard.filter.dependency', 'page_id', string='Filter Dependencies')
     widget_ids = fields.One2many('dashboard.widget', 'page_id', string='Widgets')
+    badge_ids = fields.One2many('dashboard.page.badge', 'page_id', string='Header Badges')
 
     # ── Annotations ────────────────────────────────────────────────────────
     subtitle  = fields.Char(string='Subtitle',
