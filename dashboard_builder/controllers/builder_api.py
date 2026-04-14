@@ -294,6 +294,15 @@ class BuilderAPI(http.Controller):
                 'drill_detail_columns': body.get('drill_detail_columns', ''),
                 'action_url_template': body.get('action_url_template', ''),
                 'column_link_config': body.get('column_link_config', ''),
+                # Widget-Scoped Controls
+                'scope_mode': body.get('scope_mode', 'none'),
+                'scope_ui': body.get('scope_ui', 'dropdown'),
+                'scope_query_mode': body.get('scope_query_mode', 'parameter'),
+                'scope_param_name': body.get('scope_param_name', ''),
+                'scope_label': body.get('scope_label', ''),
+                'scope_default_value': body.get('scope_default_value', ''),
+                'search_enabled': body.get('search_enabled', False),
+                'search_placeholder': body.get('search_placeholder', 'Search...'),
             }
 
             if mode == 'custom_sql':
@@ -347,6 +356,28 @@ class BuilderAPI(http.Controller):
                 widget = request.env['dashboard.widget'].sudo().create(widget_vals)
                 result['widget_id'] = widget.id
 
+                # Create scope option child records (from builder payload)
+                scope_options = body.get('scope_options', [])
+                if scope_options:
+                    ScopeOption = request.env['dashboard.widget.scope.option']
+                    Source = request.env['dashboard.schema.source']
+                    for opt in scope_options:
+                        opt_vals = {
+                            'widget_id': widget.id,
+                            'label': opt.get('label', ''),
+                            'value': opt.get('value', ''),
+                            'icon': opt.get('icon', ''),
+                            'sequence': opt.get('sequence', 10),
+                            'query_sql': opt.get('query_sql', ''),
+                        }
+                        table_name = opt.get('schema_source_table', '')
+                        if table_name:
+                            src = Source.search(
+                                [('table_name', '=', table_name)], limit=1)
+                            if src:
+                                opt_vals['schema_source_id'] = src.id
+                        ScopeOption.sudo().create(opt_vals)
+
             return _json_resp(result)
 
         except ValueError as e:
@@ -385,6 +416,14 @@ class BuilderAPI(http.Controller):
             'action_url_template': 'action_url_template',
             'column_link_config': 'column_link_config',
             'echart_override': 'echart_override',
+            # Widget-Scoped Controls
+            'scope_mode': 'scope_mode', 'scope_ui': 'scope_ui',
+            'scope_query_mode': 'scope_query_mode',
+            'scope_param_name': 'scope_param_name',
+            'scope_label': 'scope_label',
+            'scope_default_value': 'scope_default_value',
+            'search_enabled': 'search_enabled',
+            'search_placeholder': 'search_placeholder',
         }
         for body_key, field_name in field_map.items():
             if body_key in body:
@@ -773,6 +812,15 @@ def _build_widget_vals_from_definition(defn, body):
         'builder_config': defn.builder_config or '',
         'query_type': 'sql',
         'echart_override': defn.echart_override or '',
+        # Widget-Scoped Controls
+        'scope_mode': defn.scope_mode or 'none',
+        'scope_ui': defn.scope_ui or 'dropdown',
+        'scope_query_mode': defn.scope_query_mode or 'parameter',
+        'scope_param_name': defn.scope_param_name or '',
+        'scope_label': defn.scope_label or '',
+        'scope_default_value': defn.scope_default_value or '',
+        'search_enabled': defn.search_enabled or False,
+        'search_placeholder': defn.search_placeholder or 'Search...',
     }
 
     # Copy SQL

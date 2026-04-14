@@ -127,6 +127,26 @@ class DashboardWidgetDefinition(models.Model):
         string='Stack Bars', default=False,
         help='Stack bar series on top of each other instead of side-by-side.')
 
+    # ── Widget-Scoped Controls ──────────────────────────────────────────────
+    scope_mode = fields.Selection([
+        ('none', 'No Controls'),
+        ('dependent', 'Linked to Page Filter'),
+        ('independent', 'Custom Options'),
+    ], default='none', string='Scope Mode')
+    scope_ui = fields.Selection([
+        ('dropdown', 'Dropdown'),
+        ('toggle', 'Toggle Buttons'),
+    ], default='dropdown', string='Scope UI')
+    scope_query_mode = fields.Selection([
+        ('parameter', 'Same SQL, Different Parameter'),
+        ('query', 'Different SQL Per Option'),
+    ], default='parameter', string='Toggle Query Mode')
+    scope_param_name = fields.Char(string='Scope SQL Param')
+    scope_label = fields.Char(string='Control Label')
+    scope_default_value = fields.Char(string='Scope Default Value')
+    search_enabled = fields.Boolean(default=False, string='Enable Search')
+    search_placeholder = fields.Char(default='Search...', string='Search Placeholder')
+
     # ── Advanced ─────────────────────────────────────────────────────────────
     echart_override = fields.Text(string='ECharts Override (JSON)')
 

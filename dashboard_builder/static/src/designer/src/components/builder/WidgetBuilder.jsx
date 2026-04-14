@@ -71,6 +71,17 @@ const initialState = {
   drillDetailColumns: '',
   actionUrlTemplate: '',
 
+  // Widget Controls (optional, collapsed by default)
+  scopeMode: 'none',
+  scopeUi: 'toggle',
+  scopeQueryMode: 'parameter',
+  scopeParamName: '',
+  scopeLabel: '',
+  scopeDefaultValue: '',
+  scopeOptions: [],          // [{label, value, icon, dataMode, sql, ...}]
+  searchEnabled: false,
+  searchPlaceholder: 'Search...',
+
   // Visual config flags (chart-specific, from flag schema)
   visualFlags: {},
 
@@ -529,6 +540,16 @@ export default function WidgetBuilder({
               actionPassValueAs={state.actionPassValueAs}
               drillDetailColumns={state.drillDetailColumns}
               actionUrlTemplate={state.actionUrlTemplate}
+              scopeMode={state.scopeMode}
+              scopeUi={state.scopeUi}
+              scopeQueryMode={state.scopeQueryMode}
+              scopeParamName={state.scopeParamName}
+              scopeLabel={state.scopeLabel}
+              scopeDefaultValue={state.scopeDefaultValue}
+              scopeOptions={state.scopeOptions}
+              searchEnabled={state.searchEnabled}
+              searchPlaceholder={state.searchPlaceholder}
+              chartType={state.chartType}
               onUpdate={v => dispatch({ type: 'UPDATE_FILTERS', value: v })}
               apiBase={apiBase}
             />
@@ -639,6 +660,26 @@ function buildCreatePayload(state) {
     table_column_config: state.chartType === 'table' && state.tableColumnConfig?.length
       ? JSON.stringify(state.tableColumnConfig)
       : '',
+    // Widget-Scoped Controls (only include if configured)
+    ...(state.scopeMode !== 'none' ? {
+      scope_mode: state.scopeMode,
+      scope_ui: state.scopeUi,
+      scope_query_mode: state.scopeQueryMode,
+      scope_param_name: state.scopeParamName || '',
+      scope_label: state.scopeLabel || '',
+      scope_default_value: state.scopeDefaultValue || '',
+      scope_options: (state.scopeOptions || []).map((opt, idx) => ({
+        label: opt.label || '',
+        value: opt.value || '',
+        icon: opt.icon || '',
+        sequence: (idx + 1) * 10,
+        query_sql: opt.sql || opt.query_sql || '',
+      })),
+    } : {}),
+    ...(state.searchEnabled ? {
+      search_enabled: true,
+      search_placeholder: state.searchPlaceholder || 'Search...',
+    } : {}),
   }
 
   if (state.dataMode === 'custom_sql') {

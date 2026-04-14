@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 const CLICK_ACTIONS = [
   { key: 'none',         label: 'No action',           icon: 'fa-ban' },
@@ -34,6 +34,11 @@ export default function FilterActionConfig({
   dataSourceMode, sources, filters,
   clickAction, actionPageKey, actionTabKey, actionPassValueAs,
   drillDetailColumns, actionUrlTemplate,
+  // Widget-Scoped Controls (optional)
+  scopeMode, scopeUi, scopeQueryMode, scopeParamName,
+  scopeLabel, scopeDefaultValue, scopeOptions,
+  searchEnabled, searchPlaceholder,
+  chartType,
   onUpdate, apiBase,
 }) {
   // Flatten filterable columns
@@ -203,6 +208,231 @@ export default function FilterActionConfig({
           </div>
         )}
       </div>
+
+      {/* ── Widget Controls (Optional) ─────────────────────────────────── */}
+      <WidgetControlsSection
+        scopeMode={scopeMode}
+        scopeUi={scopeUi}
+        scopeQueryMode={scopeQueryMode}
+        scopeParamName={scopeParamName}
+        scopeLabel={scopeLabel}
+        scopeDefaultValue={scopeDefaultValue}
+        scopeOptions={scopeOptions}
+        searchEnabled={searchEnabled}
+        searchPlaceholder={searchPlaceholder}
+        chartType={chartType}
+        sources={sources}
+        onUpdate={onUpdate}
+        apiBase={apiBase}
+      />
+    </div>
+  )
+}
+
+// ── Widget Controls Collapsible Section ───────────────────────────────────────
+
+function WidgetControlsSection({
+  scopeMode, scopeUi, scopeQueryMode, scopeParamName,
+  scopeLabel, scopeDefaultValue, scopeOptions,
+  searchEnabled, searchPlaceholder, chartType,
+  sources, onUpdate, apiBase,
+}) {
+  const [showControls, setShowControls] = useState(
+    !!(scopeMode && scopeMode !== 'none') || !!searchEnabled
+  )
+
+  const updateScopeOption = (idx, field, value) => {
+    const updated = [...(scopeOptions || [])]
+    updated[idx] = { ...updated[idx], [field]: value }
+    onUpdate({ scopeOptions: updated })
+  }
+
+  const removeScopeOption = (idx) => {
+    const updated = (scopeOptions || []).filter((_, i) => i !== idx)
+    onUpdate({ scopeOptions: updated })
+  }
+
+  const addScopeOption = () => {
+    const updated = [...(scopeOptions || []), { label: '', value: '', icon: '', sql: '' }]
+    onUpdate({ scopeOptions: updated })
+  }
+
+  return (
+    <div className="wb-section" style={{ marginTop: 16 }}>
+      <button
+        className="wb-section-toggle"
+        onClick={() => setShowControls(!showControls)}
+        type="button"
+      >
+        <i className={`fa fa-chevron-${showControls ? 'down' : 'right'} me-2`} />
+        Widget Controls (Optional)
+      </button>
+
+      {showControls && (
+        <div className="wb-section-body">
+
+          {/* ── Search ── */}
+          <div className="wb-field-group">
+            <label className="wb-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={!!searchEnabled}
+                onChange={e => onUpdate({ searchEnabled: e.target.checked })}
+              />
+              Enable Search Bar
+            </label>
+            {searchEnabled && (
+              <input
+                className="wb-input wb-input--sm"
+                placeholder="Search placeholder text..."
+                value={searchPlaceholder || ''}
+                onChange={e => onUpdate({ searchPlaceholder: e.target.value })}
+                style={{ marginTop: 4 }}
+              />
+            )}
+          </div>
+
+          {/* ── Scope Control ── */}
+          <div className="wb-field-group" style={{ marginTop: 12 }}>
+            <label className="wb-label">Scope Control</label>
+            <select
+              className="wb-select"
+              value={scopeMode || 'none'}
+              onChange={e => onUpdate({ scopeMode: e.target.value })}
+            >
+              <option value="none">None</option>
+              <option value="independent">Toggle / Dropdown</option>
+            </select>
+          </div>
+
+          {scopeMode === 'independent' && (
+            <>
+              {/* UI Style */}
+              <div className="wb-field-group" style={{ marginTop: 8 }}>
+                <label className="wb-label">UI Style</label>
+                <select
+                  className="wb-select"
+                  value={scopeUi || 'toggle'}
+                  onChange={e => onUpdate({ scopeUi: e.target.value })}
+                >
+                  <option value="toggle">Toggle Buttons</option>
+                  <option value="dropdown">Dropdown</option>
+                </select>
+              </div>
+
+              {/* Query Mode */}
+              <div className="wb-field-group" style={{ marginTop: 8 }}>
+                <label className="wb-label">Query Mode</label>
+                <select
+                  className="wb-select"
+                  value={scopeQueryMode || 'parameter'}
+                  onChange={e => onUpdate({ scopeQueryMode: e.target.value })}
+                >
+                  <option value="parameter">Same SQL, Different Parameter</option>
+                  <option value="query">Different SQL Per Option</option>
+                </select>
+              </div>
+
+              {/* SQL Param Name (parameter mode only) */}
+              {scopeQueryMode !== 'query' && (
+                <div className="wb-field-group" style={{ marginTop: 8 }}>
+                  <label className="wb-label">SQL Param Name</label>
+                  <input
+                    className="wb-input wb-input--sm"
+                    placeholder="e.g. source_type"
+                    value={scopeParamName || ''}
+                    onChange={e => onUpdate({ scopeParamName: e.target.value })}
+                  />
+                  <p className="wb-hint">
+                    Use [[AND col = %%(param_name)s]] in your SQL. Clause removed when "All" selected.
+                  </p>
+                </div>
+              )}
+
+              {/* Control Label */}
+              <div className="wb-field-group" style={{ marginTop: 8 }}>
+                <label className="wb-label">Control Label</label>
+                <input
+                  className="wb-input wb-input--sm"
+                  placeholder="e.g. All States"
+                  value={scopeLabel || ''}
+                  onChange={e => onUpdate({ scopeLabel: e.target.value })}
+                />
+              </div>
+
+              {/* ── Scope Options ── */}
+              <div className="wb-field-group" style={{ marginTop: 12 }}>
+                <label className="wb-label">Options</label>
+
+                {(scopeOptions || []).map((opt, idx) => (
+                  <div key={idx} className="wb-scope-option">
+                    <div className="wb-scope-option-header">
+                      <input
+                        className="wb-input wb-input--sm"
+                        placeholder="Label (e.g. Hospitals)"
+                        value={opt.label || ''}
+                        onChange={e => updateScopeOption(idx, 'label', e.target.value)}
+                        style={{ flex: 2 }}
+                      />
+                      <input
+                        className="wb-input wb-input--xs"
+                        placeholder="Value (empty=All)"
+                        value={opt.value || ''}
+                        onChange={e => updateScopeOption(idx, 'value', e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      <input
+                        className="wb-input wb-input--xs"
+                        placeholder="fa-icon"
+                        value={opt.icon || ''}
+                        onChange={e => updateScopeOption(idx, 'icon', e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        className="wb-btn-icon"
+                        onClick={() => removeScopeOption(idx)}
+                        type="button"
+                        title="Remove option"
+                      >
+                        <i className="fa fa-trash-o" />
+                      </button>
+                    </div>
+
+                    {/* Query mode: SQL editor per option */}
+                    {scopeQueryMode === 'query' && (
+                      <div className="wb-scope-option-sql">
+                        <label className="wb-label" style={{ fontSize: 11 }}>
+                          SQL Query for "{opt.label || `Option ${idx + 1}`}"
+                        </label>
+                        <textarea
+                          className="wb-input"
+                          rows={4}
+                          placeholder="SELECT ... FROM ... WHERE {where_clause}"
+                          value={opt.sql || opt.query_sql || ''}
+                          onChange={e => updateScopeOption(idx, 'sql', e.target.value)}
+                          style={{ fontFamily: 'monospace', fontSize: 12 }}
+                        />
+                        <p className="wb-hint" style={{ marginTop: 2 }}>
+                          Leave empty to use the widget's main SQL. Use %(param)s for filter values.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  className="wb-btn wb-btn--outline wb-btn--sm"
+                  onClick={addScopeOption}
+                  type="button"
+                  style={{ marginTop: 6 }}
+                >
+                  <i className="fa fa-plus me-1" /> Add Option
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

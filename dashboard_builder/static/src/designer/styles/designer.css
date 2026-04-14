@@ -2199,3 +2199,44 @@
 .tc-table-options-grid > div {
     flex: 0 0 auto;
 }
+
+/* ── Widget Controls Section (collapsible) ─────────────────────────────── */
+.wb-section-toggle {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 10px 0;
+    border: none;
+    background: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    text-align: left;
+}
+.wb-section-toggle:hover {
+    color: #334155;
+}
+.wb-section-body {
+    padding-left: 12px;
+    border-left: 2px solid #e2e8f0;
+    margin-left: 8px;
+    margin-bottom: 12px;
+}
+.wb-scope-option {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: #fafafa;
+}
+.wb-scope-option-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.wb-scope-option-sql {
+    margin-top: 8px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 8px;
+}
