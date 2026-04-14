@@ -460,7 +460,7 @@
                                             </group>
                                             <group string="SQL Query (Query Mode)">
                                                 <p class="text-muted">
-                                                    Leave empty for Parameter Mode (widget's main SQL with %(param)s).
+                                                    Leave empty for Parameter Mode (widget main SQL with %%(param_name)s placeholders).
                                                     Set SQL for Query Mode (replaces widget SQL when this option is active).
                                                 </p>
                                                 <field name="query_sql" widget="text"
