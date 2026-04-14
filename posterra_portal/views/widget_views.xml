@@ -468,6 +468,22 @@
                                                        style="min-height: 120px; font-family: monospace;"
                                                        nolabel="1" colspan="2"/>
                                             </group>
+                                            <group string="Column Configuration (Query Mode)">
+                                                <group>
+                                                    <field name="x_column"
+                                                           placeholder="e.g. hha_state_cd"/>
+                                                    <field name="y_columns"
+                                                           placeholder="e.g. total_admits"/>
+                                                    <field name="series_column"
+                                                           placeholder="optional"/>
+                                                </group>
+                                                <group>
+                                                    <field name="table_column_config"
+                                                           widget="text"
+                                                           placeholder="AG Grid columnDefs JSON (for table widgets)"
+                                                           style="min-height: 80px; font-family: monospace;"/>
+                                                </group>
+                                            </group>
                                         </sheet>
                                     </form>
                                 </field>

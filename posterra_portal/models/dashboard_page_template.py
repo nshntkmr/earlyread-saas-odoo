@@ -276,6 +276,10 @@ class DashboardPageTemplate(models.Model):
                     'schema_source_table': (
                         o.schema_source_id.table_name if o.schema_source_id else ''),
                     'where_clause_exclude': o.where_clause_exclude or '',
+                    'table_column_config': o.table_column_config or '',
+                    'x_column': o.x_column or '',
+                    'y_columns': o.y_columns or '',
+                    'series_column': o.series_column or '',
                 })
             if scope_opts:
                 wdata['scope_options'] = scope_opts
@@ -599,6 +603,10 @@ class DashboardPageTemplate(models.Model):
                     'sequence': opt.get('sequence', 10),
                     'query_sql': opt.get('query_sql', ''),
                     'where_clause_exclude': opt.get('where_clause_exclude', ''),
+                    'table_column_config': opt.get('table_column_config', ''),
+                    'x_column': opt.get('x_column', ''),
+                    'y_columns': opt.get('y_columns', ''),
+                    'series_column': opt.get('series_column', ''),
                 }
                 opt_table = opt.get('schema_source_table', '')
                 if opt_table:

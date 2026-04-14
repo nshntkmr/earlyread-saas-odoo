@@ -369,6 +369,10 @@ class BuilderAPI(http.Controller):
                             'icon': opt.get('icon', ''),
                             'sequence': opt.get('sequence', 10),
                             'query_sql': opt.get('query_sql', ''),
+                            'table_column_config': opt.get('table_column_config', ''),
+                            'x_column': opt.get('x_column', ''),
+                            'y_columns': opt.get('y_columns', ''),
+                            'series_column': opt.get('series_column', ''),
                         }
                         table_name = opt.get('schema_source_table', '')
                         if table_name:

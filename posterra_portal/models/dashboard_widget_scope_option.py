@@ -50,6 +50,18 @@ class DashboardWidgetScopeOption(models.Model):
         help='Comma-separated param names to exclude from auto-generated WHERE.\n'
              'Falls back to widget\'s exclude if empty.')
 
+    # ── Column Config (Query Mode) ────────────────────────────────────────────
+    table_column_config = fields.Text(
+        string='Table Column Config (JSON)',
+        help='AG Grid columnDefs for this option. Only for table widgets in query mode.\n'
+             'JSON array of column definitions with field, headerName, width, cellRenderer, etc.')
+    x_column = fields.Char(string='X Column',
+        help='X-axis/label column for chart widgets in query mode.')
+    y_columns = fields.Char(string='Y Column(s)',
+        help='Comma-separated Y-axis value columns for chart widgets in query mode.')
+    series_column = fields.Char(string='Series Column',
+        help='Series/grouping column for chart widgets in query mode.')
+
     # ── Validation ────────────────────────────────────────────────────────────
 
     @api.constrains('query_sql')
@@ -143,8 +155,35 @@ class DashboardWidgetScopeOption(models.Model):
             cols = [d[0] for d in self.env.cr.description]
             rows = self.env.cr.fetchall()
 
-            # Format result using the parent widget's chart type
-            return self.widget_id._format_scope_result(cols, rows)
+            # Format result using per-option column config when available
+            widget = self.widget_id
+            if widget.chart_type == 'table' and self.table_column_config:
+                # Table with per-option column config — use option's columnDefs
+                try:
+                    col_config = json.loads(self.table_column_config)
+                except (json.JSONDecodeError, TypeError):
+                    col_config = None
+                result = widget._build_table_data(cols, rows)
+                if col_config:
+                    result['columnDefs'] = col_config
+                return result
+            elif widget.chart_type not in ('table',) and (self.x_column or self.y_columns):
+                # Chart with per-option column mapping — override x/y/series
+                # Temporarily set widget columns to option's columns for formatting
+                orig_x = widget.x_column
+                orig_y = widget.y_columns
+                orig_s = widget.series_column
+                try:
+                    widget.x_column = self.x_column or orig_x
+                    widget.y_columns = self.y_columns or orig_y
+                    widget.series_column = self.series_column or orig_s
+                    return widget._format_scope_result(cols, rows)
+                finally:
+                    widget.x_column = orig_x
+                    widget.y_columns = orig_y
+                    widget.series_column = orig_s
+            else:
+                return widget._format_scope_result(cols, rows)
 
         except Exception as exc:
             _logger.warning(

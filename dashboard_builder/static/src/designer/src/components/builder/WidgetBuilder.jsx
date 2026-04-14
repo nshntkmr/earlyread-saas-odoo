@@ -674,6 +674,11 @@ function buildCreatePayload(state) {
         icon: opt.icon || '',
         sequence: (idx + 1) * 10,
         query_sql: opt.sql || opt.query_sql || '',
+        table_column_config: opt.tableColumnConfig
+          ? JSON.stringify(opt.tableColumnConfig) : '',
+        x_column: opt.xColumn || '',
+        y_columns: opt.yColumns || '',
+        series_column: opt.seriesColumn || '',
       })),
     } : {}),
     ...(state.searchEnabled ? {

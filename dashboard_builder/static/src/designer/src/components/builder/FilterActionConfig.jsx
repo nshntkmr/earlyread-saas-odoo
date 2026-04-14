@@ -413,8 +413,65 @@ function WidgetControlsSection({
                           style={{ fontFamily: 'monospace', fontSize: 12 }}
                         />
                         <p className="wb-hint" style={{ marginTop: 2 }}>
-                          Leave empty to use the widget's main SQL. Use %(param)s for filter values.
+                          Leave empty to use the widget's main SQL. Use %%(param)s for filter values.
                         </p>
+
+                        {/* Per-option column config: chart types get x/y/series, table gets JSON config */}
+                        {chartType === 'table' ? (
+                          <div style={{ marginTop: 8 }}>
+                            <label className="wb-label" style={{ fontSize: 11 }}>
+                              Table Column Config (JSON)
+                            </label>
+                            <textarea
+                              className="wb-input"
+                              rows={3}
+                              placeholder='[{"field":"name","headerName":"Name","width":200},{"field":"admits","headerName":"Admits","width":100}]'
+                              value={opt.tableColumnConfig ? (typeof opt.tableColumnConfig === 'string' ? opt.tableColumnConfig : JSON.stringify(opt.tableColumnConfig, null, 2)) : ''}
+                              onChange={e => {
+                                try {
+                                  const parsed = JSON.parse(e.target.value)
+                                  updateScopeOption(idx, 'tableColumnConfig', parsed)
+                                } catch {
+                                  updateScopeOption(idx, 'tableColumnConfig', e.target.value)
+                                }
+                              }}
+                              style={{ fontFamily: 'monospace', fontSize: 11 }}
+                            />
+                            <p className="wb-hint">
+                              AG Grid column definitions. Use the full TableConfigurator for complex setups, then copy the JSON here.
+                            </p>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                            <div style={{ flex: 1 }}>
+                              <label className="wb-label" style={{ fontSize: 11 }}>X Column</label>
+                              <input
+                                className="wb-input wb-input--sm"
+                                placeholder="e.g. hha_state_cd"
+                                value={opt.xColumn || ''}
+                                onChange={e => updateScopeOption(idx, 'xColumn', e.target.value)}
+                              />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <label className="wb-label" style={{ fontSize: 11 }}>Y Column(s)</label>
+                              <input
+                                className="wb-input wb-input--sm"
+                                placeholder="e.g. total_admits"
+                                value={opt.yColumns || ''}
+                                onChange={e => updateScopeOption(idx, 'yColumns', e.target.value)}
+                              />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <label className="wb-label" style={{ fontSize: 11 }}>Series</label>
+                              <input
+                                className="wb-input wb-input--sm"
+                                placeholder="optional"
+                                value={opt.seriesColumn || ''}
+                                onChange={e => updateScopeOption(idx, 'seriesColumn', e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
