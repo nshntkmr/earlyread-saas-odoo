@@ -37,7 +37,7 @@ const DEFAULT_OPTION_CONFIG = {
 }
 
 export default function WidgetControlsStep({
-  scopeMode, scopeUi, scopeParamName, scopeLabel,
+  scopeMode, scopeUi, scopeQueryMode, scopeParamName, scopeLabel,
   searchEnabled, searchPlaceholder,
   scopeOptions, optionConfigs,
   onUpdate,
@@ -142,6 +142,40 @@ export default function WidgetControlsStep({
                 <option value="dropdown">Dropdown</option>
               </select>
             </div>
+
+            {/* Toggle Query Mode */}
+            <div className="wb-field-group" style={{ marginTop: 8 }}>
+              <label className="wb-label">Toggle Query Mode</label>
+              <select
+                className="wb-select"
+                value={scopeQueryMode || 'query'}
+                onChange={e => onUpdate({ scopeQueryMode: e.target.value })}
+              >
+                <option value="query">Different SQL Per Option</option>
+                <option value="parameter">Same SQL, Different Parameter</option>
+              </select>
+              <p className="wb-hint" style={{ marginTop: 4, fontSize: 12, color: '#6c757d' }}>
+                {(scopeQueryMode || 'query') === 'parameter'
+                  ? 'One shared SQL query with a %(param)s placeholder that changes per option.'
+                  : 'Each option has its own SQL query (configured in the Data Source step).'}
+              </p>
+            </div>
+
+            {/* Scope SQL Param (parameter mode only) */}
+            {(scopeQueryMode || 'query') === 'parameter' && (
+              <div className="wb-field-group" style={{ marginTop: 8 }}>
+                <label className="wb-label">Scope SQL Param</label>
+                <input
+                  className="wb-input wb-input--sm"
+                  placeholder="e.g. ffs_ma"
+                  value={scopeParamName || ''}
+                  onChange={e => onUpdate({ scopeParamName: e.target.value })}
+                />
+                <p className="wb-hint" style={{ marginTop: 4, fontSize: 12, color: '#6c757d' }}>
+                  Use <code>{'%(param_name)s'}</code> in your SQL WHERE clause.
+                </p>
+              </div>
+            )}
 
             {/* Control Label (for dropdown) */}
             {scopeUi === 'dropdown' && (

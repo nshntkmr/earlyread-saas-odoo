@@ -76,6 +76,18 @@ class DashboardWidgetScopeOption(models.Model):
     drill_detail_columns = fields.Char(string='Detail Columns')
     action_url_template = fields.Char(string='URL Template')
 
+    # ── Computed ──────────────────────────────────────────────────────────────
+
+    has_custom_sql = fields.Boolean(
+        compute='_compute_has_custom_sql', store=False,
+        string='Has SQL',
+        help='Indicates whether this option has its own SQL query (Query Mode).')
+
+    @api.depends('query_sql')
+    def _compute_has_custom_sql(self):
+        for rec in self:
+            rec.has_custom_sql = bool((rec.query_sql or '').strip())
+
     # ── Validation ────────────────────────────────────────────────────────────
 
     @api.constrains('query_sql')

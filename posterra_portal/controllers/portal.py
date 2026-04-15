@@ -208,6 +208,11 @@ def _build_initial_widgets_json(widgets, widget_data):
                     } for o in active_opts]
                 else:
                     _scope['options'] = w.get_scope_options()
+            # Auto-default to first option for query-mode widgets
+            if (w.scope_query_mode == 'query'
+                    and not _scope.get('default_value')
+                    and _scope.get('options')):
+                _scope['default_value'] = _scope['options'][0].get('value', '')
         result[str(w.id)]['scope'] = _scope
 
         # ── Search config ──

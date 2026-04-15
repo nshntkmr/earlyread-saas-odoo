@@ -88,7 +88,7 @@ const initialState = {
   // Widget Controls (optional, collapsed by default)
   scopeMode: 'none',
   scopeUi: 'toggle',
-  scopeQueryMode: 'parameter',
+  scopeQueryMode: 'query',
   scopeParamName: '',
   scopeLabel: '',
   scopeDefaultValue: '',
@@ -540,6 +540,7 @@ export default function WidgetBuilder({
             <WidgetControlsStep
               scopeMode={state.scopeMode}
               scopeUi={state.scopeUi}
+              scopeQueryMode={state.scopeQueryMode}
               scopeParamName={state.scopeParamName}
               scopeLabel={state.scopeLabel}
               searchEnabled={state.searchEnabled}
@@ -829,7 +830,12 @@ function buildCreatePayload(state) {
     ...(state.scopeMode !== 'none' ? {
       scope_mode: state.scopeMode,
       scope_ui: state.scopeUi,
-      scope_query_mode: state.scopeQueryMode,
+      scope_query_mode: (state.optionConfigs || []).some(cfg => {
+        const sql = cfg.dataMode === 'ai'
+          ? cfg.aiState?.generatedSql
+          : cfg.customSql?.sql
+        return sql && sql.trim()
+      }) ? 'query' : (state.scopeQueryMode || 'parameter'),
       scope_param_name: state.scopeParamName || '',
       scope_label: state.scopeLabel || '',
       scope_default_value: state.scopeDefaultValue || '',

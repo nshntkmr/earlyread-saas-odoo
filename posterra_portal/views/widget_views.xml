@@ -126,6 +126,14 @@
                                 <field name="query_type" widget="radio"/>
                             </group>
 
+                            <!-- Query Mode info banner -->
+                            <div class="alert alert-info" role="alert"
+                                 invisible="scope_query_mode != 'query' or scope_mode == 'none'">
+                                <strong>Query Mode active:</strong> Each scope option has its own SQL query.
+                                The SQL below is the default fallback (first option).
+                                Per-option SQL is managed in the <em>Controls</em> tab &#8594; Scope Options &#8594; click each option row.
+                            </div>
+
                             <!-- SQL sub-section -->
                             <group string="SQL Query" invisible="query_type != 'sql'">
                                 <field name="schema_source_id"
@@ -439,6 +447,10 @@
                                         <field name="label"/>
                                         <field name="value" placeholder="empty = All"/>
                                         <field name="icon" placeholder="fa-hospital-o"/>
+                                        <field name="has_custom_sql" string="SQL"
+                                               widget="boolean_favorite"
+                                               readonly="1"
+                                               column_invisible="parent.scope_query_mode != 'query'"/>
                                         <field name="is_active"/>
                                     </list>
                                     <form>

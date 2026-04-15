@@ -72,6 +72,24 @@ export default function WidgetGrid({ initialWidgets }) {
   const [scopeOptionIds, setScopeOptionIds] = useState({}) // { widgetId: optionId } (query mode)
   const [searchTexts, setSearchTexts] = useState({})
 
+  // Auto-select first scope option on mount for query-mode widgets
+  // so the toggle button is active and filter-Apply includes _scope_option_id
+  useEffect(() => {
+    const initScope = {}, initOptIds = {}
+    Object.values(widgetData).forEach(w => {
+      if (w.scope?.mode !== 'none' && w.scope?.query_mode === 'query' && w.scope?.options?.length) {
+        const defVal = w.scope.default_value || w.scope.options[0]?.value || ''
+        const match = w.scope.options.find(o => (o.value ?? '') === defVal) || w.scope.options[0]
+        initScope[w.id] = match.value ?? ''
+        initOptIds[w.id] = match.id
+      }
+    })
+    if (Object.keys(initScope).length) {
+      setScopeValues(prev => ({ ...initScope, ...prev }))
+      setScopeOptionIds(prev => ({ ...initOptIds, ...prev }))
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Drill-down modal
   const [drillState, setDrillState] = useState(null) // { widgetId, clickColumn, clickValue }
 
