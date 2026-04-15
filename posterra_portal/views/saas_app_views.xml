@@ -54,6 +54,7 @@
                             <field name="tagline" placeholder="e.g. Healthcare Analytics Portal"/>
                             <field name="primary_color" widget="color"/>
                             <field name="login_bg_color" widget="color"/>
+                            <field name="sidebar_theme"/>
                         </group>
                         <group>
                             <field name="logo" widget="image" options="{'size': [128, 128]}"/>

@@ -30,6 +30,11 @@ class SaaSApp(models.Model):
     )
     primary_color  = fields.Char(default='#0066cc')
     login_bg_color = fields.Char(default='#f8fafc')
+    sidebar_theme  = fields.Selection([
+        ('dark', 'Dark'),
+        ('light', 'Light'),
+    ], default='dark', string='Sidebar Theme',
+        help='Dark: dark blue sidebar (default). Light: white sidebar with gray text.')
     custom_css     = fields.Text(
         help='Additional CSS injected on portal pages for this app.',
     )
