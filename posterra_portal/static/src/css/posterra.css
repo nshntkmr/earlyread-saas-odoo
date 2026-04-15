@@ -178,6 +178,7 @@
 .pv-sidebar--collapsed {
     width: var(--pv-sidebar-collapsed-width);
     min-width: var(--pv-sidebar-collapsed-width);
+    overflow: visible; /* allow CSS tooltips to render outside sidebar bounds */
 }
 .pv-sidebar--collapsed .pv-sidebar-section-label {
     visibility: hidden;

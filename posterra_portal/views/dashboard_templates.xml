@@ -75,7 +75,7 @@
                                 <a t-attf-href="/my/#{app.app_key}/#{page.key}?hha_id=#{current_hha_id}"
                                    t-attf-class="pv-sidebar-item #{current_page_key == page.key and 'active' or ''}"
                                    t-att-data-title="page.name">
-                                    <i t-attf-class="fa #{page.icon} pv-sidebar-icon"/>
+                                    <i t-attf-class="fa #{page.icon or 'fa-circle-o'} pv-sidebar-icon"/>
                                     <span t-esc="page.name"/>
                                 </a>
                             </t>
