@@ -533,6 +533,57 @@ class PosterraWidgetAPI(http.Controller):
         })
 
     # ------------------------------------------------------------------ #
+    # GET /api/v1/widget/<widget_id>/detail                               #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/widget/<int:widget_id>/detail',
+        type='http',
+        auth='none',
+        methods=['GET', 'OPTIONS'],
+        csrf=False,
+        readonly=True,
+    )
+    def api_widget_detail(self, widget_id, **kw):
+        """Return detail data for one expanded row of a ranked_detail_list.
+
+        Query parameters:
+            row_key  — primary key value of the expanded master row
+            (plus standard page filter params)
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _json_response({})
+
+        try:
+            user, app = _get_api_user()
+        except ValueError as exc:
+            return _json_error(401, str(exc))
+
+        widget = request.env['dashboard.widget'].sudo().browse(widget_id)
+        if not widget.exists() or not widget.is_active:
+            return _json_error(404, f'Widget {widget_id} not found')
+        if widget.page_id.app_id.id != app.id:
+            return _json_error(403, 'Widget does not belong to your app')
+        if widget.chart_type != 'ranked_detail_list':
+            return _json_error(400, 'Widget is not a ranked_detail_list')
+
+        row_key = kw.pop('row_key', '')
+        if not row_key:
+            return _json_error(400, 'row_key parameter is required')
+
+        try:
+            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw)
+        except Exception as exc:
+            return _json_error(500, f'Context build error: {exc}')
+
+        detail_data = widget._execute_detail_sql(row_key, portal_ctx)
+
+        return _json_response({
+            'widget_id': widget.id,
+            'row_key': row_key,
+            **detail_data,
+        })
+
+    # ------------------------------------------------------------------ #
     # GET /api/v1/section/<section_id>/data                                #
     # ------------------------------------------------------------------ #
     @http.route(

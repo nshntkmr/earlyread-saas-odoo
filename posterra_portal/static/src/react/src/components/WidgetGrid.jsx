@@ -14,6 +14,7 @@ import InsightPanel from './widgets/InsightPanel'
 import KPIStrip    from './widgets/KPIStrip'
 import GaugeRouter from './widgets/GaugeRouter'
 import KpiRouter   from './widgets/KpiRouter'
+import RankedDetailList from './widgets/RankedDetailList'
 
 // Lazy-load MapWidget to avoid 600KB+ MapLibre bundle on non-map pages
 const MapWidget = React.lazy(() => import('./widgets/MapWidget'))
@@ -42,6 +43,7 @@ function resolveWidget(chartType) {
     case 'insight_panel':return InsightPanel
     case 'kpi_strip':   return KpiRouter
     case 'map':          return MapWidget
+    case 'ranked_detail_list': return RankedDetailList
     default:             return KPICard   // safe fallback
   }
 }
@@ -296,7 +298,7 @@ export default function WidgetGrid({ initialWidgets }) {
   // tables with more rows, gauge_kpi composite). Non-scalable widgets (traffic light,
   // bullet, percentile, KPI, battle card, insight) render at their natural height
   // and top-align within the card — they don't benefit from extra vertical space.
-  const SCALABLE_TYPES = new Set([...ECHART_TYPES, 'table', 'gauge_kpi', 'map'])
+  const SCALABLE_TYPES = new Set([...ECHART_TYPES, 'table', 'gauge_kpi', 'map', 'ranked_detail_list'])
 
   const renderWidget = (w) => {
     const WidgetComponent = resolveWidget(w.chart_type)
@@ -336,6 +338,9 @@ export default function WidgetGrid({ initialWidgets }) {
         name: clickData.column,
         value: clickData.value,
       })
+    }
+    if (w.chart_type === 'ranked_detail_list') {
+      extraProps.widgetId = w.id
     }
 
     // CSS Grid placement: column span from width, row span for tall widgets
