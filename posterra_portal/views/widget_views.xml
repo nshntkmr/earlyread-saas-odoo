@@ -288,13 +288,13 @@
                                    invisible="chart_type != 'ranked_detail_list'">
                                 <group>
                                     <field name="ranked_detail_key_column"
-                                           placeholder="e.g. hospital_ccn  (passed as %(row_key)s)"/>
+                                           placeholder="e.g. hospital_ccn  (passed as row_key param to detail SQL)"/>
                                     <field name="ranked_detail_schema_source_id"
                                            placeholder="Schema source for detail SQL"/>
                                 </group>
                                 <separator string="Detail SQL (Per Row)" colspan="2"/>
                                 <field name="ranked_detail_sql" widget="text"
-                                       placeholder="SELECT year, admits, share_pct, hha_name, ... FROM mv_detail WHERE hospital_ccn = %(row_key)s [[ AND year IN %(year)s ]]"
+                                       placeholder="SELECT ... FROM mv_detail WHERE hospital_ccn = %%(row_key)s [[ AND year IN %%(year)s ]]"
                                        style="font-family: monospace; min-height: 100px;"
                                        nolabel="1" colspan="2"/>
                                 <separator string="Detail Chart Config (JSON)" colspan="2"/>
