@@ -547,6 +547,35 @@ class DesignerAPI(http.Controller):
             'app_names': [a.name for a in d.app_ids] if has_app_ids and d.app_ids else [],
         } for d in defs])
 
+    def _get_scope_options_for_definition(self, defn):
+        """Return scope_options from the first widget instance of this definition."""
+        try:
+            Widget = request.env['dashboard.widget']
+            instances = Widget.sudo().search([('definition_id', '=', defn.id)], limit=1)
+            if not instances:
+                return []
+            return [{
+                'label': o.label or '',
+                'value': o.value or '',
+                'icon': o.icon or '',
+                'sequence': o.sequence,
+                'query_sql': o.query_sql or '',
+                'schema_source_table': o.schema_source_id.table_name if o.schema_source_id else '',
+                'where_clause_exclude': o.where_clause_exclude or '',
+                'table_column_config': o.table_column_config or '',
+                'x_column': o.x_column or '',
+                'y_columns': o.y_columns or '',
+                'series_column': o.series_column or '',
+                'click_action': o.click_action or 'none',
+                'action_page_key': o.action_page_key or '',
+                'action_tab_key': o.action_tab_key or '',
+                'action_pass_value_as': o.action_pass_value_as or '',
+                'drill_detail_columns': o.drill_detail_columns or '',
+                'action_url_template': o.action_url_template or '',
+            } for o in instances[0].scope_option_ids.sorted('sequence')]
+        except (KeyError, Exception):
+            return []
+
     @http.route(
         '/dashboard/designer/api/library/<int:def_id>',
         type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
@@ -594,6 +623,18 @@ class DesignerAPI(http.Controller):
             'visual_config': defn.visual_config or '',
             'table_column_config': defn.table_column_config or '',
             'instance_count': defn.instance_count,
+            # Widget-Scoped Controls
+            'scope_mode': defn.scope_mode or 'none',
+            'scope_ui': defn.scope_ui or 'dropdown',
+            'scope_query_mode': defn.scope_query_mode or 'parameter',
+            'scope_param_name': defn.scope_param_name or '',
+            'scope_label': defn.scope_label or '',
+            'scope_default_value': defn.scope_default_value or '',
+            'search_enabled': defn.search_enabled or False,
+            'search_placeholder': defn.search_placeholder or 'Search...',
+            'default_width_pct': defn.default_width_pct or 0,
+            # Scope options from first widget instance
+            'scope_options': self._get_scope_options_for_definition(defn),
         })
 
     @http.route(
@@ -699,6 +740,13 @@ class DesignerAPI(http.Controller):
             if body.get('echart_override'):
                 def_vals['echart_override'] = body['echart_override']
 
+            # Widget-Scoped Controls
+            for fld in ('scope_mode', 'scope_ui', 'scope_query_mode',
+                        'scope_param_name', 'scope_label', 'scope_default_value',
+                        'search_enabled', 'search_placeholder'):
+                if fld in body:
+                    def_vals[fld] = body[fld]
+
             # Visual config (chart-specific flags from builder UI)
             if body.get('visual_config'):
                 vc = body['visual_config']
@@ -760,6 +808,14 @@ class DesignerAPI(http.Controller):
             'kpi_format': 'kpi_format', 'kpi_prefix': 'kpi_prefix',
             'kpi_suffix': 'kpi_suffix',
             'bar_stack': 'bar_stack',
+            # Widget-Scoped Controls
+            'scope_mode': 'scope_mode', 'scope_ui': 'scope_ui',
+            'scope_query_mode': 'scope_query_mode',
+            'scope_param_name': 'scope_param_name',
+            'scope_label': 'scope_label',
+            'scope_default_value': 'scope_default_value',
+            'search_enabled': 'search_enabled',
+            'search_placeholder': 'search_placeholder',
         }
 
         for body_key, field_name in field_map.items():
@@ -832,11 +888,51 @@ class DesignerAPI(http.Controller):
                         sync_vals['kpi_format'] = defn.kpi_format
                         sync_vals['kpi_prefix'] = defn.kpi_prefix or ''
                         sync_vals['kpi_suffix'] = defn.kpi_suffix or ''
+                    # Widget-Scoped Controls sync
+                    for fld in ('scope_mode', 'scope_ui', 'scope_query_mode',
+                                'scope_param_name', 'scope_label', 'scope_default_value',
+                                'search_enabled', 'search_placeholder'):
+                        if hasattr(defn, fld):
+                            sync_vals[fld] = getattr(defn, fld) or (
+                                False if fld == 'search_enabled' else '')
                     instances.write(sync_vals)
                     _logger.info(
                         'Synced definition %s (%s) → %d instance(s)',
                         defn.id, defn.name, len(instances),
                     )
+                    # Recreate scope_option child records on instances
+                    if 'scope_options' in body:
+                        ScopeOption = request.env['dashboard.widget.scope.option']
+                        Source = request.env['dashboard.schema.source']
+                        for inst in instances:
+                            inst.scope_option_ids.unlink()
+                        for opt in (body.get('scope_options') or []):
+                            for inst in instances:
+                                opt_vals = {
+                                    'widget_id': inst.id,
+                                    'label': opt.get('label', ''),
+                                    'value': opt.get('value', ''),
+                                    'icon': opt.get('icon', ''),
+                                    'sequence': opt.get('sequence', 10),
+                                    'query_sql': opt.get('query_sql', ''),
+                                    'table_column_config': opt.get('table_column_config', ''),
+                                    'x_column': opt.get('x_column', ''),
+                                    'y_columns': opt.get('y_columns', ''),
+                                    'series_column': opt.get('series_column', ''),
+                                    'click_action': opt.get('click_action', 'none'),
+                                    'action_page_key': opt.get('action_page_key', ''),
+                                    'action_tab_key': opt.get('action_tab_key', ''),
+                                    'action_pass_value_as': opt.get('action_pass_value_as', ''),
+                                    'drill_detail_columns': opt.get('drill_detail_columns', ''),
+                                    'action_url_template': opt.get('action_url_template', ''),
+                                }
+                                table_name = opt.get('schema_source_table', '')
+                                if table_name:
+                                    src = Source.search(
+                                        [('table_name', '=', table_name)], limit=1)
+                                    if src:
+                                        opt_vals['schema_source_id'] = src.id
+                                ScopeOption.sudo().create(opt_vals)
             except KeyError:
                 pass  # dashboard.widget not installed
 
@@ -1133,6 +1229,13 @@ class DesignerAPI(http.Controller):
                 'where_clause_exclude': defn.where_clause_exclude or '' if hasattr(defn, 'where_clause_exclude') else '',
             }
 
+            # Widget-Scoped Controls (copy from definition)
+            for fld in ('scope_mode', 'scope_ui', 'scope_query_mode',
+                        'scope_param_name', 'scope_label', 'scope_default_value',
+                        'search_enabled', 'search_placeholder'):
+                if hasattr(defn, fld):
+                    vals[fld] = getattr(defn, fld) or (False if fld == 'search_enabled' else '')
+
             if body.get('tab_id'):
                 vals['tab_id'] = body['tab_id']
 
@@ -1157,6 +1260,42 @@ class DesignerAPI(http.Controller):
                 return _json_response({'widget_id': existing.id, 'name': existing.name, 'updated': True})
 
             widget = Widget.create(vals)
+
+            # Create scope_option child records (forwarded from React)
+            scope_options = body.get('scope_options', [])
+            if scope_options:
+                ScopeOption = request.env['dashboard.widget.scope.option']
+                Source = request.env['dashboard.schema.source']
+                for opt in scope_options:
+                    opt_vals = {
+                        'widget_id': widget.id,
+                        'label': opt.get('label', ''),
+                        'value': opt.get('value', ''),
+                        'icon': opt.get('icon', ''),
+                        'sequence': opt.get('sequence', 10),
+                        'query_sql': opt.get('query_sql', ''),
+                        'table_column_config': opt.get('table_column_config', ''),
+                        'x_column': opt.get('x_column', ''),
+                        'y_columns': opt.get('y_columns', ''),
+                        'series_column': opt.get('series_column', ''),
+                        'click_action': opt.get('click_action', 'none'),
+                        'action_page_key': opt.get('action_page_key', ''),
+                        'action_tab_key': opt.get('action_tab_key', ''),
+                        'action_pass_value_as': opt.get('action_pass_value_as', ''),
+                        'drill_detail_columns': opt.get('drill_detail_columns', ''),
+                        'action_url_template': opt.get('action_url_template', ''),
+                    }
+                    table_name = opt.get('schema_source_table', '')
+                    if table_name:
+                        src = Source.search(
+                            [('table_name', '=', table_name)], limit=1)
+                        if src:
+                            opt_vals['schema_source_id'] = src.id
+                    ScopeOption.sudo().create(opt_vals)
+                _logger.info(
+                    'library_place: created %d scope options for widget %s',
+                    len(scope_options), widget.id)
+
             return _json_response({'widget_id': widget.id, 'name': widget.name})
 
         except KeyError:
