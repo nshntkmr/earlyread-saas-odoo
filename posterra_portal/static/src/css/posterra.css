@@ -1631,6 +1631,9 @@
     padding: var(--w-space-xl) var(--w-space-2xl) var(--w-space-lg);
     border-bottom: 0.8px solid var(--w-border-light);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .pv-widget-title {
