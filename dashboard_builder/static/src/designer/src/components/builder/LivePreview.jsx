@@ -243,12 +243,31 @@ export default function LivePreview({
         return
       }
       // New widget: create instance on the selected page/tab
+      const placeBody = {
+        page_id: appContext.page.id,
+        tab_id: appContext.tab?.id || null,
+      }
+      // Forward scope options so place handler can create child records
+      if (builderState.scopeMode !== 'none' && builderState.optionConfigs?.length) {
+        placeBody.scope_options = (builderState.scopeOptions || []).map((opt, idx) => {
+          const cfg = (builderState.optionConfigs || [])[idx] || {}
+          const cs = cfg.customSql || {}
+          const ai = cfg.aiState || {}
+          const optSql = cfg.dataMode === 'ai' ? (ai.generatedSql || '') : (cs.sql || '')
+          return {
+            label: opt.label || '', value: opt.value || '', icon: opt.icon || '',
+            sequence: (idx + 1) * 10, query_sql: optSql,
+            table_column_config: cfg.tableColumnConfig?.length ? JSON.stringify(cfg.tableColumnConfig) : '',
+            x_column: cs.xColumn || '', y_columns: cs.yColumns || '', series_column: cs.seriesColumn || '',
+            click_action: cfg.clickAction || 'none', action_page_key: cfg.actionPageKey || '',
+            action_tab_key: cfg.actionTabKey || '', action_pass_value_as: cfg.actionPassValueAs || '',
+            drill_detail_columns: cfg.drillDetailColumns || '', action_url_template: cfg.actionUrlTemplate || '',
+          }
+        })
+      }
       await designerFetch(libraryPlaceUrl(apiBase, result.id), {
         method: 'POST',
-        body: JSON.stringify({
-          page_id: appContext.page.id,
-          tab_id: appContext.tab?.id || null,
-        }),
+        body: JSON.stringify(placeBody),
       })
       setPlaceSuccess(true)
     } catch (err) {

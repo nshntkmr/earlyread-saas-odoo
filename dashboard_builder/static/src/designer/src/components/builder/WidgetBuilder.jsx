@@ -189,14 +189,14 @@ function reducer(state, action) {
       return _routeToOption(state, { limit: action.value })
     case 'UPDATE_COLUMN_MAPPER':
       return _routeToOption(state, action.value)
-    case 'UPDATE_FILTERS':
+    case 'UPDATE_FILTERS': {
       // Filter/action updates and scope config updates both come through here
       // Scope-level fields (scopeMode, scopeOptions, etc.) go to top-level state
       // Per-option fields (filters, clickAction, etc.) go to active option
       const scopeKeys = new Set([
         'scopeMode', 'scopeUi', 'scopeQueryMode', 'scopeParamName',
         'scopeLabel', 'scopeDefaultValue', 'scopeOptions', 'optionConfigs',
-        'searchEnabled', 'searchPlaceholder',
+        'activeScopeIdx', 'searchEnabled', 'searchPlaceholder',
       ])
       const topLevel = {}
       const optionLevel = {}
@@ -211,6 +211,7 @@ function reducer(state, action) {
         newState = _routeToOption(newState, optionLevel)
       }
       return newState
+    }
     case 'SET_VISUAL_FLAG':
       return { ...state, visualFlags: { ...state.visualFlags, [action.flag]: action.value } }
     case 'SET_VISUAL_FLAGS':
@@ -791,6 +792,11 @@ export default function WidgetBuilder({
  * Creates a widget DEFINITION in the library (not an instance on a page).
  */
 function buildCreatePayload(state) {
+  // DEBUG: log scope state at save time
+  console.log('[buildCreatePayload] scopeMode:', state.scopeMode,
+    'scopeOptions:', state.scopeOptions?.length,
+    'optionConfigs:', state.optionConfigs?.length,
+    'option0 sql:', state.optionConfigs?.[0]?.customSql?.sql?.substring(0, 50))
   const base = {
     chart_type: state.chartType,
     data_mode: state.dataMode,
@@ -827,18 +833,33 @@ function buildCreatePayload(state) {
       scope_param_name: state.scopeParamName || '',
       scope_label: state.scopeLabel || '',
       scope_default_value: state.scopeDefaultValue || '',
-      scope_options: (state.scopeOptions || []).map((opt, idx) => ({
-        label: opt.label || '',
-        value: opt.value || '',
-        icon: opt.icon || '',
-        sequence: (idx + 1) * 10,
-        query_sql: opt.sql || opt.query_sql || '',
-        table_column_config: opt.tableColumnConfig
-          ? JSON.stringify(opt.tableColumnConfig) : '',
-        x_column: opt.xColumn || '',
-        y_columns: opt.yColumns || '',
-        series_column: opt.seriesColumn || '',
-      })),
+      scope_options: (state.scopeOptions || []).map((opt, idx) => {
+        // Merge identity (from scopeOptions) + config (from optionConfigs)
+        const cfg = (state.optionConfigs || [])[idx] || {}
+        const cs = cfg.customSql || {}
+        const ai = cfg.aiState || {}
+        const optSql = cfg.dataMode === 'ai'
+          ? (ai.generatedSql || '')
+          : (cs.sql || '')
+        return {
+          label: opt.label || '',
+          value: opt.value || '',
+          icon: opt.icon || '',
+          sequence: (idx + 1) * 10,
+          query_sql: optSql,
+          table_column_config: cfg.tableColumnConfig?.length
+            ? JSON.stringify(cfg.tableColumnConfig) : '',
+          x_column: cs.xColumn || cfg.xColumn || '',
+          y_columns: cs.yColumns || cfg.yColumns || '',
+          series_column: cs.seriesColumn || cfg.seriesColumn || '',
+          click_action: cfg.clickAction || 'none',
+          action_page_key: cfg.actionPageKey || '',
+          action_tab_key: cfg.actionTabKey || '',
+          action_pass_value_as: cfg.actionPassValueAs || '',
+          drill_detail_columns: cfg.drillDetailColumns || '',
+          action_url_template: cfg.actionUrlTemplate || '',
+        }
+      }),
     } : {}),
     ...(state.searchEnabled ? {
       search_enabled: true,
