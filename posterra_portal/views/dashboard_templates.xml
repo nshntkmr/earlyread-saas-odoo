@@ -26,6 +26,18 @@
         <t t-call="posterra_portal.base_layout">
 
             <!-- ============================================================ -->
+            <!-- APP-LEVEL BRANDING (primary color + custom CSS)               -->
+            <!-- Injected from saas.app record so each app can have its own   -->
+            <!-- color scheme and custom overrides.                            -->
+            <!-- ============================================================ -->
+            <t t-if="app and app.primary_color">
+                <style t-out="':root { --pv-primary: %s; --pv-primary-dark: %s; --pv-sidebar-active: %s; }' % (app.primary_color, app.primary_color, app.primary_color)"/>
+            </t>
+            <t t-if="app and app.custom_css">
+                <style t-esc="app.custom_css"/>
+            </t>
+
+            <!-- ============================================================ -->
             <!-- TOP BAR — sticky, full-width                                  -->
             <!-- App brand on left · User name + Sign Out on right            -->
             <!-- ============================================================ -->
