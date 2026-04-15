@@ -187,8 +187,7 @@
     margin: 0;
     overflow: hidden;
 }
-.pv-sidebar--collapsed .pv-sidebar-item span,
-.pv-sidebar--collapsed .pv-sidebar-settings span {
+.pv-sidebar--collapsed .pv-sidebar-item span {
     display: none;
 }
 .pv-sidebar--collapsed .pv-sidebar-icon {
@@ -211,27 +210,8 @@
     transform: rotate(180deg);
 }
 
-/* CSS tooltip on hover in collapsed mode */
-.pv-sidebar--collapsed .pv-sidebar-item::after {
-    content: attr(data-title);
-    position: absolute;
-    left: calc(var(--pv-sidebar-collapsed-width) + 6px);
-    top: 50%;
-    transform: translateY(-50%);
-    background: #1a202c;
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    z-index: 1100;
-}
-.pv-sidebar--collapsed .pv-sidebar-item:hover::after {
-    opacity: 1;
-}
+/* Collapsed mode: native title attribute handles tooltips
+   (CSS ::after can't escape overflow-y:auto on .pv-sidebar-nav) */
 
 /* ── Light sidebar theme (admin-configurable) ───────────────────────── */
 [data-sidebar-theme="light"] .pv-sidebar {
