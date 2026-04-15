@@ -182,6 +182,29 @@ class DashboardWidget(models.Model):
         help='Show a search bar in widget header. Client-side filtering for tables.')
     search_placeholder = fields.Char(default='Search...', string='Search Placeholder')
 
+    # ── Ranked Detail List ───────────────────────────────────────────────────
+    ranked_detail_sql = fields.Text(
+        string='Detail SQL (Per Row)',
+        help='SQL for the expanded detail panel. Executed per row on demand.\n'
+             'Use %(row_key)s for the clicked row\'s primary key value.\n'
+             'Use %(param_name)s for page filter values.\n'
+             'Use {where_clause} for auto-generated WHERE from page filters.')
+    ranked_detail_key_column = fields.Char(
+        string='Row Key Column',
+        help='Column from master SQL whose value is passed as %(row_key)s to the detail SQL.')
+    ranked_detail_chart_config = fields.Text(
+        string='Detail Chart Config (JSON)',
+        help='JSON array of chart configs for the expanded panel.\n'
+             'Each: {"title":"...","type":"bar|line|pie","x_column":"...","y_column":"...","color":"#hex"}')
+    ranked_detail_sublist_config = fields.Text(
+        string='Detail Sub-List Config (JSON)',
+        help='JSON config for the nested sub-list.\n'
+             '{"title":"...","columns":[<columnDefs>]}')
+    ranked_detail_schema_source_id = fields.Many2one(
+        'dashboard.schema.source', string='Detail Schema Source',
+        ondelete='set null',
+        help='Schema source for the detail SQL (for {where_clause} support).')
+
     chart_type = fields.Selection([
         ('bar',          'Bar'),
         ('line',         'Line'),
@@ -199,6 +222,7 @@ class DashboardWidget(models.Model):
         ('gauge_kpi',    'Gauge + KPI Breakdown'),
         ('kpi_strip',    'KPI Strip — Compact'),
         ('map',          'Map'),
+        ('ranked_detail_list', 'Ranked Detail List'),
     ], required=True, default='bar', string='Chart Type')
 
     display_mode = fields.Selection([
@@ -725,6 +749,8 @@ class DashboardWidget(models.Model):
             return self._build_gauge_kpi_data(cols, rows)
         elif self.chart_type == 'map':
             return self._build_map_data(cols, rows)
+        elif self.chart_type == 'ranked_detail_list':
+            return self._build_ranked_detail_list_data(cols, rows)
         else:
             # ECharts types (bar, line, pie, donut, gauge, radar, scatter, heatmap)
             option = self._build_echart_option(cols, rows)
@@ -821,6 +847,8 @@ class DashboardWidget(models.Model):
                 result.update(self._get_typography_overrides())
             elif self.chart_type == 'map':
                 result = self._build_map_data(cols, rows)
+            elif self.chart_type == 'ranked_detail_list':
+                result = self._build_ranked_detail_list_data(cols, rows)
             else:
                 # Run annotation query once and pass to both chart builder and interpolation
                 ann_row = self._get_annotation_row(portal_ctx)
@@ -3857,6 +3885,200 @@ class DashboardWidget(models.Model):
             formatted = f'{val:,.0f}'
 
         return f'{prefix}{formatted}{suffix}'
+
+
+    # =========================================================================
+    # Ranked Detail List — builder + detail execution
+    # =========================================================================
+
+    def _build_ranked_detail_list_data(self, cols, rows):
+        """Build dict for ranked_detail_list widgets (master list only).
+
+        Detail data is fetched on-demand per row via _execute_detail_sql().
+        """
+        self.ensure_one()
+        column_config = []
+        try:
+            column_config = json.loads(self.table_column_config or '[]')
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        row_data = [
+            {c: (v if v is not None else '') for c, v in zip(cols, r)}
+            for r in rows
+        ]
+        for i, rd in enumerate(row_data):
+            rd['_rank'] = i + 1
+
+        detail_chart_config = []
+        try:
+            detail_chart_config = json.loads(
+                self.ranked_detail_chart_config or '[]')
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        detail_sublist_config = {}
+        try:
+            detail_sublist_config = json.loads(
+                self.ranked_detail_sublist_config or '{}')
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        return {
+            'type': 'ranked_detail_list',
+            'columnDefs': column_config,
+            'rowData': row_data,
+            'row_count': len(rows),
+            'key_column': self.ranked_detail_key_column or '',
+            'has_detail': bool((self.ranked_detail_sql or '').strip()),
+            'detail_chart_config': detail_chart_config,
+            'detail_sublist_config': detail_sublist_config,
+        }
+
+    def _execute_detail_sql(self, row_key_value, portal_ctx):
+        """Execute the detail SQL for one expanded row.
+
+        Returns dict with charts (ECharts options) + sub-list data.
+        """
+        self.ensure_one()
+        sql = (self.ranked_detail_sql or '').strip()
+        if not sql:
+            return {'error': 'No detail SQL configured'}
+
+        sql_params = dict(portal_ctx.get('sql_params', {}))
+        sql_params['row_key'] = row_key_value
+
+        try:
+            # Handle {where_clause}
+            if '{where_clause}' in sql:
+                from ..utils.filter_builder import DashboardFilterBuilder
+                source = (self.ranked_detail_schema_source_id
+                          or self.schema_source_id)
+                source_columns = {
+                    c.column_name for c in source.column_ids
+                } if source else None
+                exclude = [
+                    p.strip()
+                    for p in (self.where_clause_exclude or '').split(',')
+                    if p.strip()
+                ] or None
+                builder = DashboardFilterBuilder(
+                    user_params=sql_params,
+                    filter_defs=portal_ctx.get('_filter_defs', []),
+                    source_columns=source_columns,
+                    exclude_params=exclude,
+                )
+                where_sql, built_params = builder.build()
+                sql_params.update(built_params)
+                sql = sql.replace(
+                    '{where_clause}', sql_params.pop('_where_sql', '1=1'))
+
+            # Handle [[...]] optional clauses
+            if '[[' in sql:
+                from ..utils.filter_builder import resolve_optional_clauses
+                sql = resolve_optional_clauses(sql, sql_params)
+
+            # Safety check
+            sql_clean = re.sub(r'/\*.*?\*/', ' ', sql, flags=re.DOTALL)
+            sql_clean = re.sub(r'--[^\n]*', ' ', sql_clean)
+            first_word = (
+                sql_clean.strip().split()[0].upper()
+                if sql_clean.strip() else '')
+            if first_word not in ('SELECT', 'WITH'):
+                return {'error': 'Detail SQL must start with SELECT or WITH'}
+
+            # Fill missing params with None
+            safe_params = dict(sql_params)
+            for m in re.finditer(r'%\(([^)]+)\)s', sql):
+                if m.group(1) not in safe_params:
+                    safe_params[m.group(1)] = None
+
+            self.env.cr.execute(sql, safe_params)
+            d_cols = [d[0] for d in self.env.cr.description]
+            d_rows = self.env.cr.fetchall()
+
+            # Build charts from detail config
+            detail_chart_config = []
+            try:
+                detail_chart_config = json.loads(
+                    self.ranked_detail_chart_config or '[]')
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            charts = [
+                self._build_detail_chart(cc, d_cols, d_rows)
+                for cc in detail_chart_config
+            ]
+
+            # Build sub-list from detail config
+            sublist_config = {}
+            try:
+                sublist_config = json.loads(
+                    self.ranked_detail_sublist_config or '{}')
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            sublist_rows = [
+                {c: (v if v is not None else '') for c, v in zip(d_cols, r)}
+                for r in d_rows
+            ]
+
+            return {
+                'charts': charts,
+                'sublist': {
+                    'title': sublist_config.get('title', ''),
+                    'columnDefs': sublist_config.get('columns', []),
+                    'rowData': sublist_rows,
+                },
+            }
+        except Exception as exc:
+            _logger.warning(
+                'ranked_detail_list widget %s detail SQL error: %s',
+                self.id, exc)
+            return {'error': str(exc)}
+
+    def _build_detail_chart(self, chart_config, cols, rows):
+        """Build one ECharts option dict for a detail panel chart."""
+        x_col = chart_config.get('x_column', '')
+        y_col = chart_config.get('y_column', '')
+        chart_type = chart_config.get('type', 'bar')
+        color = chart_config.get('color', '#0d9488')
+        title = chart_config.get('title', '')
+
+        col_idx = {c: i for i, c in enumerate(cols)}
+        xi = col_idx.get(x_col, 0)
+        yi = col_idx.get(y_col, 1 if len(cols) > 1 else 0)
+
+        x_data = [str(r[xi]) for r in rows if xi < len(r)]
+        y_data = []
+        for r in rows:
+            if yi < len(r):
+                try:
+                    y_data.append(float(r[yi] or 0))
+                except (ValueError, TypeError):
+                    y_data.append(0)
+
+        option = {
+            'title': {
+                'text': title,
+                'textStyle': {'fontSize': 12, 'fontWeight': 600},
+                'left': 0, 'top': 0,
+            },
+            'xAxis': {'type': 'category', 'data': x_data,
+                      'axisLabel': {'fontSize': 11}},
+            'yAxis': {'type': 'value', 'axisLabel': {'fontSize': 11}},
+            'series': [{
+                'type': chart_type,
+                'data': y_data,
+                'itemStyle': {'color': color},
+                'lineStyle': {'color': color},
+                'label': {'show': True, 'position': 'top',
+                          'fontSize': 11},
+            }],
+            'grid': {'top': 40, 'bottom': 30, 'left': 50, 'right': 20},
+            'tooltip': {'trigger': 'axis'},
+        }
+        return {'title': title, 'echart_option': option}
 
 
 # ── Deep merge utility ────────────────────────────────────────────────────────

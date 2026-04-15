@@ -21,6 +21,24 @@ export function widgetDataUrl(apiBase, widgetId, params = {}) {
 }
 
 /**
+ * Build the URL for fetching detail data for one expanded row of a ranked_detail_list.
+ *
+ * @param {string} apiBase    — e.g. "/api/v1"
+ * @param {number} widgetId   — dashboard.widget ID
+ * @param {string} rowKey     — primary key value of the master row
+ * @param {object} params     — filter values dict
+ * @returns {string}
+ */
+export function widgetDetailUrl(apiBase, widgetId, rowKey, params = {}) {
+  const filtered = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+  )
+  filtered.row_key = rowKey
+  const qs = new URLSearchParams(filtered).toString()
+  return `${apiBase}/widget/${widgetId}/detail${qs ? '?' + qs : ''}`
+}
+
+/**
  * Build the URL for fetching cascading filter options.
  *
  * @param {string} apiBase      — e.g. "/api/v1"

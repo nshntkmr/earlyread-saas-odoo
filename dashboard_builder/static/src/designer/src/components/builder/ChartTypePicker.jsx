@@ -19,6 +19,7 @@ const CHART_TYPES = [
   { key: 'insight_panel', label: 'Insight Panel',  icon: 'fa-lightbulb-o',     desc: 'Narrative text with metrics' },
   { key: 'gauge_kpi',     label: 'Gauge + KPI',   icon: 'fa-dashboard',       desc: 'Gauge with sub-KPI breakdown' },
   { key: 'map',           label: 'Map',           icon: 'fa-map-marker',      desc: 'Geographic point/area visualization' },
+  { key: 'ranked_detail_list', label: 'Ranked List', icon: 'fa-list-ol',   desc: 'Expandable ranked list with detail charts' },
 ]
 
 /**

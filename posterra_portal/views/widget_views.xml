@@ -283,6 +283,32 @@
                                        nolabel="1" colspan="2"/>
                             </group>
 
+                            <!-- Ranked Detail List options -->
+                            <group string="Ranked Detail List"
+                                   invisible="chart_type != 'ranked_detail_list'">
+                                <group>
+                                    <field name="ranked_detail_key_column"
+                                           placeholder="e.g. hospital_ccn  (passed as %(row_key)s)"/>
+                                    <field name="ranked_detail_schema_source_id"
+                                           placeholder="Schema source for detail SQL"/>
+                                </group>
+                                <separator string="Detail SQL (Per Row)" colspan="2"/>
+                                <field name="ranked_detail_sql" widget="text"
+                                       placeholder="SELECT year, admits, share_pct, hha_name, ... FROM mv_detail WHERE hospital_ccn = %(row_key)s [[ AND year IN %(year)s ]]"
+                                       style="font-family: monospace; min-height: 100px;"
+                                       nolabel="1" colspan="2"/>
+                                <separator string="Detail Chart Config (JSON)" colspan="2"/>
+                                <field name="ranked_detail_chart_config" widget="text"
+                                       placeholder='[{"title":"Admits by Year","type":"bar","x_column":"year","y_column":"admits"},{"title":"Your Share","type":"line","x_column":"year","y_column":"share_pct"}]'
+                                       style="font-family: monospace; min-height: 80px;"
+                                       nolabel="1" colspan="2"/>
+                                <separator string="Detail Sub-List Config (JSON)" colspan="2"/>
+                                <field name="ranked_detail_sublist_config" widget="text"
+                                       placeholder='{"title":"Top HHAs","columns":[{"field":"hha_name","cellRenderer":"composite"},{"field":"count"},{"field":"pct","cellRenderer":"pctColored"}]}'
+                                       style="font-family: monospace; min-height: 60px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+
                             <!-- Library link -->
                             <group string="Library">
                                 <field name="definition_id"/>
