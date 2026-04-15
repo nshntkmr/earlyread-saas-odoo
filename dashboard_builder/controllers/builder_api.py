@@ -796,6 +796,9 @@ class BuilderAPI(http.Controller):
 
             # Create scope_option child records (forwarded from React)
             scope_options = body.get('scope_options', [])
+            _logger.info(
+                'place_from_library: widget=%s, scope_options in body=%s, count=%s',
+                widget.id, 'scope_options' in body, len(scope_options))
             if scope_options:
                 ScopeOption = request.env['dashboard.widget.scope.option']
                 Source = request.env['dashboard.schema.source']

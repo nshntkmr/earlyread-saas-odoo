@@ -204,39 +204,42 @@ export default function TableConfigurator({
 
   const handleSaveAndPlace = useCallback(async () => {
     onUpdate({ type: 'SET_APPEARANCE', value: { ...appearance, title: widgetTitle } })
+
+    // Capture scope options BEFORE onSave() which triggers RESET and wipes state
+    const placeBody = {
+      page_id: appContext?.page?.id,
+      tab_id: appContext?.tab?.id || null,
+    }
+    if (builderState?.scopeMode !== 'none' && builderState?.optionConfigs?.length) {
+      placeBody.scope_options = (builderState.scopeOptions || []).map((opt, idx) => {
+        const cfg = (builderState.optionConfigs || [])[idx] || {}
+        const cs = cfg.customSql || {}
+        const ai = cfg.aiState || {}
+        const optSql = cfg.dataMode === 'ai' ? (ai.generatedSql || '') : (cs.sql || '')
+        return {
+          label: opt.label || '', value: opt.value || '', icon: opt.icon || '',
+          sequence: (idx + 1) * 10, query_sql: optSql,
+          table_column_config: cfg.tableColumnConfig?.length ? JSON.stringify(cfg.tableColumnConfig) : '',
+          x_column: cs.xColumn || '', y_columns: cs.yColumns || '', series_column: cs.seriesColumn || '',
+          click_action: cfg.clickAction || 'none', action_page_key: cfg.actionPageKey || '',
+          action_tab_key: cfg.actionTabKey || '', action_pass_value_as: cfg.actionPassValueAs || '',
+          drill_detail_columns: cfg.drillDetailColumns || '', action_url_template: cfg.actionUrlTemplate || '',
+        }
+      })
+    }
+
+    // NOW save (this triggers RESET which wipes builderState)
     const result = await onSave({ name: widgetTitle })
-    if (!result?.id || !appContext?.page?.id) return
+    if (!result?.id || !placeBody.page_id) return
     // When editing, library_update already synced all instances —
     // don't call place_on_page or it creates a duplicate instance.
     if (editId) {
       setPlaceSuccess(true)
       return
     }
-    // New widget: create instance on the selected page/tab
+    // New widget: place instance with pre-captured scope_options
     setPlacing(true)
     try {
-      const placeBody = {
-        page_id: appContext.page.id,
-        tab_id: appContext.tab?.id || null,
-      }
-      // Forward scope options so place handler can create child records
-      if (builderState?.scopeMode !== 'none' && builderState?.optionConfigs?.length) {
-        placeBody.scope_options = (builderState.scopeOptions || []).map((opt, idx) => {
-          const cfg = (builderState.optionConfigs || [])[idx] || {}
-          const cs = cfg.customSql || {}
-          const ai = cfg.aiState || {}
-          const optSql = cfg.dataMode === 'ai' ? (ai.generatedSql || '') : (cs.sql || '')
-          return {
-            label: opt.label || '', value: opt.value || '', icon: opt.icon || '',
-            sequence: (idx + 1) * 10, query_sql: optSql,
-            table_column_config: cfg.tableColumnConfig?.length ? JSON.stringify(cfg.tableColumnConfig) : '',
-            x_column: cs.xColumn || '', y_columns: cs.yColumns || '', series_column: cs.seriesColumn || '',
-            click_action: cfg.clickAction || 'none', action_page_key: cfg.actionPageKey || '',
-            action_tab_key: cfg.actionTabKey || '', action_pass_value_as: cfg.actionPassValueAs || '',
-            drill_detail_columns: cfg.drillDetailColumns || '', action_url_template: cfg.actionUrlTemplate || '',
-          }
-        })
-      }
       await designerFetch(libraryPlaceUrl(apiBase, result.id), {
         method: 'POST',
         body: JSON.stringify(placeBody),

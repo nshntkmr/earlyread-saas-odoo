@@ -230,24 +230,12 @@ export default function LivePreview({
     if (!appContext?.page) return
     setPlacing(true)
     try {
-      // First save (onSave returns the created/updated definition)
-      const result = await onSave()
-      if (!result?.id) {
-        setPlacing(false)
-        return
-      }
-      // When editing, library_update already synced all instances —
-      // don't call place_on_page or it creates a duplicate instance.
-      if (editId) {
-        setPlaceSuccess(true)
-        return
-      }
-      // New widget: create instance on the selected page/tab
+      // Build the PLACE body BEFORE saving, because handleSave() resets state
       const placeBody = {
         page_id: appContext.page.id,
         tab_id: appContext.tab?.id || null,
       }
-      // Forward scope options so place handler can create child records
+      // Capture scope options NOW (before RESET wipes state)
       if (builderState.scopeMode !== 'none' && builderState.optionConfigs?.length) {
         placeBody.scope_options = (builderState.scopeOptions || []).map((opt, idx) => {
           const cfg = (builderState.optionConfigs || [])[idx] || {}
@@ -265,6 +253,20 @@ export default function LivePreview({
           }
         })
       }
+
+      // NOW save (this triggers RESET which wipes state)
+      const result = await onSave()
+      if (!result?.id) {
+        setPlacing(false)
+        return
+      }
+      // When editing, library_update already synced all instances —
+      // don't call place_on_page or it creates a duplicate instance.
+      if (editId) {
+        setPlaceSuccess(true)
+        return
+      }
+      // New widget: place instance with pre-captured scope_options
       await designerFetch(libraryPlaceUrl(apiBase, result.id), {
         method: 'POST',
         body: JSON.stringify(placeBody),
