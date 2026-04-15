@@ -869,6 +869,8 @@ class PosterraPortal(CustomerPortal):
             'section_data':  section_data,
             # Page header badges (React-rendered)
             'initial_badges_json': initial_badges_json,
+            # Sidebar theme (admin-configurable per app)
+            'sidebar_theme': app.sidebar_theme or 'dark',
             # Phase 7 — React shell data (embedded as data-* on #app-root)
             'portal_access_token':      portal_access_token,
             'page_config_json':         page_config_json,

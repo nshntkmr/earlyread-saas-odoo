@@ -31,6 +31,11 @@
             <!-- ============================================================ -->
             <div class="pv-topbar">
                 <div class="pv-topbar-left">
+                    <!-- Mobile hamburger (visible on small screens only) -->
+                    <button class="pv-topbar-hamburger d-md-none" type="button"
+                            onclick="var s=document.querySelector('.pv-sidebar');s&amp;&amp;s.classList.toggle('show')">
+                        <i class="fa fa-bars"/>
+                    </button>
                     <i class="fa fa-heartbeat"/>
                     <span class="pv-topbar-brand-name" t-esc="app and app.name or 'Portal'"/>
                     <t t-if="org_display_name">
@@ -54,11 +59,11 @@
             <!-- ============================================================ -->
             <!-- DASHBOARD — sidebar + main content                            -->
             <!-- ============================================================ -->
-            <div class="pv-dashboard d-flex">
+            <div class="pv-dashboard d-flex"
+                 t-att-data-sidebar-theme="sidebar_theme or 'dark'">
 
                 <!-- ============================================ -->
-                <!-- LEFT SIDEBAR — navigation only               -->
-                <!-- User/logout is in the top bar above          -->
+                <!-- LEFT SIDEBAR — navigation + collapse toggle  -->
                 <!-- ============================================ -->
                 <nav class="pv-sidebar d-none d-md-block">
                     <div class="pv-sidebar-nav">
@@ -68,12 +73,27 @@
                             </div>
                             <t t-foreach="sp['pages']" t-as="page">
                                 <a t-attf-href="/my/#{app.app_key}/#{page.key}?hha_id=#{current_hha_id}"
-                                   t-attf-class="pv-sidebar-item #{current_page_key == page.key and 'active' or ''}">
+                                   t-attf-class="pv-sidebar-item #{current_page_key == page.key and 'active' or ''}"
+                                   t-att-data-title="page.name">
                                     <i t-attf-class="fa #{page.icon} pv-sidebar-icon"/>
                                     <span t-esc="page.name"/>
                                 </a>
                             </t>
                         </t>
+                    </div>
+                    <!-- Sidebar footer: Settings + collapse toggle -->
+                    <div class="pv-sidebar-footer">
+                        <a t-attf-href="/my/#{app.app_key}/settings?hha_id=#{current_hha_id}"
+                           class="pv-sidebar-item pv-sidebar-settings"
+                           data-title="Settings">
+                            <i class="fa fa-cog pv-sidebar-icon"/>
+                            <span>Settings</span>
+                        </a>
+                        <button class="pv-sidebar-toggle" type="button"
+                                title="Collapse sidebar"
+                                onclick="window.__pvToggleSidebar&amp;&amp;window.__pvToggleSidebar()">
+                            <i class="fa fa-chevron-left"/>
+                        </button>
                     </div>
                 </nav>
 
@@ -128,6 +148,38 @@
 
                 </div><!-- /.pv-main -->
             </div><!-- /.pv-dashboard -->
+
+            <!-- Sidebar collapse/expand toggle logic -->
+            <script>
+                (function() {
+                    var KEY = 'pv_sidebar_collapsed';
+                    var sidebar = document.querySelector('.pv-sidebar');
+                    var dashboard = document.querySelector('.pv-dashboard');
+                    var btn = document.querySelector('.pv-sidebar-toggle');
+                    if (!sidebar || !btn) return;
+
+                    // Restore persisted state
+                    if (localStorage.getItem(KEY) === '1') {
+                        sidebar.classList.add('pv-sidebar--collapsed');
+                        dashboard.classList.add('pv-dashboard--collapsed');
+                        btn.title = 'Expand sidebar';
+                    }
+
+                    // After CSS transition ends, trigger resize for ECharts/MapLibre
+                    sidebar.addEventListener('transitionend', function(e) {
+                        if (e.propertyName === 'width' || e.propertyName === 'min-width') {
+                            window.dispatchEvent(new Event('resize'));
+                        }
+                    });
+
+                    window.__pvToggleSidebar = function() {
+                        var collapsed = sidebar.classList.toggle('pv-sidebar--collapsed');
+                        dashboard.classList.toggle('pv-dashboard--collapsed', collapsed);
+                        localStorage.setItem(KEY, collapsed ? '1' : '0');
+                        btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+                    };
+                })();
+            </script>
 
         </t>
     </template>

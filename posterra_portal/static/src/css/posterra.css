@@ -12,6 +12,7 @@
     --pv-sidebar-text: #a0aec0;
     --pv-sidebar-text-active: #ffffff;
     --pv-sidebar-width: 240px;
+    --pv-sidebar-collapsed-width: 60px;
     --pv-header-bg: #ffffff;
     --pv-content-bg: #f4f6f9;
 }
@@ -34,6 +35,7 @@
     height: calc(100vh - 52px);
     display: flex;
     flex-direction: column;
+    transition: width 0.25s ease, min-width 0.25s ease;
 }
 
 .pv-sidebar-header {
@@ -148,6 +150,126 @@
     background-color: rgba(220, 53, 69, 0.12);
     color: #ff6b7a;
     text-decoration: none;
+}
+
+/* ── Sidebar toggle button ──────────────────────────────────────────── */
+.pv-sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--pv-sidebar-text);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+.pv-sidebar-toggle:hover {
+    background: var(--pv-sidebar-hover);
+    color: var(--pv-sidebar-text-active);
+}
+.pv-sidebar-toggle .fa {
+    transition: transform 0.25s ease;
+}
+
+/* ── Sidebar collapsed (icon-only rail) ─────────────────────────────── */
+.pv-sidebar--collapsed {
+    width: var(--pv-sidebar-collapsed-width);
+    min-width: var(--pv-sidebar-collapsed-width);
+}
+.pv-sidebar--collapsed .pv-sidebar-section-label {
+    visibility: hidden;
+    height: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+}
+.pv-sidebar--collapsed .pv-sidebar-item span,
+.pv-sidebar--collapsed .pv-sidebar-settings span {
+    display: none;
+}
+.pv-sidebar--collapsed .pv-sidebar-icon {
+    margin-right: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 16px;
+}
+.pv-sidebar--collapsed .pv-sidebar-item {
+    justify-content: center;
+    padding: 10px 0;
+    border-left: 3px solid transparent;
+    position: relative;
+}
+.pv-sidebar--collapsed .pv-sidebar-item.active {
+    border-left-color: var(--pv-sidebar-active);
+}
+/* Flip chevron direction when collapsed */
+.pv-sidebar--collapsed .pv-sidebar-toggle .fa {
+    transform: rotate(180deg);
+}
+
+/* CSS tooltip on hover in collapsed mode */
+.pv-sidebar--collapsed .pv-sidebar-item::after {
+    content: attr(data-title);
+    position: absolute;
+    left: calc(var(--pv-sidebar-collapsed-width) + 6px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1a202c;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 1100;
+}
+.pv-sidebar--collapsed .pv-sidebar-item:hover::after {
+    opacity: 1;
+}
+
+/* ── Light sidebar theme (admin-configurable) ───────────────────────── */
+[data-sidebar-theme="light"] .pv-sidebar {
+    --pv-sidebar-bg: #ffffff;
+    --pv-sidebar-hover: #f1f5f9;
+    --pv-sidebar-text: #475569;
+    --pv-sidebar-text-active: #0f172a;
+    background-color: var(--pv-sidebar-bg);
+    color: var(--pv-sidebar-text);
+    border-right: 1px solid #e2e8f0;
+}
+[data-sidebar-theme="light"] .pv-sidebar-section-label {
+    color: rgba(71, 85, 105, 0.5);
+}
+[data-sidebar-theme="light"] .pv-sidebar-item.active {
+    background-color: rgba(0, 102, 204, 0.08);
+}
+[data-sidebar-theme="light"] .pv-sidebar-toggle {
+    color: var(--pv-sidebar-text);
+    border-top-color: #e2e8f0;
+}
+[data-sidebar-theme="light"] .pv-sidebar-toggle:hover {
+    background: #f1f5f9;
+    color: var(--pv-sidebar-text-active);
+}
+[data-sidebar-theme="light"] .pv-sidebar-footer {
+    border-top-color: #e2e8f0;
+}
+
+/* ── Mobile hamburger button ────────────────────────────────────────── */
+.pv-topbar-hamburger {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #1a202c;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-right: 8px;
 }
 
 /* ========================================================================
@@ -2833,15 +2955,26 @@
 
 /* --- Responsive: Mobile sidebar toggle --- */
 @media (max-width: 767.98px) {
+    .pv-topbar-hamburger {
+        display: flex;
+        align-items: center;
+    }
+
     .pv-sidebar {
         position: fixed;
-        left: -var(--pv-sidebar-width);
+        left: calc(-1 * var(--pv-sidebar-width));
         z-index: 1050;
         transition: left 0.3s ease;
     }
 
     .pv-sidebar.show {
+        display: flex !important; /* override d-none */
         left: 0;
+    }
+
+    /* Hide collapse toggle on mobile (use hamburger instead) */
+    .pv-sidebar-toggle {
+        display: none;
     }
 
     .pv-page-header {
