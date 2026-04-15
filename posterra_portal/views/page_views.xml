@@ -46,6 +46,8 @@
                             <field name="key" placeholder="e.g. overview"/>
                             <field name="nav_section_id"/>
                             <field name="icon" placeholder="e.g. fa-home"/>
+                            <field name="icon_color" widget="color"
+                                   placeholder="#38b2ac"/>
                         </group>
                         <group>
                             <field name="app_id"/>

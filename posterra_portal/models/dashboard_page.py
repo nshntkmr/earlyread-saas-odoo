@@ -46,6 +46,9 @@ class DashboardPage(models.Model):
         help='Application this page belongs to. Used by the generic /my/<app_key>/ route.',
     )
     icon = fields.Char()
+    icon_color = fields.Char(string='Icon Color',
+        help='CSS color for the sidebar icon (e.g. #38b2ac, coral, rgb(100,200,50)). '
+             'Leave empty for default sidebar text color.')
     sequence = fields.Integer(default=10)
     is_active = fields.Boolean(default=True)
     group_ids = fields.Many2many('res.groups', string='Visible to Groups')
