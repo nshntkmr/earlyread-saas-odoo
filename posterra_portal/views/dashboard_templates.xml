@@ -100,8 +100,11 @@
                     <!-- Page header -->
                     <div class="pv-page-header">
                         <h2 class="pv-page-title mb-0">
-                            <i t-attf-class="fa #{current_page and current_page.icon or ''} me-2 #{current_page and current_page.icon_color and '' or 'text-primary'}"
-                               t-att-style="current_page and current_page.icon_color and ('color:' + current_page.icon_color) or None"/>
+                            <i t-attf-class="fa #{current_page and current_page.icon or ''} me-2"
+                               t-att-style="'color:' + (current_page and current_page.icon_color or '') + ' !important'"
+                               t-if="current_page and current_page.icon_color"/>
+                            <i t-attf-class="fa #{current_page and current_page.icon or ''} me-2 text-primary"
+                               t-if="not (current_page and current_page.icon_color)"/>
                             <t t-esc="current_page and current_page.name or 'Dashboard'"/>
                             <span t-if="current_page and current_page.help_text"
                                   class="pv-page-help-icon ms-2"
