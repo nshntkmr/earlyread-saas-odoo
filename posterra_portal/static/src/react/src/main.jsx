@@ -10,9 +10,11 @@ function mount() {
   let pageConfig = {}
   let initialWidgets = {}
   let initialSections = {}
+  let initialBadges = []
   try { pageConfig    = JSON.parse(rootEl.dataset.pageConfig    || '{}') } catch (e) { console.error('pageConfig parse error', e) }
   try { initialWidgets = JSON.parse(rootEl.dataset.initialWidgets || '{}') } catch (e) { console.error('initialWidgets parse error', e) }
   try { initialSections = JSON.parse(rootEl.dataset.initialSections || '{}') } catch (e) { console.error('initialSections parse error', e) }
+  try { initialBadges  = JSON.parse(rootEl.dataset.initialBadges  || '[]') } catch (e) { console.error('initialBadges parse error', e) }
 
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
@@ -20,6 +22,7 @@ function mount() {
         pageConfig={pageConfig}
         initialWidgets={initialWidgets}
         initialSections={initialSections}
+        initialBadges={initialBadges}
         apiBase={rootEl.dataset.apiBase || '/api/v1'}
         accessToken={rootEl.dataset.accessToken || ''}
       />

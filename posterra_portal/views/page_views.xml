@@ -228,9 +228,42 @@
                                            placeholder="SELECT ... as value FROM ... WHERE {where_clause}"
                                            style="min-height: 40px;"/>
                                     <field name="schema_source_id"/>
+                                    <field name="icon_color" placeholder="#2563eb"
+                                           widget="char"/>
+                                    <field name="text_color" placeholder="#6b7280"
+                                           widget="char"/>
                                     <field name="is_active"/>
                                     <field name="is_link"/>
                                 </list>
+                                <form>
+                                    <sheet>
+                                        <group>
+                                            <group string="Identity">
+                                                <field name="name"/>
+                                                <field name="icon" placeholder="fa-building"/>
+                                                <field name="sequence"/>
+                                                <field name="is_active"/>
+                                            </group>
+                                            <group string="Styling">
+                                                <field name="icon_color" placeholder="#2563eb"
+                                                       widget="char"/>
+                                                <field name="text_color" placeholder="#6b7280"
+                                                       widget="char"/>
+                                                <field name="font_size" placeholder="0 = default 13px"/>
+                                                <field name="is_link"/>
+                                            </group>
+                                        </group>
+                                        <group string="SQL Query">
+                                            <field name="schema_source_id"/>
+                                            <field name="where_clause_exclude"
+                                                   placeholder="e.g. year"/>
+                                            <field name="query_sql" widget="ace"
+                                                   options="{'mode': 'sql'}"
+                                                   placeholder="SELECT ... as value FROM ... WHERE {where_clause}"
+                                                   style="min-height: 120px;"/>
+                                        </group>
+                                    </sheet>
+                                </form>
                             </field>
                         </page>
 

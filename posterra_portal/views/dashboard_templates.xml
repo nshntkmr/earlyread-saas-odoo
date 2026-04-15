@@ -101,28 +101,6 @@
                                t-if="not (current_page and current_page.subtitle)">Executive command center</small>
                     </div>
 
-                    <!-- Page header badges (SQL-driven, admin-configured) -->
-                    <div t-if="badge_items" class="pv-page-badges">
-                        <t t-foreach="badge_items" t-as="badge">
-                            <span class="pv-page-badge"
-                                  t-att-style="
-                                      (badge.get('font_size') and 'font-size:%spx;' % badge['font_size'] or '') +
-                                      (badge.get('text_color') and 'color:%s;' % badge['text_color'] or '')
-                                  ">
-                                <i t-if="badge.get('icon')"
-                                   t-attf-class="fa #{badge['icon']} pv-page-badge-icon"
-                                   t-att-style="badge.get('icon_color') and 'color:%s;' % badge['icon_color'] or ''"/>
-                                <t t-if="badge.get('is_link')">
-                                    <a t-attf-href="tel:#{badge['value']}" t-esc="badge['value']"/>
-                                </t>
-                                <t t-else="">
-                                    <span t-esc="badge['value']"/>
-                                </t>
-                            </span>
-                            <span t-if="not badge_last" class="pv-page-badge-sep">|</span>
-                        </t>
-                    </div>
-
                     <!-- ============================================================ -->
                     <!-- REACT APP ROOT                                              -->
                     <!-- Filter bar, tab bar, sections, and widget grid rendered by  -->
@@ -138,6 +116,7 @@
                          t-att-data-page-config="page_config_json"
                          t-att-data-initial-widgets="initial_widget_data_json"
                          t-att-data-initial-sections="initial_sections_json"
+                         t-att-data-initial-badges="initial_badges_json"
                          data-api-base="/api/v1"
                          t-att-data-access-token="portal_access_token"/>
 
