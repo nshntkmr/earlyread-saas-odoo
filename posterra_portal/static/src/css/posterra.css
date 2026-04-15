@@ -13,7 +13,7 @@
     --pv-sidebar-text-active: #ffffff;
     --pv-sidebar-width: 240px;
     --pv-header-bg: #ffffff;
-    --pv-content-bg: #f4f6f9;
+    --pv-content-bg: #f8fafc;
 }
 
 /* --- Dashboard Layout --- */
@@ -258,14 +258,14 @@
 
 .pv-page-header {
     background-color: var(--pv-header-bg);
-    padding: 20px 24px 12px;
-    border-bottom: 1px solid #e2e8f0;
+    padding: 20px 24px 14px;
+    border-bottom: 0.8px solid #e2e8f0;
 }
 
 .pv-page-title {
-    font-size: 22px;
-    font-weight: 600;
-    color: #1a202c;
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
 }
 
 /* --- Page Header Badges --- */
@@ -420,7 +420,7 @@
 .pv-tab-bar {
     background-color: var(--pv-header-bg);
     padding: 0 24px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 0.8px solid #e2e8f0;
 }
 
 .pv-tabs .nav-link {
@@ -504,7 +504,7 @@
 .pv-filter-bar {
     background-color: var(--pv-header-bg);
     padding: 10px 24px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 0.8px solid #e2e8f0;
     min-height: 52px;
 }
 
@@ -1543,13 +1543,13 @@
    ======================================================================== */
 :root {
     /* Typography scale */
-    --w-font-xs:    0.65rem;   /* 10.4px — badges, advantage text */
-    --w-font-sm:    0.7rem;    /* 11.2px — column headers, labels */
-    --w-font-base:  0.8rem;    /* 12.8px — body text, table cells */
-    --w-font-md:    0.875rem;  /* 14px   — card title, classification */
-    --w-font-lg:    1.25rem;   /* 20px   — sub-KPI values */
-    --w-font-xl:    1.5rem;    /* 24px   — compact KPI value */
-    --w-font-2xl:   2.25rem;   /* 36px   — hero KPI value */
+    --w-font-xs:    0.6875rem; /* 11px  — badges, advantage text */
+    --w-font-sm:    0.75rem;   /* 12px  — column headers, labels */
+    --w-font-base:  0.875rem;  /* 14px  — body text, table cells */
+    --w-font-md:    0.9375rem; /* 15px  — card title, classification */
+    --w-font-lg:    1.25rem;   /* 20px  — sub-KPI values */
+    --w-font-xl:    1.5rem;    /* 24px  — compact KPI value */
+    --w-font-2xl:   2.25rem;   /* 36px  — hero KPI value */
 
     /* Font weights */
     --w-weight-normal: 400;
@@ -1564,9 +1564,9 @@
     --w-value-body:      #4b5563;
 
     /* Colors — labels */
-    --w-label-color:     #9ca3af;
-    --w-label-transform: uppercase;
-    --w-label-spacing:   0.5px;
+    --w-label-color:     #6b7280;
+    --w-label-transform: none;
+    --w-label-spacing:   0;
 
     /* Colors — status */
     --w-status-up:         #16a34a;
@@ -1591,9 +1591,9 @@
     --w-space-2xl: 24px;
 
     /* Card shell */
-    --w-card-radius:  8px;
-    --w-card-shadow:  0 1px 4px rgba(0,0,0,.08);
-    --w-card-border:  #e8edf3;
+    --w-card-radius:  12px;
+    --w-card-shadow:  0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05);
+    --w-card-border:  #e2e8f0;
     --w-card-bg:      #ffffff;
 
     /* Borders */
@@ -1619,7 +1619,7 @@
     border-radius: var(--w-card-radius);
     box-shadow: var(--w-card-shadow);
     background: var(--w-card-bg);
-    border: 1px solid var(--w-card-border);
+    border: 0.8px solid var(--w-card-border);
     overflow: hidden;
     height: 100%;
     display: flex;
@@ -2520,7 +2520,7 @@
     grid-template-columns: repeat(24, 1fr);
     grid-auto-rows: minmax(80px, auto);
     grid-auto-flow: dense;
-    gap: 1rem;
+    gap: 1.25rem;
 }
 .pv-widget-col {
     display: flex;
