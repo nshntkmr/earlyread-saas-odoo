@@ -63,29 +63,106 @@ function BadgeRenderer(params) {
 }
 
 // ── 4. Sparkline ────────────────────────────────────────────────────────────
-// Tiny SVG line chart. Input: JSON array or comma-separated string.
-// Params: color (default teal)
+// Tiny SVG sparkline. Supports 5 variants via `variant` param.
+// Input: JSON array, comma-separated numbers, or (bullet) an object.
+// Params:
+//   variant:   'line' | 'bar' | 'area' | 'winloss' | 'bullet'  (default 'line')
+//   color:     fixed hex, or 'auto' (green if trending up, red if down)
+//   width, height: SVG size (default 60x20)
 function SparklineRenderer(params) {
-  let values = params.value
-  if (!values) return null
+  const p = params.colDef?.cellRendererParams || {}
+  const variant = p.variant || 'line'
+  const w = p.width || 60
+  const h = p.height || 20
+  const raw = params.value
+  if (raw === null || raw === undefined || raw === '') return null
+
+  // ── Bullet variant: input is {value, target, max} object or JSON ─────
+  if (variant === 'bullet') {
+    let bulletData = raw
+    if (typeof bulletData === 'string') {
+      try { bulletData = JSON.parse(bulletData) } catch { return <span>{String(raw)}</span> }
+    }
+    const { value = 0, target = 0, max = 100 } = bulletData || {}
+    const barColor = p.color || (value >= target ? '#10b981' : '#f59e0b')
+    const valW = Math.max(0, Math.min(1, Number(value) / max)) * w
+    const tgtX = Math.max(0, Math.min(1, Number(target) / max)) * w
+    return (
+      <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
+        <rect x={0} y={h / 2 - 3} width={w} height={6} fill="#e2e8f0" />
+        <rect x={0} y={h / 2 - 3} width={valW} height={6} fill={barColor} />
+        <line x1={tgtX} y1={1} x2={tgtX} y2={h - 1} stroke="#0f172a" strokeWidth={1.5} />
+      </svg>
+    )
+  }
+
+  // Other variants: input is an array of numbers
+  let values = raw
   if (typeof values === 'string') {
     try { values = JSON.parse(values) }
     catch { values = values.split(',').map(Number) }
   }
-  if (!Array.isArray(values) || values.length < 2) return <span>{String(params.value)}</span>
-
-  const p = params.colDef?.cellRendererParams || {}
-  const color = p.color || '#0d9488'
-  const w = 60, h = 20
+  if (!Array.isArray(values) || values.length < 2) return <span>{String(raw)}</span>
   const nums = values.map(Number).filter(n => !isNaN(n))
-  if (nums.length < 2) return <span>{String(params.value)}</span>
+  if (nums.length < 2) return <span>{String(raw)}</span>
+
+  // Color: auto (trend-based) or fixed hex
+  const trendUp = nums[nums.length - 1] >= nums[0]
+  const color = (p.color && p.color !== 'auto')
+    ? p.color
+    : (trendUp ? '#10b981' : '#ef4444')
+
+  // ── Win/Loss variant ────────────────────────────────────────────────
+  if (variant === 'winloss') {
+    const ticks = nums.map((v, i) => {
+      const x = (i / (nums.length - 1)) * w
+      const color = v > 0 ? '#10b981' : (v < 0 ? '#ef4444' : '#94a3b8')
+      const top = v > 0 ? 2 : (v < 0 ? h / 2 : h / 2 - 1)
+      const tickH = v !== 0 ? (h / 2 - 2) : 2
+      return <rect key={i} x={x - 2} y={top} width={3} height={tickH} fill={color} />
+    })
+    return (
+      <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
+        <line x1={0} y1={h / 2} x2={w} y2={h / 2} stroke="#cbd5e1" strokeWidth="0.5" />
+        {ticks}
+      </svg>
+    )
+  }
 
   const min = Math.min(...nums), max = Math.max(...nums)
   const range = max - min || 1
+
+  // ── Bar variant ─────────────────────────────────────────────────────
+  if (variant === 'bar') {
+    const barW = Math.max(1, (w / nums.length) - 1)
+    return (
+      <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
+        {nums.map((v, i) => {
+          const barH = ((v - min) / range) * (h - 2)
+          const x = (i / nums.length) * w
+          const y = h - barH - 1
+          return <rect key={i} x={x} y={y} width={barW} height={barH} fill={color} />
+        })}
+      </svg>
+    )
+  }
+
+  // ── Line / Area variants ────────────────────────────────────────────
   const points = nums.map((v, i) =>
-    `${(i / (nums.length - 1)) * w},${h - ((v - min) / range) * h}`
+    `${(i / (nums.length - 1)) * w},${h - ((v - min) / range) * (h - 2) - 1}`
   ).join(' ')
 
+  if (variant === 'area') {
+    const polyPts = `0,${h} ${points} ${w},${h}`
+    return (
+      <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
+        <polygon points={polyPts} fill={color} opacity={0.2} />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+      </svg>
+    )
+  }
+
+  // Default: line variant
   return (
     <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
       <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
@@ -237,6 +314,95 @@ function DualValueRenderer(params) {
   )
 }
 
+// ── 8. Inline Mini-Chart ────────────────────────────────────────────────────
+// Small inline bar/line/KPI rendered via lightweight SVG.
+// Params:
+//   type:   'bar' | 'line' | 'kpi'  (default 'bar')
+//   size:   'small' (80x32) | 'medium' (150x40)  (default 'small')
+//   color:  fixed hex (default teal)
+//
+// Input formats:
+//   bar / line: JSON array of numbers (or comma-separated)
+//   kpi:        JSON object {value, label, color} or just a number
+//
+// Note: implemented as SVG (not ECharts) for zero bundle cost. For heavier
+// charts inside rows, consider a future lazy-loaded ECharts variant.
+function InlineChartRenderer(params) {
+  const p = params.colDef?.cellRendererParams || {}
+  const type = p.type || 'bar'
+  const size = p.size === 'medium' ? { w: 150, h: 40 } : { w: 80, h: 32 }
+  const color = p.color || '#0d9488'
+  const raw = params.value
+  if (raw === null || raw === undefined || raw === '') return null
+
+  if (type === 'kpi') {
+    let kpi = raw
+    if (typeof kpi === 'string') {
+      try { kpi = JSON.parse(kpi) } catch { kpi = { value: raw } }
+    }
+    const value = (typeof kpi === 'object' && kpi !== null) ? kpi.value : kpi
+    const label = (typeof kpi === 'object' && kpi !== null) ? kpi.label : null
+    const kpiColor = (typeof kpi === 'object' && kpi !== null && kpi.color)
+      ? kpi.color
+      : color
+    return (
+      <div style={{
+        width: size.w, height: size.h,
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+        justifyContent: 'center', lineHeight: 1.1,
+      }}>
+        <div style={{ color: kpiColor, fontWeight: 600, fontSize: 14 }}>
+          {value != null ? String(value) : ''}
+        </div>
+        {label && (
+          <div style={{ color: '#6b7280', fontSize: 10 }}>{label}</div>
+        )}
+      </div>
+    )
+  }
+
+  // bar or line: array input
+  let values = raw
+  if (typeof values === 'string') {
+    try { values = JSON.parse(values) }
+    catch { values = values.split(',').map(Number) }
+  }
+  if (!Array.isArray(values) || values.length < 2) {
+    return <span>{String(raw)}</span>
+  }
+  const nums = values.map(Number).filter(n => !isNaN(n))
+  if (nums.length < 2) return <span>{String(raw)}</span>
+
+  const min = Math.min(...nums)
+  const max = Math.max(...nums)
+  const range = max - min || 1
+  const { w, h } = size
+
+  if (type === 'bar') {
+    const barW = Math.max(1, (w / nums.length) - 1)
+    return (
+      <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
+        {nums.map((v, i) => {
+          const barH = ((v - min) / range) * (h - 4)
+          const x = (i / nums.length) * w
+          const y = h - barH - 2
+          return <rect key={i} x={x} y={y} width={barW} height={barH} fill={color} />
+        })}
+      </svg>
+    )
+  }
+
+  // line
+  const points = nums.map((v, i) =>
+    `${(i / (nums.length - 1)) * w},${h - ((v - min) / range) * (h - 4) - 2}`
+  ).join(' ')
+  return (
+    <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+    </svg>
+  )
+}
+
 // ── Registry ────────────────────────────────────────────────────────────────
 export const CELL_RENDERERS = {
   starRating:  StarRatingRenderer,
@@ -246,4 +412,5 @@ export const CELL_RENDERERS = {
   barInline:   BarInlineRenderer,
   composite:   CompositeRenderer,
   dualValue:   DualValueRenderer,
+  inlineChart: InlineChartRenderer,
 }

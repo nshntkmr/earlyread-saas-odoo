@@ -13,13 +13,29 @@ import TableConfigurator  from './TableConfigurator'
 import AiSqlEditor        from './AiSqlEditor'
 import WidgetControlsStep from './WidgetControlsStep'
 import OptionTabBar        from './OptionTabBar'
+import MasterRowLayoutStep from './MasterRowLayoutStep'
+import DetailConfigStep    from './DetailConfigStep'
 
-function getSteps(chartType, scopeMode) {
+function getSteps(chartType, scopeMode, masterRowConfig = null) {
   const steps = [
     { key: 'chart_type', label: 'Chart Type' },
     { key: 'controls',   label: 'Widget Controls' },
   ]
   steps.push({ key: 'data_source', label: 'Data Source' })
+
+  if (chartType === 'ranked_detail_list') {
+    // Ranked list has its own visual layout step (replaces columns/table config)
+    steps.push({ key: 'master_row_layout', label: 'Master Row Layout' })
+    steps.push({ key: 'filters', label: 'Filters & Actions' })
+    // Only show Detail Config step when the expand chevron is enabled
+    const expandEnabled = masterRowConfig?.expandChevron?.enabled !== false
+    if (expandEnabled) {
+      steps.push({ key: 'detail_config', label: 'Detail Config' })
+    }
+    steps.push({ key: 'preview', label: 'Preview & Save' })
+    return steps
+  }
+
   if (chartType !== 'table') {
     steps.push({ key: 'columns', label: 'Columns' })
   }
@@ -120,6 +136,36 @@ const initialState = {
   // Table column config (AG Grid columnDefs — only for chart_type 'table')
   tableColumnConfig: [],
 
+  // Ranked Detail List v2 config (only for chart_type 'ranked_detail_list')
+  // masterRowConfig: visual row layout (rank/badge/subtitle/sparkline/…)
+  // detailConfig: row key + detail SQL + up to 3 tiles + sub-list
+  masterRowConfig: {
+    rank: { enabled: true, style: 'number' },
+    name: { column: '' },
+    badge: { enabled: false },
+    subtitle: { enabled: false },
+    sparkline: { enabled: false, variant: 'line', color: 'auto' },
+    inlineChart: { enabled: false },
+    primaryMetric: { column: '', format: 'number', decimals: 0 },
+    secondaryMetric: { enabled: false, format: 'percentage', decimals: 1 },
+    navigationArrow: { enabled: false },
+    externalLink: { enabled: false },
+    expandChevron: { enabled: true },
+  },
+  detailConfig: {
+    rowKey: '',
+    sql: '',
+    tiles: [],
+    sublist: {
+      title: '',
+      layout: {},
+      you: { enabled: false, youColor: '#10b981', peerColor: '#f59e0b', showProgressBar: true },
+    },
+  },
+  externalLinkColumn: '',
+  externalLinkTemplate: '',
+  externalLinkNewTab: true,
+
   // AI Assistant state
   aiState: {
     prompt: '',
@@ -147,7 +193,7 @@ function reducer(state, action) {
     case 'SET_STEP':
       return { ...state, step: action.step }
     case 'NEXT': {
-      const maxStep = getSteps(state.chartType, state.scopeMode).length - 1
+      const maxStep = getSteps(state.chartType, state.scopeMode, state.masterRowConfig).length - 1
       return { ...state, step: Math.min(state.step + 1, maxStep) }
     }
     case 'PREV':
@@ -197,6 +243,8 @@ function reducer(state, action) {
         'scopeMode', 'scopeUi', 'scopeQueryMode', 'scopeParamName',
         'scopeLabel', 'scopeDefaultValue', 'scopeOptions', 'optionConfigs',
         'activeScopeIdx', 'searchEnabled', 'searchPlaceholder',
+        // ranked_detail_list external link fields live on top-level state
+        'externalLinkColumn', 'externalLinkTemplate', 'externalLinkNewTab',
       ])
       const topLevel = {}
       const optionLevel = {}
@@ -222,6 +270,17 @@ function reducer(state, action) {
       return _routeToOption(state, { generatedSql: action.value })
     case 'SET_TABLE_COLUMN_CONFIG':
       return _routeToOption(state, { tableColumnConfig: action.value })
+    case 'SET_MASTER_ROW_CONFIG':
+      // Shallow merge partial into the current masterRowConfig
+      return {
+        ...state,
+        masterRowConfig: { ...(state.masterRowConfig || {}), ...action.value },
+      }
+    case 'SET_DETAIL_CONFIG':
+      return {
+        ...state,
+        detailConfig: { ...(state.detailConfig || {}), ...action.value },
+      }
     case 'LOAD_DEFINITION': {
       const d = action.value
       // Parse builder_config to restore visual builder state (sources, columns, filters, etc.)
@@ -291,6 +350,23 @@ function reducer(state, action) {
                   : d.table_column_config)
               : []
           } catch { return [] }
+        })(),
+        // Ranked Detail List v2 configs (parse JSON or use defaults)
+        masterRowConfig: (() => {
+          try {
+            const raw = d.ranked_master_config
+            if (!raw) return initialState.masterRowConfig
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+            return { ...initialState.masterRowConfig, ...parsed }
+          } catch { return initialState.masterRowConfig }
+        })(),
+        detailConfig: (() => {
+          try {
+            const raw = d.ranked_detail_config
+            if (!raw) return initialState.detailConfig
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+            return { ...initialState.detailConfig, ...parsed }
+          } catch { return initialState.detailConfig }
         })(),
         // Widget-Scoped Controls
         scopeMode: d.scope_mode || 'none',
@@ -450,7 +526,7 @@ export default function WidgetBuilder({
     )
   }
 
-  const activeSteps = getSteps(state.chartType, state.scopeMode)
+  const activeSteps = getSteps(state.chartType, state.scopeMode, state.masterRowConfig)
   const currentStep = activeSteps[state.step] || activeSteps[0]
   const currentStepKey = currentStep?.key || ''
   const canNext = state.step < activeSteps.length - 1
@@ -503,6 +579,8 @@ export default function WidgetBuilder({
           {currentStepKey === 'columns' && 'Map columns to axes and configure aggregation.'}
           {currentStepKey === 'filters' && 'Add WHERE filters and configure click actions.'}
           {currentStepKey === 'configure' && 'Configure table columns and preview with real data.'}
+          {currentStepKey === 'master_row_layout' && 'Pick which elements appear on each ranked row.'}
+          {currentStepKey === 'detail_config' && 'Configure the expand-row detail panel (row key, detail SQL, tiles, sub-list).'}
           {currentStepKey === 'preview' && 'Preview your widget and save it to the library.'}
         </div>
 
@@ -692,6 +770,13 @@ export default function WidgetBuilder({
               drillDetailColumns={ac.drillDetailColumns || ''}
               actionUrlTemplate={ac.actionUrlTemplate || ''}
               chartType={state.chartType}
+              showExternalLink={
+                state.chartType === 'ranked_detail_list'
+                && state.masterRowConfig?.externalLink?.enabled
+              }
+              externalLinkColumn={state.externalLinkColumn}
+              externalLinkTemplate={state.externalLinkTemplate}
+              externalLinkNewTab={state.externalLinkNewTab}
               onUpdate={v => dispatch({ type: 'UPDATE_FILTERS', value: v })}
               apiBase={apiBase}
             />
@@ -726,6 +811,31 @@ export default function WidgetBuilder({
               editId={editId}
             />
             </>
+          )}
+
+          {/* Master Row Layout step (ranked_detail_list) */}
+          {currentStepKey === 'master_row_layout' && (
+            <MasterRowLayoutStep
+              config={state.masterRowConfig}
+              onChange={partial => dispatch({ type: 'SET_MASTER_ROW_CONFIG', value: partial })}
+              columns={ac.customSql?.testResult?.columns || []}
+              sampleRow={(() => {
+                const tr = ac.customSql?.testResult
+                if (!tr?.rows || !tr.rows[0]) return null
+                return Object.fromEntries(tr.columns.map((c, i) => [c, tr.rows[0][i]]))
+              })()}
+            />
+          )}
+
+          {/* Detail Config step (ranked_detail_list) */}
+          {currentStepKey === 'detail_config' && (
+            <DetailConfigStep
+              detailConfig={state.detailConfig}
+              onUpdate={partial => dispatch({ type: 'SET_DETAIL_CONFIG', value: partial })}
+              masterColumns={ac.customSql?.testResult?.columns || []}
+              apiBase={apiBase}
+              appContext={appContext}
+            />
           )}
 
           {/* Preview & Save step (charts) */}
@@ -826,6 +936,24 @@ function buildCreatePayload(state) {
     table_column_config: state.chartType === 'table' && state.tableColumnConfig?.length
       ? JSON.stringify(state.tableColumnConfig)
       : '',
+    // Ranked Detail List v2 configs (only for ranked_detail_list)
+    ...(state.chartType === 'ranked_detail_list' ? {
+      ranked_master_config: state.masterRowConfig
+        ? JSON.stringify(state.masterRowConfig)
+        : '',
+      ranked_detail_config: state.detailConfig
+        ? JSON.stringify({
+            // Drop internal test-only fields before saving
+            ...state.detailConfig,
+            _testResult: undefined,
+            _testParams: undefined,
+          })
+        : '',
+      // Note: rowKey and detail SQL live INSIDE ranked_detail_config JSON.
+      // The widget instance also has legacy scalar fields for backward compat;
+      // the backend _build_ranked_detail_list_data() prefers v2 JSON and
+      // falls back to legacy fields if v2 is empty.
+    } : {}),
     // Widget-Scoped Controls (only include if configured)
     ...(state.scopeMode !== 'none' ? {
       scope_mode: state.scopeMode,

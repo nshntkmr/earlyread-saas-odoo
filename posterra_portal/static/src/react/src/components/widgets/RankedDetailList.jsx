@@ -6,21 +6,28 @@ import { widgetDetailUrl } from '../../api/endpoints'
 import { CELL_RENDERERS } from '@posterra/grid-utils'
 
 /**
- * RankedDetailList
+ * RankedDetailList (v2)
  *
- * A ranked list widget where each row can expand inline to show
- * detail charts (ECharts) and a nested sub-list. Configurable via
- * admin: master SQL + column config, detail SQL + chart/sublist config.
+ * A ranked list widget where each row can expand inline to show detail
+ * tiles (bar/line/KPI) and a nested sub-list.
+ *
+ * Supports two config formats:
+ *   v2 (preferred): consolidated master_config + detail_config (built by
+ *       the Dashboard Builder — all element toggles, column refs, tiles,
+ *       sub-list layout, YOU indicator, inline charts)
+ *   v1 (legacy): AG Grid columnDefs arrays + separate detail_chart_config
+ *       + detail_sublist_config (kept for backward compat)
  *
  * Props:
- *   data    — { rowData, columnDefs, key_column, has_detail,
- *              detail_chart_config, detail_sublist_config, row_count }
- *   height  — optional max height (enables scrolling)
- *   name    — widget title
+ *   data     — { rowData, key_column, has_detail, master_config,
+ *               detail_config, columnDefs, detail_chart_config,
+ *               detail_sublist_config }
+ *   height   — optional max height (enables scrolling)
+ *   name     — widget title
  *   widgetId — widget ID (for detail API calls)
  */
 
-// ── Tiny EChart instance (embedded in detail panel) ────────────────────
+// ── Embedded ECharts tile ─────────────────────────────────────────────
 function MiniChart({ option, height = 200 }) {
   const ref = useRef(null)
   const chartRef = useRef(null)
@@ -48,102 +55,224 @@ function MiniChart({ option, height = 200 }) {
   return <div ref={ref} style={{ width: '100%', height }} />
 }
 
-// ── Cell value renderer (reuses @posterra/grid-utils renderers) ────────
-function CellValue({ colDef, row }) {
-  const field = colDef.field
-  const value = row[field]
-  const rendererName = colDef.cellRenderer
-  const rendererParams = colDef.cellRendererParams || {}
+// ── KPI tile (simple card; reuses the visual style of KPICard) ───────
+function KpiTile({ data }) {
+  if (!data) return null
+  const type = data.type || 'kpi'
 
-  if (rendererName && CELL_RENDERERS[rendererName]) {
-    const Renderer = CELL_RENDERERS[rendererName]
-    // Build a params object matching AG Grid's ICellRendererParams shape
-    const params = { value, data: row, colDef, ...rendererParams }
-    return <Renderer params={params} />
+  if (type === 'kpi_strip') {
+    return (
+      <div className="pv-ranked-kpi-strip">
+        {(data.items || []).map((it, i) => (
+          <div key={i} className="pv-ranked-kpi-strip-item">
+            <div className="pv-ranked-kpi-strip-value">{it.value}</div>
+            <div className="pv-ranked-kpi-strip-label">{it.label}</div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
-  // Plain text fallback
+  // status_kpi (RAG) or basic kpi
+  const statusClass = data.status_val
+    ? `pv-ranked-kpi-tile--${data.status_val}`
+    : ''
+  return (
+    <div className={`pv-ranked-kpi-tile ${statusClass}`}>
+      <div className="pv-ranked-kpi-value">
+        {data.kpi_prefix}{data.formatted_value}{data.kpi_suffix}
+      </div>
+      <div className="pv-ranked-kpi-label">{data.label}</div>
+    </div>
+  )
+}
+
+// ── Cell-renderer helper (invokes shared CELL_RENDERERS) ──────────────
+function CellValue({ rendererName, row, field, rendererParams }) {
+  const value = field ? row[field] : null
+  if (rendererName && CELL_RENDERERS[rendererName]) {
+    const Renderer = CELL_RENDERERS[rendererName]
+    const params = {
+      value, data: row,
+      colDef: { field, cellRendererParams: rendererParams || {} },
+    }
+    return <Renderer params={params} />
+  }
   if (value === null || value === undefined || value === '') return null
   return <span>{String(value)}</span>
 }
 
-// ── Sparkline (inline SVG, standalone for master rows) ─────────────────
-function InlineSparkline({ data, color }) {
-  if (!data) return null
-  let points = data
-  if (typeof data === 'string') {
-    try { points = JSON.parse(data) } catch { points = data.split(',').map(Number) }
+// ── Number formatter (shared across master + sublist rows) ────────────
+function formatNumber(val, fmt) {
+  if (val === null || val === undefined || val === '') return ''
+  const n = Number(val)
+  if (isNaN(n)) return String(val)
+  const decimals = fmt?.decimals ?? 0
+  const prefix = fmt?.prefix ?? ''
+  const suffix = fmt?.suffix ?? ''
+  if (fmt?.format === 'percentage') {
+    const mult = fmt.multiply === false ? 1 : 1 // admin SQL usually pre-computes
+    return prefix + (n * mult).toFixed(decimals) + '%' + suffix
   }
-  if (!Array.isArray(points) || points.length < 2) return null
-
-  const nums = points.map(Number).filter(n => !isNaN(n))
-  if (nums.length < 2) return null
-
-  const w = 60, h = 20, pad = 2
-  const min = Math.min(...nums), max = Math.max(...nums)
-  const range = max - min || 1
-  const coords = nums.map((v, i) => {
-    const x = pad + (i / (nums.length - 1)) * (w - 2 * pad)
-    const y = h - pad - ((v - min) / range) * (h - 2 * pad)
-    return `${x},${y}`
-  }).join(' ')
-
-  const trend = nums[nums.length - 1] >= nums[0]
-  const strokeColor = color || (trend ? '#10b981' : '#ef4444')
-
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block' }}>
-      <polyline points={coords} fill="none" stroke={strokeColor} strokeWidth="1.5" />
-    </svg>
-  )
+  if (fmt?.format === 'currency') {
+    return prefix + '$' + n.toLocaleString('en-US', {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+    }) + suffix
+  }
+  return prefix + n.toLocaleString('en-US', {
+    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+  }) + suffix
 }
 
-// ── Master row ─────────────────────────────────────────────────────────
-function RankedRow({ row, columnDefs, keyColumn, hasDetail, isExpanded, onToggle, onNavigate }) {
-  const keyValue = row[keyColumn] || ''
+// ── Shared row renderer (used for master rows AND sublist rows) ───────
+// Renders a single row based on the layout config (v2 master_config shape).
+// `isYou` forces YOU styling regardless of layout.
+function LayoutRow({ layout, row, rankNum, onNavigate, onExternalLink, onToggle,
+                    isExpanded, isYou, youColor, peerColor, showProgressBar,
+                    sharePctField }) {
+  if (!layout) return null
+
+  const rankCfg = layout.rank || {}
+  const badgeCfg = layout.badge || {}
+  const subtitleCfg = layout.subtitle || {}
+  const sparklineCfg = layout.sparkline || {}
+  const inlineCfg = layout.inlineChart || {}
+  const primaryCfg = layout.primaryMetric || {}
+  const secondaryCfg = layout.secondaryMetric || {}
+  const navCfg = layout.navigationArrow || {}
+  const linkCfg = layout.externalLink || {}
+  const expandCfg = layout.expandChevron || {}
+  const nameCol = layout.name?.column
+
+  const rankDisplay = rankCfg.enabled !== false
+    ? (rankCfg.style === 'medal' && rankNum <= 3
+        ? ['\u{1F947}', '\u{1F948}', '\u{1F949}'][rankNum - 1]
+        : rankNum)
+    : null
+
+  const primaryVal = formatNumber(row[primaryCfg.column], primaryCfg)
+  const secondaryVal = secondaryCfg.enabled !== false && secondaryCfg.column
+    ? formatNumber(row[secondaryCfg.column], secondaryCfg)
+    : null
+
+  const sharePct = showProgressBar && sharePctField
+    ? Number(row[sharePctField]) || 0
+    : null
+  const barColor = isYou ? (youColor || '#10b981') : (peerColor || '#f59e0b')
 
   return (
-    <div className={`pv-ranked-row${isExpanded ? ' pv-ranked-row--expanded' : ''}`}>
-      {/* Rank */}
-      <div className="pv-ranked-row-rank">
-        {row._rank <= 3
-          ? ['', '\u{1F947}', '\u{1F948}', '\u{1F949}'][row._rank]
-          : row._rank}
-      </div>
+    <div
+      className={`pv-ranked-row${isExpanded ? ' pv-ranked-row--expanded' : ''}${isYou ? ' pv-ranked-row--you' : ''}`}
+    >
+      {rankDisplay !== null && (
+        <div className="pv-ranked-row-rank">{rankDisplay}</div>
+      )}
 
-      {/* Configured columns */}
       <div className="pv-ranked-row-body">
-        {columnDefs.map((col, i) => (
-          <div key={col.field || i} className="pv-ranked-row-cell" style={col.width ? { width: col.width, flexShrink: 0 } : { flex: i === 0 ? 1 : undefined }}>
-            <CellValue colDef={col} row={row} />
+        <div className="pv-ranked-row-primary">
+          <span className="pv-ranked-row-name">
+            {nameCol ? row[nameCol] : ''}
+          </span>
+          {isYou && (
+            <span
+              className="pv-ranked-you-badge"
+              style={{ backgroundColor: youColor || '#10b981' }}
+            >YOU</span>
+          )}
+          {badgeCfg.enabled && (() => {
+            const badgeText = badgeCfg.source === 'static'
+              ? badgeCfg.text
+              : (badgeCfg.column ? row[badgeCfg.column] : '')
+            if (!badgeText) return null
+            return (
+              <span
+                className="pv-ranked-row-badge"
+                style={badgeCfg.color ? { backgroundColor: badgeCfg.color } : undefined}
+              >{badgeText}</span>
+            )
+          })()}
+        </div>
+        {subtitleCfg.enabled && subtitleCfg.column && row[subtitleCfg.column] && (
+          <div className="pv-ranked-row-subtitle">{row[subtitleCfg.column]}</div>
+        )}
+        {showProgressBar && sharePct !== null && (
+          <div className="pv-ranked-row-progress">
+            <div
+              className="pv-ranked-row-progress-bar"
+              style={{ width: `${Math.min(100, Math.max(0, sharePct))}%`, backgroundColor: barColor }}
+            />
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Action buttons */}
-      <div className="pv-ranked-row-actions">
-        {onNavigate && (
-          <button className="pv-ranked-action-btn" title="View details" onClick={() => onNavigate(keyValue, row)}>
-            <i className="fa fa-arrow-right" />
-          </button>
+      <div className="pv-ranked-row-meta">
+        {sparklineCfg.enabled && sparklineCfg.column && (
+          <CellValue
+            rendererName="sparkline"
+            row={row}
+            field={sparklineCfg.column}
+            rendererParams={{
+              variant: sparklineCfg.variant || 'line',
+              color: sparklineCfg.color || 'auto',
+            }}
+          />
         )}
-        {hasDetail && (
-          <button className="pv-ranked-action-btn" title={isExpanded ? 'Collapse' : 'Expand'} onClick={() => onToggle(keyValue)}>
-            <i className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`} />
-          </button>
+        {inlineCfg.enabled && inlineCfg.column && (
+          <CellValue
+            rendererName="inlineChart"
+            row={row}
+            field={inlineCfg.column}
+            rendererParams={{
+              type: inlineCfg.type || 'bar',
+              size: inlineCfg.size || 'small',
+              color: inlineCfg.color,
+            }}
+          />
+        )}
+        {primaryCfg.column && (
+          <span className="pv-ranked-row-metric">
+            <strong>{primaryVal}</strong>
+            {secondaryVal && (
+              <span className="pv-ranked-row-secondary">{secondaryVal}</span>
+            )}
+          </span>
+        )}
+      </div>
+
+      <div className="pv-ranked-row-actions">
+        {navCfg.enabled && onNavigate && (
+          <button
+            className="pv-ranked-action-btn"
+            title="View details"
+            onClick={onNavigate}
+          ><i className="fa fa-arrow-right" /></button>
+        )}
+        {linkCfg.enabled && onExternalLink && (
+          <button
+            className="pv-ranked-action-btn"
+            title="External link"
+            onClick={onExternalLink}
+          ><i className="fa fa-external-link" /></button>
+        )}
+        {expandCfg.enabled && onToggle && (
+          <button
+            className="pv-ranked-action-btn"
+            title={isExpanded ? 'Collapse' : 'Expand'}
+            onClick={onToggle}
+          ><i className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`} /></button>
         )}
       </div>
     </div>
   )
 }
 
-// ── Detail panel (charts + sub-list) ───────────────────────────────────
-function DetailPanel({ detailData, sublistColumnDefs }) {
+// ── Detail panel ───────────────────────────────────────────────────────
+function DetailPanel({ detailData, sublistLayout, youConfig }) {
   if (!detailData || detailData === 'loading') {
     return (
       <div className="pv-ranked-detail pv-ranked-detail--loading">
         <span className="spinner-border spinner-border-sm me-2" />
-        Loading details...
+        Loading details…
       </div>
     )
   }
@@ -155,39 +284,78 @@ function DetailPanel({ detailData, sublistColumnDefs }) {
     )
   }
 
-  const { charts = [], sublist = {} } = detailData
+  const tiles = detailData.tiles || detailData.charts || []
+  const sublist = detailData.sublist || {}
+  const rows = sublist.rowData || []
+
+  // Prefer v2 sublist layout; fall back to legacy columnDefs.
+  const effectiveLayout = sublistLayout
+    || (sublist.layout && Object.keys(sublist.layout).length ? sublist.layout : null)
+
+  const youEnabled = youConfig?.enabled && youConfig.column
+  const youColumn = youConfig?.column
+  const showProgressBar = youConfig?.showProgressBar !== false
+  const sharePctField = effectiveLayout?.secondaryMetric?.column
 
   return (
     <div className="pv-ranked-detail">
-      {/* Charts (side by side) */}
-      {charts.length > 0 && (
-        <div className="pv-ranked-detail-charts" style={{ gridTemplateColumns: `repeat(${charts.length}, 1fr)` }}>
-          {charts.map((c, i) => (
-            <div key={i} className="pv-ranked-detail-chart-card">
-              <MiniChart option={c.echart_option} height={180} />
+      {tiles.length > 0 && (
+        <div
+          className="pv-ranked-detail-tiles"
+          style={{ gridTemplateColumns: `repeat(${Math.min(tiles.length, 3)}, 1fr)` }}
+        >
+          {tiles.map((t, i) => (
+            <div key={i} className="pv-ranked-detail-tile-card">
+              {t.tile_type && t.tile_type.startsWith('kpi')
+                ? <KpiTile data={t.kpi_data} />
+                : <MiniChart option={t.echart_option} height={180} />
+              }
             </div>
           ))}
         </div>
       )}
 
-      {/* Nested sub-list */}
-      {sublist.rowData && sublist.rowData.length > 0 && (
+      {rows.length > 0 && (
         <div className="pv-ranked-detail-sublist">
           {sublist.title && (
             <div className="pv-ranked-detail-sublist-title">{sublist.title}</div>
           )}
-          {sublist.rowData.map((sr, i) => (
-            <div key={i} className="pv-ranked-subrow">
-              <div className="pv-ranked-subrow-rank">{i + 1}</div>
-              <div className="pv-ranked-subrow-body">
-                {(sublist.columnDefs || []).map((col, j) => (
-                  <div key={col.field || j} className="pv-ranked-subrow-cell" style={col.width ? { width: col.width, flexShrink: 0 } : { flex: j === 0 ? 1 : undefined }}>
-                    <CellValue colDef={col} row={sr} />
+          {effectiveLayout
+            ? rows.map((sr, i) => {
+                const isYou = youEnabled && Number(sr[youColumn]) === 1
+                return (
+                  <LayoutRow
+                    key={i}
+                    layout={effectiveLayout}
+                    row={sr}
+                    rankNum={i + 1}
+                    isYou={isYou}
+                    youColor={youConfig?.youColor}
+                    peerColor={youConfig?.peerColor}
+                    showProgressBar={youEnabled && showProgressBar}
+                    sharePctField={sharePctField}
+                  />
+                )
+              })
+            : rows.map((sr, i) => (
+                // v1 legacy fallback: render columnDefs-style rows as a simple
+                // composite row with name + raw cells
+                <div key={i} className="pv-ranked-subrow">
+                  <div className="pv-ranked-row-rank">{i + 1}</div>
+                  <div className="pv-ranked-row-body">
+                    {(sublist.columnDefs || []).map((col, j) => (
+                      <CellValue
+                        key={col.field || j}
+                        rendererName={col.cellRenderer}
+                        row={sr}
+                        field={col.field}
+                        rendererParams={col.cellRendererParams}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                </div>
+              ))
+          }
         </div>
       )}
     </div>
@@ -197,18 +365,20 @@ function DetailPanel({ detailData, sublistColumnDefs }) {
 // ── Main component ─────────────────────────────────────────────────────
 export default function RankedDetailList({ data, height, name, widgetId }) {
   const { filterValues, accessToken, refreshToken, apiBase } = useFilters()
-  const [expandedRows, setExpandedRows] = useState({}) // { keyValue: detailData | 'loading' }
+  const [expandedRows, setExpandedRows] = useState({})
 
   const {
     rowData = [],
-    columnDefs = [],
     key_column: keyColumn = '',
     has_detail: hasDetail = false,
-    detail_sublist_config: sublistConfig = {},
+    master_config: masterConfig = {},
+    detail_config: detailConfig = {},
+    columnDefs = [],
   } = data || {}
 
+  const useV2Layout = masterConfig && Object.keys(masterConfig).length > 0
+
   const toggleRow = useCallback(async (keyValue) => {
-    // If already expanded, collapse
     if (expandedRows[keyValue] && expandedRows[keyValue] !== 'loading') {
       setExpandedRows(prev => {
         const next = { ...prev }
@@ -217,10 +387,7 @@ export default function RankedDetailList({ data, height, name, widgetId }) {
       })
       return
     }
-
-    // Mark as loading
     setExpandedRows(prev => ({ ...prev, [keyValue]: 'loading' }))
-
     try {
       const wid = widgetId || data?.id
       if (!wid) return
@@ -228,32 +395,25 @@ export default function RankedDetailList({ data, height, name, widgetId }) {
       const result = await apiFetch(url, accessToken, {}, refreshToken)
       setExpandedRows(prev => ({ ...prev, [keyValue]: result }))
     } catch (err) {
-      setExpandedRows(prev => ({ ...prev, [keyValue]: { error: err.message || 'Failed to load' } }))
+      setExpandedRows(prev => ({
+        ...prev,
+        [keyValue]: { error: err.message || 'Failed to load' }
+      }))
     }
   }, [expandedRows, widgetId, data?.id, apiBase, filterValues, accessToken, refreshToken])
 
-  // Navigate arrow handler (go_to_page pattern)
-  const handleNavigate = useCallback((keyValue, row) => {
-    // Use first columnDef's click action config if available
-    const firstCol = columnDefs.find(c => c.clickAction && c.clickAction !== 'none')
-    if (firstCol) {
-      const pageKey = firstCol.actionPageKey || ''
-      const tabKey = firstCol.actionTabKey || ''
-      const paramName = firstCol.actionPassValueAs || firstCol.actionFilterParam || keyColumn
-      if (pageKey) {
-        const url = new URL(window.location)
-        const pathParts = url.pathname.split('/')
-        // Replace last path segment with target page key
-        pathParts[pathParts.length - 1] = pageKey
-        url.pathname = pathParts.join('/')
-        if (paramName && keyValue) url.searchParams.set(paramName, keyValue)
-        if (tabKey) url.searchParams.set('tab', tabKey)
-        window.location.href = url.toString()
-        return
-      }
+  const handleNavigate = useCallback((keyValue) => {
+    // Prefer v2 master_config action config; fall back to first column's action
+    // (legacy). v2 action details are stored alongside — but currently the
+    // actual target-page/param live at the widget level (click_action on
+    // the widget record). React receives them via the widget wrapper.
+    // For now we simply update the URL query param with the key column.
+    const url = new URL(window.location)
+    if (keyColumn && keyValue) {
+      url.searchParams.set(keyColumn, keyValue)
     }
-    // Fallback: no navigation configured
-  }, [columnDefs, keyColumn])
+    window.location.href = url.toString()
+  }, [keyColumn])
 
   if (!rowData.length) {
     return (
@@ -263,25 +423,66 @@ export default function RankedDetailList({ data, height, name, widgetId }) {
     )
   }
 
+  // Sub-list layout + YOU config (from detail_config)
+  const sublistLayout = detailConfig?.sublist?.layout || null
+  const youConfig = detailConfig?.sublist?.you || null
+
   return (
-    <div className="pv-ranked-list" style={height ? { maxHeight: height, overflowY: 'auto' } : undefined}>
+    <div
+      className="pv-ranked-list"
+      style={height ? { maxHeight: height, overflowY: 'auto' } : undefined}
+    >
       {rowData.map((row) => {
         const kv = row[keyColumn] || row._rank
+        const isExpanded = !!expandedRows[kv]
         return (
           <React.Fragment key={kv}>
-            <RankedRow
-              row={row}
-              columnDefs={columnDefs}
-              keyColumn={keyColumn}
-              hasDetail={hasDetail}
-              isExpanded={!!expandedRows[kv]}
-              onToggle={toggleRow}
-              onNavigate={columnDefs.some(c => c.clickAction && c.clickAction !== 'none') ? handleNavigate : null}
-            />
-            {expandedRows[kv] && (
+            {useV2Layout ? (
+              <LayoutRow
+                layout={masterConfig}
+                row={row}
+                rankNum={row._rank}
+                isExpanded={isExpanded}
+                onNavigate={masterConfig.navigationArrow?.enabled ? () => handleNavigate(kv) : null}
+                onExternalLink={masterConfig.externalLink?.enabled ? () => {
+                  const tmpl = masterConfig.externalLink.urlTemplate
+                  const col = masterConfig.externalLink.column
+                  const url = col ? row[col] : (tmpl ? tmpl.replace('{value}', kv) : '')
+                  if (url) window.open(url, '_blank', 'noopener,noreferrer')
+                } : null}
+                onToggle={(hasDetail && masterConfig.expandChevron?.enabled !== false) ? () => toggleRow(kv) : null}
+              />
+            ) : (
+              // v1 fallback: legacy columnDefs rendering
+              <div className={`pv-ranked-row${isExpanded ? ' pv-ranked-row--expanded' : ''}`}>
+                <div className="pv-ranked-row-rank">{row._rank}</div>
+                <div className="pv-ranked-row-body">
+                  {columnDefs.map((col, i) => (
+                    <CellValue
+                      key={col.field || i}
+                      rendererName={col.cellRenderer}
+                      row={row}
+                      field={col.field}
+                      rendererParams={col.cellRendererParams}
+                    />
+                  ))}
+                </div>
+                <div className="pv-ranked-row-actions">
+                  {hasDetail && (
+                    <button
+                      className="pv-ranked-action-btn"
+                      onClick={() => toggleRow(kv)}
+                      title={isExpanded ? 'Collapse' : 'Expand'}
+                    ><i className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`} /></button>
+                  )}
+                </div>
+              </div>
+            )}
+            {isExpanded && (
               <DetailPanel
                 detailData={expandedRows[kv]}
-                sublistColumnDefs={sublistConfig.columns || []}
+                sublistLayout={sublistLayout}
+                youConfig={youConfig}
               />
             )}
           </React.Fragment>

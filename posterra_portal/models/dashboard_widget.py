@@ -205,6 +205,10 @@ class DashboardWidget(models.Model):
         ondelete='set null',
         help='Schema source for the detail SQL (for {where_clause} support).')
 
+    # Note: ranked_master_config and ranked_detail_config live on the
+    # dashboard.widget.action.mixin — auto-inherited here and on the
+    # dashboard.widget.definition model so builder + library share one schema.
+
     chart_type = fields.Selection([
         ('bar',          'Bar'),
         ('line',         'Line'),
@@ -3891,17 +3895,67 @@ class DashboardWidget(models.Model):
     # Ranked Detail List — builder + detail execution
     # =========================================================================
 
+    def _get_ranked_master_config(self):
+        """Parse consolidated v2 master config JSON. Returns dict (or {})."""
+        self.ensure_one()
+        try:
+            return json.loads(self.ranked_master_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def _get_ranked_detail_config(self):
+        """Parse consolidated v2 detail config JSON. Returns dict (or {})."""
+        self.ensure_one()
+        try:
+            return json.loads(self.ranked_detail_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
     def _build_ranked_detail_list_data(self, cols, rows):
         """Build dict for ranked_detail_list widgets (master list only).
 
+        Reads v2 consolidated config (ranked_master_config, ranked_detail_config)
+        and falls back to v1 per-field config for backward compatibility.
         Detail data is fetched on-demand per row via _execute_detail_sql().
         """
         self.ensure_one()
-        column_config = []
+
+        # v2: consolidated master config (element toggles + column refs)
+        master_config = self._get_ranked_master_config()
+
+        # v1 fallback: legacy AG Grid columnDefs array
+        v1_column_config = []
         try:
-            column_config = json.loads(self.table_column_config or '[]')
+            v1_column_config = json.loads(self.table_column_config or '[]')
         except (json.JSONDecodeError, TypeError):
             pass
+
+        # v2: consolidated detail config
+        detail_config = self._get_ranked_detail_config()
+
+        # v1 fallback: legacy separate fields
+        v1_detail_chart_config = []
+        try:
+            v1_detail_chart_config = json.loads(
+                self.ranked_detail_chart_config or '[]')
+        except (json.JSONDecodeError, TypeError):
+            pass
+        v1_detail_sublist_config = {}
+        try:
+            v1_detail_sublist_config = json.loads(
+                self.ranked_detail_sublist_config or '{}')
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Resolve row key: v2 first, then v1 field
+        key_column = (
+            detail_config.get('rowKey')
+            or self.ranked_detail_key_column
+            or '')
+
+        # Resolve detail SQL presence: v2 first, then v1 field
+        has_detail_sql = bool(
+            (detail_config.get('sql') or self.ranked_detail_sql or '').strip())
 
         row_data = [
             {c: (v if v is not None else '') for c, v in zip(cols, r)}
@@ -3910,38 +3964,33 @@ class DashboardWidget(models.Model):
         for i, rd in enumerate(row_data):
             rd['_rank'] = i + 1
 
-        detail_chart_config = []
-        try:
-            detail_chart_config = json.loads(
-                self.ranked_detail_chart_config or '[]')
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-        detail_sublist_config = {}
-        try:
-            detail_sublist_config = json.loads(
-                self.ranked_detail_sublist_config or '{}')
-        except (json.JSONDecodeError, TypeError):
-            pass
-
         return {
             'type': 'ranked_detail_list',
-            'columnDefs': column_config,
             'rowData': row_data,
             'row_count': len(rows),
-            'key_column': self.ranked_detail_key_column or '',
-            'has_detail': bool((self.ranked_detail_sql or '').strip()),
-            'detail_chart_config': detail_chart_config,
-            'detail_sublist_config': detail_sublist_config,
+            'key_column': key_column,
+            'has_detail': has_detail_sql,
+            # v2 consolidated config (preferred by React)
+            'master_config': master_config,
+            'detail_config': detail_config,
+            # v1 legacy (kept for backward-compat rendering)
+            'columnDefs': v1_column_config,
+            'detail_chart_config': v1_detail_chart_config,
+            'detail_sublist_config': v1_detail_sublist_config,
         }
 
     def _execute_detail_sql(self, row_key_value, portal_ctx):
         """Execute the detail SQL for one expanded row.
 
-        Returns dict with charts (ECharts options) + sub-list data.
+        Prefers v2 consolidated config (ranked_detail_config), falls back
+        to v1 fields for backward compatibility.
+        Returns dict with tiles (ECharts/KPI data) + sub-list data.
         """
         self.ensure_one()
-        sql = (self.ranked_detail_sql or '').strip()
+
+        # v2 config takes precedence
+        detail_config = self._get_ranked_detail_config()
+        sql = (detail_config.get('sql') or self.ranked_detail_sql or '').strip()
         if not sql:
             return {'error': 'No detail SQL configured'}
 
@@ -3997,36 +4046,48 @@ class DashboardWidget(models.Model):
             d_cols = [d[0] for d in self.env.cr.description]
             d_rows = self.env.cr.fetchall()
 
-            # Build charts from detail config
-            detail_chart_config = []
-            try:
-                detail_chart_config = json.loads(
-                    self.ranked_detail_chart_config or '[]')
-            except (json.JSONDecodeError, TypeError):
-                pass
+            # Build tiles: v2 uses `tiles` array with type/column config;
+            # v1 legacy uses `ranked_detail_chart_config` (bar/line only)
+            tile_configs = detail_config.get('tiles') or []
+            if not tile_configs:
+                # v1 fallback
+                try:
+                    tile_configs = json.loads(
+                        self.ranked_detail_chart_config or '[]') or []
+                except (json.JSONDecodeError, TypeError):
+                    tile_configs = []
 
-            charts = [
-                self._build_detail_chart(cc, d_cols, d_rows)
-                for cc in detail_chart_config
+            tiles = [
+                self._build_detail_tile(tc, d_cols, d_rows)
+                for tc in tile_configs
             ]
 
-            # Build sub-list from detail config
-            sublist_config = {}
-            try:
-                sublist_config = json.loads(
-                    self.ranked_detail_sublist_config or '{}')
-            except (json.JSONDecodeError, TypeError):
-                pass
+            # Build sub-list: v2 uses `detail_config.sublist`;
+            # v1 uses `ranked_detail_sublist_config`
+            sublist_config = detail_config.get('sublist')
+            if not sublist_config:
+                try:
+                    sublist_config = json.loads(
+                        self.ranked_detail_sublist_config or '{}') or {}
+                except (json.JSONDecodeError, TypeError):
+                    sublist_config = {}
 
             sublist_rows = [
                 {c: (v if v is not None else '') for c, v in zip(d_cols, r)}
                 for r in d_rows
             ]
+            for i, srd in enumerate(sublist_rows):
+                srd['_rank'] = i + 1
 
             return {
-                'charts': charts,
+                'tiles': tiles,        # v2 preferred
+                'charts': tiles,       # v1 alias for backward compat
                 'sublist': {
                     'title': sublist_config.get('title', ''),
+                    # v2: sublist has 'layout' + 'you' config
+                    'layout': sublist_config.get('layout', {}),
+                    'you': sublist_config.get('you', {}),
+                    # v1 fallback: columnDefs array
                     'columnDefs': sublist_config.get('columns', []),
                     'rowData': sublist_rows,
                 },
@@ -4037,13 +4098,31 @@ class DashboardWidget(models.Model):
                 self.id, exc)
             return {'error': str(exc)}
 
-    def _build_detail_chart(self, chart_config, cols, rows):
-        """Build one ECharts option dict for a detail panel chart."""
-        x_col = chart_config.get('x_column', '')
-        y_col = chart_config.get('y_column', '')
-        chart_type = chart_config.get('type', 'bar')
-        color = chart_config.get('color', '#0d9488')
-        title = chart_config.get('title', '')
+    def _build_detail_tile(self, tile_config, cols, rows):
+        """Build one detail-panel tile. Dispatches by tile type.
+
+        Supported types:
+          bar, bar_stacked, line, line_area, line_stacked_area,
+          combo_bar_line, kpi_stat, kpi_rag, kpi_strip
+        """
+        tile_type = (tile_config.get('type') or 'bar').lower()
+
+        if tile_type.startswith('kpi'):
+            return self._build_detail_kpi_tile(tile_type, tile_config, cols, rows)
+        # Fall-through: ECharts tile
+        return self._build_detail_chart_tile(tile_type, tile_config, cols, rows)
+
+    def _build_detail_chart_tile(self, tile_type, tile_config, cols, rows):
+        """Build ECharts tile (bar / line variants / combo)."""
+        title = tile_config.get('title', '')
+        x_col = tile_config.get('xColumn') or tile_config.get('x_column', '')
+        y_col = tile_config.get('yColumn') or tile_config.get('y_column', '')
+        series_col = (
+            tile_config.get('seriesColumn')
+            or tile_config.get('series_column', ''))
+        color = tile_config.get('color', '#0d9488')
+        show_labels = tile_config.get('showLabels', True)
+        show_legend = tile_config.get('showLegend', False)
 
         col_idx = {c: i for i, c in enumerate(cols)}
         xi = col_idx.get(x_col, 0)
@@ -4058,27 +4137,213 @@ class DashboardWidget(models.Model):
                 except (ValueError, TypeError):
                     y_data.append(0)
 
+        # Build series based on tile_type
+        label_cfg = {
+            'show': show_labels,
+            'position': 'top',
+            'fontSize': 11,
+        }
+
+        if tile_type == 'bar':
+            series = [{
+                'type': 'bar', 'data': y_data,
+                'itemStyle': {'color': color},
+                'label': label_cfg,
+            }]
+        elif tile_type == 'bar_stacked':
+            series = [{
+                'type': 'bar', 'data': y_data, 'stack': 'total',
+                'itemStyle': {'color': color},
+                'label': label_cfg,
+            }]
+        elif tile_type == 'line':
+            series = [{
+                'type': 'line', 'data': y_data,
+                'itemStyle': {'color': color},
+                'lineStyle': {'color': color},
+                'label': label_cfg,
+            }]
+        elif tile_type == 'line_area':
+            series = [{
+                'type': 'line', 'data': y_data,
+                'itemStyle': {'color': color},
+                'lineStyle': {'color': color},
+                'areaStyle': {'opacity': 0.2, 'color': color},
+                'label': label_cfg,
+            }]
+        elif tile_type == 'line_stacked_area':
+            series = [{
+                'type': 'line', 'data': y_data, 'stack': 'total',
+                'itemStyle': {'color': color},
+                'lineStyle': {'color': color},
+                'areaStyle': {'opacity': 0.3, 'color': color},
+                'label': label_cfg,
+            }]
+        elif tile_type == 'combo_bar_line':
+            # Combo: admin must provide `series` array in tile_config
+            # each entry: {type: 'bar'|'line', column, color}
+            combo_series = tile_config.get('series', [])
+            series = []
+            for cs in combo_series:
+                s_col = cs.get('column', '')
+                s_type = cs.get('type', 'bar')
+                s_color = cs.get('color', color)
+                s_idx = col_idx.get(s_col, 0)
+                s_data = []
+                for r in rows:
+                    if s_idx < len(r):
+                        try:
+                            s_data.append(float(r[s_idx] or 0))
+                        except (ValueError, TypeError):
+                            s_data.append(0)
+                series.append({
+                    'name': cs.get('label') or s_col,
+                    'type': s_type, 'data': s_data,
+                    'itemStyle': {'color': s_color},
+                    'lineStyle': {'color': s_color},
+                    'label': label_cfg,
+                })
+            # Fallback single series when admin didn't configure combo
+            if not series:
+                series = [{
+                    'type': 'bar', 'data': y_data,
+                    'itemStyle': {'color': color},
+                    'label': label_cfg,
+                }]
+        else:
+            # Unknown variant — default to bar
+            series = [{
+                'type': 'bar', 'data': y_data,
+                'itemStyle': {'color': color},
+                'label': label_cfg,
+            }]
+
         option = {
             'title': {
                 'text': title,
                 'textStyle': {'fontSize': 12, 'fontWeight': 600},
                 'left': 0, 'top': 0,
             },
-            'xAxis': {'type': 'category', 'data': x_data,
-                      'axisLabel': {'fontSize': 11}},
+            'xAxis': {
+                'type': 'category', 'data': x_data,
+                'axisLabel': {'fontSize': 11},
+            },
             'yAxis': {'type': 'value', 'axisLabel': {'fontSize': 11}},
-            'series': [{
-                'type': chart_type,
-                'data': y_data,
-                'itemStyle': {'color': color},
-                'lineStyle': {'color': color},
-                'label': {'show': True, 'position': 'top',
-                          'fontSize': 11},
-            }],
+            'series': series,
             'grid': {'top': 40, 'bottom': 30, 'left': 50, 'right': 20},
             'tooltip': {'trigger': 'axis'},
+            'legend': {'show': show_legend, 'top': 0, 'right': 0},
         }
-        return {'title': title, 'echart_option': option}
+        return {
+            'title': title,
+            'tile_type': tile_type,
+            'echart_option': option,
+        }
+
+    def _build_detail_kpi_tile(self, tile_type, tile_config, cols, rows):
+        """Build KPI tile (stat / rag / strip).
+
+        Returns a dict shape compatible with the existing KPI React
+        components (KPICard, StatusKPI, KPIStrip) so they can be
+        reused inside the detail panel.
+        """
+        title = tile_config.get('title', '')
+        col_idx = {c: i for i, c in enumerate(cols)}
+
+        if tile_type == 'kpi_stat':
+            # Single value from first row
+            value_col = (
+                tile_config.get('valueColumn')
+                or tile_config.get('value_column', ''))
+            label = tile_config.get('label') or title
+            vi = col_idx.get(value_col, 0)
+            value = ''
+            if rows and vi < len(rows[0]):
+                try:
+                    v = rows[0][vi]
+                    value = (
+                        str(v) if v is not None else '')
+                except Exception:
+                    value = ''
+            return {
+                'title': title,
+                'tile_type': 'kpi_stat',
+                'kpi_data': {
+                    'type': 'kpi',
+                    'formatted_value': value,
+                    'label': label,
+                    'kpi_prefix': tile_config.get('prefix', ''),
+                    'kpi_suffix': tile_config.get('suffix', ''),
+                },
+            }
+
+        if tile_type == 'kpi_rag':
+            # Value + thresholds determine green/amber/red
+            value_col = (
+                tile_config.get('valueColumn')
+                or tile_config.get('value_column', ''))
+            vi = col_idx.get(value_col, 0)
+            value = 0
+            if rows and vi < len(rows[0]):
+                try:
+                    value = float(rows[0][vi] or 0)
+                except (ValueError, TypeError):
+                    value = 0
+            good_t = float(tile_config.get('goodThreshold', 70))
+            warn_t = float(tile_config.get('warnThreshold', 50))
+            if value >= good_t:
+                status = 'up'
+            elif value >= warn_t:
+                status = 'warning'
+            else:
+                status = 'down'
+            return {
+                'title': title,
+                'tile_type': 'kpi_rag',
+                'kpi_data': {
+                    'type': 'status_kpi',
+                    'formatted_value': str(value),
+                    'label': tile_config.get('label') or title,
+                    'status_val': status,
+                    'kpi_suffix': tile_config.get('suffix', ''),
+                },
+            }
+
+        if tile_type == 'kpi_strip':
+            # Multiple small KPIs side by side (up to 4)
+            # Expect tile_config.items: [{label, column}, ...]
+            items_config = tile_config.get('items', [])
+            strip_items = []
+            for it in items_config:
+                c_col = it.get('column', '')
+                ci = col_idx.get(c_col, 0)
+                val = ''
+                if rows and ci < len(rows[0]):
+                    v = rows[0][ci]
+                    val = str(v) if v is not None else ''
+                strip_items.append({
+                    'label': it.get('label') or c_col,
+                    'value': val,
+                })
+            return {
+                'title': title,
+                'tile_type': 'kpi_strip',
+                'kpi_data': {
+                    'type': 'kpi_strip',
+                    'items': strip_items,
+                },
+            }
+
+        # Unknown KPI variant — safe empty
+        return {
+            'title': title,
+            'tile_type': tile_type,
+            'kpi_data': {'type': 'kpi', 'formatted_value': '', 'label': title},
+        }
+
+    # Backward-compat alias: older code paths may call _build_detail_chart
+    def _build_detail_chart(self, chart_config, cols, rows):
+        return self._build_detail_tile(chart_config, cols, rows)
 
 
 # ── Deep merge utility ────────────────────────────────────────────────────────
