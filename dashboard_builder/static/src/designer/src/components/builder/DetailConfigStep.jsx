@@ -6,17 +6,20 @@ import MasterRowLayoutStep from './MasterRowLayoutStep'
  * DetailConfigStep
  *
  * Configures the detail panel for a ranked_detail_list widget.
+ *
  * Four sections:
  *   A. Row Key — which master SQL column identifies each row
- *   B. Detail SQL — SQL with %(row_key)s placeholder (+ "insert is_you" helper)
- *   C. Detail Tiles — up to 3 tiles (bar/line/KPI variants)
- *   D. Sub-List — reuses MasterRowLayoutStep + YOU indicator config
+ *   B. Shared Detail SQL — optional fallback SQL used by any tile or the
+ *      sub-list that doesn't have its own SQL.
+ *   C. Detail Tiles — up to 3 tiles. Each tile has:
+ *        - Tile type (bar/line variants, KPI variants)
+ *        - Optional OWN SQL (override — tile runs its own query). When not
+ *          set, uses the shared Detail SQL from section B.
+ *   D. Sub-List — reuses MasterRowLayoutStep for row layout. Has an
+ *      optional OWN SQL (same pattern as tiles). YOU indicator config.
  *
- * Props:
- *   detailConfig          — current v2 detail config
- *   onUpdate              — (partial) => void (shallow merge)
- *   masterColumns         — columns from master SQL test (for Row Key dropdown)
- *   apiBase, appContext   — passed to CustomSqlEditor
+ * Architecture rule: every "data source" picks from its OWN test result
+ * when own SQL is configured; otherwise from the shared SQL's test result.
  */
 export default function DetailConfigStep({
   detailConfig = {},
@@ -26,22 +29,23 @@ export default function DetailConfigStep({
   appContext,
 }) {
   const cfg = detailConfig || {}
-  const detailSql = cfg.sql || ''
-  const detailTestResult = cfg._testResult || null
-  const detailColumns = detailTestResult?.columns || []
-  const detailSampleRow = (detailTestResult?.rows && detailTestResult.rows[0])
-    ? Object.fromEntries(detailTestResult.columns.map((c, i) => [c, detailTestResult.rows[0][i]]))
+
+  // Shared SQL + its test result
+  const sharedSql = cfg.sql || ''
+  const sharedTestResult = cfg._testResult || null
+  const sharedColumns = sharedTestResult?.columns || []
+  const sharedSampleRow = (sharedTestResult?.rows && sharedTestResult.rows[0])
+    ? Object.fromEntries(sharedTestResult.columns.map((c, i) => [c, sharedTestResult.rows[0][i]]))
     : null
 
   const tiles = cfg.tiles || []
   const sublist = cfg.sublist || {}
 
-  // Helper to update sublist config
+  // Helpers
   const updateSublist = (partial) => {
     onUpdate({ sublist: { ...sublist, ...partial } })
   }
 
-  // Helper to update tile at index
   const updateTile = (idx, partial) => {
     const newTiles = [...tiles]
     newTiles[idx] = { ...newTiles[idx], ...partial }
@@ -59,6 +63,7 @@ export default function DetailConfigStep({
         color: '#0d9488',
         showLabels: true,
         showLegend: false,
+        ownSql: false,
       }],
     })
   }
@@ -69,18 +74,27 @@ export default function DetailConfigStep({
 
   const insertIsYouHelper = () => {
     const snippet = ', CASE WHEN <your_column> = %(selected_hha_ccn)s THEN 1 ELSE 0 END AS is_you'
-    onUpdate({
-      sql: detailSql.trimEnd() + snippet,
-    })
+    onUpdate({ sql: sharedSql.trimEnd() + snippet })
   }
+
+  // Sub-list effective columns/sample — own SQL result if set, else shared
+  const sublistOwnSql = !!sublist.ownSql
+  const sublistColumns = sublistOwnSql
+    ? (sublist._testResult?.columns || [])
+    : sharedColumns
+  const sublistSampleRow = sublistOwnSql
+    ? (sublist._testResult?.rows && sublist._testResult.rows[0]
+        ? Object.fromEntries(sublist._testResult.columns.map((c, i) => [c, sublist._testResult.rows[0][i]]))
+        : null)
+    : sharedSampleRow
 
   return (
     <div className="wb-detail-config-step">
       <h3 className="wb-step-title">Detail Config</h3>
       <p className="wb-step-hint">
         Configure what appears when a user expands a row: tiles (bar/line/KPI)
-        and a nested sub-list. Only shown for widgets with the expand chevron
-        enabled.
+        and a nested sub-list. Each tile and the sub-list can use the shared
+        Detail SQL below, OR write its own SQL for maximum flexibility.
       </p>
 
       {/* ── Section A: Row Key ──────────────────────────────── */}
@@ -102,12 +116,13 @@ export default function DetailConfigStep({
         </select>
       </div>
 
-      {/* ── Section B: Detail SQL ───────────────────────────── */}
+      {/* ── Section B: Shared Detail SQL ────────────────────── */}
       <div className="wb-section" style={{ marginBottom: 20 }}>
-        <h4 className="wb-sub-title">B. Detail SQL</h4>
+        <h4 className="wb-sub-title">B. Shared Detail SQL <span style={{ fontSize: 12, fontWeight: 400, color: '#6b7280' }}>(optional — used as fallback)</span></h4>
         <p className="wb-step-hint" style={{ marginBottom: 8 }}>
-          SQL that runs when a row is expanded. Use <code>%(row_key)s</code> for the
-          clicked row's key, and any page filter params (e.g. <code>%(year)s</code>).
+          This SQL runs once when a row is expanded and is available to any
+          tile or the sub-list that doesn't have its own SQL. Use <code>%(row_key)s</code>
+          for the clicked row's key.
         </p>
         <div style={{ marginBottom: 8 }}>
           <button
@@ -120,11 +135,11 @@ export default function DetailConfigStep({
           </button>
         </div>
         <CustomSqlEditor
-          sql={detailSql}
+          sql={sharedSql}
           xColumn=""
           yColumns=""
           seriesColumn=""
-          testResult={detailTestResult}
+          testResult={sharedTestResult}
           testParams={cfg._testParams || {}}
           onUpdate={partial => {
             const updates = {}
@@ -142,16 +157,19 @@ export default function DetailConfigStep({
       <div className="wb-section" style={{ marginBottom: 20 }}>
         <h4 className="wb-sub-title">C. Detail Tiles ({tiles.length}/3)</h4>
         <p className="wb-step-hint" style={{ marginBottom: 8 }}>
-          Up to 3 tiles shown at the top of the detail panel.
+          Up to 3 tiles shown at the top of the detail panel. Each tile can
+          use the shared SQL above, or write its own.
         </p>
 
         {tiles.map((tile, idx) => (
           <TileConfig
             key={idx}
             tile={tile}
-            detailColumns={detailColumns}
+            sharedColumns={sharedColumns}
             onChange={partial => updateTile(idx, partial)}
             onRemove={() => removeTile(idx)}
+            apiBase={apiBase}
+            appContext={appContext}
           />
         ))}
 
@@ -177,12 +195,61 @@ export default function DetailConfigStep({
           />
         </div>
 
+        {/* Own-SQL toggle */}
+        <div style={{ marginBottom: 12, padding: 10, background: '#f8fafc', borderRadius: 6 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
+            <input
+              type="checkbox"
+              checked={sublistOwnSql}
+              onChange={e => updateSublist({ ownSql: e.target.checked })}
+            />
+            Use own SQL for sub-list
+            <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 12 }}>
+              (recommended when the sub-list needs peer-row data different from the tiles)
+            </span>
+          </label>
+
+          {sublistOwnSql && (
+            <div style={{ marginTop: 10, paddingLeft: 22 }}>
+              <div style={{ marginBottom: 6 }}>
+                <button
+                  type="button"
+                  className="wb-btn wb-btn--sm"
+                  onClick={() => updateSublist({
+                    sql: (sublist.sql || '').trimEnd()
+                      + ', CASE WHEN <your_column> = %(selected_hha_ccn)s THEN 1 ELSE 0 END AS is_you',
+                  })}
+                >
+                  + Insert is_you comparison
+                </button>
+              </div>
+              <CustomSqlEditor
+                sql={sublist.sql || ''}
+                xColumn=""
+                yColumns=""
+                seriesColumn=""
+                testResult={sublist._testResult || null}
+                testParams={sublist._testParams || {}}
+                onUpdate={partial => {
+                  const updates = {}
+                  if ('sql' in partial) updates.sql = partial.sql
+                  if ('testResult' in partial) updates._testResult = partial.testResult
+                  if ('testParams' in partial) updates._testParams = partial.testParams
+                  if (Object.keys(updates).length) updateSublist(updates)
+                }}
+                apiBase={apiBase}
+                appContext={appContext}
+              />
+            </div>
+          )}
+        </div>
+
         {/* Reuse MasterRowLayoutStep for sub-list row layout */}
         <MasterRowLayoutStep
           config={sublist.layout || {}}
           onChange={partial => updateSublist({ layout: { ...(sublist.layout || {}), ...partial } })}
-          columns={detailColumns}
-          sampleRow={detailSampleRow}
+          columns={sublistColumns}
+          sampleRow={sublistSampleRow}
           title="Sub-List Row Layout"
           hideActions
         />
@@ -207,7 +274,7 @@ export default function DetailConfigStep({
                   onChange={e => updateSublist({ you: { ...sublist.you, column: e.target.value } })}
                 >
                   <option value="">Pick column (e.g. is_you)…</option>
-                  {detailColumns.map(c => (
+                  {sublistColumns.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
@@ -235,7 +302,7 @@ export default function DetailConfigStep({
                 Show colored progress bar under each row
               </label>
               <p className="wb-step-hint" style={{ margin: 0 }}>
-                Tip: write your detail SQL with <code>
+                Tip: write your sub-list SQL with <code>
                   {'CASE WHEN hha_ccn = %(selected_hha_ccn)s THEN 1 ELSE 0 END AS is_you'}
                 </code> to populate this column.
               </p>
@@ -247,10 +314,16 @@ export default function DetailConfigStep({
   )
 }
 
-// ── Tile config card (used inside DetailConfigStep) ──────────────────
-function TileConfig({ tile, detailColumns, onChange, onRemove }) {
+// ── Tile config card (with own-SQL toggle) ──────────────────────────────
+function TileConfig({ tile, sharedColumns, onChange, onRemove, apiBase, appContext }) {
   const type = tile.type || 'bar'
   const isKpi = type.startsWith('kpi')
+  const ownSql = !!tile.ownSql
+
+  // Effective columns — from own SQL test result if set, else shared
+  const effectiveColumns = ownSql
+    ? (tile._testResult?.columns || [])
+    : sharedColumns
 
   return (
     <div
@@ -276,6 +349,42 @@ function TileConfig({ tile, detailColumns, onChange, onRemove }) {
         >
           <i className="fa fa-times" />
         </button>
+      </div>
+
+      {/* Own SQL toggle */}
+      <div style={{ marginBottom: 10 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={ownSql}
+            onChange={e => onChange({ ownSql: e.target.checked })}
+          />
+          Use own SQL for this tile
+          <span style={{ color: '#6b7280', fontSize: 11 }}>
+            (otherwise uses the Shared Detail SQL)
+          </span>
+        </label>
+        {ownSql && (
+          <div style={{ marginTop: 8, paddingLeft: 22 }}>
+            <CustomSqlEditor
+              sql={tile.sql || ''}
+              xColumn=""
+              yColumns=""
+              seriesColumn=""
+              testResult={tile._testResult || null}
+              testParams={tile._testParams || {}}
+              onUpdate={partial => {
+                const updates = {}
+                if ('sql' in partial) updates.sql = partial.sql
+                if ('testResult' in partial) updates._testResult = partial.testResult
+                if ('testParams' in partial) updates._testParams = partial.testParams
+                if (Object.keys(updates).length) onChange(updates)
+              }}
+              apiBase={apiBase}
+              appContext={appContext}
+            />
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
@@ -314,7 +423,7 @@ function TileConfig({ tile, detailColumns, onChange, onRemove }) {
                 onChange={e => onChange({ xColumn: e.target.value })}
               >
                 <option value="">Pick…</option>
-                {detailColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                {effectiveColumns.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -325,7 +434,7 @@ function TileConfig({ tile, detailColumns, onChange, onRemove }) {
                 onChange={e => onChange({ yColumn: e.target.value })}
               >
                 <option value="">Pick…</option>
-                {detailColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                {effectiveColumns.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -348,7 +457,7 @@ function TileConfig({ tile, detailColumns, onChange, onRemove }) {
               onChange={e => onChange({ valueColumn: e.target.value })}
             >
               <option value="">Pick…</option>
-              {detailColumns.map(c => <option key={c} value={c}>{c}</option>)}
+              {effectiveColumns.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
         )}
@@ -363,7 +472,7 @@ function TileConfig({ tile, detailColumns, onChange, onRemove }) {
                 onChange={e => onChange({ valueColumn: e.target.value })}
               >
                 <option value="">Pick…</option>
-                {detailColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                {effectiveColumns.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>

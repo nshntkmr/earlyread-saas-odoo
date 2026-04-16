@@ -363,9 +363,14 @@ function DetailPanel({ detailData, sublistLayout, youConfig }) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────
-export default function RankedDetailList({ data, height, name, widgetId }) {
+export default function RankedDetailList({ data, height, name, widgetId, scopeOptionId }) {
   const { filterValues, accessToken, refreshToken, apiBase } = useFilters()
   const [expandedRows, setExpandedRows] = useState({})
+
+  // When scope option changes, clear expanded rows (layout may differ per option)
+  useEffect(() => {
+    setExpandedRows({})
+  }, [scopeOptionId])
 
   const {
     rowData = [],
@@ -391,7 +396,10 @@ export default function RankedDetailList({ data, height, name, widgetId }) {
     try {
       const wid = widgetId || data?.id
       if (!wid) return
-      const url = widgetDetailUrl(apiBase, wid, keyValue, filterValues)
+      // Include scope option id so Mode B uses the option's detail_config
+      const params = { ...filterValues }
+      if (scopeOptionId) params._scope_option_id = scopeOptionId
+      const url = widgetDetailUrl(apiBase, wid, keyValue, params)
       const result = await apiFetch(url, accessToken, {}, refreshToken)
       setExpandedRows(prev => ({ ...prev, [keyValue]: result }))
     } catch (err) {

@@ -27,7 +27,9 @@ function getSteps(chartType, scopeMode, masterRowConfig = null) {
     // Ranked list has its own visual layout step (replaces columns/table config)
     steps.push({ key: 'master_row_layout', label: 'Master Row Layout' })
     steps.push({ key: 'filters', label: 'Filters & Actions' })
-    // Only show Detail Config step when the expand chevron is enabled
+    // Only show Detail Config step when the expand chevron is enabled.
+    // In Mode B, masterRowConfig is checked at the OPTION level; we show
+    // the step if ANY option (or top-level) has expand enabled.
     const expandEnabled = masterRowConfig?.expandChevron?.enabled !== false
     if (expandEnabled) {
       steps.push({ key: 'detail_config', label: 'Detail Config' })
@@ -62,6 +64,30 @@ function getActiveConfig(state) {
     return state.optionConfigs[state.activeScopeIdx || 0] || state
   }
   return state
+}
+
+/**
+ * getRankedActiveConfig — returns {masterRowConfig, detailConfig} for the
+ * ranked_detail_list widget, honoring Mode A vs Mode B:
+ *   - No scope or Mode A (parameter): top-level state (shared across options)
+ *   - Mode B (query): per-option (active option's config)
+ */
+function getRankedActiveConfig(state) {
+  if (
+    state.scopeMode === 'independent'
+    && state.scopeQueryMode === 'query'
+    && state.optionConfigs?.length > 0
+  ) {
+    const opt = state.optionConfigs[state.activeScopeIdx || 0] || {}
+    return {
+      masterRowConfig: opt.masterRowConfig || state.masterRowConfig || {},
+      detailConfig: opt.detailConfig || state.detailConfig || {},
+    }
+  }
+  return {
+    masterRowConfig: state.masterRowConfig || {},
+    detailConfig: state.detailConfig || {},
+  }
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -193,7 +219,11 @@ function reducer(state, action) {
     case 'SET_STEP':
       return { ...state, step: action.step }
     case 'NEXT': {
-      const maxStep = getSteps(state.chartType, state.scopeMode, state.masterRowConfig).length - 1
+      const maxStep = getSteps(
+        state.chartType,
+        state.scopeMode,
+        getRankedActiveConfig(state).masterRowConfig,
+      ).length - 1
       return { ...state, step: Math.min(state.step + 1, maxStep) }
     }
     case 'PREV':
@@ -270,17 +300,51 @@ function reducer(state, action) {
       return _routeToOption(state, { generatedSql: action.value })
     case 'SET_TABLE_COLUMN_CONFIG':
       return _routeToOption(state, { tableColumnConfig: action.value })
-    case 'SET_MASTER_ROW_CONFIG':
-      // Shallow merge partial into the current masterRowConfig
+    case 'SET_MASTER_ROW_CONFIG': {
+      // Route based on Mode:
+      //   - No scope, or Mode A (parameter): top-level (shared across options)
+      //   - Mode B (query): per-option (each option has its own layout)
+      const routeToOption = (
+        state.scopeMode === 'independent'
+        && state.scopeQueryMode === 'query'
+        && state.optionConfigs?.length > 0
+      )
+      if (routeToOption) {
+        const idx = state.activeScopeIdx || 0
+        const configs = [...state.optionConfigs]
+        const current = configs[idx]?.masterRowConfig || {}
+        configs[idx] = {
+          ...configs[idx],
+          masterRowConfig: { ...current, ...action.value },
+        }
+        return { ...state, optionConfigs: configs }
+      }
       return {
         ...state,
         masterRowConfig: { ...(state.masterRowConfig || {}), ...action.value },
       }
-    case 'SET_DETAIL_CONFIG':
+    }
+    case 'SET_DETAIL_CONFIG': {
+      const routeToOption = (
+        state.scopeMode === 'independent'
+        && state.scopeQueryMode === 'query'
+        && state.optionConfigs?.length > 0
+      )
+      if (routeToOption) {
+        const idx = state.activeScopeIdx || 0
+        const configs = [...state.optionConfigs]
+        const current = configs[idx]?.detailConfig || {}
+        configs[idx] = {
+          ...configs[idx],
+          detailConfig: { ...current, ...action.value },
+        }
+        return { ...state, optionConfigs: configs }
+      }
       return {
         ...state,
         detailConfig: { ...(state.detailConfig || {}), ...action.value },
       }
+    }
     case 'LOAD_DEFINITION': {
       const d = action.value
       // Parse builder_config to restore visual builder state (sources, columns, filters, etc.)
@@ -417,6 +481,23 @@ function reducer(state, action) {
                 : []
             } catch { return [] }
           })(),
+          // Per-option ranked configs (Mode B). If empty, fall back to
+          // widget-level on the first render — then the admin's edits
+          // populate them per-option.
+          masterRowConfig: (() => {
+            try {
+              const raw = o.ranked_master_config
+              if (!raw) return {}
+              return typeof raw === 'string' ? JSON.parse(raw) : raw
+            } catch { return {} }
+          })(),
+          detailConfig: (() => {
+            try {
+              const raw = o.ranked_detail_config
+              if (!raw) return {}
+              return typeof raw === 'string' ? JSON.parse(raw) : raw
+            } catch { return {} }
+          })(),
           generatedSql: '',
           aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] },
         })),
@@ -526,7 +607,11 @@ export default function WidgetBuilder({
     )
   }
 
-  const activeSteps = getSteps(state.chartType, state.scopeMode, state.masterRowConfig)
+  const activeSteps = getSteps(
+    state.chartType,
+    state.scopeMode,
+    getRankedActiveConfig(state).masterRowConfig,
+  )
   const currentStep = activeSteps[state.step] || activeSteps[0]
   const currentStepKey = currentStep?.key || ''
   const canNext = state.step < activeSteps.length - 1
@@ -814,29 +899,64 @@ export default function WidgetBuilder({
           )}
 
           {/* Master Row Layout step (ranked_detail_list) */}
-          {currentStepKey === 'master_row_layout' && (
-            <MasterRowLayoutStep
-              config={state.masterRowConfig}
-              onChange={partial => dispatch({ type: 'SET_MASTER_ROW_CONFIG', value: partial })}
-              columns={ac.customSql?.testResult?.columns || []}
-              sampleRow={(() => {
-                const tr = ac.customSql?.testResult
-                if (!tr?.rows || !tr.rows[0]) return null
-                return Object.fromEntries(tr.columns.map((c, i) => [c, tr.rows[0][i]]))
-              })()}
-            />
-          )}
+          {currentStepKey === 'master_row_layout' && (() => {
+            // Mode B: show OptionTabBar so admin configures each option independently
+            const modeB = (
+              state.scopeMode === 'independent'
+              && state.scopeQueryMode === 'query'
+              && state.scopeOptions?.length > 0
+            )
+            const rankedActive = getRankedActiveConfig(state)
+            return (
+              <>
+                {modeB && (
+                  <OptionTabBar
+                    options={state.scopeOptions}
+                    activeIdx={state.activeScopeIdx}
+                    onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
+                  />
+                )}
+                <MasterRowLayoutStep
+                  config={rankedActive.masterRowConfig}
+                  onChange={partial => dispatch({ type: 'SET_MASTER_ROW_CONFIG', value: partial })}
+                  columns={ac.customSql?.testResult?.columns || []}
+                  sampleRow={(() => {
+                    const tr = ac.customSql?.testResult
+                    if (!tr?.rows || !tr.rows[0]) return null
+                    return Object.fromEntries(tr.columns.map((c, i) => [c, tr.rows[0][i]]))
+                  })()}
+                />
+              </>
+            )
+          })()}
 
           {/* Detail Config step (ranked_detail_list) */}
-          {currentStepKey === 'detail_config' && (
-            <DetailConfigStep
-              detailConfig={state.detailConfig}
-              onUpdate={partial => dispatch({ type: 'SET_DETAIL_CONFIG', value: partial })}
-              masterColumns={ac.customSql?.testResult?.columns || []}
-              apiBase={apiBase}
-              appContext={appContext}
-            />
-          )}
+          {currentStepKey === 'detail_config' && (() => {
+            const modeB = (
+              state.scopeMode === 'independent'
+              && state.scopeQueryMode === 'query'
+              && state.scopeOptions?.length > 0
+            )
+            const rankedActive = getRankedActiveConfig(state)
+            return (
+              <>
+                {modeB && (
+                  <OptionTabBar
+                    options={state.scopeOptions}
+                    activeIdx={state.activeScopeIdx}
+                    onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
+                  />
+                )}
+                <DetailConfigStep
+                  detailConfig={rankedActive.detailConfig}
+                  onUpdate={partial => dispatch({ type: 'SET_DETAIL_CONFIG', value: partial })}
+                  masterColumns={ac.customSql?.testResult?.columns || []}
+                  apiBase={apiBase}
+                  appContext={appContext}
+                />
+              </>
+            )
+          })()}
 
           {/* Preview & Save step (charts) */}
           {currentStepKey === 'preview' && (
@@ -899,6 +1019,36 @@ export default function WidgetBuilder({
 }
 
 /**
+ * Strip internal _testResult / _testParams fields from a detail config
+ * (and its nested tiles and sub-list) before saving. These fields are
+ * only used inside the builder to cache test-query results per SQL editor.
+ */
+function _cleanDetailConfig(dc) {
+  if (!dc || typeof dc !== 'object') return dc
+  const cleaned = { ...dc }
+  // Top-level test artifacts
+  delete cleaned._testResult
+  delete cleaned._testParams
+  // Per-tile test artifacts
+  if (Array.isArray(cleaned.tiles)) {
+    cleaned.tiles = cleaned.tiles.map(t => {
+      const ct = { ...t }
+      delete ct._testResult
+      delete ct._testParams
+      return ct
+    })
+  }
+  // Sub-list test artifacts
+  if (cleaned.sublist && typeof cleaned.sublist === 'object') {
+    const cs = { ...cleaned.sublist }
+    delete cs._testResult
+    delete cs._testParams
+    cleaned.sublist = cs
+  }
+  return cleaned
+}
+
+/**
  * Build the POST payload for /dashboard/designer/api/library/create.
  * Creates a widget DEFINITION in the library (not an instance on a page).
  */
@@ -942,12 +1092,7 @@ function buildCreatePayload(state) {
         ? JSON.stringify(state.masterRowConfig)
         : '',
       ranked_detail_config: state.detailConfig
-        ? JSON.stringify({
-            // Drop internal test-only fields before saving
-            ...state.detailConfig,
-            _testResult: undefined,
-            _testParams: undefined,
-          })
+        ? JSON.stringify(_cleanDetailConfig(state.detailConfig))
         : '',
       // Note: rowKey and detail SQL live INSIDE ranked_detail_config JSON.
       // The widget instance also has legacy scalar fields for backward compat;
@@ -975,7 +1120,7 @@ function buildCreatePayload(state) {
         const optSql = cfg.dataMode === 'ai'
           ? (ai.generatedSql || '')
           : (cs.sql || '')
-        return {
+        const optPayload = {
           label: opt.label || '',
           value: opt.value || '',
           icon: opt.icon || '',
@@ -993,6 +1138,21 @@ function buildCreatePayload(state) {
           drill_detail_columns: cfg.drillDetailColumns || '',
           action_url_template: cfg.actionUrlTemplate || '',
         }
+        // Mode B: save per-option ranked configs (master layout + detail config)
+        if (
+          state.chartType === 'ranked_detail_list'
+          && state.scopeQueryMode === 'query'
+        ) {
+          if (cfg.masterRowConfig) {
+            optPayload.ranked_master_config = JSON.stringify(cfg.masterRowConfig)
+          }
+          if (cfg.detailConfig) {
+            // Strip internal test-only fields from detail config + nested
+            const cleaned = _cleanDetailConfig(cfg.detailConfig)
+            optPayload.ranked_detail_config = JSON.stringify(cleaned)
+          }
+        }
+        return optPayload
       }),
     } : {}),
     ...(state.searchEnabled ? {

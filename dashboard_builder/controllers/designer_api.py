@@ -950,6 +950,9 @@ class DesignerAPI(http.Controller):
                                     'action_pass_value_as': opt.get('action_pass_value_as', ''),
                                     'drill_detail_columns': opt.get('drill_detail_columns', ''),
                                     'action_url_template': opt.get('action_url_template', ''),
+                                    # Per-option ranked configs (Mode B)
+                                    'ranked_master_config': opt.get('ranked_master_config', '') or '',
+                                    'ranked_detail_config': opt.get('ranked_detail_config', '') or '',
                                 }
                                 table_name = opt.get('schema_source_table', '')
                                 if table_name:
@@ -1311,6 +1314,9 @@ class DesignerAPI(http.Controller):
                         'action_pass_value_as': opt.get('action_pass_value_as', ''),
                         'drill_detail_columns': opt.get('drill_detail_columns', ''),
                         'action_url_template': opt.get('action_url_template', ''),
+                        # Per-option ranked configs (Mode B)
+                        'ranked_master_config': opt.get('ranked_master_config', '') or '',
+                        'ranked_detail_config': opt.get('ranked_detail_config', '') or '',
                     }
                     table_name = opt.get('schema_source_table', '')
                     if table_name:
