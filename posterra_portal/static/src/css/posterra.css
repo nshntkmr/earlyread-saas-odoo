@@ -3069,11 +3069,146 @@
 }
 .pv-ranked-subrow-cell:first-child { flex: 1; }
 
-/* Mobile: stack detail charts vertically */
+/* v2 layout: primary name + badge + subtitle + YOU */
+.pv-ranked-row-primary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.pv-ranked-row-name {
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 14px;
+}
+.pv-ranked-row-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.pv-ranked-you-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background-color: #10b981;
+}
+.pv-ranked-row-subtitle {
+    color: #6b7280;
+    font-size: 12px;
+    margin-top: 2px;
+}
+.pv-ranked-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+.pv-ranked-row-metric {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 14px;
+    color: #0f172a;
+}
+.pv-ranked-row-secondary {
+    color: #6b7280;
+    font-size: 12px;
+}
+.pv-ranked-row-progress {
+    margin-top: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    height: 4px;
+    overflow: hidden;
+}
+.pv-ranked-row-progress-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+.pv-ranked-row--you { background: rgba(16, 185, 129, 0.04); }
+
+/* Detail tiles grid (replaces older .pv-ranked-detail-charts) */
+.pv-ranked-detail-tiles {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.pv-ranked-detail-tile-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* KPI tiles inside detail panel */
+.pv-ranked-kpi-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 4px;
+    line-height: 1.2;
+}
+.pv-ranked-kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0f172a;
+}
+.pv-ranked-kpi-label {
+    font-size: 11px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+.pv-ranked-kpi-tile--up    .pv-ranked-kpi-value { color: #10b981; }
+.pv-ranked-kpi-tile--warning .pv-ranked-kpi-value { color: #f59e0b; }
+.pv-ranked-kpi-tile--down  .pv-ranked-kpi-value { color: #ef4444; }
+
+.pv-ranked-kpi-strip {
+    display: flex;
+    gap: 16px;
+    justify-content: space-around;
+    padding: 4px;
+}
+.pv-ranked-kpi-strip-item {
+    text-align: center;
+    min-width: 0;
+}
+.pv-ranked-kpi-strip-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+}
+.pv-ranked-kpi-strip-label {
+    font-size: 10px;
+    color: #6b7280;
+    text-transform: uppercase;
+}
+
+/* Mobile: stack detail tiles + charts vertically */
 @media (max-width: 767.98px) {
     .pv-ranked-detail { padding-left: 16px; }
-    .pv-ranked-detail-charts { grid-template-columns: 1fr !important; }
+    .pv-ranked-detail-charts,
+    .pv-ranked-detail-tiles { grid-template-columns: 1fr !important; }
     .pv-ranked-row-body { flex-wrap: wrap; gap: 8px; }
+    .pv-ranked-row-meta { flex-wrap: wrap; }
 }
 
 /* --- Responsive: Mobile sidebar toggle --- */

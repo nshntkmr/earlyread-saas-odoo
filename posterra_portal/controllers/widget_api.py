@@ -188,6 +188,13 @@ def _build_portal_ctx(page, user, app, kw):
     }
     sql_params = build_sql_params(filter_values_by_name, multiselect_params)
 
+    # Inject user's selected HHA identity for widgets that want a YOU
+    # comparison (e.g. ranked_detail_list with YOU indicator).
+    sql_params['selected_hha_ccn'] = (
+        selected_provider.hha_ccn if selected_provider else None)
+    sql_params['selected_hha_id'] = (
+        selected_provider.id if selected_provider else None)
+
     return {
         'selected_hha':          selected_provider,
         'filter_values_by_name': filter_values_by_name,

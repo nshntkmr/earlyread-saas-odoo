@@ -29,12 +29,22 @@ const FILTER_OPS = ['=', '!=', '>', '<', '>=', '<=', 'IN', 'NOT IN', 'LIKE', 'IL
  *   actionUrlTemplate — string
  *   onUpdate        — (updates) => void
  *   apiBase         — string
+ *
+ *   // v2 Ranked Detail List additions:
+ *   showExternalLink     — boolean — show the "External link (🔗)" action config
+ *   externalLinkColumn   — string — SQL column containing URL (optional)
+ *   externalLinkTemplate — string — URL template (optional alternative)
+ *   externalLinkNewTab   — boolean — open in new tab (default true)
  */
 export default function FilterActionConfig({
   dataSourceMode, sources, filters,
   clickAction, actionPageKey, actionTabKey, actionPassValueAs,
   drillDetailColumns, actionUrlTemplate,
   chartType,
+  showExternalLink = false,
+  externalLinkColumn = '',
+  externalLinkTemplate = '',
+  externalLinkNewTab = true,
   onUpdate, apiBase,
 }) {
   // Flatten filterable columns
@@ -204,6 +214,46 @@ export default function FilterActionConfig({
           </div>
         )}
       </div>
+
+      {/* External Link (ranked_detail_list only — shown when enabled in layout) */}
+      {showExternalLink && (
+        <div className="wb-section">
+          <h4 className="wb-sub-title">External Link (🔗)</h4>
+          <p className="wb-step-hint" style={{ marginBottom: 8 }}>
+            The external link icon takes the user to a URL. Pick a SQL column
+            that contains URLs per row, OR provide a template.
+          </p>
+          <div className="wb-field-group">
+            <label className="wb-label">URL column (optional)</label>
+            <input
+              type="text"
+              className="wb-input"
+              value={externalLinkColumn || ''}
+              onChange={e => onUpdate({ externalLinkColumn: e.target.value })}
+              placeholder="e.g. provider_url"
+            />
+          </div>
+          <div className="wb-field-group">
+            <label className="wb-label">URL template (used when column not set)</label>
+            <input
+              type="text"
+              className="wb-input"
+              value={externalLinkTemplate || ''}
+              onChange={e => onUpdate({ externalLinkTemplate: e.target.value })}
+              placeholder="https://example.com/provider/{value}"
+            />
+            <p className="wb-hint">{'{value}'} is replaced with the row's key column value.</p>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={externalLinkNewTab !== false}
+              onChange={e => onUpdate({ externalLinkNewTab: e.target.checked })}
+            />
+            Open in new tab
+          </label>
+        </div>
+      )}
 
     </div>
   )

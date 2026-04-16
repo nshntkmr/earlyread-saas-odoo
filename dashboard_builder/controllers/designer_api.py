@@ -757,6 +757,17 @@ class DesignerAPI(http.Controller):
                 tcc = body['table_column_config']
                 def_vals['table_column_config'] = tcc if isinstance(tcc, str) else json.dumps(tcc) if tcc else ''
 
+            # Ranked Detail List v2 JSON configs (stored on the mixin —
+            # available on both definition and instance models).
+            # The v2 config JSON already contains rowKey and detail SQL,
+            # so no separate legacy fields at the definition level.
+            if 'ranked_master_config' in body:
+                rmc = body['ranked_master_config']
+                def_vals['ranked_master_config'] = rmc if isinstance(rmc, str) else json.dumps(rmc) if rmc else ''
+            if 'ranked_detail_config' in body:
+                rdc = body['ranked_detail_config']
+                def_vals['ranked_detail_config'] = rdc if isinstance(rdc, str) else json.dumps(rdc) if rdc else ''
+
             # App scoping (field added by posterra_portal via _inherit)
             if body.get('app_ids') and 'app_ids' in request.env['dashboard.widget.definition']._fields:
                 def_vals['app_ids'] = [(6, 0, body['app_ids'])]
@@ -848,6 +859,14 @@ class DesignerAPI(http.Controller):
             tcc = body['table_column_config']
             update_vals['table_column_config'] = tcc if isinstance(tcc, str) else json.dumps(tcc)
 
+        # Ranked Detail List v2 JSON configs
+        if 'ranked_master_config' in body:
+            rmc = body['ranked_master_config']
+            update_vals['ranked_master_config'] = rmc if isinstance(rmc, str) else json.dumps(rmc) if rmc else ''
+        if 'ranked_detail_config' in body:
+            rdc = body['ranked_detail_config']
+            update_vals['ranked_detail_config'] = rdc if isinstance(rdc, str) else json.dumps(rdc) if rdc else ''
+
         if 'app_ids' in body and 'app_ids' in request.env['dashboard.widget.definition']._fields:
             update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]
 
@@ -895,6 +914,12 @@ class DesignerAPI(http.Controller):
                         if hasattr(defn, fld):
                             sync_vals[fld] = getattr(defn, fld) or (
                                 False if fld == 'search_enabled' else '')
+                    # Ranked Detail List v2 config sync
+                    if defn.chart_type == 'ranked_detail_list':
+                        for fld in ('ranked_master_config', 'ranked_detail_config',
+                                    'ranked_detail_sql', 'ranked_detail_key_column'):
+                            if hasattr(defn, fld):
+                                sync_vals[fld] = getattr(defn, fld) or ''
                     instances.write(sync_vals)
                     _logger.info(
                         'Synced definition %s (%s) → %d instance(s)',
@@ -1217,6 +1242,8 @@ class DesignerAPI(http.Controller):
                 'action_url_template': defn.action_url_template or '',
                 'column_link_config': defn.column_link_config or '',
                 'table_column_config': defn.table_column_config or '',
+                'ranked_master_config': (defn.ranked_master_config or '') if hasattr(defn, 'ranked_master_config') else '',
+                'ranked_detail_config': (defn.ranked_detail_config or '') if hasattr(defn, 'ranked_detail_config') else '',
                 'builder_config': defn.builder_config or '',
                 'query_type': 'sql',
                 'query_sql': defn.get_effective_sql() or '',

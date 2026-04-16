@@ -58,3 +58,13 @@ class DashboardWidgetActionMixin(models.AbstractModel):
              'including renderers, formatters, sorting, pinning, conditional '
              'formatting, and per-column click actions. Only used when '
              'chart_type is "table". Auto-populated by builder.')
+
+    # ── Ranked Detail List configs (v2 consolidated) ──────────────────────
+    ranked_master_config = fields.Text(
+        string='Ranked Master Layout (JSON)',
+        help='JSON describing the master row layout for ranked_detail_list '
+             'widgets. Produced by the Dashboard Builder.')
+    ranked_detail_config = fields.Text(
+        string='Ranked Detail Config (JSON)',
+        help='JSON describing the detail panel (row key, detail SQL, tiles, '
+             'sub-list) for ranked_detail_list widgets.')
