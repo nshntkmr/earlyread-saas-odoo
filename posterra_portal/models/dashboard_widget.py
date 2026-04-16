@@ -4152,11 +4152,6 @@ class DashboardWidget(models.Model):
         d_cols = [d[0] for d in self.env.cr.description]
         d_rows = self.env.cr.fetchall()
         return d_cols, d_rows
-        except Exception as exc:
-            _logger.warning(
-                'ranked_detail_list widget %s detail SQL error: %s',
-                self.id, exc)
-            return {'error': str(exc)}
 
     def _build_detail_tile(self, tile_config, cols, rows):
         """Build one detail-panel tile. Dispatches by tile type.
