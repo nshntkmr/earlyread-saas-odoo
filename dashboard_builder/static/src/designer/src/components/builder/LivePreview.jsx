@@ -242,7 +242,7 @@ export default function LivePreview({
           const cs = cfg.customSql || {}
           const ai = cfg.aiState || {}
           const optSql = cfg.dataMode === 'ai' ? (ai.generatedSql || '') : (cs.sql || '')
-          return {
+          const optPayload = {
             label: opt.label || '', value: opt.value || '', icon: opt.icon || '',
             sequence: (idx + 1) * 10, query_sql: optSql,
             table_column_config: cfg.tableColumnConfig?.length ? JSON.stringify(cfg.tableColumnConfig) : '',
@@ -251,6 +251,37 @@ export default function LivePreview({
             action_tab_key: cfg.actionTabKey || '', action_pass_value_as: cfg.actionPassValueAs || '',
             drill_detail_columns: cfg.drillDetailColumns || '', action_url_template: cfg.actionUrlTemplate || '',
           }
+          // Mode B: per-option ranked configs
+          if (
+            builderState.chartType === 'ranked_detail_list'
+            && builderState.scopeQueryMode === 'query'
+          ) {
+            if (cfg.masterRowConfig) {
+              optPayload.ranked_master_config = JSON.stringify(cfg.masterRowConfig)
+            }
+            if (cfg.detailConfig) {
+              // Strip internal test-only fields
+              const cleaned = { ...cfg.detailConfig }
+              delete cleaned._testResult
+              delete cleaned._testParams
+              if (Array.isArray(cleaned.tiles)) {
+                cleaned.tiles = cleaned.tiles.map(t => {
+                  const ct = { ...t }
+                  delete ct._testResult
+                  delete ct._testParams
+                  return ct
+                })
+              }
+              if (cleaned.sublist) {
+                const cs2 = { ...cleaned.sublist }
+                delete cs2._testResult
+                delete cs2._testParams
+                cleaned.sublist = cs2
+              }
+              optPayload.ranked_detail_config = JSON.stringify(cleaned)
+            }
+          }
+          return optPayload
         })
       }
 

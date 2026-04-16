@@ -341,6 +341,10 @@ export default function WidgetGrid({ initialWidgets }) {
     }
     if (w.chart_type === 'ranked_detail_list') {
       extraProps.widgetId = w.id
+      // Pass the active scope option id (Mode B) so detail fetches include it
+      if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
+        extraProps.scopeOptionId = scopeOptionIds[w.id]
+      }
     }
 
     // CSS Grid placement: column span from width, row span for tall widgets

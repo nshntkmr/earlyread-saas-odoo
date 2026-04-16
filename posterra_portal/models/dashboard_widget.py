@@ -3979,119 +3979,179 @@ class DashboardWidget(models.Model):
             'detail_sublist_config': v1_detail_sublist_config,
         }
 
-    def _execute_detail_sql(self, row_key_value, portal_ctx):
-        """Execute the detail SQL for one expanded row.
+    def _execute_detail_sql(self, row_key_value, portal_ctx, override_config=None):
+        """Execute the detail SQL(s) for one expanded row.
 
-        Prefers v2 consolidated config (ranked_detail_config), falls back
-        to v1 fields for backward compatibility.
+        Architecture:
+          - A SHARED `sql` at detail_config.sql level (optional)
+          - Each tile has an optional `sql` override → its own query
+          - Sub-list has an optional `sql` override → its own query
+          - Fallback chain: tile.sql → shared sql
+          - SQL text is cached: identical SQLs only execute once
+
+        Backward compat (v1): `ranked_detail_sql` field at widget level
+        serves as fallback when v2 `detail_config.sql` is empty.
+
+        Args:
+            row_key_value: value of the master row's key column (passed as
+                           %(row_key)s to detail SQL)
+            portal_ctx:    standard portal context dict
+            override_config: if provided (e.g., scope option's detail config),
+                           use this instead of widget's detail config. Used
+                           in Mode B so each scope option can have its own
+                           detail layout.
+
         Returns dict with tiles (ECharts/KPI data) + sub-list data.
         """
         self.ensure_one()
 
-        # v2 config takes precedence
-        detail_config = self._get_ranked_detail_config()
-        sql = (detail_config.get('sql') or self.ranked_detail_sql or '').strip()
-        if not sql:
+        # v2 config — override takes precedence (Mode B), else widget's config
+        if override_config is not None:
+            detail_config = override_config or {}
+        else:
+            detail_config = self._get_ranked_detail_config()
+
+        shared_sql = (detail_config.get('sql')
+                      or self.ranked_detail_sql or '').strip()
+
+        # Sub-list config
+        sublist_config = detail_config.get('sublist')
+        if not sublist_config:
+            try:
+                sublist_config = json.loads(
+                    self.ranked_detail_sublist_config or '{}') or {}
+            except (json.JSONDecodeError, TypeError):
+                sublist_config = {}
+
+        # Tiles config
+        tile_configs = detail_config.get('tiles') or []
+        if not tile_configs:
+            try:
+                tile_configs = json.loads(
+                    self.ranked_detail_chart_config or '[]') or []
+            except (json.JSONDecodeError, TypeError):
+                tile_configs = []
+
+        if not shared_sql and not any(tc.get('sql') for tc in tile_configs) \
+                and not (sublist_config.get('sql') or '').strip():
             return {'error': 'No detail SQL configured'}
 
-        sql_params = dict(portal_ctx.get('sql_params', {}))
-        sql_params['row_key'] = row_key_value
-
         try:
-            # Handle {where_clause}
-            if '{where_clause}' in sql:
-                from ..utils.filter_builder import DashboardFilterBuilder
-                source = (self.ranked_detail_schema_source_id
-                          or self.schema_source_id)
-                source_columns = {
-                    c.column_name for c in source.column_ids
-                } if source else None
-                exclude = [
-                    p.strip()
-                    for p in (self.where_clause_exclude or '').split(',')
-                    if p.strip()
-                ] or None
-                builder = DashboardFilterBuilder(
-                    user_params=sql_params,
-                    filter_defs=portal_ctx.get('_filter_defs', []),
-                    source_columns=source_columns,
-                    exclude_params=exclude,
-                )
-                where_sql, built_params = builder.build()
-                sql_params.update(built_params)
-                sql = sql.replace(
-                    '{where_clause}', sql_params.pop('_where_sql', '1=1'))
+            # Cache by SQL text — same query runs only once per expand
+            sql_cache = {}  # sql_text → (cols, rows)
 
-            # Handle [[...]] optional clauses
-            if '[[' in sql:
-                from ..utils.filter_builder import resolve_optional_clauses
-                sql = resolve_optional_clauses(sql, sql_params)
+            def _get_rows(sql_text):
+                """Fetch rows for the given SQL, caching by text."""
+                sql_text = (sql_text or '').strip()
+                if not sql_text:
+                    return ([], [])
+                if sql_text in sql_cache:
+                    return sql_cache[sql_text]
+                result = self._run_detail_query(
+                    sql_text, row_key_value, portal_ctx)
+                sql_cache[sql_text] = result
+                return result
 
-            # Safety check
-            sql_clean = re.sub(r'/\*.*?\*/', ' ', sql, flags=re.DOTALL)
-            sql_clean = re.sub(r'--[^\n]*', ' ', sql_clean)
-            first_word = (
-                sql_clean.strip().split()[0].upper()
-                if sql_clean.strip() else '')
-            if first_word not in ('SELECT', 'WITH'):
-                return {'error': 'Detail SQL must start with SELECT or WITH'}
+            # ── Build tiles ─────────────────────────────────────────────
+            tiles = []
+            for tc in tile_configs:
+                tile_own_sql = (tc.get('sql') or '').strip()
+                effective_sql = tile_own_sql or shared_sql
+                t_cols, t_rows = _get_rows(effective_sql)
+                tiles.append(
+                    self._build_detail_tile(tc, t_cols, t_rows))
 
-            # Fill missing params with None
-            safe_params = dict(sql_params)
-            for m in re.finditer(r'%\(([^)]+)\)s', sql):
-                if m.group(1) not in safe_params:
-                    safe_params[m.group(1)] = None
-
-            self.env.cr.execute(sql, safe_params)
-            d_cols = [d[0] for d in self.env.cr.description]
-            d_rows = self.env.cr.fetchall()
-
-            # Build tiles: v2 uses `tiles` array with type/column config;
-            # v1 legacy uses `ranked_detail_chart_config` (bar/line only)
-            tile_configs = detail_config.get('tiles') or []
-            if not tile_configs:
-                # v1 fallback
-                try:
-                    tile_configs = json.loads(
-                        self.ranked_detail_chart_config or '[]') or []
-                except (json.JSONDecodeError, TypeError):
-                    tile_configs = []
-
-            tiles = [
-                self._build_detail_tile(tc, d_cols, d_rows)
-                for tc in tile_configs
-            ]
-
-            # Build sub-list: v2 uses `detail_config.sublist`;
-            # v1 uses `ranked_detail_sublist_config`
-            sublist_config = detail_config.get('sublist')
-            if not sublist_config:
-                try:
-                    sublist_config = json.loads(
-                        self.ranked_detail_sublist_config or '{}') or {}
-                except (json.JSONDecodeError, TypeError):
-                    sublist_config = {}
+            # ── Build sub-list ──────────────────────────────────────────
+            sublist_own_sql = (sublist_config.get('sql') or '').strip()
+            sublist_effective_sql = sublist_own_sql or shared_sql
+            s_cols, s_rows = _get_rows(sublist_effective_sql)
 
             sublist_rows = [
-                {c: (v if v is not None else '') for c, v in zip(d_cols, r)}
-                for r in d_rows
+                {c: (v if v is not None else '') for c, v in zip(s_cols, r)}
+                for r in s_rows
             ]
             for i, srd in enumerate(sublist_rows):
                 srd['_rank'] = i + 1
 
             return {
-                'tiles': tiles,        # v2 preferred
-                'charts': tiles,       # v1 alias for backward compat
+                'tiles': tiles,
+                'charts': tiles,  # v1 alias for backward compat
                 'sublist': {
                     'title': sublist_config.get('title', ''),
-                    # v2: sublist has 'layout' + 'you' config
                     'layout': sublist_config.get('layout', {}),
                     'you': sublist_config.get('you', {}),
-                    # v1 fallback: columnDefs array
-                    'columnDefs': sublist_config.get('columns', []),
+                    'columnDefs': sublist_config.get('columns', []),  # v1 fallback
                     'rowData': sublist_rows,
                 },
             }
+        except Exception as exc:
+            _logger.warning(
+                'ranked_detail_list widget %s detail SQL error: %s',
+                self.id, exc)
+            return {'error': str(exc)}
+
+    def _run_detail_query(self, sql, row_key_value, portal_ctx):
+        """Execute one detail query (tilesSql or sublistSql).
+
+        Returns (cols, rows). Raises on SQL error.
+        Handles {where_clause}, [[...]] optional clauses, safety check.
+        """
+        self.ensure_one()
+        if not sql:
+            return [], []
+
+        sql = sql.strip()
+        sql_params = dict(portal_ctx.get('sql_params', {}))
+        sql_params['row_key'] = row_key_value
+
+        # Handle {where_clause}
+        if '{where_clause}' in sql:
+            from ..utils.filter_builder import DashboardFilterBuilder
+            source = (self.ranked_detail_schema_source_id
+                      or self.schema_source_id)
+            source_columns = {
+                c.column_name for c in source.column_ids
+            } if source else None
+            exclude = [
+                p.strip()
+                for p in (self.where_clause_exclude or '').split(',')
+                if p.strip()
+            ] or None
+            builder = DashboardFilterBuilder(
+                user_params=sql_params,
+                filter_defs=portal_ctx.get('_filter_defs', []),
+                source_columns=source_columns,
+                exclude_params=exclude,
+            )
+            where_sql, built_params = builder.build()
+            sql_params.update(built_params)
+            sql = sql.replace(
+                '{where_clause}', sql_params.pop('_where_sql', '1=1'))
+
+        # Handle [[...]] optional clauses
+        if '[[' in sql:
+            from ..utils.filter_builder import resolve_optional_clauses
+            sql = resolve_optional_clauses(sql, sql_params)
+
+        # Safety check
+        sql_clean = re.sub(r'/\*.*?\*/', ' ', sql, flags=re.DOTALL)
+        sql_clean = re.sub(r'--[^\n]*', ' ', sql_clean)
+        first_word = (
+            sql_clean.strip().split()[0].upper()
+            if sql_clean.strip() else '')
+        if first_word not in ('SELECT', 'WITH'):
+            raise ValueError('Detail SQL must start with SELECT or WITH')
+
+        # Fill missing params with None
+        safe_params = dict(sql_params)
+        for m in re.finditer(r'%\(([^)]+)\)s', sql):
+            if m.group(1) not in safe_params:
+                safe_params[m.group(1)] = None
+
+        self.env.cr.execute(sql, safe_params)
+        d_cols = [d[0] for d in self.env.cr.description]
+        d_rows = self.env.cr.fetchall()
+        return d_cols, d_rows
         except Exception as exc:
             _logger.warning(
                 'ranked_detail_list widget %s detail SQL error: %s',

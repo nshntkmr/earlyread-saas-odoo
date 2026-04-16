@@ -76,6 +76,23 @@ class DashboardWidgetScopeOption(models.Model):
     drill_detail_columns = fields.Char(string='Detail Columns')
     action_url_template = fields.Char(string='URL Template')
 
+    # ── Ranked Detail List per-option configs (Mode B — Different SQL Per Option)
+    # When the parent widget is chart_type='ranked_detail_list' and
+    # scope_query_mode='query', each scope option can have its own full
+    # layout: master row config + detail config. This lets FFS, MA, ALL tabs
+    # each show totally different column structures (e.g. FFS = hospitals,
+    # MA = health plans, ALL = aggregated metrics).
+    ranked_master_config = fields.Text(
+        string='Master Layout Config (JSON, per-option)',
+        help='v2 master row layout for this scope option when the widget '
+             'uses "Different SQL Per Option" mode. Overrides the widget-'
+             'level ranked_master_config when set.')
+    ranked_detail_config = fields.Text(
+        string='Detail Config (JSON, per-option)',
+        help='v2 detail config (row key, detail SQL, tiles, sub-list) for '
+             'this scope option when the widget uses "Different SQL Per '
+             'Option" mode. Overrides the widget-level ranked_detail_config.')
+
     # ── Computed ──────────────────────────────────────────────────────────────
 
     has_custom_sql = fields.Boolean(
@@ -193,6 +210,56 @@ class DashboardWidgetScopeOption(models.Model):
                 if col_config:
                     result['columnDefs'] = col_config
                 return result
+            elif widget.chart_type == 'ranked_detail_list':
+                # Ranked list (Mode B): option overrides master layout.
+                # Parse option's v2 configs; fall back to widget's if empty.
+                opt_master = {}
+                opt_detail = {}
+                try:
+                    opt_master = json.loads(self.ranked_master_config or '{}') or {}
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                try:
+                    opt_detail = json.loads(self.ranked_detail_config or '{}') or {}
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+                # Build rowData from this option's SQL result
+                row_data = [
+                    {c: (v if v is not None else '') for c, v in zip(cols, r)}
+                    for r in rows
+                ]
+                for i, rd in enumerate(row_data):
+                    rd['_rank'] = i + 1
+
+                # Use option's configs if present, else fall back to widget's
+                master_config = opt_master if opt_master else widget._get_ranked_master_config()
+                detail_config = opt_detail if opt_detail else widget._get_ranked_detail_config()
+                key_column = (
+                    detail_config.get('rowKey')
+                    or widget.ranked_detail_key_column
+                    or ''
+                )
+                has_detail = bool(
+                    (detail_config.get('sql')
+                     or widget.ranked_detail_sql or '').strip()
+                    or any(t.get('sql') for t in (detail_config.get('tiles') or []))
+                    or ((detail_config.get('sublist') or {}).get('sql') or '').strip()
+                )
+
+                return {
+                    'type': 'ranked_detail_list',
+                    'rowData': row_data,
+                    'row_count': len(rows),
+                    'key_column': key_column,
+                    'has_detail': has_detail,
+                    'master_config': master_config,
+                    'detail_config': detail_config,
+                    # v1 legacy (empty when v2 config is used)
+                    'columnDefs': [],
+                    'detail_chart_config': [],
+                    'detail_sublist_config': {},
+                }
             elif widget.chart_type not in ('table',) and (self.x_column or self.y_columns):
                 # Chart with per-option column mapping — override x/y/series
                 # Temporarily set widget columns to option's columns for formatting

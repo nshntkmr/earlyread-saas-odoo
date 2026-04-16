@@ -554,7 +554,10 @@ class PosterraWidgetAPI(http.Controller):
         """Return detail data for one expanded row of a ranked_detail_list.
 
         Query parameters:
-            row_key  — primary key value of the expanded master row
+            row_key           — primary key value of the expanded master row
+            _scope_option_id  — optional; Mode B scope option id. When set,
+                                the option's ranked_detail_config overrides
+                                the widget's.
             (plus standard page filter params)
         """
         if request.httprequest.method == 'OPTIONS':
@@ -565,6 +568,9 @@ class PosterraWidgetAPI(http.Controller):
         except ValueError as exc:
             return _json_error(401, str(exc))
 
+        _scope_option_id = kw.pop('_scope_option_id', None)
+        row_key = kw.pop('row_key', '')
+
         widget = request.env['dashboard.widget'].sudo().browse(widget_id)
         if not widget.exists() or not widget.is_active:
             return _json_error(404, f'Widget {widget_id} not found')
@@ -573,7 +579,6 @@ class PosterraWidgetAPI(http.Controller):
         if widget.chart_type != 'ranked_detail_list':
             return _json_error(400, 'Widget is not a ranked_detail_list')
 
-        row_key = kw.pop('row_key', '')
         if not row_key:
             return _json_error(400, 'row_key parameter is required')
 
@@ -582,7 +587,25 @@ class PosterraWidgetAPI(http.Controller):
         except Exception as exc:
             return _json_error(500, f'Context build error: {exc}')
 
-        detail_data = widget._execute_detail_sql(row_key, portal_ctx)
+        # Mode B: use option's detail_config instead of widget's
+        override_config = None
+        if _scope_option_id and widget.scope_query_mode == 'query':
+            try:
+                opt = request.env['dashboard.widget.scope.option'].sudo().browse(
+                    int(_scope_option_id))
+                if (opt.exists() and opt.widget_id.id == widget.id
+                        and opt.is_active and opt.ranked_detail_config):
+                    import json as _json_mod
+                    try:
+                        override_config = _json_mod.loads(
+                            opt.ranked_detail_config or '{}') or {}
+                    except (ValueError, TypeError):
+                        override_config = None
+            except (ValueError, TypeError):
+                override_config = None
+
+        detail_data = widget._execute_detail_sql(
+            row_key, portal_ctx, override_config=override_config)
 
         return _json_response({
             'widget_id': widget.id,
