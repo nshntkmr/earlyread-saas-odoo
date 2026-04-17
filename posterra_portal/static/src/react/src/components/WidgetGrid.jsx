@@ -14,7 +14,7 @@ import InsightPanel from './widgets/InsightPanel'
 import KPIStrip    from './widgets/KPIStrip'
 import GaugeRouter from './widgets/GaugeRouter'
 import KpiRouter   from './widgets/KpiRouter'
-import RankedDetailList from './widgets/RankedDetailList'
+import UniversalTable from './widgets/UniversalTable'
 
 // Lazy-load MapWidget to avoid 600KB+ MapLibre bundle on non-map pages
 const MapWidget = React.lazy(() => import('./widgets/MapWidget'))
@@ -43,7 +43,7 @@ function resolveWidget(chartType) {
     case 'insight_panel':return InsightPanel
     case 'kpi_strip':   return KpiRouter
     case 'map':          return MapWidget
-    case 'ranked_detail_list': return RankedDetailList
+    case 'ranked_detail_list': return UniversalTable
     default:             return KPICard   // safe fallback
   }
 }
@@ -341,6 +341,9 @@ export default function WidgetGrid({ initialWidgets }) {
     }
     if (w.chart_type === 'ranked_detail_list') {
       extraProps.widgetId = w.id
+      if (w.search && searchTexts[w.id]) {
+        extraProps.searchText = searchTexts[w.id]
+      }
       // Pass the active scope option id (Mode B) so detail fetches include it
       if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
         extraProps.scopeOptionId = scopeOptionIds[w.id]
