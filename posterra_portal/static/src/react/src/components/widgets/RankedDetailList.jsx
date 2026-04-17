@@ -1,285 +1,189 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
-import * as echarts from 'echarts'
+import React, { useState, useCallback, useEffect } from 'react'
+import {
+  Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell,
+  Badge, ProgressBar, Card, Metric, Text, Title, Subtitle,
+  BarChart, LineChart, AreaChart, SparkAreaChart, SparkLineChart,
+  Flex, Grid, Col,
+} from '@tremor/react'
 import { useFilters } from '../../state/FilterContext'
 import { apiFetch } from '../../api/client'
 import { widgetDetailUrl } from '../../api/endpoints'
-import { CELL_RENDERERS } from '@posterra/grid-utils'
 
 /**
- * RankedDetailList (v2)
+ * RankedDetailList (v3 — Tremor)
  *
- * A ranked list widget where each row can expand inline to show detail
- * tiles (bar/line/KPI) and a nested sub-list.
+ * A ranked list widget rendered with Tremor components. Each row can expand
+ * inline to show detail tiles (bar/line/KPI via Tremor charts) and a nested
+ * sub-list (also Tremor Table).
  *
- * Supports two config formats:
- *   v2 (preferred): consolidated master_config + detail_config (built by
- *       the Dashboard Builder — all element toggles, column refs, tiles,
- *       sub-list layout, YOU indicator, inline charts)
- *   v1 (legacy): AG Grid columnDefs arrays + separate detail_chart_config
- *       + detail_sublist_config (kept for backward compat)
+ * Supports v2 config (master_config + detail_config from Dashboard Builder)
+ * and v1 legacy (columnDefs arrays).
  *
  * Props:
- *   data     — { rowData, key_column, has_detail, master_config,
- *               detail_config, columnDefs, detail_chart_config,
- *               detail_sublist_config }
- *   height   — optional max height (enables scrolling)
- *   name     — widget title
- *   widgetId — widget ID (for detail API calls)
+ *   data      — { rowData, key_column, has_detail, master_config, detail_config, columnDefs }
+ *   height    — optional max height (enables scrolling)
+ *   name      — widget title
+ *   widgetId  — widget ID (for detail API calls)
+ *   scopeOptionId — optional Mode B scope option id
  */
 
-// ── Embedded ECharts tile ─────────────────────────────────────────────
-function MiniChart({ option, height = 200 }) {
-  const ref = useRef(null)
-  const chartRef = useRef(null)
-
-  useEffect(() => {
-    if (!ref.current) return
-    chartRef.current = echarts.init(ref.current, null, { renderer: 'canvas' })
-    chartRef.current.setOption(option, { notMerge: true })
-
-    const onResize = () => chartRef.current?.resize()
-    window.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    if (chartRef.current && option) {
-      chartRef.current.setOption(option, { notMerge: true })
-    }
-  }, [option])
-
-  return <div ref={ref} style={{ width: '100%', height }} />
-}
-
-// ── KPI tile (simple card; reuses the visual style of KPICard) ───────
-function KpiTile({ data }) {
-  if (!data) return null
-  const type = data.type || 'kpi'
-
-  if (type === 'kpi_strip') {
-    return (
-      <div className="pv-ranked-kpi-strip">
-        {(data.items || []).map((it, i) => (
-          <div key={i} className="pv-ranked-kpi-strip-item">
-            <div className="pv-ranked-kpi-strip-value">{it.value}</div>
-            <div className="pv-ranked-kpi-strip-label">{it.label}</div>
-          </div>
-        ))}
-      </div>
-    )
+// ── Sparkline helper (parses JSON array or CSV) ──────────────────────
+function parseSparkData(raw) {
+  if (!raw) return null
+  let arr = raw
+  if (typeof raw === 'string') {
+    try { arr = JSON.parse(raw) } catch { arr = raw.split(',').map(Number) }
   }
-
-  // status_kpi (RAG) or basic kpi
-  const statusClass = data.status_val
-    ? `pv-ranked-kpi-tile--${data.status_val}`
-    : ''
-  return (
-    <div className={`pv-ranked-kpi-tile ${statusClass}`}>
-      <div className="pv-ranked-kpi-value">
-        {data.kpi_prefix}{data.formatted_value}{data.kpi_suffix}
-      </div>
-      <div className="pv-ranked-kpi-label">{data.label}</div>
-    </div>
-  )
+  if (!Array.isArray(arr) || arr.length < 2) return null
+  return arr.map((v, i) => ({ i: String(i), v: Number(v) || 0 }))
 }
 
-// ── Cell-renderer helper (invokes shared CELL_RENDERERS) ──────────────
-function CellValue({ rendererName, row, field, rendererParams }) {
-  const value = field ? row[field] : null
-  if (rendererName && CELL_RENDERERS[rendererName]) {
-    const Renderer = CELL_RENDERERS[rendererName]
-    const params = {
-      value, data: row,
-      colDef: { field, cellRendererParams: rendererParams || {} },
-    }
-    return <Renderer params={params} />
-  }
-  if (value === null || value === undefined || value === '') return null
-  return <span>{String(value)}</span>
-}
-
-// ── Number formatter (shared across master + sublist rows) ────────────
-function formatNumber(val, fmt) {
+// ── Number formatter ─────────────────────────────────────────────────
+function fmt(val, cfg) {
   if (val === null || val === undefined || val === '') return ''
   const n = Number(val)
   if (isNaN(n)) return String(val)
-  const decimals = fmt?.decimals ?? 0
-  const prefix = fmt?.prefix ?? ''
-  const suffix = fmt?.suffix ?? ''
-  if (fmt?.format === 'percentage') {
-    const mult = fmt.multiply === false ? 1 : 1 // admin SQL usually pre-computes
-    return prefix + (n * mult).toFixed(decimals) + '%' + suffix
+  const d = cfg?.decimals ?? 0
+  const p = cfg?.prefix ?? ''
+  const s = cfg?.suffix ?? ''
+  if (cfg?.format === 'percentage') return p + n.toFixed(d) + '%' + s
+  if (cfg?.format === 'currency') {
+    return p + '$' + n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) + s
   }
-  if (fmt?.format === 'currency') {
-    return prefix + '$' + n.toLocaleString('en-US', {
-      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
-    }) + suffix
-  }
-  return prefix + n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
-  }) + suffix
+  return p + n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) + s
 }
 
-// ── Shared row renderer (used for master rows AND sublist rows) ───────
-// Renders a single row based on the layout config (v2 master_config shape).
-// `isYou` forces YOU styling regardless of layout.
-function LayoutRow({ layout, row, rankNum, onNavigate, onExternalLink, onToggle,
-                    isExpanded, isYou, youColor, peerColor, showProgressBar,
-                    sharePctField }) {
-  if (!layout) return null
+// ── Badge color map for Tremor ───────────────────────────────────────
+function badgeColor(hexOrName) {
+  if (!hexOrName) return 'gray'
+  const map = {
+    '#10b981': 'emerald', '#059669': 'emerald', '#22c55e': 'green',
+    '#3b82f6': 'blue', '#6366f1': 'indigo', '#8b5cf6': 'violet',
+    '#f59e0b': 'amber', '#f97316': 'orange', '#ef4444': 'red',
+    '#ec4899': 'pink', '#14b8a6': 'teal', '#0d9488': 'teal',
+  }
+  return map[hexOrName?.toLowerCase()] || 'gray'
+}
 
-  const rankCfg = layout.rank || {}
-  const badgeCfg = layout.badge || {}
-  const subtitleCfg = layout.subtitle || {}
-  const sparklineCfg = layout.sparkline || {}
-  const inlineCfg = layout.inlineChart || {}
-  const primaryCfg = layout.primaryMetric || {}
-  const secondaryCfg = layout.secondaryMetric || {}
-  const navCfg = layout.navigationArrow || {}
-  const linkCfg = layout.externalLink || {}
-  const expandCfg = layout.expandChevron || {}
-  const nameCol = layout.name?.column
+// ── Tile chart types → Tremor component ──────────────────────────────
+function TileChart({ tile }) {
+  if (!tile) return null
+  const tt = (tile.tile_type || tile.type || 'bar').toLowerCase()
 
-  const rankDisplay = rankCfg.enabled !== false
-    ? (rankCfg.style === 'medal' && rankNum <= 3
-        ? ['\u{1F947}', '\u{1F948}', '\u{1F949}'][rankNum - 1]
-        : rankNum)
-    : null
+  // KPI tiles
+  if (tt.startsWith('kpi')) {
+    const kpi = tile.kpi_data || tile
+    return (
+      <Card className="p-4">
+        <Text>{kpi.label || tile.title || ''}</Text>
+        <Metric className="mt-1">
+          {kpi.kpi_prefix || ''}{kpi.formatted_value || ''}{kpi.kpi_suffix || ''}
+        </Metric>
+      </Card>
+    )
+  }
 
-  const primaryVal = formatNumber(row[primaryCfg.column], primaryCfg)
-  const secondaryVal = secondaryCfg.enabled !== false && secondaryCfg.column
-    ? formatNumber(row[secondaryCfg.column], secondaryCfg)
-    : null
+  // Chart tiles — extract data from echart_option
+  const opt = tile.echart_option
+  if (!opt) return <Card className="p-4"><Text className="text-gray-400">No data</Text></Card>
 
-  const sharePct = showProgressBar && sharePctField
-    ? Number(row[sharePctField]) || 0
-    : null
-  const barColor = isYou ? (youColor || '#10b981') : (peerColor || '#f59e0b')
+  const xData = opt.xAxis?.data || []
+  const series = opt.series || []
+  if (!xData.length || !series.length) {
+    return <Card className="p-4"><Text className="text-gray-400">No data</Text></Card>
+  }
 
+  // Build Tremor-compatible data array
+  const chartData = xData.map((x, i) => {
+    const point = { x: String(x) }
+    series.forEach(s => {
+      const key = s.name || tile.title || 'value'
+      point[key] = s.data?.[i] ?? 0
+    })
+    return point
+  })
+  const categories = series.map(s => s.name || tile.title || 'value')
+  const colors = series.map(s => {
+    const c = s.itemStyle?.color || s.lineStyle?.color || '#0d9488'
+    return badgeColor(c) || 'teal'
+  })
+
+  const showLabels = opt.series?.[0]?.label?.show !== false
+
+  if (tt.includes('area') || tt === 'line_area' || tt === 'line_stacked_area') {
+    return (
+      <Card className="p-4">
+        <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          {tile.title || ''}
+        </Title>
+        <AreaChart
+          data={chartData}
+          index="x"
+          categories={categories}
+          colors={colors}
+          showLegend={false}
+          showAnimation={true}
+          valueFormatter={(v) => v.toLocaleString()}
+          className="h-44"
+          stack={tt.includes('stacked')}
+        />
+      </Card>
+    )
+  }
+  if (tt.includes('line')) {
+    return (
+      <Card className="p-4">
+        <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          {tile.title || ''}
+        </Title>
+        <LineChart
+          data={chartData}
+          index="x"
+          categories={categories}
+          colors={colors}
+          showLegend={false}
+          showAnimation={true}
+          valueFormatter={(v) => v.toLocaleString()}
+          className="h-44"
+        />
+      </Card>
+    )
+  }
+  // Default: bar
   return (
-    <div
-      className={`pv-ranked-row${isExpanded ? ' pv-ranked-row--expanded' : ''}${isYou ? ' pv-ranked-row--you' : ''}`}
-    >
-      {rankDisplay !== null && (
-        <div className="pv-ranked-row-rank">{rankDisplay}</div>
-      )}
-
-      <div className="pv-ranked-row-body">
-        <div className="pv-ranked-row-primary">
-          <span className="pv-ranked-row-name">
-            {nameCol ? row[nameCol] : ''}
-          </span>
-          {isYou && (
-            <span
-              className="pv-ranked-you-badge"
-              style={{ backgroundColor: youColor || '#10b981' }}
-            >YOU</span>
-          )}
-          {badgeCfg.enabled && (() => {
-            const badgeText = badgeCfg.source === 'static'
-              ? badgeCfg.text
-              : (badgeCfg.column ? row[badgeCfg.column] : '')
-            if (!badgeText) return null
-            return (
-              <span
-                className="pv-ranked-row-badge"
-                style={badgeCfg.color ? { backgroundColor: badgeCfg.color } : undefined}
-              >{badgeText}</span>
-            )
-          })()}
-        </div>
-        {subtitleCfg.enabled && subtitleCfg.column && row[subtitleCfg.column] && (
-          <div className="pv-ranked-row-subtitle">{row[subtitleCfg.column]}</div>
-        )}
-        {showProgressBar && sharePct !== null && (
-          <div className="pv-ranked-row-progress">
-            <div
-              className="pv-ranked-row-progress-bar"
-              style={{ width: `${Math.min(100, Math.max(0, sharePct))}%`, backgroundColor: barColor }}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="pv-ranked-row-meta">
-        {sparklineCfg.enabled && sparklineCfg.column && (
-          <CellValue
-            rendererName="sparkline"
-            row={row}
-            field={sparklineCfg.column}
-            rendererParams={{
-              variant: sparklineCfg.variant || 'line',
-              color: sparklineCfg.color || 'auto',
-            }}
-          />
-        )}
-        {inlineCfg.enabled && inlineCfg.column && (
-          <CellValue
-            rendererName="inlineChart"
-            row={row}
-            field={inlineCfg.column}
-            rendererParams={{
-              type: inlineCfg.type || 'bar',
-              size: inlineCfg.size || 'small',
-              color: inlineCfg.color,
-            }}
-          />
-        )}
-        {primaryCfg.column && (
-          <span className="pv-ranked-row-metric">
-            <strong>{primaryVal}</strong>
-            {secondaryVal && (
-              <span className="pv-ranked-row-secondary">{secondaryVal}</span>
-            )}
-          </span>
-        )}
-      </div>
-
-      <div className="pv-ranked-row-actions">
-        {navCfg.enabled && onNavigate && (
-          <button
-            className="pv-ranked-action-btn"
-            title="View details"
-            onClick={onNavigate}
-          ><i className="fa fa-arrow-right" /></button>
-        )}
-        {linkCfg.enabled && onExternalLink && (
-          <button
-            className="pv-ranked-action-btn"
-            title="External link"
-            onClick={onExternalLink}
-          ><i className="fa fa-external-link" /></button>
-        )}
-        {expandCfg.enabled && onToggle && (
-          <button
-            className="pv-ranked-action-btn"
-            title={isExpanded ? 'Collapse' : 'Expand'}
-            onClick={onToggle}
-          ><i className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`} /></button>
-        )}
-      </div>
-    </div>
+    <Card className="p-4">
+      <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+        {tile.title || ''}
+      </Title>
+      <BarChart
+        data={chartData}
+        index="x"
+        categories={categories}
+        colors={colors}
+        showLegend={false}
+        showAnimation={true}
+        valueFormatter={(v) => v.toLocaleString()}
+        className="h-44"
+        stack={tt.includes('stacked')}
+      />
+    </Card>
   )
 }
 
-// ── Detail panel ───────────────────────────────────────────────────────
+// ── Detail panel (tiles + sub-list) ──────────────────────────────────
 function DetailPanel({ detailData, sublistLayout, youConfig }) {
   if (!detailData || detailData === 'loading') {
     return (
-      <div className="pv-ranked-detail pv-ranked-detail--loading">
+      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 text-gray-500 text-sm">
         <span className="spinner-border spinner-border-sm me-2" />
-        Loading details…
+        Loading details...
       </div>
     )
   }
   if (detailData.error) {
     return (
-      <div className="pv-ranked-detail pv-ranked-detail--error">
-        <small className="text-danger">{detailData.error}</small>
+      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+        <Text color="red">{detailData.error}</Text>
       </div>
     )
   }
@@ -287,215 +191,290 @@ function DetailPanel({ detailData, sublistLayout, youConfig }) {
   const tiles = detailData.tiles || detailData.charts || []
   const sublist = detailData.sublist || {}
   const rows = sublist.rowData || []
-
-  // Prefer v2 sublist layout; fall back to legacy columnDefs.
-  const effectiveLayout = sublistLayout
-    || (sublist.layout && Object.keys(sublist.layout).length ? sublist.layout : null)
-
+  const layout = sublistLayout || sublist.layout || null
   const youEnabled = youConfig?.enabled && youConfig.column
   const youColumn = youConfig?.column
-  const showProgressBar = youConfig?.showProgressBar !== false
-  const sharePctField = effectiveLayout?.secondaryMetric?.column
+  const showBar = youConfig?.showProgressBar !== false
 
   return (
-    <div className="pv-ranked-detail">
+    <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
+      {/* Tiles */}
       {tiles.length > 0 && (
-        <div
-          className="pv-ranked-detail-tiles"
-          style={{ gridTemplateColumns: `repeat(${Math.min(tiles.length, 3)}, 1fr)` }}
-        >
+        <Grid numItems={Math.min(tiles.length, 3)} className="gap-4 mb-4">
           {tiles.map((t, i) => (
-            <div key={i} className="pv-ranked-detail-tile-card">
-              {t.tile_type && t.tile_type.startsWith('kpi')
-                ? <KpiTile data={t.kpi_data} />
-                : <MiniChart option={t.echart_option} height={180} />
-              }
-            </div>
+            <Col key={i}>
+              <TileChart tile={t} />
+            </Col>
           ))}
-        </div>
+        </Grid>
       )}
 
+      {/* Sub-list */}
       {rows.length > 0 && (
-        <div className="pv-ranked-detail-sublist">
+        <div>
           {sublist.title && (
-            <div className="pv-ranked-detail-sublist-title">{sublist.title}</div>
+            <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 mt-2">
+              {sublist.title}
+            </Title>
           )}
-          {effectiveLayout
-            ? rows.map((sr, i) => {
+          <Table className="mt-2">
+            <TableBody>
+              {rows.map((sr, i) => {
                 const isYou = youEnabled && Number(sr[youColumn]) === 1
+                const nameCol = layout?.name?.column
+                const subtitleCol = layout?.subtitle?.enabled && layout.subtitle.column
+                const sparkCol = layout?.sparkline?.enabled && layout.sparkline.column
+                const metricCol = layout?.primaryMetric?.column
+                const secCol = layout?.secondaryMetric?.enabled && layout.secondaryMetric.column
+                const sharePct = secCol ? Number(sr[secCol]) || 0 : 0
+
                 return (
-                  <LayoutRow
-                    key={i}
-                    layout={effectiveLayout}
-                    row={sr}
-                    rankNum={i + 1}
-                    isYou={isYou}
-                    youColor={youConfig?.youColor}
-                    peerColor={youConfig?.peerColor}
-                    showProgressBar={youEnabled && showProgressBar}
-                    sharePctField={sharePctField}
-                  />
+                  <TableRow key={i} className={isYou ? 'bg-emerald-50' : ''}>
+                    {/* Rank */}
+                    <TableCell className="w-10 text-center text-gray-400 font-medium">
+                      {i + 1}
+                    </TableCell>
+
+                    {/* Name + subtitle + progress bar */}
+                    <TableCell>
+                      <Flex justifyContent="start" alignItems="center" className="gap-2">
+                        <Text className="font-semibold text-gray-900">
+                          {nameCol ? sr[nameCol] : ''}
+                        </Text>
+                        {isYou && <Badge color="emerald" size="xs">YOU</Badge>}
+                      </Flex>
+                      {subtitleCol && sr[subtitleCol] && (
+                        <Text className="text-xs text-gray-400 mt-0.5">{sr[subtitleCol]}</Text>
+                      )}
+                      {youEnabled && showBar && (
+                        <ProgressBar
+                          value={Math.min(100, Math.max(0, sharePct))}
+                          color={isYou ? 'emerald' : 'amber'}
+                          className="mt-1.5"
+                        />
+                      )}
+                    </TableCell>
+
+                    {/* Sparkline */}
+                    {sparkCol && (
+                      <TableCell className="w-20">
+                        {(() => {
+                          const d = parseSparkData(sr[sparkCol])
+                          if (!d) return null
+                          const trend = d[d.length - 1].v >= d[0].v
+                          return (
+                            <SparkAreaChart
+                              data={d}
+                              index="i"
+                              categories={['v']}
+                              colors={[trend ? 'emerald' : 'red']}
+                              className="h-6 w-16"
+                            />
+                          )
+                        })()}
+                      </TableCell>
+                    )}
+
+                    {/* Metric + secondary */}
+                    <TableCell className="text-right w-24">
+                      <Text className="font-bold text-gray-900">
+                        {metricCol ? fmt(sr[metricCol], layout?.primaryMetric) : ''}
+                      </Text>
+                      {secCol && (
+                        <Text className="text-xs text-gray-400">
+                          {fmt(sr[secCol], layout?.secondaryMetric)}
+                        </Text>
+                      )}
+                    </TableCell>
+                  </TableRow>
                 )
-              })
-            : rows.map((sr, i) => (
-                // v1 legacy fallback: render columnDefs-style rows as a simple
-                // composite row with name + raw cells
-                <div key={i} className="pv-ranked-subrow">
-                  <div className="pv-ranked-row-rank">{i + 1}</div>
-                  <div className="pv-ranked-row-body">
-                    {(sublist.columnDefs || []).map((col, j) => (
-                      <CellValue
-                        key={col.field || j}
-                        rendererName={col.cellRenderer}
-                        row={sr}
-                        field={col.field}
-                        rendererParams={col.cellRendererParams}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))
-          }
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
   )
 }
 
-// ── Main component ─────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────
 export default function RankedDetailList({ data, height, name, widgetId, scopeOptionId }) {
   const { filterValues, accessToken, refreshToken, apiBase } = useFilters()
   const [expandedRows, setExpandedRows] = useState({})
 
-  // When scope option changes, clear expanded rows (layout may differ per option)
-  useEffect(() => {
-    setExpandedRows({})
-  }, [scopeOptionId])
+  useEffect(() => { setExpandedRows({}) }, [scopeOptionId])
 
   const {
     rowData = [],
     key_column: keyColumn = '',
     has_detail: hasDetail = false,
-    master_config: masterConfig = {},
-    detail_config: detailConfig = {},
-    columnDefs = [],
+    master_config: mc = {},
+    detail_config: dc = {},
   } = data || {}
 
-  const useV2Layout = masterConfig && Object.keys(masterConfig).length > 0
+  const rankCfg = mc.rank || {}
+  const badgeCfg = mc.badge || {}
+  const subtitleCfg = mc.subtitle || {}
+  const sparklineCfg = mc.sparkline || {}
+  const primaryCfg = mc.primaryMetric || {}
+  const secondaryCfg = mc.secondaryMetric || {}
+  const navCfg = mc.navigationArrow || {}
+  const expandCfg = mc.expandChevron || {}
+  const nameCol = mc.name?.column
 
-  const toggleRow = useCallback(async (keyValue) => {
-    if (expandedRows[keyValue] && expandedRows[keyValue] !== 'loading') {
-      setExpandedRows(prev => {
-        const next = { ...prev }
-        delete next[keyValue]
-        return next
-      })
+  const toggleRow = useCallback(async (kv) => {
+    if (expandedRows[kv] && expandedRows[kv] !== 'loading') {
+      setExpandedRows(prev => { const n = { ...prev }; delete n[kv]; return n })
       return
     }
-    setExpandedRows(prev => ({ ...prev, [keyValue]: 'loading' }))
+    setExpandedRows(prev => ({ ...prev, [kv]: 'loading' }))
     try {
       const wid = widgetId || data?.id
       if (!wid) return
-      // Include scope option id so Mode B uses the option's detail_config
       const params = { ...filterValues }
       if (scopeOptionId) params._scope_option_id = scopeOptionId
-      const url = widgetDetailUrl(apiBase, wid, keyValue, params)
+      const url = widgetDetailUrl(apiBase, wid, kv, params)
       const result = await apiFetch(url, accessToken, {}, refreshToken)
-      setExpandedRows(prev => ({ ...prev, [keyValue]: result }))
+      setExpandedRows(prev => ({ ...prev, [kv]: result }))
     } catch (err) {
-      setExpandedRows(prev => ({
-        ...prev,
-        [keyValue]: { error: err.message || 'Failed to load' }
-      }))
+      setExpandedRows(prev => ({ ...prev, [kv]: { error: err.message || 'Failed' } }))
     }
-  }, [expandedRows, widgetId, data?.id, apiBase, filterValues, accessToken, refreshToken])
+  }, [expandedRows, widgetId, data?.id, apiBase, filterValues, accessToken, refreshToken, scopeOptionId])
 
-  const handleNavigate = useCallback((keyValue) => {
-    // Prefer v2 master_config action config; fall back to first column's action
-    // (legacy). v2 action details are stored alongside — but currently the
-    // actual target-page/param live at the widget level (click_action on
-    // the widget record). React receives them via the widget wrapper.
-    // For now we simply update the URL query param with the key column.
+  const handleNavigate = useCallback((kv) => {
     const url = new URL(window.location)
-    if (keyColumn && keyValue) {
-      url.searchParams.set(keyColumn, keyValue)
-    }
+    if (keyColumn && kv) url.searchParams.set(keyColumn, kv)
     window.location.href = url.toString()
   }, [keyColumn])
 
   if (!rowData.length) {
-    return (
-      <div className="pv-ranked-list pv-ranked-list--empty">
-        <p className="text-muted text-center py-4">No data available</p>
-      </div>
-    )
+    return <Card className="p-8 text-center"><Text className="text-gray-400">No data available</Text></Card>
   }
 
-  // Sub-list layout + YOU config (from detail_config)
-  const sublistLayout = detailConfig?.sublist?.layout || null
-  const youConfig = detailConfig?.sublist?.you || null
+  const sublistLayout = dc?.sublist?.layout || null
+  const youConfig = dc?.sublist?.you || null
 
   return (
-    <div
-      className="pv-ranked-list"
-      style={height ? { maxHeight: height, overflowY: 'auto' } : undefined}
-    >
-      {rowData.map((row) => {
-        const kv = row[keyColumn] || row._rank
-        const isExpanded = !!expandedRows[kv]
-        return (
-          <React.Fragment key={kv}>
-            {useV2Layout ? (
-              <LayoutRow
-                layout={masterConfig}
-                row={row}
-                rankNum={row._rank}
-                isExpanded={isExpanded}
-                onNavigate={masterConfig.navigationArrow?.enabled ? () => handleNavigate(kv) : null}
-                onExternalLink={masterConfig.externalLink?.enabled ? () => {
-                  const tmpl = masterConfig.externalLink.urlTemplate
-                  const col = masterConfig.externalLink.column
-                  const url = col ? row[col] : (tmpl ? tmpl.replace('{value}', kv) : '')
-                  if (url) window.open(url, '_blank', 'noopener,noreferrer')
-                } : null}
-                onToggle={(hasDetail && masterConfig.expandChevron?.enabled !== false) ? () => toggleRow(kv) : null}
-              />
-            ) : (
-              // v1 fallback: legacy columnDefs rendering
-              <div className={`pv-ranked-row${isExpanded ? ' pv-ranked-row--expanded' : ''}`}>
-                <div className="pv-ranked-row-rank">{row._rank}</div>
-                <div className="pv-ranked-row-body">
-                  {columnDefs.map((col, i) => (
-                    <CellValue
-                      key={col.field || i}
-                      rendererName={col.cellRenderer}
-                      row={row}
-                      field={col.field}
-                      rendererParams={col.cellRendererParams}
-                    />
-                  ))}
-                </div>
-                <div className="pv-ranked-row-actions">
-                  {hasDetail && (
-                    <button
-                      className="pv-ranked-action-btn"
-                      onClick={() => toggleRow(kv)}
-                      title={isExpanded ? 'Collapse' : 'Expand'}
-                    ><i className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`} /></button>
+    <div style={height ? { maxHeight: height, overflowY: 'auto' } : undefined}>
+      <Table>
+        <TableBody>
+          {rowData.map(row => {
+            const kv = row[keyColumn] || row._rank
+            const isExpanded = !!expandedRows[kv]
+
+            return (
+              <React.Fragment key={kv}>
+                <TableRow
+                  className={`cursor-default transition-colors ${isExpanded ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'}`}
+                >
+                  {/* Rank */}
+                  {rankCfg.enabled !== false && (
+                    <TableCell className="w-10 text-center font-medium text-gray-400">
+                      {rankCfg.style === 'medal' && row._rank <= 3
+                        ? ['\u{1F947}', '\u{1F948}', '\u{1F949}'][row._rank - 1]
+                        : row._rank}
+                    </TableCell>
                   )}
-                </div>
-              </div>
-            )}
-            {isExpanded && (
-              <DetailPanel
-                detailData={expandedRows[kv]}
-                sublistLayout={sublistLayout}
-                youConfig={youConfig}
-              />
-            )}
-          </React.Fragment>
-        )
-      })}
+
+                  {/* Name + badge + subtitle */}
+                  <TableCell>
+                    <Flex justifyContent="start" alignItems="center" className="gap-2">
+                      <Text className="font-semibold text-gray-900">
+                        {nameCol ? row[nameCol] : ''}
+                      </Text>
+                      {badgeCfg.enabled && (() => {
+                        const t = badgeCfg.source === 'static'
+                          ? badgeCfg.text
+                          : (badgeCfg.column ? row[badgeCfg.column] : '')
+                        return t ? <Badge color={badgeColor(badgeCfg.color)} size="xs">{t}</Badge> : null
+                      })()}
+                    </Flex>
+                    {subtitleCfg.enabled && subtitleCfg.column && row[subtitleCfg.column] && (
+                      <Text className="text-xs text-gray-400 mt-0.5">{row[subtitleCfg.column]}</Text>
+                    )}
+                  </TableCell>
+
+                  {/* Sparkline */}
+                  {sparklineCfg.enabled && sparklineCfg.column && (
+                    <TableCell className="w-20">
+                      {(() => {
+                        const d = parseSparkData(row[sparklineCfg.column])
+                        if (!d) return null
+                        const trend = d[d.length - 1].v >= d[0].v
+                        return (
+                          <SparkAreaChart
+                            data={d}
+                            index="i"
+                            categories={['v']}
+                            colors={[trend ? 'emerald' : 'red']}
+                            className="h-6 w-16"
+                          />
+                        )
+                      })()}
+                    </TableCell>
+                  )}
+
+                  {/* Primary metric + secondary */}
+                  <TableCell className="text-right w-28">
+                    <Text className="font-bold text-lg text-gray-900">
+                      {fmt(row[primaryCfg.column], primaryCfg)}
+                    </Text>
+                    {secondaryCfg.enabled && secondaryCfg.column && (
+                      <Text className="text-xs text-gray-400">
+                        {fmt(row[secondaryCfg.column], secondaryCfg)}
+                      </Text>
+                    )}
+                  </TableCell>
+
+                  {/* Actions */}
+                  <TableCell className="w-20 text-right">
+                    <Flex justifyContent="end" className="gap-1">
+                      {navCfg.enabled && (
+                        <button
+                          className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                          title="View details"
+                          onClick={() => handleNavigate(kv)}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                          </svg>
+                        </button>
+                      )}
+                      {hasDetail && expandCfg.enabled !== false && (
+                        <button
+                          className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                          title={isExpanded ? 'Collapse' : 'Expand'}
+                          onClick={() => toggleRow(kv)}
+                        >
+                          <svg
+                            className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                          </svg>
+                        </button>
+                      )}
+                    </Flex>
+                  </TableCell>
+                </TableRow>
+
+                {/* Expanded detail panel */}
+                {isExpanded && (
+                  <TableRow>
+                    <TableCell colSpan={99} className="p-0">
+                      <DetailPanel
+                        detailData={expandedRows[kv]}
+                        sublistLayout={sublistLayout}
+                        youConfig={youConfig}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
+            )
+          })}
+        </TableBody>
+      </Table>
     </div>
   )
 }
