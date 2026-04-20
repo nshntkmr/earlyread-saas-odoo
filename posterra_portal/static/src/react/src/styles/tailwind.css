@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Explicit source scanning — ensures every .jsx/.js file under src/ is
+   scanned by Tailwind's JIT, regardless of which module imports this CSS.
+   Without this, when tailwind.css is imported from a single component
+   (e.g. MapWidget), only that component's module graph is scanned and
+   classes used in other components (RankedDetailList, etc.) get purged. */
+@source "../**/*.{js,jsx,ts,tsx}";
+
 /* Scope Tailwind to #app-root so it can't affect Odoo admin/login/builder */
 @layer base {
   /* Disable preflight resets — Bootstrap already loaded by Odoo */

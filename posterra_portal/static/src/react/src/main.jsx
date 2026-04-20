@@ -2,6 +2,11 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 
+// Tailwind CSS — imported from the entry point so Tailwind's JIT scans
+// the full app module graph (otherwise classes only used in components
+// outside MapWidget's graph are purged from the CSS bundle).
+import './styles/tailwind.css'
+
 function mount() {
   const rootEl = document.getElementById('app-root')
   if (!rootEl) return  // Not on a dashboard page — silently skip
