@@ -3953,9 +3953,26 @@ class DashboardWidget(models.Model):
             or self.ranked_detail_key_column
             or '')
 
-        # Resolve detail SQL presence: v2 first, then v1 field
+        # Resolve detail-panel presence: the expand chevron should show
+        # whenever ANY source of detail data is configured. A widget can
+        # have detail content from any of:
+        #   - shared detail SQL (v2 detail_config.sql or legacy ranked_detail_sql)
+        #   - any tile with its own SQL
+        #   - any tile bound to a master JSON column (no SQL needed)
+        #   - sub-list with its own SQL
+        # Earlier this only considered the shared SQL, which hid the
+        # chevron from widgets that use only per-tile or master_json tiles.
+        tiles_v2 = detail_config.get('tiles') or []
+        sublist_v2 = detail_config.get('sublist') or {}
         has_detail_sql = bool(
-            (detail_config.get('sql') or self.ranked_detail_sql or '').strip())
+            (detail_config.get('sql') or self.ranked_detail_sql or '').strip()
+            or any(
+                (tc.get('sql') or '').strip()
+                or tc.get('data_source') == 'master_json'
+                for tc in tiles_v2
+            )
+            or (sublist_v2.get('sql') or '').strip()
+        )
 
         row_data = [
             {c: (v if v is not None else '') for c, v in zip(cols, r)}
