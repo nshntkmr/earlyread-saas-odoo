@@ -25,6 +25,7 @@ export default function DetailConfigStep({
   detailConfig = {},
   onUpdate,
   masterColumns = [],
+  masterSampleRow = null,    // first row of master query test result {col: value, ...}
   apiBase,
   appContext,
 }) {
@@ -164,8 +165,11 @@ export default function DetailConfigStep({
         {tiles.map((tile, idx) => (
           <TileConfig
             key={idx}
+            idx={idx}
             tile={tile}
             sharedColumns={sharedColumns}
+            masterColumns={masterColumns}
+            masterSampleRow={masterSampleRow}
             onChange={partial => updateTile(idx, partial)}
             onRemove={() => removeTile(idx)}
             apiBase={apiBase}
@@ -314,16 +318,71 @@ export default function DetailConfigStep({
   )
 }
 
-// ── Tile config card (with own-SQL toggle) ──────────────────────────────
-function TileConfig({ tile, sharedColumns, onChange, onRemove, apiBase, appContext }) {
+// ── Tile config card (3-way data source: Shared SQL / Own SQL / Master JSON) ──
+function TileConfig({
+  idx,
+  tile,
+  sharedColumns,
+  masterColumns,
+  masterSampleRow,
+  onChange,
+  onRemove,
+  apiBase,
+  appContext,
+}) {
   const type = tile.type || 'bar'
   const isKpi = type.startsWith('kpi')
-  const ownSql = !!tile.ownSql
 
-  // Effective columns — from own SQL test result if set, else shared
-  const effectiveColumns = ownSql
+  // dataSource: 'shared' | 'sql' | 'master_json'
+  // Computed for backward compat: legacy tiles only have ownSql.
+  const dataSource = tile.data_source || (tile.ownSql ? 'sql' : 'shared')
+  const isMasterJson = dataSource === 'master_json'
+  const isOwnSql = dataSource === 'sql'
+
+  // Effective columns for X/Y dropdowns (SQL paths only)
+  const effectiveColumns = isOwnSql
     ? (tile._testResult?.columns || [])
     : sharedColumns
+
+  const handleDataSourceChange = (newSource) => {
+    if (newSource === dataSource) return
+
+    // Confirm before discarding non-empty SQL (only when leaving 'sql' mode)
+    const hasSql = (tile.sql || '').trim().length > 0
+    if (isOwnSql && newSource !== 'sql' && hasSql) {
+      const ok = window.confirm(
+        'Switching data source will clear your Own SQL for this tile. Continue?'
+      )
+      if (!ok) return
+    }
+
+    // Build update payload that ALSO clears legacy/sibling fields so loaded
+    // state stays consistent. Discipline rule: write both new + legacy fields
+    // so the server-side reader (which checks either) stays correct.
+    const updates = { data_source: newSource }
+    if (newSource === 'shared') {
+      updates.ownSql = false
+      updates.sql = ''
+      updates._testResult = null
+      updates._testParams = {}
+      updates.master_json_column = ''
+      updates.json_x_key = ''
+      updates.json_y_key = ''
+    } else if (newSource === 'sql') {
+      updates.ownSql = true
+      updates.master_json_column = ''
+      updates.json_x_key = ''
+      updates.json_y_key = ''
+    } else if (newSource === 'master_json') {
+      updates.ownSql = false
+      updates.sql = ''
+      updates._testResult = null
+      updates._testParams = {}
+    }
+    onChange(updates)
+  }
+
+  const radioName = `tile-ds-${idx}`
 
   return (
     <div
@@ -351,41 +410,82 @@ function TileConfig({ tile, sharedColumns, onChange, onRemove, apiBase, appConte
         </button>
       </div>
 
-      {/* Own SQL toggle */}
-      <div style={{ marginBottom: 10 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+      {/* Data source — 3-way radio */}
+      <div style={{
+        marginBottom: 10, padding: 8, background: '#f8fafc',
+        borderRadius: 6, border: '1px solid #e5e7eb',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+          Data source:
+        </div>
+        <label style={{ display: 'block', marginBottom: 3, fontSize: 13 }}>
           <input
-            type="checkbox"
-            checked={ownSql}
-            onChange={e => onChange({ ownSql: e.target.checked })}
+            type="radio" name={radioName}
+            checked={dataSource === 'shared'}
+            onChange={() => handleDataSourceChange('shared')}
           />
-          Use own SQL for this tile
-          <span style={{ color: '#6b7280', fontSize: 11 }}>
-            (otherwise uses the Shared Detail SQL)
+          {' '}Shared Detail SQL
+          <span style={{ color: '#6b7280', fontSize: 11, marginLeft: 6 }}>
+            (uses Section B)
           </span>
         </label>
-        {ownSql && (
-          <div style={{ marginTop: 8, paddingLeft: 22 }}>
-            <CustomSqlEditor
-              sql={tile.sql || ''}
-              xColumn=""
-              yColumns=""
-              seriesColumn=""
-              testResult={tile._testResult || null}
-              testParams={tile._testParams || {}}
-              onUpdate={partial => {
-                const updates = {}
-                if ('sql' in partial) updates.sql = partial.sql
-                if ('testResult' in partial) updates._testResult = partial.testResult
-                if ('testParams' in partial) updates._testParams = partial.testParams
-                if (Object.keys(updates).length) onChange(updates)
-              }}
-              apiBase={apiBase}
-              appContext={appContext}
-            />
-          </div>
-        )}
+        <label style={{ display: 'block', marginBottom: 3, fontSize: 13 }}>
+          <input
+            type="radio" name={radioName}
+            checked={dataSource === 'sql'}
+            onChange={() => handleDataSourceChange('sql')}
+          />
+          {' '}Own SQL
+          <span style={{ color: '#6b7280', fontSize: 11, marginLeft: 6 }}>
+            (this tile gets its own query)
+          </span>
+        </label>
+        <label style={{ display: 'block', fontSize: 13 }}>
+          <input
+            type="radio" name={radioName}
+            checked={dataSource === 'master_json'}
+            onChange={() => handleDataSourceChange('master_json')}
+          />
+          {' '}Master JSON column
+          <span style={{ color: '#6b7280', fontSize: 11, marginLeft: 6 }}>
+            (no extra query — read from master row)
+          </span>
+        </label>
       </div>
+
+      {/* Own-SQL editor — only when 'sql' mode */}
+      {isOwnSql && (
+        <div style={{ marginBottom: 10 }}>
+          <CustomSqlEditor
+            sql={tile.sql || ''}
+            xColumn=""
+            yColumns=""
+            seriesColumn=""
+            testResult={tile._testResult || null}
+            testParams={tile._testParams || {}}
+            onUpdate={partial => {
+              const updates = {}
+              if ('sql' in partial) updates.sql = partial.sql
+              if ('testResult' in partial) updates._testResult = partial.testResult
+              if ('testParams' in partial) updates._testParams = partial.testParams
+              if (Object.keys(updates).length) onChange(updates)
+            }}
+            apiBase={apiBase}
+            appContext={appContext}
+          />
+        </div>
+      )}
+
+      {/* Master-JSON picker — only when 'master_json' mode */}
+      {isMasterJson && (
+        <MasterJsonPicker
+          tile={tile}
+          isKpi={isKpi}
+          masterColumns={masterColumns}
+          masterSampleRow={masterSampleRow}
+          onChange={onChange}
+        />
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -413,7 +513,9 @@ function TileConfig({ tile, sharedColumns, onChange, onRemove, apiBase, appConte
           </select>
         </label>
 
-        {!isKpi && (
+        {/* X/Y/Color: hide X/Y in master_json mode (MasterJsonPicker handles
+            JSON keys); always keep Color picker visible for chart tiles. */}
+        {!isKpi && !isMasterJson && (
           <>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               X:
@@ -437,18 +539,22 @@ function TileConfig({ tile, sharedColumns, onChange, onRemove, apiBase, appConte
                 {effectiveColumns.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              Color:
-              <input
-                type="color"
-                value={tile.color || '#0d9488'}
-                onChange={e => onChange({ color: e.target.value })}
-              />
-            </label>
           </>
         )}
+        {!isKpi && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            Color:
+            <input
+              type="color"
+              value={tile.color || '#0d9488'}
+              onChange={e => onChange({ color: e.target.value })}
+            />
+          </label>
+        )}
 
-        {type === 'kpi_stat' && (
+        {/* KPI value pickers: only for SQL paths. In master_json mode, the
+            value source is master_json_column (and json_y_key for objects). */}
+        {!isMasterJson && type === 'kpi_stat' && (
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             Value:
             <select
@@ -464,17 +570,19 @@ function TileConfig({ tile, sharedColumns, onChange, onRemove, apiBase, appConte
 
         {type === 'kpi_rag' && (
           <>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              Value:
-              <select
-                className="wb-select wb-select--sm"
-                value={tile.valueColumn || ''}
-                onChange={e => onChange({ valueColumn: e.target.value })}
-              >
-                <option value="">Pick…</option>
-                {effectiveColumns.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </label>
+            {!isMasterJson && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                Value:
+                <select
+                  className="wb-select wb-select--sm"
+                  value={tile.valueColumn || ''}
+                  onChange={e => onChange({ valueColumn: e.target.value })}
+                >
+                  <option value="">Pick…</option>
+                  {effectiveColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+            )}
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               Good ≥:
               <input
@@ -525,4 +633,247 @@ function TileConfig({ tile, sharedColumns, onChange, onRemove, apiBase, appConte
       )}
     </div>
   )
+}
+
+// ── Master JSON column picker (used by master_json data source) ───────────
+// Lets the admin pick a column from the master query that holds JSON data
+// (or a scalar for KPI tiles). Detects the shape of the picked column from
+// masterSampleRow, shows a sample preview, and renders X/Y/value-key
+// dropdowns appropriate to that shape.
+function MasterJsonPicker({
+  tile,
+  isKpi,
+  masterColumns,
+  masterSampleRow,
+  onChange,
+}) {
+  // No master test result yet
+  if (!masterSampleRow) {
+    return (
+      <div style={{
+        marginBottom: 10, padding: 10, background: '#fff7ed',
+        border: '1px solid #fed7aa', borderRadius: 6,
+        fontSize: 12, color: '#9a3412',
+      }}>
+        Run the master query test first (Step 2) to populate the column picker.
+      </div>
+    )
+  }
+
+  // Build candidate columns: detect shape per-column from masterSampleRow.
+  // For chart tiles: only array-* shapes are useful.
+  // For KPI tiles: scalar / object / array-of-objects (admin picks key) all OK.
+  const candidates = (masterColumns || []).map(col => ({
+    col,
+    shape: detectColumnShape(masterSampleRow[col]),
+  })).filter(c => isCandidateForTile(c.shape, isKpi))
+
+  if (candidates.length === 0) {
+    return (
+      <div style={{
+        marginBottom: 10, padding: 10, background: '#fff7ed',
+        border: '1px solid #fed7aa', borderRadius: 6,
+        fontSize: 12, color: '#9a3412',
+      }}>
+        {isKpi
+          ? 'No usable columns found in the master query for a KPI tile.'
+          : 'No JSON-array columns found in the master query. '
+            + 'Add a json_agg(...) or json_build_array(...) column to your master SQL.'}
+      </div>
+    )
+  }
+
+  const selected = candidates.find(c => c.col === tile.master_json_column)
+  const shape = selected?.shape
+
+  return (
+    <div style={{
+      marginBottom: 10, padding: 10, background: '#f0f9ff',
+      border: '1px solid #bae6fd', borderRadius: 6,
+    }}>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+        Master column:
+        <select
+          className="wb-select wb-select--sm"
+          value={tile.master_json_column || ''}
+          onChange={e => onChange({
+            master_json_column: e.target.value,
+            json_x_key: '',
+            json_y_key: '',
+          })}
+        >
+          <option value="">Pick column…</option>
+          {candidates.map(c => (
+            <option key={c.col} value={c.col}>
+              {c.col} ({c.shape.label})
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {selected && (
+        <>
+          <div style={{ marginTop: 8, fontSize: 11, color: '#0c4a6e' }}>
+            <strong>Sample (row 1):</strong>
+            <pre style={{
+              background: 'white', padding: 6, borderRadius: 4,
+              maxHeight: 80, overflow: 'auto',
+              margin: '4px 0', fontSize: 11, lineHeight: 1.4,
+            }}>
+              {prettyTrunc(shape.raw)}
+            </pre>
+            Detected: {shape.label}
+          </div>
+
+          {/* X/Y key pickers — for chart tiles with array-of-objects */}
+          {!isKpi && shape.kind === 'array-of-objects' && (
+            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                X key:
+                <select
+                  className="wb-select wb-select--sm"
+                  value={tile.json_x_key || ''}
+                  onChange={e => onChange({ json_x_key: e.target.value })}
+                >
+                  <option value="">Pick…</option>
+                  {shape.keys.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                Y key:
+                <select
+                  className="wb-select wb-select--sm"
+                  value={tile.json_y_key || ''}
+                  onChange={e => onChange({ json_y_key: e.target.value })}
+                >
+                  <option value="">Pick…</option>
+                  {shape.keys.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {/* Value key picker — for KPI tiles binding to an object column */}
+          {isKpi && shape.kind === 'object' && (
+            <div style={{ marginTop: 8 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                Value key:
+                <select
+                  className="wb-select wb-select--sm"
+                  value={tile.json_y_key || ''}
+                  onChange={e => onChange({ json_y_key: e.target.value })}
+                >
+                  <option value="">Pick…</option>
+                  {shape.keys.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {/* For array-of-scalars + chart: no key picker needed (X = index) */}
+          {!isKpi && shape.kind === 'array-of-scalars' && (
+            <div style={{ marginTop: 6, fontSize: 11, color: '#6b7280' }}>
+              X axis = index (0, 1, 2, …); Y axis = each scalar value.
+            </div>
+          )}
+        </>
+      )}
+
+      <div style={{ marginTop: 8, fontSize: 11, color: '#6b7280', borderTop: '1px solid #bae6fd', paddingTop: 6 }}>
+        ℹ This data comes from your master query. To control which page filters
+        affect it, edit the master SQL's JSON subquery.
+      </div>
+    </div>
+  )
+}
+
+// ── Master JSON helpers ───────────────────────────────────────────────────
+
+// Detect what kind of value a master row column holds, returning a
+// descriptor shared between MasterJsonPicker (for UI hints) and the
+// portal-side parseMasterJson (which renders).
+//   kind = 'array-of-objects' | 'array-of-scalars' | 'object' | 'scalar' | 'unknown'
+function detectColumnShape(value) {
+  if (value == null || value === '') {
+    return { kind: 'unknown', label: 'empty', keys: [], raw: value }
+  }
+
+  // Try parsing strings as JSON
+  let parsed = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      // CSV of numbers fallback (sparkline-style)
+      const parts = value.split(',').map(s => Number(s.trim()))
+      if (parts.length >= 2 && parts.every(n => !isNaN(n))) {
+        return {
+          kind: 'array-of-scalars',
+          label: `array of ${parts.length} numbers (csv)`,
+          keys: [], raw: value,
+        }
+      }
+      return { kind: 'scalar', label: 'string', keys: [], raw: value }
+    }
+  }
+
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) {
+      return { kind: 'unknown', label: 'empty array', keys: [], raw: value }
+    }
+    const allObjects = parsed.every(
+      v => v && typeof v === 'object' && !Array.isArray(v))
+    if (allObjects) {
+      const keys = Object.keys(parsed[0] || {})
+      return {
+        kind: 'array-of-objects',
+        label: `array of ${parsed.length} objects`,
+        keys, raw: value,
+      }
+    }
+    return {
+      kind: 'array-of-scalars',
+      label: `array of ${parsed.length} values`,
+      keys: [], raw: value,
+    }
+  }
+
+  if (typeof parsed === 'object' && parsed !== null) {
+    const keys = Object.keys(parsed)
+    return {
+      kind: 'object',
+      label: `object with ${keys.length} keys`,
+      keys, raw: value,
+    }
+  }
+
+  // Number, boolean, etc.
+  return { kind: 'scalar', label: typeof parsed, keys: [], raw: value }
+}
+
+// Decide if a detected shape is offerable for the tile's mode.
+function isCandidateForTile(shape, isKpi) {
+  if (shape.kind === 'unknown') return false
+  if (isKpi) {
+    // KPIs accept scalars, objects, AND array-of-objects (with key picker)
+    return shape.kind === 'scalar'
+        || shape.kind === 'object'
+        || shape.kind === 'array-of-objects'
+  }
+  // Charts need arrays
+  return shape.kind === 'array-of-objects' || shape.kind === 'array-of-scalars'
+}
+
+// Pretty-print a sample value, truncating long output.
+function prettyTrunc(value) {
+  let s
+  if (typeof value === 'string') {
+    s = value
+  } else {
+    try { s = JSON.stringify(value, null, 2) } catch { s = String(value) }
+  }
+  if (s.length > 300) {
+    s = s.slice(0, 300) + '…'
+  }
+  return s
 }

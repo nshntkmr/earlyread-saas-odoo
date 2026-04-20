@@ -951,6 +951,13 @@ export default function WidgetBuilder({
                   detailConfig={rankedActive.detailConfig}
                   onUpdate={partial => dispatch({ type: 'SET_DETAIL_CONFIG', value: partial })}
                   masterColumns={ac.customSql?.testResult?.columns || []}
+                  masterSampleRow={(() => {
+                    const tr = ac.customSql?.testResult
+                    if (!tr || !tr.rows?.[0] || !tr.columns) return null
+                    return Object.fromEntries(
+                      tr.columns.map((c, i) => [c, tr.rows[0][i]])
+                    )
+                  })()}
                   apiBase={apiBase}
                   appContext={appContext}
                 />
