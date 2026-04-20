@@ -79,4 +79,14 @@ export const TREMOR_LITERAL_SAFELIST = `
   dark:stroke-red-500 dark:fill-red-500 dark:text-red-500
   dark:stroke-teal-500 dark:fill-teal-500 dark:text-teal-500
   dark:stroke-amber-500 dark:fill-amber-500 dark:text-amber-500
+
+  // ── Grid / layout utilities Tremor builds at runtime ─────────────────
+  // Tremor's <Grid numItems={N}> emits class="grid grid-cols-${N} ..."
+  // and <Col numColSpan={N}> emits "col-span-${N}". Same JIT-blind spot
+  // as the colors above. Without these, Bootstrap's global .grid rule
+  // (Odoo assets_frontend) wins the cascade and forces a 12-col layout.
+  grid grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4 grid-cols-5 grid-cols-6 grid-cols-12
+  col-span-1 col-span-2 col-span-3 col-span-4 col-span-5 col-span-6 col-span-12
+  gap-1 gap-2 gap-3 gap-4 gap-5 gap-6 gap-8
+  row-span-1 row-span-2 row-span-3 row-span-4
 `

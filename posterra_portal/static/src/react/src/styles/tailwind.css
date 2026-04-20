@@ -14,3 +14,25 @@
     /* Don't override Odoo's box-sizing */
   }
 }
+
+/* ── Bootstrap collision guards ──────────────────────────────────────────
+   Odoo's web.assets_frontend (Bootstrap) defines a global .grid rule:
+     .grid { display: grid;
+             grid-template-columns: repeat(var(--columns, 12), 1fr);
+             gap: var(--gap, 30px); }
+   This wins the cascade against Tailwind's grid-cols-N utilities (lower
+   specificity), forcing every grid inside #app-root into a 12-column
+   layout regardless of grid-cols-2 / grid-cols-3 etc.
+
+   Scoping these overrides to #app-root keeps them contained to the
+   React portal — Odoo's own admin UI keeps Bootstrap's grid behavior. */
+@layer utilities {
+  #app-root .grid               { grid-template-columns: none; }
+  #app-root .grid-cols-1        { grid-template-columns: repeat(1,  minmax(0, 1fr)); }
+  #app-root .grid-cols-2        { grid-template-columns: repeat(2,  minmax(0, 1fr)); }
+  #app-root .grid-cols-3        { grid-template-columns: repeat(3,  minmax(0, 1fr)); }
+  #app-root .grid-cols-4        { grid-template-columns: repeat(4,  minmax(0, 1fr)); }
+  #app-root .grid-cols-5        { grid-template-columns: repeat(5,  minmax(0, 1fr)); }
+  #app-root .grid-cols-6        { grid-template-columns: repeat(6,  minmax(0, 1fr)); }
+  #app-root .grid-cols-12       { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+}
