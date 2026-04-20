@@ -107,7 +107,28 @@ function badgeColor(hexOrName) {
 // Extracted helper used by both TileChart (server-built echart_option
 // path) and MasterJsonTile (client-built path from master row JSON).
 // tt = lowercase chart kind ('bar', 'line', 'line_area', etc.)
+
+// Compact number formatter for axis labels and tooltips.
+// Small values keep commas ("5,000"); large values collapse to K/M so
+// the Y-axis gutter doesn't clip leading digits ("60,000" → "60K").
+const _COMPACT_FMT = new Intl.NumberFormat('en-US', {
+  notation: 'compact', maximumFractionDigits: 1,
+})
+const _FULL_FMT = new Intl.NumberFormat('en-US')
+function formatAxisValue(v) {
+  if (v === null || v === undefined || v === '') return ''
+  const n = Number(v)
+  if (!isFinite(n)) return String(v)
+  // Below 10K the full comma-separated form fits comfortably;
+  // above that compact notation keeps the axis gutter narrow.
+  return Math.abs(n) >= 10000 ? _COMPACT_FMT.format(n) : _FULL_FMT.format(n)
+}
+
 function renderTremorChart({ tt, title, chartData, categories, colors }) {
+  // Default y-axis gutter wide enough for "999K" / "99,999" without clipping.
+  // Tremor's default of 56 was too narrow when labels grew to 5-6 chars.
+  const yAxisWidth = 52
+
   if (tt.includes('area') || tt === 'line_area' || tt === 'line_stacked_area') {
     return (
       <Card className="p-4">
@@ -121,7 +142,8 @@ function renderTremorChart({ tt, title, chartData, categories, colors }) {
           colors={colors}
           showLegend={false}
           showAnimation={true}
-          valueFormatter={(v) => v.toLocaleString()}
+          valueFormatter={formatAxisValue}
+          yAxisWidth={yAxisWidth}
           className="h-44"
           stack={tt.includes('stacked')}
         />
@@ -141,13 +163,16 @@ function renderTremorChart({ tt, title, chartData, categories, colors }) {
           colors={colors}
           showLegend={false}
           showAnimation={true}
-          valueFormatter={(v) => v.toLocaleString()}
+          valueFormatter={formatAxisValue}
+          yAxisWidth={yAxisWidth}
           className="h-44"
         />
       </Card>
     )
   }
-  // Default: bar
+  // Default: bar. barCategoryGap="30%" trims the bar width so there's
+  // breathing room between columns — otherwise Tremor/Recharts pack
+  // bars too tightly for small datasets (4 years).
   return (
     <Card className="p-4">
       <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
@@ -160,7 +185,9 @@ function renderTremorChart({ tt, title, chartData, categories, colors }) {
         colors={colors}
         showLegend={false}
         showAnimation={true}
-        valueFormatter={(v) => v.toLocaleString()}
+        valueFormatter={formatAxisValue}
+        yAxisWidth={yAxisWidth}
+        barCategoryGap="30%"
         className="h-44"
         stack={tt.includes('stacked')}
       />
