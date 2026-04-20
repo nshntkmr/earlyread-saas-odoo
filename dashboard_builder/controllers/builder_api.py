@@ -707,6 +707,11 @@ class BuilderAPI(http.Controller):
             'default_row_span': defn.default_row_span or 1,
             'bar_stack': defn.bar_stack or False,
             'table_column_config': '',
+            # Ranked Detail List v2 configs (consolidated JSON) — required
+            # by the builder's edit-load flow. Previously omitted, which
+            # caused Master Row Layout + Detail Config to load blank.
+            'ranked_master_config': defn.ranked_master_config or '',
+            'ranked_detail_config': defn.ranked_detail_config or '',
         }
 
         # Include scope options from the first widget instance (if any)
@@ -737,6 +742,9 @@ class BuilderAPI(http.Controller):
                         'action_pass_value_as': o.action_pass_value_as or '',
                         'drill_detail_columns': o.drill_detail_columns or '',
                         'action_url_template': o.action_url_template or '',
+                        # Mode B per-option ranked configs
+                        'ranked_master_config': o.ranked_master_config or '',
+                        'ranked_detail_config': o.ranked_detail_config or '',
                     })
                 # Also get table_column_config from instance
                 if instances[0].table_column_config:

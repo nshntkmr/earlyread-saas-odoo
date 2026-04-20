@@ -572,6 +572,10 @@ class DesignerAPI(http.Controller):
                 'action_pass_value_as': o.action_pass_value_as or '',
                 'drill_detail_columns': o.drill_detail_columns or '',
                 'action_url_template': o.action_url_template or '',
+                # Ranked Detail List v2 configs per scope option (Mode B):
+                # each tab keeps its own master layout + detail tile config.
+                'ranked_master_config': o.ranked_master_config or '',
+                'ranked_detail_config': o.ranked_detail_config or '',
             } for o in instances[0].scope_option_ids.sorted('sequence')]
         except (KeyError, Exception):
             return []
@@ -633,6 +637,12 @@ class DesignerAPI(http.Controller):
             'search_enabled': defn.search_enabled or False,
             'search_placeholder': defn.search_placeholder or 'Search...',
             'default_width_pct': defn.default_width_pct or 0,
+            # Ranked Detail List v2 configs (consolidated JSON). Previously
+            # omitted from the response, which caused the builder's edit
+            # flow to load blank Master Row Layout + Detail Config — save
+            # path wrote these but load path didn't read them back.
+            'ranked_master_config': defn.ranked_master_config or '',
+            'ranked_detail_config': defn.ranked_detail_config or '',
             # Scope options from first widget instance
             'scope_options': self._get_scope_options_for_definition(defn),
         })
