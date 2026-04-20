@@ -4032,8 +4032,17 @@ class DashboardWidget(models.Model):
             except (json.JSONDecodeError, TypeError):
                 tile_configs = []
 
-        if not shared_sql and not any(tc.get('sql') for tc in tile_configs) \
-                and not (sublist_config.get('sql') or '').strip():
+        # A widget is valid if it has at least ONE source of detail data:
+        # shared SQL, any tile's own SQL, sublist's own SQL, OR any master_json
+        # tile (which renders client-side from the master row's JSON column —
+        # no SQL execution needed).
+        has_master_json_tile = any(
+            tc.get('data_source') == 'master_json' for tc in tile_configs
+        )
+        if (not shared_sql
+                and not any(tc.get('sql') for tc in tile_configs)
+                and not has_master_json_tile
+                and not (sublist_config.get('sql') or '').strip()):
             return {'error': 'No detail SQL configured'}
 
         try:
@@ -4055,6 +4064,26 @@ class DashboardWidget(models.Model):
             # ── Build tiles ─────────────────────────────────────────────
             tiles = []
             for tc in tile_configs:
+                # master_json mode: no SQL runs server-side. Pass the spec
+                # through so React's TileChart can read from the master row
+                # and render client-side. The 'type' field is set to
+                # 'master_json' so the client routes to MasterJsonTile;
+                # the original chart type is preserved as 'tile_type'.
+                if tc.get('data_source') == 'master_json':
+                    tiles.append({
+                        'type': 'master_json',
+                        'tile_type': tc.get('type', 'bar'),
+                        'title': tc.get('title', ''),
+                        'master_json_column': tc.get('master_json_column', ''),
+                        'json_x_key': tc.get('json_x_key', ''),
+                        'json_y_key': tc.get('json_y_key', ''),
+                        'value_format': tc.get('value_format'),
+                        'color': tc.get('color', '#0d9488'),
+                        'showLabels': tc.get('showLabels', True),
+                        'showLegend': tc.get('showLegend', False),
+                    })
+                    continue
+
                 tile_own_sql = (tc.get('sql') or '').strip()
                 effective_sql = tile_own_sql or shared_sql
                 t_cols, t_rows = _get_rows(effective_sql)

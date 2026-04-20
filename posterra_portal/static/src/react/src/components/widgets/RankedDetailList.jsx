@@ -38,6 +38,44 @@ function parseSparkData(raw) {
   return arr.map((v, i) => ({ i: String(i), v: Number(v) || 0 }))
 }
 
+// ── Master-JSON parser (used by master_json tile mode) ───────────────
+// Parses a master row's column value into a shape descriptor that
+// MasterJsonTile uses to decide how to render. Returns null when the
+// value is empty / unparseable.
+//   kind = 'array-of-objects' | 'array-of-scalars' | 'object' | 'scalar'
+function parseMasterJson(raw) {
+  if (raw == null || raw === '') return null
+
+  let value = raw
+  if (typeof raw === 'string') {
+    try {
+      value = JSON.parse(raw)
+    } catch {
+      // Fallback: comma-separated numbers (e.g. "10,12,15")
+      const parts = raw.split(',').map(s => Number(s.trim()))
+      if (parts.length >= 2 && parts.every(n => !isNaN(n))) {
+        return { kind: 'array-of-scalars', data: parts }
+      }
+      // Otherwise treat as plain string scalar
+      return { kind: 'scalar', data: raw }
+    }
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null
+    if (value.every(v => v && typeof v === 'object' && !Array.isArray(v))) {
+      return { kind: 'array-of-objects', data: value }
+    }
+    return { kind: 'array-of-scalars', data: value }
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return { kind: 'object', data: value }
+  }
+
+  return { kind: 'scalar', data: value }
+}
+
 // ── Number formatter ─────────────────────────────────────────────────
 function fmt(val, cfg) {
   if (val === null || val === undefined || val === '') return ''
@@ -65,12 +103,87 @@ function badgeColor(hexOrName) {
   return map[hexOrName?.toLowerCase()] || 'gray'
 }
 
+// ── Shared Tremor chart renderer ─────────────────────────────────────
+// Extracted helper used by both TileChart (server-built echart_option
+// path) and MasterJsonTile (client-built path from master row JSON).
+// tt = lowercase chart kind ('bar', 'line', 'line_area', etc.)
+function renderTremorChart({ tt, title, chartData, categories, colors }) {
+  if (tt.includes('area') || tt === 'line_area' || tt === 'line_stacked_area') {
+    return (
+      <Card className="p-4">
+        <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          {title || ''}
+        </Title>
+        <AreaChart
+          data={chartData}
+          index="x"
+          categories={categories}
+          colors={colors}
+          showLegend={false}
+          showAnimation={true}
+          valueFormatter={(v) => v.toLocaleString()}
+          className="h-44"
+          stack={tt.includes('stacked')}
+        />
+      </Card>
+    )
+  }
+  if (tt.includes('line')) {
+    return (
+      <Card className="p-4">
+        <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          {title || ''}
+        </Title>
+        <LineChart
+          data={chartData}
+          index="x"
+          categories={categories}
+          colors={colors}
+          showLegend={false}
+          showAnimation={true}
+          valueFormatter={(v) => v.toLocaleString()}
+          className="h-44"
+        />
+      </Card>
+    )
+  }
+  // Default: bar
+  return (
+    <Card className="p-4">
+      <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+        {title || ''}
+      </Title>
+      <BarChart
+        data={chartData}
+        index="x"
+        categories={categories}
+        colors={colors}
+        showLegend={false}
+        showAnimation={true}
+        valueFormatter={(v) => v.toLocaleString()}
+        className="h-44"
+        stack={tt.includes('stacked')}
+      />
+    </Card>
+  )
+}
+
 // ── Tile chart types → Tremor component ──────────────────────────────
-function TileChart({ tile }) {
+// Routes between three rendering paths:
+//   1. master_json mode → MasterJsonTile (reads from master row's column)
+//   2. KPI tile (server-built kpi_data) → inline render
+//   3. Chart tile (server-built echart_option) → renderTremorChart
+function TileChart({ tile, masterRow }) {
   if (!tile) return null
+
+  // master_json mode — render from master row's JSON column (no SQL ran)
+  if (tile.type === 'master_json') {
+    return <MasterJsonTile tile={tile} masterRow={masterRow} />
+  }
+
   const tt = (tile.tile_type || tile.type || 'bar').toLowerCase()
 
-  // KPI tiles
+  // KPI tiles (from server-built kpi_data)
   if (tt.startsWith('kpi')) {
     const kpi = tile.kpi_data || tile
     return (
@@ -108,70 +221,84 @@ function TileChart({ tile }) {
     return badgeColor(c) || 'teal'
   })
 
-  const showLabels = opt.series?.[0]?.label?.show !== false
+  return renderTremorChart({ tt, title: tile.title, chartData, categories, colors })
+}
 
-  if (tt.includes('area') || tt === 'line_area' || tt === 'line_stacked_area') {
+// ── Master-JSON tile (no per-tile SQL — reads from master row) ───────
+// Renders a tile whose data comes from a column in the master row.
+// Server has already passed through the spec; we resolve the value
+// here, parse it, and render via the shared chart helper.
+function MasterJsonTile({ tile, masterRow }) {
+  const raw = masterRow?.[tile.master_json_column]
+  const shape = parseMasterJson(raw)
+
+  if (!shape) {
+    return <Card className="p-4"><Text className="text-gray-400">No data</Text></Card>
+  }
+
+  const tt = (tile.tile_type || 'bar').toLowerCase()
+
+  // KPI mode — single value (scalar column OR object key)
+  if (tt.startsWith('kpi')) {
+    let value = null
+    if (shape.kind === 'scalar') {
+      value = shape.data
+    } else if (shape.kind === 'object' && tile.json_y_key) {
+      value = shape.data[tile.json_y_key]
+    }
+    if (value == null || value === '') {
+      return <Card className="p-4"><Text className="text-gray-400">No data</Text></Card>
+    }
     return (
       <Card className="p-4">
-        <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-          {tile.title || ''}
-        </Title>
-        <AreaChart
-          data={chartData}
-          index="x"
-          categories={categories}
-          colors={colors}
-          showLegend={false}
-          showAnimation={true}
-          valueFormatter={(v) => v.toLocaleString()}
-          className="h-44"
-          stack={tt.includes('stacked')}
-        />
+        <Text>{tile.title || ''}</Text>
+        <Metric className="mt-1">{fmt(value, tile.value_format)}</Metric>
       </Card>
     )
   }
-  if (tt.includes('line')) {
+
+  // Chart mode — needs an array of points
+  let chartData = []
+  if (shape.kind === 'array-of-objects') {
+    if (!tile.json_x_key || !tile.json_y_key) {
+      return (
+        <Card className="p-4">
+          <Text className="text-gray-400">Pick X and Y keys</Text>
+        </Card>
+      )
+    }
+    chartData = shape.data.map(o => ({
+      x: String(o[tile.json_x_key] ?? ''),
+      value: Number(o[tile.json_y_key]) || 0,
+    }))
+  } else if (shape.kind === 'array-of-scalars') {
+    chartData = shape.data.map((v, i) => ({
+      x: String(i),
+      value: Number(v) || 0,
+    }))
+  } else {
     return (
       <Card className="p-4">
-        <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-          {tile.title || ''}
-        </Title>
-        <LineChart
-          data={chartData}
-          index="x"
-          categories={categories}
-          colors={colors}
-          showLegend={false}
-          showAnimation={true}
-          valueFormatter={(v) => v.toLocaleString()}
-          className="h-44"
-        />
+        <Text className="text-gray-400">Expected array data for chart</Text>
       </Card>
     )
   }
-  // Default: bar
-  return (
-    <Card className="p-4">
-      <Title className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-        {tile.title || ''}
-      </Title>
-      <BarChart
-        data={chartData}
-        index="x"
-        categories={categories}
-        colors={colors}
-        showLegend={false}
-        showAnimation={true}
-        valueFormatter={(v) => v.toLocaleString()}
-        className="h-44"
-        stack={tt.includes('stacked')}
-      />
-    </Card>
-  )
+
+  if (!chartData.length) {
+    return <Card className="p-4"><Text className="text-gray-400">No data</Text></Card>
+  }
+
+  const categories = ['value']
+  const colors = [badgeColor(tile.color) || 'teal']
+
+  return renderTremorChart({ tt, title: tile.title, chartData, categories, colors })
 }
 
 // ── Detail panel (tiles + sub-list) ──────────────────────────────────
-function DetailPanel({ detailData, sublistLayout, youConfig }) {
+// masterRow: the full row data from the master query for the expanded
+// row. Threaded through to TileChart so master_json tiles can read
+// their JSON column without an extra fetch.
+function DetailPanel({ detailData, sublistLayout, youConfig, masterRow }) {
   if (!detailData || detailData === 'loading') {
     return (
       <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 text-gray-500 text-sm">
@@ -203,7 +330,7 @@ function DetailPanel({ detailData, sublistLayout, youConfig }) {
         <Grid numItems={Math.min(tiles.length, 3)} className="gap-4 mb-4">
           {tiles.map((t, i) => (
             <Col key={i}>
-              <TileChart tile={t} />
+              <TileChart tile={t} masterRow={masterRow} />
             </Col>
           ))}
         </Grid>
@@ -466,6 +593,7 @@ export default function RankedDetailList({ data, height, name, widgetId, scopeOp
                         detailData={expandedRows[kv]}
                         sublistLayout={sublistLayout}
                         youConfig={youConfig}
+                        masterRow={row}
                       />
                     </TableCell>
                   </TableRow>
