@@ -20,19 +20,35 @@
      .grid { display: grid;
              grid-template-columns: repeat(var(--columns, 12), 1fr);
              gap: var(--gap, 30px); }
-   This wins the cascade against Tailwind's grid-cols-N utilities (lower
-   specificity), forcing every grid inside #app-root into a 12-column
-   layout regardless of grid-cols-2 / grid-cols-3 etc.
 
-   Scoping these overrides to #app-root keeps them contained to the
-   React portal — Odoo's own admin UI keeps Bootstrap's grid behavior. */
-@layer utilities {
-  #app-root .grid               { grid-template-columns: none; }
-  #app-root .grid-cols-1        { grid-template-columns: repeat(1,  minmax(0, 1fr)); }
-  #app-root .grid-cols-2        { grid-template-columns: repeat(2,  minmax(0, 1fr)); }
-  #app-root .grid-cols-3        { grid-template-columns: repeat(3,  minmax(0, 1fr)); }
-  #app-root .grid-cols-4        { grid-template-columns: repeat(4,  minmax(0, 1fr)); }
-  #app-root .grid-cols-5        { grid-template-columns: repeat(5,  minmax(0, 1fr)); }
-  #app-root .grid-cols-6        { grid-template-columns: repeat(6,  minmax(0, 1fr)); }
-  #app-root .grid-cols-12       { grid-template-columns: repeat(12, minmax(0, 1fr)); }
-}
+   IMPORTANT — these rules MUST stay UNLAYERED (no @layer wrapper).
+   Per the CSS cascade spec, unlayered author styles beat layered styles
+   regardless of specificity. Bootstrap ships unlayered. Tailwind v4
+   puts all its utilities (including the .grid-cols-N from our safelist)
+   into a `utilities` cascade layer, so they LOSE to Bootstrap's
+   unlayered .grid rule.
+
+   Leaving these overrides outside any @layer keeps them in the same
+   cascade layer as Bootstrap (unlayered) — at which point specificity
+   decides, and #app-root .grid-cols-N (0,1,1) beats .grid (0,0,1). */
+
+#app-root .grid               { grid-template-columns: none; }
+#app-root .grid-cols-1        { grid-template-columns: repeat(1,  minmax(0, 1fr)); }
+#app-root .grid-cols-2        { grid-template-columns: repeat(2,  minmax(0, 1fr)); }
+#app-root .grid-cols-3        { grid-template-columns: repeat(3,  minmax(0, 1fr)); }
+#app-root .grid-cols-4        { grid-template-columns: repeat(4,  minmax(0, 1fr)); }
+#app-root .grid-cols-5        { grid-template-columns: repeat(5,  minmax(0, 1fr)); }
+#app-root .grid-cols-6        { grid-template-columns: repeat(6,  minmax(0, 1fr)); }
+#app-root .grid-cols-12       { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+
+/* Same trap applies to gap: Bootstrap sets gap: var(--gap, 30px).
+   Tailwind's .gap-N utilities are layered and lose. Safelist them
+   UNLAYERED here so Tremor's runtime-generated gap-4 etc. actually
+   overrides Bootstrap's 30px default. */
+#app-root .gap-1  { gap: 0.25rem; }
+#app-root .gap-2  { gap: 0.5rem; }
+#app-root .gap-3  { gap: 0.75rem; }
+#app-root .gap-4  { gap: 1rem; }
+#app-root .gap-5  { gap: 1.25rem; }
+#app-root .gap-6  { gap: 1.5rem; }
+#app-root .gap-8  { gap: 2rem; }
