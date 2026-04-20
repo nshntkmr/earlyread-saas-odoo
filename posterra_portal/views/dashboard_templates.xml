@@ -142,6 +142,11 @@
                     <!-- like MapLibre are split into separate chunks and only loaded -->
                     <!-- on pages that use them. type="module" is deferred by default.-->
                     <!-- ============================================================ -->
+                    <!-- main.css holds Tailwind utilities generated from the full    -->
+                    <!-- app module graph. Vite's ESM build does NOT auto-inject CSS  -->
+                    <!-- for the entry chunk (only for lazy chunks), so we link it    -->
+                    <!-- explicitly. Lazy chunks (e.g. MapWidget.css) still self-load.-->
+                    <link rel="stylesheet" href="/posterra_portal/static/src/react/dist/main.css"/>
                     <script type="module" src="/posterra_portal/static/src/react/dist/portal.js"/>
                     <div id="app-root"
                          t-att-data-page-config="page_config_json"
