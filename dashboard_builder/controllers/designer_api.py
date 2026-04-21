@@ -643,6 +643,8 @@ class DesignerAPI(http.Controller):
             # path wrote these but load path didn't read them back.
             'ranked_master_config': defn.ranked_master_config or '',
             'ranked_detail_config': defn.ranked_detail_config or '',
+            # Smart Table v1 config (chart_type='smart_table')
+            'smart_table_config': defn.smart_table_config or '',
             # Scope options from first widget instance
             'scope_options': self._get_scope_options_for_definition(defn),
         })
@@ -777,6 +779,9 @@ class DesignerAPI(http.Controller):
             if 'ranked_detail_config' in body:
                 rdc = body['ranked_detail_config']
                 def_vals['ranked_detail_config'] = rdc if isinstance(rdc, str) else json.dumps(rdc) if rdc else ''
+            if 'smart_table_config' in body:
+                stc = body['smart_table_config']
+                def_vals['smart_table_config'] = stc if isinstance(stc, str) else json.dumps(stc) if stc else ''
 
             # App scoping (field added by posterra_portal via _inherit)
             if body.get('app_ids') and 'app_ids' in request.env['dashboard.widget.definition']._fields:
@@ -877,6 +882,11 @@ class DesignerAPI(http.Controller):
             rdc = body['ranked_detail_config']
             update_vals['ranked_detail_config'] = rdc if isinstance(rdc, str) else json.dumps(rdc) if rdc else ''
 
+        # Smart Table v1 JSON config
+        if 'smart_table_config' in body:
+            stc = body['smart_table_config']
+            update_vals['smart_table_config'] = stc if isinstance(stc, str) else json.dumps(stc) if stc else ''
+
         if 'app_ids' in body and 'app_ids' in request.env['dashboard.widget.definition']._fields:
             update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]
 
@@ -930,6 +940,9 @@ class DesignerAPI(http.Controller):
                                     'ranked_detail_sql', 'ranked_detail_key_column'):
                             if hasattr(defn, fld):
                                 sync_vals[fld] = getattr(defn, fld) or ''
+                    # Smart Table v1 config sync
+                    if defn.chart_type == 'smart_table' and hasattr(defn, 'smart_table_config'):
+                        sync_vals['smart_table_config'] = defn.smart_table_config or ''
                     instances.write(sync_vals)
                     _logger.info(
                         'Synced definition %s (%s) → %d instance(s)',

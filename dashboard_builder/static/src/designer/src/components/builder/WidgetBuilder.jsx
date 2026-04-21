@@ -8,8 +8,9 @@ import TableJoinBuilder   from './TableJoinBuilder'
 import CustomSqlEditor    from './CustomSqlEditor'
 import ColumnMapper       from './ColumnMapper'
 import FilterActionConfig from './FilterActionConfig'
-import LivePreview        from './LivePreview'
-import TableConfigurator  from './TableConfigurator'
+import LivePreview              from './LivePreview'
+import TableConfigurator        from './TableConfigurator'
+import SmartTableConfigurator   from './SmartTableConfigurator'
 import AiSqlEditor        from './AiSqlEditor'
 import WidgetControlsStep from './WidgetControlsStep'
 import OptionTabBar        from './OptionTabBar'
@@ -38,12 +39,16 @@ function getSteps(chartType, scopeMode, masterRowConfig = null) {
     return steps
   }
 
-  if (chartType !== 'table') {
+  // 'table' (AG Grid) and 'smart_table' both use the column-configurator
+  // pattern: skip the 'columns' step (the configurator IS the columns) and
+  // end at 'configure' (which contains the save button).
+  const isConfiguratorChart = chartType === 'table' || chartType === 'smart_table'
+  if (!isConfiguratorChart) {
     steps.push({ key: 'columns', label: 'Columns' })
   }
   steps.push({ key: 'filters', label: 'Filters & Actions' })
-  steps.push(chartType === 'table'
-    ? { key: 'configure', label: 'Configure Table' }
+  steps.push(isConfiguratorChart
+    ? { key: 'configure', label: chartType === 'smart_table' ? 'Configure Smart Table' : 'Configure Table' }
     : { key: 'preview', label: 'Preview & Save' }
   )
   return steps
@@ -161,6 +166,19 @@ const initialState = {
 
   // Table column config (AG Grid columnDefs — only for chart_type 'table')
   tableColumnConfig: [],
+
+  // Smart Table config (chart_type='smart_table' — independent of AG Grid)
+  // Schema documented in SmartTable.jsx + cellRecipes.jsx.
+  smartTableConfig: {
+    columns: [],
+    table: {
+      density: 'comfortable',
+      stickyHeader: true,
+      sortable: true,
+      zebraRows: false,
+      height: null,
+    },
+  },
 
   // Ranked Detail List v2 config (only for chart_type 'ranked_detail_list')
   // masterRowConfig: visual row layout (rank/badge/subtitle/sparkline/…)
@@ -300,6 +318,10 @@ function reducer(state, action) {
       return _routeToOption(state, { generatedSql: action.value })
     case 'SET_TABLE_COLUMN_CONFIG':
       return _routeToOption(state, { tableColumnConfig: action.value })
+    case 'SET_SMART_TABLE_CONFIG':
+      // Whole-config replacement (no shallow merge). Configurator owns
+      // the full object — partial updates are managed inside the form.
+      return { ...state, smartTableConfig: action.value }
     case 'SET_MASTER_ROW_CONFIG': {
       // Route based on Mode:
       //   - No scope, or Mode A (parameter): top-level (shared across options)
@@ -431,6 +453,19 @@ function reducer(state, action) {
             const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
             return { ...initialState.detailConfig, ...parsed }
           } catch { return initialState.detailConfig }
+        })(),
+        // Smart Table config (chart_type='smart_table')
+        smartTableConfig: (() => {
+          try {
+            const raw = d.smart_table_config
+            if (!raw) return initialState.smartTableConfig
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+            // Merge so missing top-level keys (e.g. table.density) get defaults
+            return {
+              columns: Array.isArray(parsed.columns) ? parsed.columns : [],
+              table: { ...initialState.smartTableConfig.table, ...(parsed.table || {}) },
+            }
+          } catch { return initialState.smartTableConfig }
         })(),
         // Widget-Scoped Controls
         scopeMode: d.scope_mode || 'none',
@@ -868,7 +903,7 @@ export default function WidgetBuilder({
             </>
           )}
 
-          {/* Table Configurator step */}
+          {/* Configure step — dispatches by chart_type to the right configurator */}
           {currentStepKey === 'configure' && (
             <>
             {hasScope && (
@@ -878,23 +913,38 @@ export default function WidgetBuilder({
                 onSelect={idx => dispatch({ type: 'SET_ACTIVE_SCOPE_IDX', value: idx })}
               />
             )}
-            <TableConfigurator
-              sources={ac.sources || []}
-              joins={ac.joins || []}
-              dataMode={ac.dataMode || 'custom_sql'}
-              customSql={ac.customSql || {}}
-              filters={ac.filters || []}
-              visualFlags={state.visualFlags}
-              appearance={state.appearance}
-              tableColumnConfig={ac.tableColumnConfig || []}
-              builderState={state}
-              onUpdate={dispatch}
-              onSave={handleSave}
-              saving={saving}
-              apiBase={apiBase}
-              appContext={appContext}
-              editId={editId}
-            />
+            {state.chartType === 'smart_table' ? (
+              <SmartTableConfigurator
+                customSql={ac.customSql || {}}
+                smartTableConfig={state.smartTableConfig}
+                onUpdate={cfg => dispatch({ type: 'SET_SMART_TABLE_CONFIG', value: cfg })}
+                onSave={handleSave}
+                saving={saving}
+                appearance={state.appearance}
+                onAppearanceChange={v => dispatch({ type: 'SET_APPEARANCE', value: v })}
+                apiBase={apiBase}
+                appContext={appContext}
+                editId={editId}
+              />
+            ) : (
+              <TableConfigurator
+                sources={ac.sources || []}
+                joins={ac.joins || []}
+                dataMode={ac.dataMode || 'custom_sql'}
+                customSql={ac.customSql || {}}
+                filters={ac.filters || []}
+                visualFlags={state.visualFlags}
+                appearance={state.appearance}
+                tableColumnConfig={ac.tableColumnConfig || []}
+                builderState={state}
+                onUpdate={dispatch}
+                onSave={handleSave}
+                saving={saving}
+                apiBase={apiBase}
+                appContext={appContext}
+                editId={editId}
+              />
+            )}
             </>
           )}
 
@@ -1056,6 +1106,28 @@ function _cleanDetailConfig(dc) {
 }
 
 /**
+ * Strip internal _* fields from a smart_table_config before saving.
+ * Mirrors _cleanDetailConfig discipline rule: any builder-only state
+ * (preview caches, transient UI flags) must be deleted, never persisted.
+ */
+function _cleanSmartTableConfig(stc) {
+  if (!stc || typeof stc !== 'object') return stc
+  const cleaned = {
+    columns: Array.isArray(stc.columns) ? stc.columns.map(c => {
+      const cc = { ...c }
+      // Remove any builder-only fields that may have been added per-column
+      Object.keys(cc).forEach(k => { if (k.startsWith('_')) delete cc[k] })
+      return cc
+    }) : [],
+    table: { ...(stc.table || {}) },
+  }
+  Object.keys(cleaned.table).forEach(k => {
+    if (k.startsWith('_')) delete cleaned.table[k]
+  })
+  return cleaned
+}
+
+/**
  * Build the POST payload for /dashboard/designer/api/library/create.
  * Creates a widget DEFINITION in the library (not an instance on a page).
  */
@@ -1105,6 +1177,12 @@ function buildCreatePayload(state) {
       // The widget instance also has legacy scalar fields for backward compat;
       // the backend _build_ranked_detail_list_data() prefers v2 JSON and
       // falls back to legacy fields if v2 is empty.
+    } : {}),
+    // Smart Table config (only for smart_table)
+    ...(state.chartType === 'smart_table' ? {
+      smart_table_config: state.smartTableConfig
+        ? JSON.stringify(_cleanSmartTableConfig(state.smartTableConfig))
+        : '',
     } : {}),
     // Widget-Scoped Controls (only include if configured)
     ...(state.scopeMode !== 'none' ? {
