@@ -15,7 +15,9 @@ import KPIStrip    from './widgets/KPIStrip'
 import GaugeRouter from './widgets/GaugeRouter'
 import KpiRouter   from './widgets/KpiRouter'
 import RankedDetailList from './widgets/RankedDetailList'
-import SmartTable      from './widgets/SmartTable'
+// SmartTable lives in the shared @posterra/grid-utils package so the
+// designer's preview pane and the portal both render via the same code.
+import { SmartTable }  from '@posterra/grid-utils'
 
 // Lazy-load MapWidget to avoid 600KB+ MapLibre bundle on non-map pages
 const MapWidget = React.lazy(() => import('./widgets/MapWidget'))

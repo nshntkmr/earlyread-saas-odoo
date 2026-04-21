@@ -1,6 +1,24 @@
 import React, { useState, useMemo, useCallback } from 'react'
-import { Card } from '@tremor/react'
-import { CellHost } from '@posterra/grid-utils'
+// Import sibling from inside the package — both portal and designer
+// consume this component via @posterra/grid-utils. We avoid importing
+// from @tremor/react so the designer (which has no Tremor) can render
+// previews without adding a new dependency.
+import { CellHost } from './cellRecipes.jsx'
+
+// Local Card replacement — same look as Tremor's <Card> but no dependency.
+// In the portal, Tailwind utilities are loaded and the Card looks styled.
+// In the designer (no Tailwind), the structure still renders correctly
+// with browser defaults; styling fidelity is portal-only.
+function Card({ className = '', children, style }) {
+  return (
+    <div
+      className={`bg-white border border-gray-200 rounded-lg shadow-sm ${className}`}
+      style={style}
+    >
+      {children}
+    </div>
+  )
+}
 
 /**
  * SmartTable

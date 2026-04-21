@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { SmartTable } from '@posterra/grid-utils'
 
 /**
  * SmartTableConfigurator
@@ -140,6 +141,35 @@ export default function SmartTableConfigurator({
   const moveColumn = (idx, dir) =>
     updateCfg({ columns: reorder(columns, idx, idx + dir) })
 
+  const duplicateColumn = (idx) => {
+    const copy = JSON.parse(JSON.stringify(columns[idx]))
+    copy.label = `${copy.label} (copy)`
+    const next = [...columns]
+    next.splice(idx + 1, 0, copy)
+    updateCfg({ columns: next })
+  }
+
+  // ── Live-preview rowData built from customSql.testResult ──────
+  // Reuses the portal's SmartTable component so preview is 1:1 with
+  // runtime render. Only first 5 rows shown to keep the preview tight.
+  const previewData = useMemo(() => {
+    const tr = customSql?.testResult
+    if (!tr || !Array.isArray(tr.columns) || !Array.isArray(tr.rows)) return null
+    const cols = tr.columns
+    const rowData = tr.rows.slice(0, 5).map(r => {
+      const obj = {}
+      cols.forEach((c, i) => { obj[c] = r[i] !== undefined ? r[i] : '' })
+      return obj
+    })
+    return {
+      type: 'smart_table',
+      rowData,
+      columns,
+      table: tableOpts,
+      row_count: rowData.length,
+    }
+  }, [customSql?.testResult, columns, tableOpts])
+
   // Validation banner
   const validationErrors = useMemo(() => {
     const errs = []
@@ -247,6 +277,7 @@ export default function SmartTableConfigurator({
             onChangeCell={(partial) => setColumnCell(idx, partial)}
             onReplaceCell={(newCell) => replaceColumnCell(idx, newCell)}
             onMove={(dir) => moveColumn(idx, dir)}
+            onDuplicate={() => duplicateColumn(idx)}
             onRemove={() => removeColumn(idx)}
           />
         ))}
@@ -260,6 +291,36 @@ export default function SmartTableConfigurator({
         >
           + Add Column
         </button>
+      </section>
+
+      {/* ── Live preview ─────────────────────────────────────────── */}
+      <section className="wb-section" style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+        <h4 className="wb-sub-title">Live Preview</h4>
+        {!previewData ? (
+          <div style={{
+            padding: 12, background: '#f8fafc', border: '1px dashed #cbd5e1',
+            borderRadius: 6, fontSize: 13, color: '#64748b',
+          }}>
+            Run the master query test (in <strong>Data Source</strong>) to see a preview.
+          </div>
+        ) : columns.length === 0 ? (
+          <div style={{
+            padding: 12, background: '#f8fafc', border: '1px dashed #cbd5e1',
+            borderRadius: 6, fontSize: 13, color: '#64748b',
+          }}>
+            Add at least one column to preview the table.
+          </div>
+        ) : (
+          <>
+            <p className="wb-step-hint" style={{ marginBottom: 8 }}>
+              Showing first {previewData.rowData.length} of {customSql?.testResult?.rows?.length || 0} test rows.
+              Live re-renders as you tweak columns above.
+            </p>
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
+              <SmartTable data={previewData} />
+            </div>
+          </>
+        )}
       </section>
 
       {/* ── Footer (name + save) ─────────────────────────────────── */}
@@ -301,7 +362,7 @@ export default function SmartTableConfigurator({
 
 function ColumnCard({
   idx, col, availableColumns, isFirst, isLast,
-  onChangeColumn, onChangeCell, onReplaceCell, onMove, onRemove,
+  onChangeColumn, onChangeCell, onReplaceCell, onMove, onDuplicate, onRemove,
 }) {
   const cell = col.cell || { type: 'text' }
 
@@ -360,6 +421,7 @@ function ColumnCard({
         </label>
         <button type="button" className="wb-btn wb-btn--sm wb-btn--ghost" disabled={isFirst} onClick={() => onMove(-1)} title="Move up">↑</button>
         <button type="button" className="wb-btn wb-btn--sm wb-btn--ghost" disabled={isLast}  onClick={() => onMove(+1)} title="Move down">↓</button>
+        <button type="button" className="wb-btn wb-btn--sm wb-btn--ghost" onClick={onDuplicate} title="Duplicate column"><i className="fa fa-clone" /></button>
         <button type="button" className="wb-btn wb-btn--sm wb-btn--ghost" onClick={onRemove} title="Remove column"><i className="fa fa-times" /></button>
       </div>
 

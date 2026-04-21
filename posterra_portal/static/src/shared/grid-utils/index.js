@@ -11,3 +11,4 @@ export { resolveColumnDefs } from './resolveColumnDefs.jsx'
 
 // Smart Table cell recipes (chart_type='smart_table' — independent of AG Grid)
 export { CELL_RECIPES, CellHost, VARIANT_STYLES } from './cellRecipes.jsx'
+export { default as SmartTable } from './SmartTable.jsx'
