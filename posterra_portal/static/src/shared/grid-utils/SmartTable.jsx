@@ -98,6 +98,19 @@ export default function SmartTable({ data, height }) {
   // Effective scroll height: table.height wins, then prop, then no max.
   const maxHeight = table.height || height || null
 
+  // Server-reported config error (e.g. unparseable smart_table_config).
+  // Surface it visibly so admin knows to re-open the builder.
+  if (data?.error) {
+    return (
+      <Card className="p-6">
+        <p className="text-red-700 text-sm font-medium mb-1">
+          Smart Table configuration error
+        </p>
+        <p className="text-red-600 text-xs">{data.error}</p>
+      </Card>
+    )
+  }
+
   // Empty state
   if (!columns.length) {
     return (

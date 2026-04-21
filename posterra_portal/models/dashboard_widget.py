@@ -3418,15 +3418,65 @@ class DashboardWidget(models.Model):
         Five cell recipes are consumed by SmartTable.jsx / cellRecipes.jsx:
           text | metric | metric_with_delta | badge | composite
 
-        We do NOT validate the schema server-side — the renderer fails
-        gracefully on malformed configs (empty cells / muted text), and
-        save-time validation lives in the builder.
+        Schema validation policy:
+          - JSON parse errors are surfaced as a visible widget-level error.
+            A silent fallback to {} would render an empty table with no
+            indication that the saved config was corrupt — admins waste
+            time wondering why their columns disappeared.
+          - Semantic validation (unknown recipe types, missing fields,
+            etc.) is intentionally skipped here — the renderer falls
+            back gracefully (unknown recipe → text; missing field →
+            em-dash). Save-time validation lives in the builder.
         """
         self.ensure_one()
-        try:
-            cfg = json.loads(self.smart_table_config or '{}') or {}
-        except (json.JSONDecodeError, TypeError):
+
+        raw = (self.smart_table_config or '').strip()
+        if not raw:
+            # Empty config is fine — produces an "no columns configured"
+            # state in the renderer, with a friendly message.
             cfg = {}
+        else:
+            try:
+                cfg = json.loads(raw) or {}
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                _logger.warning(
+                    'smart_table widget %s has unparseable smart_table_config: %s',
+                    self.id, exc)
+                # Surface as a visible error so admin can fix it instead
+                # of silently rendering an empty widget.
+                return {
+                    'type': 'smart_table',
+                    'error': (
+                        'Smart Table config is not valid JSON. '
+                        'Re-open the widget in the Dashboard Builder '
+                        'and re-save to fix. Details: %s' % exc
+                    ),
+                    'rowData': [],
+                    'columns': [],
+                    'table': {},
+                    'row_count': 0,
+                }
+
+        # Defensive shape checks — surface obvious schema corruption (e.g.
+        # an admin hand-edited the JSON to a non-object). Renderer can
+        # cope but admin should know.
+        if not isinstance(cfg, dict):
+            return {
+                'type': 'smart_table',
+                'error': (
+                    'Smart Table config must be a JSON object with '
+                    '"columns" and "table" keys.'
+                ),
+                'rowData': [], 'columns': [], 'table': {}, 'row_count': 0,
+            }
+
+        columns_cfg = cfg.get('columns')
+        if columns_cfg is not None and not isinstance(columns_cfg, list):
+            return {
+                'type': 'smart_table',
+                'error': 'Smart Table config "columns" must be a JSON array.',
+                'rowData': [], 'columns': [], 'table': {}, 'row_count': 0,
+            }
 
         # rowData = list of {col_name: value} dicts. Cell recipes look up
         # their fields by name (cell.field, cell.main.field, etc.) so we
@@ -3439,7 +3489,7 @@ class DashboardWidget(models.Model):
         return {
             'type': 'smart_table',
             'rowData': row_data,
-            'columns': cfg.get('columns') or [],
+            'columns': columns_cfg or [],
             'table': cfg.get('table') or {},
             'row_count': len(rows),
         }

@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { SmartTable } from '@posterra/grid-utils'
+import { designerFetch } from '../../api/client'
+import { libraryPlaceUrl } from '../../api/endpoints'
 
 /**
  * SmartTableConfigurator
@@ -105,6 +107,44 @@ export default function SmartTableConfigurator({
   // Available SQL columns from the master query test result. Empty until
   // admin runs Test Query in the Data Source step.
   const availableColumns = customSql?.testResult?.columns || []
+
+  // ── Save & Place state (mirrors TableConfigurator pattern) ────
+  const [placing, setPlacing] = useState(false)
+  const [placeSuccess, setPlaceSuccess] = useState(false)
+  const hasPageContext = !!appContext?.page?.id
+
+  // Save & Place: persist the definition, then create an instance on
+  // the current page (when admin opened the builder from a page).
+  // Mirrors TableConfigurator.handleSaveAndPlace.
+  const handleSaveAndPlace = useCallback(async () => {
+    setPlaceSuccess(false)
+    const result = await onSave()
+    if (!result?.id || !hasPageContext) return
+    // When editing, library_update already synced all instances —
+    // calling place_on_page would create a duplicate.
+    if (editId) {
+      setPlaceSuccess(true)
+      return
+    }
+    setPlacing(true)
+    try {
+      await designerFetch(libraryPlaceUrl(apiBase, result.id), {
+        method: 'POST',
+        body: JSON.stringify({
+          page_id: appContext.page.id,
+          tab_id: appContext?.tab?.id || null,
+          // smart_table v1 doesn't support Mode B scope_options
+        }),
+      })
+      setPlaceSuccess(true)
+    } catch (err) {
+      // Definition saved successfully; placement failed. User can place
+      // from Widget Library afterward — surface the error subtly.
+      console.warn('place_on_page failed:', err)
+    } finally {
+      setPlacing(false)
+    }
+  }, [onSave, hasPageContext, editId, apiBase, appContext])
 
   // ── Mutations ──────────────────────────────────────────────────
   const updateCfg = (partial) => onUpdate({ ...cfg, ...partial })
@@ -326,28 +366,59 @@ export default function SmartTableConfigurator({
       {/* ── Footer (name + save) ─────────────────────────────────── */}
       <section className="wb-section" style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
         <h4 className="wb-sub-title">Save</h4>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <label style={{ flex: 1 }}>
+
+        {/* Page-context hint: tells admin where Save & Place will land */}
+        {hasPageContext && (
+          <p className="wb-step-hint" style={{ marginBottom: 8 }}>
+            {editId
+              ? `Editing — saving updates all existing instances.`
+              : `You can save & place directly on ${appContext.page.name}${appContext.tab ? ` → ${appContext.tab.name}` : ''}.`
+            }
+          </p>
+        )}
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block' }}>
             Widget Name <span style={{ color: '#ef4444' }}>*</span>
             <input
               type="text"
               className="wb-input"
-              style={{ width: '100%' }}
+              style={{ width: '100%', maxWidth: 480 }}
               value={appearance.title || ''}
               placeholder="e.g. MDC Competition Detail"
               onChange={e => onAppearanceChange?.({ ...appearance, title: e.target.value })}
             />
           </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {placeSuccess && (
+            <span style={{ color: '#15803d', fontSize: 13, marginRight: 4 }}>
+              <i className="fa fa-check me-1" /> Placed on page!
+            </span>
+          )}
           <button
             type="button"
-            className="wb-btn wb-btn--primary"
+            className="wb-btn wb-btn--outline"
             onClick={onSave}
-            disabled={!canSave || saving}
-            title={canSave ? 'Save widget' : (validationErrors[0] || 'Enter a widget name')}
+            disabled={!canSave || saving || placing}
+            title={canSave ? 'Save the widget definition to the library' : (validationErrors[0] || 'Enter a widget name')}
           >
-            {saving ? 'Saving…' : (editId ? 'Update Widget' : 'Save Widget')}
+            {saving ? 'Saving…' : (editId ? 'Update Widget' : 'Save to Library')}
           </button>
+          {hasPageContext && (
+            <button
+              type="button"
+              className="wb-btn wb-btn--primary"
+              onClick={handleSaveAndPlace}
+              disabled={!canSave || saving || placing}
+              title={canSave ? `Save and place on ${appContext.page.name}` : (validationErrors[0] || 'Enter a widget name')}
+            >
+              {placing ? 'Placing…' : (editId ? 'Update & Sync Instances' : 'Save & Place on Page')}
+            </button>
+          )}
         </div>
+
         {validationErrors.length > 0 && (
           <ul style={{ marginTop: 10, fontSize: 12, color: '#b91c1c' }}>
             {validationErrors.map((e, i) => <li key={i}>{e}</li>)}
