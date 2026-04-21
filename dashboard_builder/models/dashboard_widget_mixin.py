@@ -68,3 +68,14 @@ class DashboardWidgetActionMixin(models.AbstractModel):
         string='Ranked Detail Config (JSON)',
         help='JSON describing the detail panel (row key, detail SQL, tiles, '
              'sub-list) for ranked_detail_list widgets.')
+
+    # ── Smart Table config (chart_type='smart_table') ─────────────────────
+    # Stored separately from table_column_config (which is AG Grid's schema)
+    # so the two widget types can never accidentally cross-contaminate. The
+    # JSON shape is documented in SmartTable.jsx — { columns: [...],
+    # table: { density, height, stickyHeader, zebraRows, sortable } }.
+    smart_table_config = fields.Text(
+        string='Smart Table Config (JSON)',
+        help='JSON schema defining columns + cell recipes for smart_table '
+             'widgets. Five recipes supported: text, metric, '
+             'metric_with_delta, badge, composite. Auto-populated by builder.')

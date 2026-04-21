@@ -227,6 +227,7 @@ class DashboardWidget(models.Model):
         ('kpi_strip',    'KPI Strip — Compact'),
         ('map',          'Map'),
         ('ranked_detail_list', 'Ranked Detail List'),
+        ('smart_table',  'Smart Table'),
     ], required=True, default='bar', string='Chart Type')
 
     display_mode = fields.Selection([
@@ -755,6 +756,8 @@ class DashboardWidget(models.Model):
             return self._build_map_data(cols, rows)
         elif self.chart_type == 'ranked_detail_list':
             return self._build_ranked_detail_list_data(cols, rows)
+        elif self.chart_type == 'smart_table':
+            return self._build_smart_table_data(cols, rows)
         else:
             # ECharts types (bar, line, pie, donut, gauge, radar, scatter, heatmap)
             option = self._build_echart_option(cols, rows)
@@ -853,6 +856,8 @@ class DashboardWidget(models.Model):
                 result = self._build_map_data(cols, rows)
             elif self.chart_type == 'ranked_detail_list':
                 result = self._build_ranked_detail_list_data(cols, rows)
+            elif self.chart_type == 'smart_table':
+                result = self._build_smart_table_data(cols, rows)
             else:
                 # Run annotation query once and pass to both chart builder and interpolation
                 ann_row = self._get_annotation_row(portal_ctx)
@@ -3396,6 +3401,48 @@ class DashboardWidget(models.Model):
         }
         result.update(self._get_typography_overrides())
         return result
+
+    def _build_smart_table_data(self, cols, rows):
+        """Build dict for chart_type='smart_table' widgets.
+
+        Schema lives in self.smart_table_config (a JSON string):
+            {
+              "columns": [
+                {"field", "label", "width?", "align?", "sortable?",
+                 "cell": {"type": "<recipe>", ...recipe-specific options}}
+              ],
+              "table": {"density?", "height?", "stickyHeader?",
+                        "zebraRows?", "sortable?"}
+            }
+
+        Five cell recipes are consumed by SmartTable.jsx / cellRecipes.jsx:
+          text | metric | metric_with_delta | badge | composite
+
+        We do NOT validate the schema server-side — the renderer fails
+        gracefully on malformed configs (empty cells / muted text), and
+        save-time validation lives in the builder.
+        """
+        self.ensure_one()
+        try:
+            cfg = json.loads(self.smart_table_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            cfg = {}
+
+        # rowData = list of {col_name: value} dicts. Cell recipes look up
+        # their fields by name (cell.field, cell.main.field, etc.) so we
+        # need the row keyed by column name, not positional.
+        row_data = [
+            {c: (v if v is not None else '') for c, v in zip(cols, r)}
+            for r in rows
+        ]
+
+        return {
+            'type': 'smart_table',
+            'rowData': row_data,
+            'columns': cfg.get('columns') or [],
+            'table': cfg.get('table') or {},
+            'row_count': len(rows),
+        }
 
     def _build_battle_data(self, cols, rows):
         """Build dict for battle_card widgets."""

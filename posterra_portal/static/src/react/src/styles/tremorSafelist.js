@@ -89,4 +89,23 @@ export const TREMOR_LITERAL_SAFELIST = `
   col-span-1 col-span-2 col-span-3 col-span-4 col-span-5 col-span-6 col-span-12
   gap-1 gap-2 gap-3 gap-4 gap-5 gap-6 gap-8
   row-span-1 row-span-2 row-span-3 row-span-4
+
+  // ── SmartTable variant tokens (cellRecipes.jsx VARIANT_STYLES) ───────
+  // Five variants × text + pill backgrounds. Listed as literals so
+  // Tailwind keeps them even though VARIANT_STYLES composes them at runtime.
+  text-emerald-700 bg-emerald-50
+  text-amber-700   bg-amber-50
+  text-red-700     bg-red-50
+  text-gray-700    bg-gray-100
+  text-gray-300    bg-transparent
+
+  // SmartTable header / cell / sort-indicator helpers
+  text-left text-center text-right
+  cursor-pointer select-none
+  whitespace-nowrap truncate
+  rounded-full
+  hover:bg-gray-100 hover:bg-gray-50/60
+  bg-gray-50/40
+  sticky top-0 z-10
+  border-collapse border-b border-gray-100 border-gray-200
 `

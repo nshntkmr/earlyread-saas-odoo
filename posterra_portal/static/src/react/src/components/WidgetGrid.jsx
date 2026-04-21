@@ -15,6 +15,7 @@ import KPIStrip    from './widgets/KPIStrip'
 import GaugeRouter from './widgets/GaugeRouter'
 import KpiRouter   from './widgets/KpiRouter'
 import RankedDetailList from './widgets/RankedDetailList'
+import SmartTable      from './widgets/SmartTable'
 
 // Lazy-load MapWidget to avoid 600KB+ MapLibre bundle on non-map pages
 const MapWidget = React.lazy(() => import('./widgets/MapWidget'))
@@ -44,6 +45,7 @@ function resolveWidget(chartType) {
     case 'kpi_strip':   return KpiRouter
     case 'map':          return MapWidget
     case 'ranked_detail_list': return RankedDetailList
+    case 'smart_table':  return SmartTable
     default:             return KPICard   // safe fallback
   }
 }
