@@ -48,12 +48,15 @@
   align-items: center;
   flex-wrap: nowrap;
   overflow-x: auto;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 5px;
+  /* Tightened to align vertically with the standard .pv-ctx-select
+     filters (Year, State, County) which are 32px tall. The picker's
+     border + padding now match — same height, same border radius. */
+  padding: 3px 6px;
   background: #ffffff;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  min-height: 38px;
+  min-height: 32px;
   transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
   /* Hide scrollbar by default; show on hover for discoverability */
   scrollbar-width: thin;
@@ -83,13 +86,15 @@
 .hha-cmp-picker__chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   background: #eef2ff;
   color: #3730a3;
   border: 1px solid #c7d2fe;
   border-radius: 999px;
-  padding: 2px 4px 2px 10px;
-  font-size: 12.5px;
+  /* Compact padding so the chip fits inside the 32px-tall strip
+     (3px top/bottom strip padding + ~22px chip = 28px total) */
+  padding: 1px 3px 1px 9px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
   max-width: 200px;
@@ -104,14 +109,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 0;
   border-radius: 50%;
   background: transparent;
   color: #6366f1;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   padding: 0;
   transition: background 120ms ease-out, color 120ms ease-out;
@@ -121,17 +126,21 @@
   color: #312e81;
 }
 
-/* + Add HHA button — `flex-shrink: 0` keeps it visible at its intended
-   size even when chip strip is at capacity */
+/*
+ * + Add HHA button — sized to fit inside the 32px-tall chip strip
+ * alongside the chips. Smaller font + tighter padding so its overall
+ * height matches the chip height (~22-24px including its own border).
+ */
 .hha-cmp-picker__add-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   background: transparent;
   border: 1px dashed #9ca3af;
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 12.5px;
+  border-radius: 4px;
+  padding: 1px 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: #4b5563;
   cursor: pointer;
   transition: all 120ms ease-out;
@@ -148,7 +157,7 @@
   cursor: not-allowed;
 }
 .hha-cmp-picker__add-btn .fa {
-  font-size: 10px;
+  font-size: 9px;
 }
 
 /* Search input shown inside the chip strip when dropdown is open */
@@ -157,8 +166,8 @@
   min-width: 200px;
   border: 0;
   outline: none;
-  font-size: 13px;
-  padding: 4px 6px;
+  font-size: 12px;
+  padding: 2px 6px;
   background: transparent;
   color: #1f2937;
 }
