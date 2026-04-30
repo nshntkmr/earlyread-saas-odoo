@@ -1070,6 +1070,10 @@ class DashboardWidget(models.Model):
             sort_mode      = vc.get('sort', 'none')
             vc_limit       = vc.get('limit', 0)
             show_axis_labels = vc.get('show_axis_labels', True)
+            axis_label_show_all  = vc.get('axis_label_show_all', False)
+            axis_label_wrap      = vc.get('axis_label_wrap', False)
+            axis_label_wrap_width = int(vc.get('axis_label_wrap_width') or 100)
+            axis_label_rotate    = vc.get('axis_label_rotate') or 0
             bar_width      = vc.get('bar_width')
             bar_gap        = vc.get('bar_gap', '30%')
             target_line    = vc.get('target_line')
@@ -1171,11 +1175,57 @@ class DashboardWidget(models.Model):
                 pos = label_position
                 if ct == 'bar' and orientation == 'horizontal' and pos == 'top':
                     pos = 'right'
+                # Stacked bars: "top" of each segment is flush against
+                # the next segment's bottom, so top/outside labels
+                # collide (e.g. therapy_pct's top sits on top of
+                # other_pct's bottom). Force the label INSIDE each
+                # segment so percentages appear centered on their
+                # colored band — this is the only sensible position
+                # for percent-stacked bars.
+                if ct == 'bar' and stack and pos in ('top', 'outside'):
+                    pos = 'inside'
+
+                # Decide the default label formatter from the active
+                # combination of flags. Branches below are mutually
+                # exclusive — first match wins, in priority order:
+                #
+                #   pct_stack_active OR number_format='percent'
+                #     → values ARE percentages (or user wants them
+                #       displayed as such) → "{c}%"
+                #
+                #   number_format='compact'
+                #     → handled by ECharts default formatter elsewhere;
+                #       no label-side change needed (placeholder for
+                #       future enhancement).
+                #
+                # show_percent_in_label and number_format='comma' are
+                # handled by the dedicated blocks below — they replace
+                # s['data'] with per-point dicts that carry their own
+                # label.formatter.
+                pct_stack_active = (ct == 'bar' and stack and
+                                    stack_mode == 'percent')
+                base_label = {'show': True, 'position': pos}
+                if pct_stack_active or number_format == 'percent':
+                    base_label['formatter'] = '{c}%'
                 for s in option.get('series', []):
-                    s['label'] = {'show': True, 'position': pos}
+                    s['label'] = dict(base_label)
 
                 # ── Percent in label: "2,484 (42.9%)" ────────────────
-                if show_pct_label and ct == 'bar':
+                #
+                # ONLY meaningful when the underlying values are RAW
+                # numbers (counts, dollars, etc.) — the pct is computed
+                # as val / grand_total. When stack_mode='percent' the
+                # values are already category-relative percentages, so
+                # dividing by the sum-of-all-bar-percentages produces
+                # nonsense (e.g. 40.8 / 300 = 13.6%). Skip in that case
+                # — the {c}% base formatter above already shows the
+                # percentage correctly.
+                #
+                # Also skip when number_format='percent' since the value
+                # itself is already being treated as a percentage.
+                if (show_pct_label and ct == 'bar'
+                        and not pct_stack_active
+                        and number_format != 'percent'):
                     # Compute grand total across all series and categories
                     grand_total = 0
                     for s in option.get('series', []):
@@ -1237,6 +1287,59 @@ class DashboardWidget(models.Model):
                 for axis_key in ('xAxis', 'yAxis'):
                     if axis_key in option:
                         option[axis_key].setdefault('axisLabel', {})['show'] = False
+
+            # ── Category-axis label wrap / show-all / rotate ──────────
+            #
+            # Long category labels (e.g. "017000 - STATE OF ALABAMA DEPT
+            # OF PUBLIC HEALTH") get truncated or auto-hidden by ECharts
+            # by default. These three flags give the widget builder
+            # control over that behaviour without writing echart_override
+            # JSON by hand.
+            #
+            # Rules:
+            #   axis_label_show_all  → interval=0 (every label drawn)
+            #   axis_label_wrap      → width + overflow='break' (multi-line)
+            #   axis_label_rotate    → rotate (degrees, 0–90 typical)
+            #
+            # Applied only when axis labels are actually shown, and to
+            # whichever axis holds the categories: xAxis for vertical
+            # bars, yAxis for horizontal bars.
+            if ct == 'bar' and show_axis_labels and (
+                axis_label_show_all or axis_label_wrap or axis_label_rotate):
+                cat_axis = 'yAxis' if orientation == 'horizontal' else 'xAxis'
+                if cat_axis in option:
+                    cfg = option[cat_axis].setdefault('axisLabel', {})
+                    # Wrap implies show-all — wrapping pointless if half the
+                    # labels are auto-hidden. User can still uncheck wrap and
+                    # use show-all alone if they prefer rotated/diagonal labels.
+                    if axis_label_show_all or axis_label_wrap:
+                        cfg['interval'] = 0
+                    if axis_label_wrap:
+                        cfg['width'] = axis_label_wrap_width
+                        cfg['overflow'] = 'break'
+                        cfg.setdefault('lineHeight', 14)
+                    if axis_label_rotate:
+                        try:
+                            cfg['rotate'] = int(axis_label_rotate)
+                        except (TypeError, ValueError):
+                            pass
+
+                    # Wrapping/rotating multi-line labels needs more
+                    # bottom (or left, for horizontal) margin so they
+                    # don't get clipped. Bump the grid spacing only when
+                    # the user has opted in — preserves default layout
+                    # for unmodified widgets.
+                    if axis_label_wrap or axis_label_rotate:
+                        grid = option.setdefault('grid', {})
+                        if cat_axis == 'xAxis':
+                            # Default ~40, bump to 70 when wrapping/rotating
+                            current = grid.get('bottom')
+                            if current in (None, '', 40, '40'):
+                                grid['bottom'] = 70
+                        else:
+                            current = grid.get('left')
+                            if current in (None, '', 40, '40'):
+                                grid['left'] = 120
 
             # ── Bar width / gap ────────────────────────────────────────
             if ct == 'bar':
@@ -1666,12 +1769,292 @@ class DashboardWidget(models.Model):
             option['series'] = series_list
 
         elif ct == 'scatter':
-            x_data = [col_val(r, x_col) or 0 for r in rows]
-            y_data = [col_val(r, y_col_list[0]) or 0 for r in rows] if y_col_list else []
-            option['xAxis'] = {'type': 'value'}
-            option['yAxis'] = {'type': 'value'}
-            option['series'] = [{'type': 'scatter',
-                                  'data': [[x, y] for x, y in zip(x_data, y_data)]}]
+            # ── Read viz config flags ─────────────────────────────────
+            vc = {}
+            if self.visual_config:
+                try:
+                    vc = json.loads(self.visual_config) or {}
+                except (json.JSONDecodeError, TypeError):
+                    vc = {}
+
+            # Bubble size column — admin can specify either via
+            # vc.size_column OR as the 2nd entry in y_columns
+            # (convention: y_columns = "stability_factor,total_visits"
+            # → Y-axis = stability_factor, bubble = total_visits).
+            size_col = (vc.get('size_column')
+                        or (y_col_list[1] if len(y_col_list) > 1 else None))
+
+            # Bubble pixel range. sqrt scaling so AREA scales linearly
+            # with the underlying value (perceptually accurate).
+            bubble_min_px = float(vc.get('bubble_min_px') or 6)
+            bubble_max_px = float(vc.get('bubble_max_px') or 40)
+
+            # ── Axis flags (replaces hand-pasted echart_override JSON) ─
+            x_axis_title  = (vc.get('x_axis_title') or '').strip()
+            y_axis_title  = (vc.get('y_axis_title') or '').strip()
+            x_axis_format = vc.get('x_axis_format', 'auto')
+            y_axis_format = vc.get('y_axis_format', 'auto')
+            x_axis_min    = vc.get('x_axis_min')
+            x_axis_max    = vc.get('x_axis_max')
+            y_axis_min    = vc.get('y_axis_min')
+            y_axis_max    = vc.get('y_axis_max')
+
+            # ── Tooltip flags (label + 1 metric + N extra rows) ────────
+            tt_label_col    = (vc.get('tooltip_label_column') or '').strip()
+            tt_metric_col   = (vc.get('tooltip_metric_column') or '').strip()
+            tt_metric_label = (vc.get('tooltip_metric_label') or '').strip() or tt_metric_col
+            tt_metric_format = vc.get('tooltip_metric_format', 'comma')
+
+            # ── Click-action value column ──────────────────────────────
+            # Admin picks the SQL column whose raw value is sent as the
+            # URL filter param when a user clicks a bubble. Pairs with
+            # the widget-level click_action config (set in the wizard's
+            # Filters & Actions step). Without this, the click handler
+            # falls back to data.name (multi-line tooltip text) — not
+            # a clean filter value.
+            click_value_col = (vc.get('click_value_column') or '').strip()
+
+            # Parse the extras spec into a list of (col_name, display_label)
+            # tuples. Format: "col1, col2:Label2, col3:Label3".
+            # If the user types a column that doesn't exist in the SQL row,
+            # _render_tooltip_name() silently skips it (col_val returns None).
+            tt_extras = []
+            tt_extras_spec = (vc.get('tooltip_extras') or '').strip()
+            if tt_extras_spec:
+                for entry in tt_extras_spec.split(','):
+                    entry = entry.strip()
+                    if not entry:
+                        continue
+                    if ':' in entry:
+                        col_part, label_part = entry.split(':', 1)
+                        tt_extras.append((col_part.strip(), label_part.strip()))
+                    else:
+                        tt_extras.append((entry, entry))
+
+            # Compute size_col max for normalization (skip None/0)
+            size_max = 0
+            if size_col and size_col in col_idx:
+                for r in rows:
+                    v = col_val(r, size_col)
+                    if v is not None and v > size_max:
+                        size_max = v
+
+            # ── Helper: format a numeric value for tooltip display ────
+            #
+            # ECharts string-template formatters can't apply number
+            # formatting (no "{c2:,}" syntax), so we pre-format the
+            # tooltip metric in Python and embed it directly into the
+            # data point's `name` field — see _render_tooltip_name().
+            def _format_metric(raw, fmt):
+                if raw is None or raw == '':
+                    return '—'
+                try:
+                    n = float(raw)
+                except (TypeError, ValueError):
+                    return str(raw)
+                if fmt == 'comma':
+                    return f'{n:,.0f}' if n == int(n) else f'{n:,.2f}'
+                if fmt == 'percent':
+                    return f'{n:.1f}%'
+                if fmt == 'decimal':
+                    return f'{n:.2f}'
+                return str(raw)
+
+            # ── Value-array layout: NUMERICS ONLY ──────────────────────
+            #
+            # We keep the value array minimal (just the floats ECharts
+            # needs for plotting). String columns go into the data
+            # point's `name` field as pre-rendered HTML — the {cN}
+            # formatter tokens don't resolve beyond indices 0/1 in this
+            # ECharts build, so we use the universally-supported `{b}`
+            # token instead (it references `name`).
+            #
+            # This also sidesteps the original "gm(...).join is not a
+            # function" error, which was triggered by mixing string
+            # values into the value array.
+            dimensions = [
+                {'name': '__x', 'type': 'float'},
+                {'name': '__y', 'type': 'float'},
+            ]
+            if size_col:
+                dimensions.append({'name': size_col, 'type': 'float'})
+
+            # ── Helper: render tooltip name (PLAIN TEXT) for one row ──
+            #
+            # In this ECharts build, `{b}` HTML-escapes the substituted
+            # value (security policy). So we put PLAIN TEXT in `name`
+            # with `\n` line breaks. The formatter template uses CSS
+            # `white-space: pre-line` to render `\n` as actual line
+            # breaks. Styling lives in the template, not the data.
+            #
+            # Row order: HHA label → primary metric → extras (in the
+            # order the admin listed them in tooltip_extras).
+            def _render_tooltip_name(r):
+                if not (tt_label_col or tt_metric_col or tt_extras):
+                    return ''
+                parts = []
+                if tt_label_col:
+                    label_val = col_val(r, tt_label_col)
+                    if label_val is not None and label_val != '':
+                        parts.append(str(label_val))
+                if tt_metric_col:
+                    formatted = _format_metric(
+                        col_val(r, tt_metric_col), tt_metric_format)
+                    label = tt_metric_label or tt_metric_col
+                    parts.append(f"{label}: {formatted}")
+                # Extras: each row "Display Label: value". Skip rows
+                # whose column doesn't exist in the SQL result OR whose
+                # value is null/empty (keeps the tooltip uncluttered).
+                for col_name, display_label in tt_extras:
+                    val = col_val(r, col_name)
+                    if val is None or val == '':
+                        continue
+                    parts.append(f"{display_label}: {val}")
+                # Use \n as line separator — formatter template renders
+                # it via white-space: pre-line CSS.
+                return '\n'.join(parts)
+
+            def _scatter_point(r):
+                """Build one ECharts data point.
+
+                Value array: [x, y] or [x, y, size] — numerics only.
+                Pre-rendered tooltip HTML lives in `name` field.
+                """
+                v = [
+                    col_val(r, x_col) or 0,
+                    (col_val(r, y_col_list[0]) or 0) if y_col_list else 0,
+                ]
+                if size_col:
+                    v.append(col_val(r, size_col) or 0)
+                point = {'value': v}
+                if tt_label_col or tt_metric_col or tt_extras:
+                    point['name'] = _render_tooltip_name(r)
+                # Attach the clean click-drilldown value if configured.
+                # The portal's EChartWidget reads this via params.data
+                # and surfaces it on the click event so WidgetGrid's
+                # go_to_page handler can use it as the URL filter
+                # value (instead of falling back to the tooltip text).
+                if click_value_col:
+                    cv = col_val(r, click_value_col)
+                    if cv is not None and cv != '':
+                        point['clickValue'] = str(cv)
+                # Per-point bubble size with sqrt scaling
+                if size_col and size_max > 0:
+                    raw = col_val(r, size_col) or 0
+                    if raw and raw > 0:
+                        norm = (float(raw) / float(size_max)) ** 0.5
+                        point['symbolSize'] = round(
+                            bubble_min_px + norm * (bubble_max_px - bubble_min_px), 1)
+                    else:
+                        point['symbolSize'] = bubble_min_px
+                return point
+
+            # ── X-axis options (built from flags) ──────────────────────
+            x_axis_cfg = {'type': 'value'}
+            if x_axis_title:
+                x_axis_cfg['name'] = x_axis_title
+                x_axis_cfg['nameLocation'] = 'middle'
+                x_axis_cfg['nameGap'] = 30
+            if x_axis_format == 'percent':
+                x_axis_cfg.setdefault('axisLabel', {})['formatter'] = '{value}%'
+            if x_axis_min is not None and x_axis_min != '':
+                x_axis_cfg['min'] = x_axis_min
+            if x_axis_max is not None and x_axis_max != '':
+                x_axis_cfg['max'] = x_axis_max
+            option['xAxis'] = x_axis_cfg
+
+            # ── Y-axis options ─────────────────────────────────────────
+            y_axis_cfg = {'type': 'value'}
+            if y_axis_title:
+                y_axis_cfg['name'] = y_axis_title
+                y_axis_cfg['nameLocation'] = 'middle'
+                y_axis_cfg['nameGap'] = 40
+            if y_axis_format == 'percent':
+                y_axis_cfg.setdefault('axisLabel', {})['formatter'] = '{value}%'
+            if y_axis_min is not None and y_axis_min != '':
+                y_axis_cfg['min'] = y_axis_min
+            if y_axis_max is not None and y_axis_max != '':
+                y_axis_cfg['max'] = y_axis_max
+            option['yAxis'] = y_axis_cfg
+
+            # ── Tooltip (built from flags — no JSON paste needed) ─────
+            #
+            # The `name` field on each data point holds plain-text
+            # content with `\n` separators between the label and the
+            # metric line (see _render_tooltip_name above). The
+            # formatter template wraps it in styled HTML; CSS
+            # `white-space: pre-line` turns the `\n` into actual line
+            # breaks at render time.
+            #
+            # We learned (through three iterations on this scatter):
+            #  - {cN} formatter tokens don't resolve for indices > 1
+            #    in this ECharts build's scatter chart
+            #  - {@dim_name} tokens with series.dimensions also don't
+            #    resolve in this build
+            #  - {b} substitution HTML-escapes its content
+            # → so the only reliable path is plain text in `name`,
+            #   styled by the template via {b} and `white-space:
+            #   pre-line`.
+            if tt_label_col or tt_metric_col or tt_extras:
+                option['tooltip'] = {
+                    'trigger': 'item',
+                    'backgroundColor': '#fff',
+                    'borderColor': '#d97706',
+                    'borderWidth': 1,
+                    'padding': 10,
+                    'extraCssText': ('box-shadow:0 4px 12px rgba(0,0,0,.15);'
+                                     'border-radius:4px;'),
+                    'formatter': (
+                        "<div style=\""
+                        "font-family:sans-serif;"
+                        "font-size:12px;"
+                        "color:#2a2a2a;"
+                        "line-height:1.55;"
+                        "white-space:pre-line;"
+                        "min-width:160px;"
+                        "\">{b}</div>"
+                    ),
+                }
+            else:
+                # No tooltip flags → ECharts default per-item tooltip
+                option['tooltip'] = {'trigger': 'item'}
+
+            # ── Series construction ───────────────────────────────────
+            #
+            # Now that the value array is numerics-only and the tooltip
+            # uses {b} (data name), the encode setup is simple — just
+            # x/y. Nothing else is plotted.
+            encode_cfg = {'x': 0, 'y': 1}
+            if series_col and series_col in col_idx:
+                # One ECharts series per category → automatic color
+                # cycling from the palette (Tier 1, Tier 2, Watchlist
+                # each get a distinct color, with a clickable legend).
+                groups = {}
+                for r in rows:
+                    sv = str(col_val(r, series_col) or 'Other')
+                    groups.setdefault(sv, []).append(_scatter_point(r))
+                # Preserve series order from data (first-seen wins)
+                ordered_keys = list(dict.fromkeys(
+                    str(col_val(r, series_col) or 'Other') for r in rows))
+                option['series'] = [
+                    {'name': sv, 'type': 'scatter',
+                     'dimensions': dimensions, 'encode': encode_cfg,
+                     'data': groups[sv]}
+                    for sv in ordered_keys
+                ]
+                # Auto-add a legend if user hasn't overridden one
+                option.setdefault('legend', {'top': 'top'})
+            else:
+                # Single-series scatter — fixed symbolSize unless
+                # size_col is set (per-point size overrides series
+                # default automatically).
+                option['series'] = [{
+                    'type': 'scatter',
+                    'dimensions': dimensions,
+                    'encode': encode_cfg,
+                    'symbolSize': vc.get('default_symbol_size') or 8,
+                    'data': [_scatter_point(r) for r in rows],
+                }]
 
         elif ct == 'heatmap':
             x_vals = sorted({str(col_val(r, x_col) or '') for r in rows})
@@ -3363,44 +3746,59 @@ class DashboardWidget(models.Model):
     def _build_table_data(self, cols, rows):
         """Build dict for data table widgets.
 
-        When table_column_config is set (AG Grid mode), returns columnDefs +
-        rowData (list of dicts).  Otherwise falls back to legacy cols/rows
-        format for backward compatibility with existing table widgets.
+        Always returns an AG-Grid-compatible `{columnDefs, rowData}` shape so
+        the portal's DataTable.jsx renders via AG Grid for every Data Table
+        widget in every app.  When the admin has configured `table_column_config`
+        explicitly (via the wizard or via a scope option's per-tab config), those
+        columnDefs win.  Otherwise, we auto-generate sensible defaults from the
+        raw SQL result columns so the grid still renders correctly rather than
+        falling back to a plain HTML table with empty cells.
+
+        Why the auto-generate path exists:
+          Previously the "legacy mode" branch returned `{cols: [str, ...],
+          rows: [[val, ...]]}`, which the portal's React DataTable component
+          expects as `cols: [{key, label, align}]` (objects).  The format
+          mismatch resulted in <th> and <td> cells rendering empty content
+          (col.label on a string is undefined).  This silently broke any
+          widget whose per-option or widget-level table_column_config was
+          empty — symptom: "table shows empty rows".
         """
+        # Parse visual_config once (shared by both code paths).
+        vc = {}
+        try:
+            vc = json.loads(self.visual_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            vc = {}
+
         column_config = []
         try:
             column_config = json.loads(self.table_column_config or '[]')
         except (json.JSONDecodeError, TypeError):
             column_config = []
 
-        if column_config:
-            # AG Grid mode: columnDefs + rowData (list of dicts)
-            row_data = [
-                {c: (v if v is not None else '') for c, v in zip(cols, r)}
-                for r in rows
-            ]
-            # Parse visual_config for table display options (pagination, scroll, etc.)
-            vc = {}
-            try:
-                vc = json.loads(self.visual_config or '{}') or {}
-            except (json.JSONDecodeError, TypeError):
-                vc = {}
-            return {
-                'type': 'table',
-                'columnDefs': column_config,
-                'rowData': row_data,
-                'row_count': len(rows),
-                'visual_config': vc,
-            }
+        if not column_config:
+            # Auto-generate columnDefs from raw SQL columns.  These defaults
+            # are intentionally minimal so admin-configured columns (when
+            # provided) remain the source of truth for polished formatting.
+            column_config = [{
+                'field': c,
+                'headerName': c.replace('_', ' ').title() if isinstance(c, str) else str(c),
+                'sortable': True,
+                'filter': True,
+                'resizable': True,
+            } for c in cols]
 
-        # Legacy mode: plain cols/rows for backward compat
-        result = {
+        row_data = [
+            {c: (v if v is not None else '') for c, v in zip(cols, r)}
+            for r in rows
+        ]
+        return {
             'type': 'table',
-            'cols': cols,
-            'rows': [[str(cell) if cell is not None else '' for cell in r] for r in rows],
+            'columnDefs': column_config,
+            'rowData': row_data,
+            'row_count': len(rows),
+            'visual_config': vc,
         }
-        result.update(self._get_typography_overrides())
-        return result
 
     def _build_smart_table_data(self, cols, rows):
         """Build dict for chart_type='smart_table' widgets.

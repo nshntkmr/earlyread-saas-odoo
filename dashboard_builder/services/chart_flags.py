@@ -132,6 +132,43 @@ BAR_FLAGS = [
         'help': 'Show category names and value ticks on the axes.',
     },
     {
+        'flag': 'axis_label_show_all',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Show All Category Labels',
+        'help': 'Force every category label to display on the axis '
+                '(disables ECharts auto-hide that drops labels when crowded). '
+                'Recommended when you have a small fixed number of categories '
+                'with long names.',
+    },
+    {
+        'flag': 'axis_label_wrap',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Wrap Long Category Labels',
+        'help': 'Break long category names onto multiple lines instead of '
+                'truncating them. Applies to the X-axis (vertical bars) or '
+                'Y-axis (horizontal bars).',
+    },
+    {
+        'flag': 'axis_label_wrap_width',
+        'type': 'number',
+        'default': 100,
+        'label': 'Wrap Width (px)',
+        'help': 'Maximum pixel width of each label before wrapping. '
+                'Smaller values = more line breaks. Typical range: 80–160.',
+        'show_when': {'axis_label_wrap': True},
+    },
+    {
+        'flag': 'axis_label_rotate',
+        'type': 'number',
+        'default': 0,
+        'label': 'Label Rotation (degrees)',
+        'help': 'Rotate axis labels. 0 = horizontal, 30–45 = diagonal, '
+                '90 = vertical. Useful when wrap is off but labels still '
+                'overlap.',
+    },
+    {
         'flag': 'bar_width',
         'type': 'number',
         'default': None,
@@ -1274,6 +1311,206 @@ MAP_FLAGS = [
 ]
 
 
+# ── Scatter Chart Flags ──────────────────────────────────────────────────────
+#
+# Scatter widgets support bubble sizing, color-by-series, and rich HTML
+# tooltips entirely through these flags + echart_override formatter strings
+# (no per-app code).
+#
+# Value-array index map for tooltip formatters:
+#   {c0} = x_col          (X-axis)
+#   {c1} = y_col          (Y-axis)
+#   {c2} = size_col       (only if size_column is set)
+#   {c3+} = extra cols    (every other SELECT column, in SELECT order)
+
+SCATTER_FLAGS = [
+    {
+        'flag': 'size_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Bubble Size Column',
+        'help': 'Optional. Name of the SQL column whose value sets each '
+                'point\'s bubble size (e.g. "total_visits"). Leave empty '
+                'for fixed-size dots. Convention: you can also pass the '
+                'size column as the 2nd entry in y_columns.',
+    },
+    {
+        'flag': 'bubble_min_px',
+        'type': 'number',
+        'default': 6,
+        'label': 'Bubble Min Size (px)',
+        'help': 'Minimum bubble diameter in pixels. Smaller = denser plot. '
+                'Used when Bubble Size Column is set.',
+    },
+    {
+        'flag': 'bubble_max_px',
+        'type': 'number',
+        'default': 40,
+        'label': 'Bubble Max Size (px)',
+        'help': 'Maximum bubble diameter in pixels. Larger = more dramatic '
+                'size differences. Used when Bubble Size Column is set.',
+    },
+    {
+        'flag': 'default_symbol_size',
+        'type': 'number',
+        'default': 8,
+        'label': 'Default Dot Size (px)',
+        'help': 'Bubble size when no Bubble Size Column is configured. '
+                'Applies uniformly to all points.',
+    },
+
+    # ── Axis labels & formatting (no JSON paste needed for these) ───────
+    {
+        'flag': 'x_axis_title',
+        'type': 'text',
+        'default': '',
+        'label': 'X-Axis Title',
+        'help': 'Display name for the X-axis (e.g. "Therapy Share of Visits"). '
+                'Leave blank to hide the axis name.',
+    },
+    {
+        'flag': 'y_axis_title',
+        'type': 'text',
+        'default': '',
+        'label': 'Y-Axis Title',
+        'help': 'Display name for the Y-axis (e.g. "Stability Factor"). '
+                'Leave blank to hide.',
+    },
+    {
+        'flag': 'x_axis_format',
+        'type': 'select',
+        'default': 'auto',
+        'label': 'X-Axis Tick Format',
+        'help': 'How X-axis tick labels are formatted. "Percent" appends '
+                '"%" to each tick (e.g. 50%, 60%).',
+        'options': [
+            {'value': 'auto',    'label': 'Auto (default)'},
+            {'value': 'percent', 'label': 'Percent (50%)'},
+        ],
+    },
+    {
+        'flag': 'y_axis_format',
+        'type': 'select',
+        'default': 'auto',
+        'label': 'Y-Axis Tick Format',
+        'help': 'How Y-axis tick labels are formatted.',
+        'options': [
+            {'value': 'auto',    'label': 'Auto (default)'},
+            {'value': 'percent', 'label': 'Percent (50%)'},
+        ],
+    },
+    {
+        'flag': 'x_axis_min',
+        'type': 'number',
+        'default': None,
+        'label': 'X-Axis Min',
+        'help': 'Minimum X-axis value. Leave blank for auto-fit.',
+    },
+    {
+        'flag': 'x_axis_max',
+        'type': 'number',
+        'default': None,
+        'label': 'X-Axis Max',
+        'help': 'Maximum X-axis value. Leave blank for auto-fit. '
+                'For percent metrics, set to 100.',
+    },
+    {
+        'flag': 'y_axis_min',
+        'type': 'number',
+        'default': None,
+        'label': 'Y-Axis Min',
+        'help': 'Minimum Y-axis value. Leave blank for auto-fit.',
+    },
+    {
+        'flag': 'y_axis_max',
+        'type': 'number',
+        'default': None,
+        'label': 'Y-Axis Max',
+        'help': 'Maximum Y-axis value. Leave blank for auto-fit. '
+                'For 0–1 metrics like Stability Factor, set to 1.',
+    },
+
+    # ── Tooltip configuration (no JSON paste needed for label + 1 metric) ─
+    #
+    # For a bigger header card with multiple metrics + body table, see the
+    # parked Rich Tooltip work. These three flags cover the common case
+    # of "show the entity name + one key metric on hover".
+    {
+        'flag': 'tooltip_label_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Tooltip — Label Column',
+        'help': 'SQL column whose value appears as the tooltip\'s bold '
+                'header line (e.g. "hha_label"). Leave blank to use the '
+                'ECharts default tooltip.',
+    },
+    {
+        'flag': 'tooltip_metric_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Tooltip — Metric Column',
+        'help': 'SQL column to display as a labeled metric below the '
+                'header line (e.g. "total_visits"). Leave blank for a '
+                'label-only tooltip.',
+    },
+    {
+        'flag': 'tooltip_metric_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Tooltip — Metric Display Label',
+        'help': 'Display label for the metric (e.g. "Total Visits"). '
+                'Leave blank to use the column name.',
+        'show_when': {'tooltip_metric_column': '__not_null__'},
+    },
+    {
+        'flag': 'tooltip_metric_format',
+        'type': 'select',
+        'default': 'comma',
+        'label': 'Tooltip — Metric Format',
+        'help': 'How the metric value is formatted in the tooltip.',
+        'options': [
+            {'value': 'comma',   'label': 'Comma (1,234)'},
+            {'value': 'percent', 'label': 'Percent (42.9%)'},
+            {'value': 'decimal', 'label': 'Decimal (12.34)'},
+            {'value': 'plain',   'label': 'Plain'},
+        ],
+        'show_when': {'tooltip_metric_column': '__not_null__'},
+    },
+    {
+        'flag': 'tooltip_extras',
+        'type': 'text',
+        'default': '',
+        'label': 'Tooltip — Extra Rows',
+        'help': 'Additional SQL columns to show as extra rows beneath the '
+                'metric. Comma-separated list. Each entry can be either:\n'
+                '  • "column_name"            (uses column name as label)\n'
+                '  • "column_name:Display"    (custom label after colon)\n'
+                'Example: "fac_state:State, fac_county:County, brand_name:Brand"',
+    },
+
+    # ── Click action: clean drill-down value ──────────────────────────
+    #
+    # Lets the admin pick a SQL column whose value is sent when a user
+    # clicks a bubble. Without this, the click handler falls back to
+    # the data point's `name` (the multi-line tooltip text) or its
+    # value array — neither is a clean key for filtering. Pair this
+    # with the widget-level "Click Action = Go to another page" config
+    # in the wizard's Filters & Actions step.
+    {
+        'flag': 'click_value_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Click Value Column',
+        'help': 'Optional. Name of the SQL column whose raw value is '
+                'sent as the URL filter param when a user clicks a '
+                'bubble. For an HHA scatter with click→Profile, set '
+                'this to "ccn_hha". Leave blank to use the default '
+                '(name field, which is usually the tooltip text — '
+                'rarely useful as a filter value).',
+    },
+]
+
+
 COMMON_FLAGS = [
     {
         'flag': 'display_density',
@@ -1319,6 +1556,7 @@ CHART_FLAGS = {
     'gauge': COMMON_FLAGS + GAUGE_FLAGS,
     'kpi': COMMON_FLAGS + KPI_FLAGS,
     'status_kpi': COMMON_FLAGS + KPI_FLAGS,
+    'scatter': COMMON_FLAGS + SCATTER_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
     'map': MAP_FLAGS,
 }
