@@ -1,0 +1,221 @@
+/* ─────────────────────────────────────────────────────────────────────
+ * PageHelpDrawer — slide-in side drawer for page-level help content.
+ *
+ * Triggered by clicking the page header's help icon (when help_text is
+ * long enough to warrant a drawer instead of a tooltip). Mounts at the
+ * root of the app tree; animates in/out via CSS transforms.
+ * ───────────────────────────────────────────────────────────────────── */
+
+/* ── Backdrop ──────────────────────────────────────────────────────── */
+.pv-help-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0);     /* slate-900 @ 0% — invisible when closed */
+  pointer-events: none;
+  transition: background 220ms ease-out;
+  z-index: 1040;                        /* above page content, below modal */
+}
+.pv-help-backdrop--open {
+  background: rgba(15, 23, 42, 0.32);   /* fade in to 32% opacity */
+  pointer-events: auto;
+}
+
+/* ── Drawer panel ──────────────────────────────────────────────────── */
+.pv-help-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 92vw;                      /* always leave a small backdrop strip */
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);          /* off-screen by default */
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 1050;                        /* above backdrop */
+  overflow: hidden;                     /* body scrolls internally */
+}
+.pv-help-drawer--open {
+  transform: translateX(0);
+}
+
+/* ── Header ────────────────────────────────────────────────────────── */
+.pv-help-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+.pv-help-drawer__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.3;
+}
+.pv-help-drawer__title .fa {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Close button */
+.pv-help-drawer__close {
+  background: transparent;
+  border: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+.pv-help-drawer__close:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+.pv-help-drawer__close:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* ── Body — scrollable, renders admin's HTML content ───────────────── */
+.pv-help-drawer__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 20px 22px 32px 22px;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #2a2a2a;
+}
+
+/* Sensible defaults for the HTML the admin pastes in.
+   These keep the drawer readable even with minimal markup. */
+.pv-help-drawer__body h1,
+.pv-help-drawer__body h2,
+.pv-help-drawer__body h3,
+.pv-help-drawer__body h4,
+.pv-help-drawer__body h5 {
+  margin: 18px 0 8px 0;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.3;
+}
+.pv-help-drawer__body h1 { font-size: 17px; }
+.pv-help-drawer__body h2 { font-size: 15.5px; }
+.pv-help-drawer__body h3 { font-size: 14.5px; }
+.pv-help-drawer__body h4 { font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+.pv-help-drawer__body h5 { font-size: 13px; }
+.pv-help-drawer__body h1:first-child,
+.pv-help-drawer__body h2:first-child,
+.pv-help-drawer__body h3:first-child,
+.pv-help-drawer__body h4:first-child {
+  margin-top: 0;
+}
+
+.pv-help-drawer__body p {
+  margin: 0 0 10px 0;
+}
+.pv-help-drawer__body ul,
+.pv-help-drawer__body ol {
+  margin: 6px 0 14px 0;
+  padding-left: 22px;
+}
+.pv-help-drawer__body li {
+  margin-bottom: 4px;
+}
+.pv-help-drawer__body code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: #f3f4f6;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #111827;
+}
+.pv-help-drawer__body hr {
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  margin: 16px 0;
+}
+.pv-help-drawer__body a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+.pv-help-drawer__body a:hover {
+  color: #1d4ed8;
+}
+
+/* Native <details> styling — collapsible sections work out of the box */
+.pv-help-drawer__body details {
+  margin: 8px 0;
+}
+.pv-help-drawer__body summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #111827;
+  padding: 4px 0;
+}
+.pv-help-drawer__body summary:hover {
+  color: #2563eb;
+}
+
+/* Helper classes admins can apply via class= attribute on inline spans */
+.pv-help-drawer__body .info-good   { color: #059669; font-weight: 600; }
+.pv-help-drawer__body .info-warn   { color: #d97706; font-weight: 600; }
+.pv-help-drawer__body .info-bad    { color: #dc2626; font-weight: 600; }
+.pv-help-drawer__body .info-info   { color: #3b82f6; font-weight: 600; }
+.pv-help-drawer__body .info-muted  { color: #6b7280; }
+.pv-help-drawer__body .info-sm     { font-size: 11.5px; }
+.pv-help-drawer__body .info-lg     { font-size: 15px; }
+
+/* Two-column grid utility for parallel content (e.g., dimensions vs rules) */
+.pv-help-drawer__body .info-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Boxed callout block */
+.pv-help-drawer__body .info-callout {
+  background: #fafafa;
+  border-left: 3px solid #d97706;
+  padding: 10px 14px;
+  margin: 10px 0;
+  border-radius: 4px;
+}
+
+/* ── Help icon hover state (drawer-trigger version) ────────────────── */
+/*
+ * The icon styling is in the global page CSS, but we want a hint of
+ * interactivity for the long-content variant. Apply pointer cursor
+ * and subtle hover when the icon has data-help-content attribute.
+ */
+.pv-page-help-icon[data-help-content] {
+  cursor: pointer;
+  transition: color 120ms ease-out;
+}
+.pv-page-help-icon[data-help-content]:hover .fa,
+.pv-page-help-icon[data-help-content]:focus-visible .fa {
+  color: #2563eb !important;
+}
+
+/* ── Mobile breakpoint ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .pv-help-drawer {
+    width: 100%;
+    max-width: 100%;
+    border-left: 0;
+  }
+}

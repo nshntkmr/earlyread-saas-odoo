@@ -118,12 +118,39 @@
                             <i t-attf-class="fa #{current_page and current_page.icon or ''} me-2 text-primary"
                                t-if="not (current_page and current_page.icon_color)"/>
                             <t t-esc="current_page and current_page.name or 'Dashboard'"/>
-                            <span t-if="current_page and current_page.help_text"
-                                  class="pv-page-help-icon ms-2"
-                                  data-bs-toggle="tooltip"
-                                  t-att-title="current_page.help_text">
-                                <i class="fa fa-info-circle text-muted"/>
-                            </span>
+                            <!--
+                                Help icon next to page title.
+
+                                Behavior depends on the LENGTH of help_text:
+                                  • Short (< 200 chars or no HTML)  → Bootstrap tooltip on hover
+                                                                       (current behavior, fa-info-circle)
+                                  • Long  (>= 200 chars or HTML)    → click opens PageHelpDrawer
+                                                                       (fa-book-open icon, drawer slides
+                                                                        in from the right)
+
+                                The drawer is mounted by main.jsx and reads the content from
+                                data-help-content / data-help-title attributes on this span.
+                            -->
+                            <t t-if="current_page and current_page.help_text">
+                                <t t-set="_help_long" t-value="len(current_page.help_text or '') >= 200 or '&lt;' in (current_page.help_text or '')"/>
+                                <span class="pv-page-help-icon ms-2"
+                                      t-att-data-help-content="current_page.help_text if _help_long else None"
+                                      t-att-data-help-title="('About ' + current_page.name) if _help_long else None"
+                                      t-att-data-bs-toggle="None if _help_long else 'tooltip'"
+                                      t-att-title="None if _help_long else current_page.help_text"
+                                      t-att-role="'button' if _help_long else None"
+                                      t-att-tabindex="'0' if _help_long else None">
+                                    <!--
+                                        Two <i> elements with mutually-exclusive t-if conditions.
+                                        Originally a single <i> with a Python ternary inside
+                                        t-attf-class — that didn't render in this QWeb engine
+                                        (silently dropped the element). Two explicit <i> with
+                                        t-if is universally supported and more readable anyway.
+                                    -->
+                                    <i t-if="_help_long" class="fa fa-book text-muted"/>
+                                    <i t-if="not _help_long" class="fa fa-info-circle text-muted"/>
+                                </span>
+                            </t>
                         </h2>
                         <small class="text-muted"
                                t-if="current_page and current_page.subtitle"

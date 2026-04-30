@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import PageHelpDrawer from './components/PageHelpDrawer'
 
 // Tailwind CSS — imported from the entry point so Tailwind's JIT scans
 // the full app module graph (otherwise classes only used in components
@@ -31,6 +32,25 @@ function mount() {
         apiBase={rootEl.dataset.apiBase || '/api/v1'}
         accessToken={rootEl.dataset.accessToken || ''}
       />
+    </React.StrictMode>
+  )
+
+  // ── Mount PageHelpDrawer at body level (separate React root) ─────
+  //
+  // The drawer's trigger icon is rendered server-side in QWeb (the
+  // page header lives OUTSIDE #app-root), so we can't put the drawer
+  // inside the App tree — it'd lose track of the trigger. Instead we
+  // mount a second React root on a body-level <div>, and the drawer
+  // listens for global clicks on [data-help-content] elements.
+  let drawerHost = document.getElementById('pv-page-help-drawer-root')
+  if (!drawerHost) {
+    drawerHost = document.createElement('div')
+    drawerHost.id = 'pv-page-help-drawer-root'
+    document.body.appendChild(drawerHost)
+  }
+  ReactDOM.createRoot(drawerHost).render(
+    <React.StrictMode>
+      <PageHelpDrawer />
     </React.StrictMode>
   )
 }
