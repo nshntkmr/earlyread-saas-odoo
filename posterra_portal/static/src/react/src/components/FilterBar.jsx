@@ -4,6 +4,7 @@ import { apiFetch } from '../api/client'
 import { cascadeMultiUrl, cascadeUrl, filtersResolveUrl } from '../api/endpoints'
 import MultiSelectDropdown from './MultiSelectDropdown'
 import SearchableSelect from './SearchableSelect'
+import HHAComparisonPicker from './HHAComparisonPicker'
 
 /**
  * FilterBar
@@ -374,7 +375,24 @@ export default function FilterBar() {
             <label className="pv-ctx-filter-label" htmlFor={`ctx-${paramKey}-select`}>
               {filter.name}
             </label>
-            {filter.is_multiselect ? (
+            {/*
+              Renderer dispatch driven by filter.ui_type:
+                'hha_comparison' → HHAComparisonPicker (chips, max 4, type-ahead)
+                anything else    → fall through to existing multi-select /
+                                   searchable / plain dropdown (unchanged
+                                   behaviour for every existing filter).
+              The ui_type field on dashboard.page.filter defaults to 'default',
+              so all current pages render exactly as before unless an admin
+              explicitly opts a filter into the picker.
+            */}
+            {filter.ui_type === 'hha_comparison' ? (
+              <HHAComparisonPicker
+                options={options}
+                value={currentValue}
+                onChange={(csv) => handleFilterChange(filter, csv)}
+                placeholder={filter.placeholder || 'Type to search HHAs by CCN or name'}
+              />
+            ) : filter.is_multiselect ? (
               <MultiSelectDropdown
                 options={options}
                 value={currentValue}

@@ -272,6 +272,40 @@ class DashboardPageFilter(models.Model):
              'Useful for filters with many options (50+ states, counties, providers).',
     )
 
+    # ── UI type override ─────────────────────────────────────────────────────
+    # By default a filter renders as a dropdown (or multi-select dropdown
+    # if is_multiselect is on). Setting ui_type to a non-default value
+    # opts the filter into a specialised renderer in the React FilterBar.
+    #
+    # Each option here corresponds to a React component:
+    #   default        → MultiSelectDropdown / SearchableSelect / plain <select>
+    #   hha_comparison → HHAComparisonPicker (chip-based, max 4 HHAs,
+    #                    type-ahead search, used for the Compare HHAs filter
+    #                    on the Utilization Comparison page)
+    #
+    # Existing filters all default to 'default' on upgrade — zero behaviour
+    # change for any current page. Future picker variants (date range,
+    # numeric slider, etc.) plug in here without disturbing existing rows.
+    ui_type = fields.Selection(
+        [
+            ('default',        'Standard (Dropdown / Multi-select)'),
+            ('hha_comparison', 'HHA Comparison Picker (chips, max 4)'),
+        ],
+        string='UI Type',
+        default='default',
+        required=True,
+        help='Controls how the filter renders in the portal UI.\n'
+             '\n'
+             '• Standard: existing dropdown / searchable / multi-select '
+             '(behaviour driven by Multi-select and Searchable toggles).\n'
+             '\n'
+             '• HHA Comparison Picker: chip-based picker for selecting up '
+             'to 4 HHAs by type-ahead search. Use for the "Compare HHAs" '
+             'filter on the Utilization Comparison page. Pairs with the '
+             'saved-comparisons feature so users can persist their '
+             'favourite 4-HHA sets.',
+    )
+
     # ── Display template ───────────────────────────────────────────────────────
     # When the filter's Column is 'id' (record primary key), the raw value
     # is a numeric ID — not useful as a dropdown label.  display_template
