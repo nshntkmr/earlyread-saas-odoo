@@ -14,11 +14,14 @@
  * `:has()` lets us target the parent without changing the JSX. Falls
  * back gracefully on older browsers (the picker still works, layout
  * just may wrap).
+ *
+ * Max-width removed — the picker should grow to fill all remaining
+ * horizontal space in the filter row so 4 chips can sit side-by-side
+ * without forcing a line break inside the picker.
  */
 .pv-ctx-filter-group:has(.hha-cmp-picker) {
   flex: 1 1 320px;
   min-width: 280px;
-  max-width: 720px;
 }
 
 /* Picker root */
@@ -27,11 +30,24 @@
   width: 100%;
 }
 
-/* Chip strip (always-visible row that holds chips + Add + search input) */
+/*
+ * Chip strip (always-visible row that holds chips + Add + search input).
+ *
+ * Single-line layout: flex-wrap is `nowrap` so adding chips never causes
+ * the picker box to grow vertically and push the Year filter / Apply
+ * buttons out of alignment. If the combined chip width exceeds the
+ * picker's available width (very long names), `overflow-x: auto`
+ * makes the strip horizontally scrollable instead of wrapping.
+ *
+ * Combined with `flex-shrink: 0` on each chip and the Add button
+ * (set further down), individual chips keep their intended width
+ * rather than getting squeezed when many are added.
+ */
 .hha-cmp-picker__chips {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 6px;
   padding: 6px 8px;
   background: #ffffff;
@@ -39,13 +55,31 @@
   border-radius: 6px;
   min-height: 38px;
   transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  /* Hide scrollbar by default; show on hover for discoverability */
+  scrollbar-width: thin;
+}
+.hha-cmp-picker__chips::-webkit-scrollbar {
+  height: 6px;
+}
+.hha-cmp-picker__chips::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
 }
 .hha-cmp-picker:focus-within .hha-cmp-picker__chips {
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
-/* Individual chip */
+/* Individual chip
+ * `flex-shrink: 0` keeps each chip at its intended size rather than
+ * letting flex squeeze them when many are added. Combined with
+ * the parent's `nowrap + overflow-x: auto`, this means chips stay
+ * fixed-size and the strip scrolls horizontally if they exceed
+ * available width.
+ *
+ * Reduced max-width 280→200 so 4 chips with long labels fit
+ * comfortably in a typical filter row width without scrolling.
+ */
 .hha-cmp-picker__chip {
   display: inline-flex;
   align-items: center;
@@ -58,7 +92,8 @@
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.4;
-  max-width: 280px;
+  max-width: 200px;
+  flex-shrink: 0;
 }
 .hha-cmp-picker__chip-label {
   white-space: nowrap;
@@ -86,7 +121,8 @@
   color: #312e81;
 }
 
-/* + Add HHA button */
+/* + Add HHA button — `flex-shrink: 0` keeps it visible at its intended
+   size even when chip strip is at capacity */
 .hha-cmp-picker__add-btn {
   display: inline-flex;
   align-items: center;
@@ -99,6 +135,8 @@
   color: #4b5563;
   cursor: pointer;
   transition: all 120ms ease-out;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .hha-cmp-picker__add-btn:hover:not(:disabled) {
   border-color: #6366f1;
