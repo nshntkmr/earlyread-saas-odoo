@@ -39,13 +39,56 @@ function PctColoredRenderer(params) {
 
 // ── 3. Badge ────────────────────────────────────────────────────────────────
 // Pill badge with background color. Good for categorical data (MA/FFS, Active/Inactive).
-// Params: colorMap { "MA": "#3b82f6" }, defaultColor
+//
+// Color resolution priority:
+//   1. cellRendererParams.colorMap[value]   ← explicit JSON config
+//   2. wizard's cellClassRules (Conditional Formatting)
+//   3. cellRendererParams.defaultColor
+//   4. neutral gray
+//
+// The cellClassRules fallback lets admins use the Designer's
+// Conditional Formatting UI to color badges without touching JSON —
+// the same way other renderers respect those rules. Each known CSS
+// class maps to a brand color via BADGE_CLASS_COLORS below.
+const BADGE_CLASS_COLORS = {
+  'cell-good':  '#059669',  // emerald — Good
+  'cell-warn':  '#d97706',  // amber   — Warning
+  'cell-bad':   '#dc2626',  // red     — Critical
+  'cell-info':  '#3b82f6',  // blue    — Info
+  'cell-muted': '#6b7280',  // gray    — Muted
+}
+
 function BadgeRenderer(params) {
   const val = params.value
   if (val == null || val === '') return null
   const p = params.colDef?.cellRendererParams || {}
-  const colorMap = p.colorMap || {}
-  const bg = colorMap[String(val)] || p.defaultColor || '#6b7280'
+  let bg = (p.colorMap || {})[String(val)]
+
+  // Fallback: derive from wizard's Conditional Formatting rules
+  // (cellClassRules). Conditions are admin-saved JS expressions
+  // like 'x === "Tier 1"'; we evaluate with x = cell value and
+  // pick the first matching rule's color. Malformed rules are
+  // silently skipped — they fall through to defaultColor.
+  if (!bg) {
+    const rules = params.colDef?.cellClassRules
+    if (rules && typeof rules === 'object') {
+      for (const cls of Object.keys(rules)) {
+        const color = BADGE_CLASS_COLORS[cls]
+        if (!color) continue
+        const condition = rules[cls]
+        try {
+          // eslint-disable-next-line no-new-func
+          const fn = new Function('x', `return (${condition})`)
+          if (fn(val)) {
+            bg = color
+            break
+          }
+        } catch (_) { /* skip bad expression */ }
+      }
+    }
+  }
+
+  bg = bg || p.defaultColor || '#6b7280'
   return (
     <span style={{
       backgroundColor: bg,
@@ -304,11 +347,29 @@ function DualValueRenderer(params) {
     }
   }
 
+  // ── Sign-based coloring + arrow on secondary (opt-in via coloredDelta) ──
+  // Default behaviour (gray, no arrow) is preserved when coloredDelta is
+  // absent or false — every widget currently using dualValue renders
+  // exactly as before. Only widgets that explicitly pass coloredDelta: true
+  // in their cellRendererParams get the green/red ▲/▼ treatment.
+  const coloredDelta = p.coloredDelta === true
+  let secondaryColor = '#6b7280'
+  let arrow = ''
+  if (coloredDelta && secondaryRaw != null && secondaryRaw !== '') {
+    const n = Number(secondaryRaw)
+    if (!isNaN(n)) {
+      if (n > 0) { secondaryColor = '#059669'; arrow = '▲ ' }
+      else if (n < 0) { secondaryColor = '#dc2626'; arrow = '▼ ' }
+    }
+  }
+
   return (
     <span style={{ whiteSpace: 'nowrap' }}>
       <strong>{primary}</strong>
       {secondary != null && (
-        <span style={{ color: '#6b7280', marginLeft: 6, fontSize: '0.9em' }}>{secondary}</span>
+        <span style={{ color: secondaryColor, marginLeft: 6, fontSize: '0.9em' }}>
+          {arrow}{secondary}
+        </span>
       )}
     </span>
   )
