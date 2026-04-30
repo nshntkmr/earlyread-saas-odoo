@@ -62,6 +62,38 @@ export default function TableConfigurator({
     }
   }, [tableColumnConfig])
 
+  // ── Reload columns when the active scope option tab changes ────────────────
+  // Without this, switching between scope-option tabs (e.g. Admits → Therapy
+  // Share) keeps the previously rendered column list on screen even though
+  // each option stores its own table_column_config underneath.
+  //
+  // Dep on activeScopeIdx only — intentionally NOT tableColumnConfig. When
+  // the user edits on the current tab, syncToParent dispatches and
+  // tableColumnConfig's prop reference changes; we do NOT want to reload
+  // local state in that case (would clobber the user's in-progress edit).
+  // The original useEffect above handles the initial LOAD_DEFINITION case
+  // (when local columns are still empty).
+  //
+  // Deep-copy each column on reload so the local state never shares object
+  // references with other tabs' configs. Shared refs would let a formatter
+  // change on tab A leak to tab B (the bug the user reported even after the
+  // earlier tab-switch patch).
+  const activeScopeIdx = builderState?.activeScopeIdx ?? 0
+  useEffect(() => {
+    const reloaded = (tableColumnConfig || []).map(col => {
+      // Strip any existing _id so a fresh one is assigned, and spread to
+      // produce a brand-new object (cellRendererParams / cellClassRules /
+      // cellStyle are shallow-copied — if those are edited at runtime they
+      // get replaced wholesale via updateColumn's spread, not mutated in
+      // place, so a shallow top-level clone is sufficient here).
+      const { _id, ...rest } = col || {}
+      return assignId({ ...rest })
+    })
+    setColumns(reloaded)
+    setSelectedIdx(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScopeIdx])
+
   // ── Available columns from data sources ────────────────────────────────────
   const availableColumns = useMemo(() => {
     if (dataMode === 'custom_sql' && customSql?.testResult?.columns) {
@@ -170,9 +202,25 @@ export default function TableConfigurator({
     setPreviewError(null)
     try {
       // Build a snapshot of builderState with the latest local columns
-      // (local state may be ahead of parent due to async dispatch)
+      // (local state may be ahead of parent due to async dispatch).
+      //
+      // When scope mode is active, dataMode / customSql / sources / joins /
+      // filters live on the active option config (`ac` in the parent), NOT on
+      // the top-level builderState. The props we already receive (`dataMode`,
+      // `customSql`, etc.) come from `ac`, so merge them into the snapshot so
+      // buildPreviewPayload sees the correct per-tab values. Without this the
+      // preview falls through to visual-mode and errors with
+      // "Config must include at least one source_id" for custom-SQL scope tabs.
       const clean = columns.map(({ _id, ...rest }) => rest)
-      const stateSnapshot = { ...builderState, tableColumnConfig: clean }
+      const stateSnapshot = {
+        ...builderState,
+        dataMode,
+        customSql,
+        sources,
+        joins,
+        filters,
+        tableColumnConfig: clean,
+      }
 
       const body = buildPreviewPayload(
         stateSnapshot,
@@ -191,7 +239,8 @@ export default function TableConfigurator({
     } finally {
       setPreviewLoading(false)
     }
-  }, [builderState, columns, filterValues, hasPageContext, apiBase, appContext])
+  }, [builderState, columns, filterValues, hasPageContext, apiBase, appContext,
+      dataMode, customSql, sources, joins, filters])
 
   // ── Save handlers ──────────────────────────────────────────────────────────
   // Pass widget title directly as an override to onSave() — avoids async

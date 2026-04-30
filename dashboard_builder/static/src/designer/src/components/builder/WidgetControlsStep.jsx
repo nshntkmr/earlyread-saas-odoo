@@ -13,27 +13,38 @@ import React from 'react'
  * When scope_mode = 'none', subsequent steps work as single config (no tabs).
  */
 
-// Default config for a new option (matches WidgetBuilder.initialState shape)
-const DEFAULT_OPTION_CONFIG = {
-  dataMode: 'custom_sql',
-  sources: [],
-  joins: [],
-  customSql: { sql: '', xColumn: '', yColumns: '', seriesColumn: '', testResult: null, testParams: {} },
-  xColumn: '',
-  columns: [],
-  seriesColumn: '',
-  orderBy: '',
-  limit: '',
-  filters: [],
-  clickAction: 'none',
-  actionPageKey: '',
-  actionTabKey: '',
-  actionPassValueAs: '',
-  drillDetailColumns: '',
-  actionUrlTemplate: '',
-  tableColumnConfig: [],
-  generatedSql: '',
-  aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] },
+// Factory for a new option's default config.
+//
+// IMPORTANT: returns a FRESH object every call so nested arrays/objects
+// are NOT shared across options. Previously this was a module-level
+// constant spread into new options (`{...DEFAULT_OPTION_CONFIG, ...}`).
+// Only customSql was deep-copied, so every option ended up sharing the
+// same `tableColumnConfig`, `sources`, `joins`, `filters`, and `aiState`
+// references. That let per-tab mutations leak across tabs — e.g. a
+// formatter change on the Admits tab could appear on the Therapy Share
+// tab because both tabs' tableColumnConfig pointed to the same array.
+function createDefaultOptionConfig() {
+  return {
+    dataMode: 'custom_sql',
+    sources: [],
+    joins: [],
+    customSql: { sql: '', xColumn: '', yColumns: '', seriesColumn: '', testResult: null, testParams: {} },
+    xColumn: '',
+    columns: [],
+    seriesColumn: '',
+    orderBy: '',
+    limit: '',
+    filters: [],
+    clickAction: 'none',
+    actionPageKey: '',
+    actionTabKey: '',
+    actionPassValueAs: '',
+    drillDetailColumns: '',
+    actionUrlTemplate: '',
+    tableColumnConfig: [],
+    generatedSql: '',
+    aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] },
+  }
 }
 
 export default function WidgetControlsStep({
@@ -44,7 +55,7 @@ export default function WidgetControlsStep({
 }) {
   const addOption = () => {
     const newOpt = { label: '', value: '', icon: '' }
-    const newConfig = { ...DEFAULT_OPTION_CONFIG, customSql: { ...DEFAULT_OPTION_CONFIG.customSql } }
+    const newConfig = createDefaultOptionConfig()
     onUpdate({
       scopeOptions: [...(scopeOptions || []), newOpt],
       optionConfigs: [...(optionConfigs || []), newConfig],
@@ -116,8 +127,8 @@ export default function WidgetControlsStep({
                     { label: 'All', value: '', icon: 'fa-users' },
                   ],
                   optionConfigs: [
-                    { ...DEFAULT_OPTION_CONFIG, customSql: { ...DEFAULT_OPTION_CONFIG.customSql } },
-                    { ...DEFAULT_OPTION_CONFIG, customSql: { ...DEFAULT_OPTION_CONFIG.customSql } },
+                    createDefaultOptionConfig(),
+                    createDefaultOptionConfig(),
                   ],
                 })
               }
@@ -253,4 +264,4 @@ export default function WidgetControlsStep({
   )
 }
 
-export { DEFAULT_OPTION_CONFIG }
+export { createDefaultOptionConfig }

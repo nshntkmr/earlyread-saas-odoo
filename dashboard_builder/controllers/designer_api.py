@@ -10,11 +10,48 @@ The admin is already logged into Odoo backend, so session cookies handle auth.
 
 import json
 import logging
+import re
 
 from odoo import http
 from odoo.http import request
 
 from .utils import _json_response, _json_error, _get_request_json
+
+
+# Match the first table identifier in a FROM clause.  Handles optional
+# `public.` prefix and double-quoted or bare identifiers.  Intentionally
+# narrow — matches `FROM mv_inhome_v1_therapy_metrics`, `FROM public."mv_x"`,
+# etc.  Does NOT recurse into subqueries (first table wins).
+_FROM_TABLE_RE = re.compile(
+    r'\bFROM\s+(?:public\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?',
+    re.IGNORECASE,
+)
+
+
+def _detect_schema_source_id(env, sql_text):
+    """Return the dashboard.schema.source ID whose table_name matches the
+    first FROM clause in ``sql_text``, or None if no match.
+
+    Used by library_create / library_update to auto-populate
+    ``schema_source_id`` on widget definitions and instances that reference
+    a schema-source table via ``{where_clause}``.  The portal constraint at
+    dashboard_widget.py ``_check_where_clause_requires_source`` requires
+    schema_source_id to be set whenever query_sql contains ``{where_clause}``,
+    so without this helper the builder would have to force admins to pick
+    a schema source manually even though the SQL itself already names it.
+    """
+    if not sql_text:
+        return None
+    m = _FROM_TABLE_RE.search(sql_text)
+    if not m:
+        return None
+    table_name = m.group(1)
+    try:
+        Source = env['dashboard.schema.source'].sudo()
+    except KeyError:
+        return None
+    src = Source.search([('table_name', '=', table_name)], limit=1)
+    return src.id if src else None
 
 _logger = logging.getLogger(__name__)
 
@@ -548,37 +585,69 @@ class DesignerAPI(http.Controller):
         } for d in defs])
 
     def _get_scope_options_for_definition(self, defn):
-        """Return scope_options from the first widget instance of this definition."""
+        """Return scope_options for this definition.
+
+        Primary source: the first widget instance's scope_option_ids (correct
+        answer once the widget is placed on a page).
+
+        Fallback: a `_scope_options_stash` entry inside the definition's
+        builder_config JSON, populated by library_create / library_update.
+        The fallback covers two real edge cases:
+          1. User clicked "Save to Library" only (no place), so no instance
+             exists yet — without the stash, Edit-mode would load empty
+             scope-option tabs, losing all the SQL and column config.
+          2. The first widget instance was created before scope_option_ids
+             were supported, so its scope_option_ids is empty.
+
+        Any options from the primary source take precedence over the stash.
+        """
+        options_from_instance = []
         try:
             Widget = request.env['dashboard.widget']
-            instances = Widget.sudo().search([('definition_id', '=', defn.id)], limit=1)
-            if not instances:
-                return []
-            return [{
-                'label': o.label or '',
-                'value': o.value or '',
-                'icon': o.icon or '',
-                'sequence': o.sequence,
-                'query_sql': o.query_sql or '',
-                'schema_source_table': o.schema_source_id.table_name if o.schema_source_id else '',
-                'where_clause_exclude': o.where_clause_exclude or '',
-                'table_column_config': o.table_column_config or '',
-                'x_column': o.x_column or '',
-                'y_columns': o.y_columns or '',
-                'series_column': o.series_column or '',
-                'click_action': o.click_action or 'none',
-                'action_page_key': o.action_page_key or '',
-                'action_tab_key': o.action_tab_key or '',
-                'action_pass_value_as': o.action_pass_value_as or '',
-                'drill_detail_columns': o.drill_detail_columns or '',
-                'action_url_template': o.action_url_template or '',
-                # Ranked Detail List v2 configs per scope option (Mode B):
-                # each tab keeps its own master layout + detail tile config.
-                'ranked_master_config': o.ranked_master_config or '',
-                'ranked_detail_config': o.ranked_detail_config or '',
-            } for o in instances[0].scope_option_ids.sorted('sequence')]
+            instances = Widget.sudo().search(
+                [('definition_id', '=', defn.id)], limit=1)
+            if instances:
+                options_from_instance = [{
+                    'label': o.label or '',
+                    'value': o.value or '',
+                    'icon': o.icon or '',
+                    'sequence': o.sequence,
+                    'query_sql': o.query_sql or '',
+                    'schema_source_table': o.schema_source_id.table_name if o.schema_source_id else '',
+                    'where_clause_exclude': o.where_clause_exclude or '',
+                    'table_column_config': o.table_column_config or '',
+                    'x_column': o.x_column or '',
+                    'y_columns': o.y_columns or '',
+                    'series_column': o.series_column or '',
+                    'click_action': o.click_action or 'none',
+                    'action_page_key': o.action_page_key or '',
+                    'action_tab_key': o.action_tab_key or '',
+                    'action_pass_value_as': o.action_pass_value_as or '',
+                    'drill_detail_columns': o.drill_detail_columns or '',
+                    'action_url_template': o.action_url_template or '',
+                    # Ranked Detail List v2 configs per scope option (Mode B):
+                    # each tab keeps its own master layout + detail tile config.
+                    'ranked_master_config': o.ranked_master_config or '',
+                    'ranked_detail_config': o.ranked_detail_config or '',
+                } for o in instances[0].scope_option_ids.sorted('sequence')]
         except (KeyError, Exception):
-            return []
+            options_from_instance = []
+
+        if options_from_instance:
+            return options_from_instance
+
+        # Fallback — read the stash from builder_config
+        try:
+            bc_raw = defn.builder_config or ''
+            if bc_raw:
+                bc = json.loads(bc_raw)
+                if isinstance(bc, dict):
+                    stash = bc.get('_scope_options_stash') or []
+                    if isinstance(stash, list):
+                        return stash
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+        return []
 
     @http.route(
         '/dashboard/designer/api/library/<int:def_id>',
@@ -787,6 +856,41 @@ class DesignerAPI(http.Controller):
             if body.get('app_ids') and 'app_ids' in request.env['dashboard.widget.definition']._fields:
                 def_vals['app_ids'] = [(6, 0, body['app_ids'])]
 
+            # Auto-detect schema_source_id from the SQL's FROM clause when the
+            # SQL contains {where_clause}.  Without this, the widget-instance
+            # validation constraint (_check_where_clause_requires_source in
+            # dashboard_widget.py) fails on save because query_sql references
+            # {where_clause} but schema_source_id is empty.  Works generically
+            # across every app — the SQL itself names the table.
+            if not def_vals.get('schema_source_id'):
+                candidate_sql = def_vals.get('query_sql') or def_vals.get('generated_sql') or ''
+                if not candidate_sql and body.get('scope_options'):
+                    # Scope widgets: fall back to the first option's SQL
+                    for opt in body['scope_options']:
+                        if opt.get('query_sql'):
+                            candidate_sql = opt['query_sql']
+                            break
+                if candidate_sql and '{where_clause}' in candidate_sql:
+                    detected = _detect_schema_source_id(request.env, candidate_sql)
+                    if detected:
+                        def_vals['schema_source_id'] = detected
+
+            # Stash scope_options in builder_config so edit-mode can restore them
+            # even if no widget instance has been placed yet.  Without this, users
+            # who click "Save to Library" (without "Save & Place") would lose all
+            # their scope-tab configuration on the next Edit because
+            # _get_scope_options_for_definition only reads from instances.
+            if body.get('scope_options'):
+                try:
+                    bc_raw = def_vals.get('builder_config', '')
+                    bc = json.loads(bc_raw) if bc_raw else {}
+                except (json.JSONDecodeError, TypeError):
+                    bc = {}
+                if not isinstance(bc, dict):
+                    bc = {}
+                bc['_scope_options_stash'] = body['scope_options']
+                def_vals['builder_config'] = json.dumps(bc)
+
             definition = request.env['dashboard.widget.definition'].sudo().create(def_vals)
 
             return _json_response({
@@ -890,6 +994,36 @@ class DesignerAPI(http.Controller):
         if 'app_ids' in body and 'app_ids' in request.env['dashboard.widget.definition']._fields:
             update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]
 
+        # Auto-detect schema_source_id from the SQL when it contains
+        # {where_clause} and the definition doesn't already have one.  Same
+        # rationale as library_create — prevents the widget-instance
+        # _check_where_clause_requires_source constraint from failing the save.
+        effective_sql = update_vals.get('query_sql', '')
+        if not effective_sql and body.get('scope_options'):
+            for opt in body['scope_options']:
+                if opt.get('query_sql'):
+                    effective_sql = opt['query_sql']
+                    break
+        if (effective_sql
+                and '{where_clause}' in effective_sql
+                and not defn.schema_source_id):
+            detected = _detect_schema_source_id(request.env, effective_sql)
+            if detected:
+                update_vals['schema_source_id'] = detected
+
+        # Stash scope_options in builder_config so edit-mode can always restore
+        # them, even when no widget instance exists for this definition.
+        if 'scope_options' in body:
+            try:
+                bc_raw = update_vals.get('builder_config', defn.builder_config or '')
+                bc = json.loads(bc_raw) if bc_raw else {}
+            except (json.JSONDecodeError, TypeError):
+                bc = {}
+            if not isinstance(bc, dict):
+                bc = {}
+            bc['_scope_options_stash'] = body.get('scope_options') or []
+            update_vals['builder_config'] = json.dumps(bc)
+
         try:
             defn.write(update_vals)
 
@@ -983,9 +1117,26 @@ class DesignerAPI(http.Controller):
                                         [('table_name', '=', table_name)], limit=1)
                                     if src:
                                         opt_vals['schema_source_id'] = src.id
+                                # Fallback: auto-detect from this option's SQL
+                                # when the builder didn't pass schema_source_table
+                                # explicitly. The option's own SQL names its table.
+                                if (not opt_vals.get('schema_source_id')
+                                        and opt.get('query_sql')
+                                        and '{where_clause}' in opt['query_sql']):
+                                    detected = _detect_schema_source_id(
+                                        request.env, opt['query_sql'])
+                                    if detected:
+                                        opt_vals['schema_source_id'] = detected
                                 ScopeOption.sudo().create(opt_vals)
-            except KeyError:
-                pass  # dashboard.widget not installed
+            except KeyError as ke:
+                # dashboard.widget not installed — log so we can tell the
+                # difference between "consuming module missing" (expected
+                # in standalone dashboard_builder) and "something inside
+                # the sync block raised KeyError" (a real bug we want to see).
+                _logger.warning(
+                    'library_update instance sync skipped for def %s: KeyError=%r',
+                    defn.id, ke,
+                )
 
             return _json_response({'id': defn.id, 'name': defn.name})
         except Exception as e:
@@ -1347,6 +1498,16 @@ class DesignerAPI(http.Controller):
                             [('table_name', '=', table_name)], limit=1)
                         if src:
                             opt_vals['schema_source_id'] = src.id
+                    # Fallback: auto-detect from the option's SQL when no
+                    # explicit schema_source_table was sent.  Mirrors the
+                    # same logic in library_update's scope-option sync.
+                    if (not opt_vals.get('schema_source_id')
+                            and opt.get('query_sql')
+                            and '{where_clause}' in opt['query_sql']):
+                        detected = _detect_schema_source_id(
+                            request.env, opt['query_sql'])
+                        if detected:
+                            opt_vals['schema_source_id'] = detected
                     ScopeOption.sudo().create(opt_vals)
                 _logger.info(
                     'library_place: created %d scope options for widget %s',

@@ -200,12 +200,39 @@ class DashboardWidgetScopeOption(models.Model):
 
             # Format result using per-option column config when available
             widget = self.widget_id
-            if widget.chart_type == 'table' and self.table_column_config:
-                # Table with per-option column config — use option's columnDefs
-                try:
-                    col_config = json.loads(self.table_column_config)
-                except (json.JSONDecodeError, TypeError):
-                    col_config = None
+            if widget.chart_type == 'table':
+                # AG Grid columnDefs resolution — generic fallback chain so
+                # every Data Table scope widget in every app (Posterra, MSSP,
+                # Inhome, Inhome_v1, future apps) renders as AG Grid whenever
+                # ANY usable column config exists, rather than silently falling
+                # back to plain HTML.
+                #
+                # Priority order:
+                #   1. This scope option's own table_column_config
+                #      (admin explicitly configured columns for this tab).
+                #   2. Any sibling scope option's table_column_config — used
+                #      as a reasonable default when the admin only configured
+                #      columns on one tab and the other tabs share the same
+                #      SQL column names (the common case for metric-switch
+                #      tables like Admits / Visits / Therapy Share).
+                #   3. Widget-level table_column_config, handled implicitly
+                #      by _build_table_data() when both of the above are empty.
+                #
+                # The new #2 step is the additive fix — it doesn't override
+                # any explicit per-tab config, it only activates when the
+                # current tab has none.
+                raw_config = self.table_column_config or ''
+                if not raw_config:
+                    for sibling in (widget.scope_option_ids - self).sorted('sequence'):
+                        if sibling.table_column_config:
+                            raw_config = sibling.table_column_config
+                            break
+                col_config = None
+                if raw_config:
+                    try:
+                        col_config = json.loads(raw_config)
+                    except (json.JSONDecodeError, TypeError):
+                        col_config = None
                 result = widget._build_table_data(cols, rows)
                 if col_config:
                     result['columnDefs'] = col_config
