@@ -233,7 +233,23 @@ export default function WidgetGrid({ initialWidgets }) {
   const handleWidgetClick = useCallback((widget, clickData) => {
     const action = widget.click_action || 'none'
     const name = clickData.name || clickData.column || ''
-    const value = clickData.value != null ? String(clickData.value) : String(name)
+    // Resolution priority for the value to send:
+    //   1. clickData.clickValue   ← server-attached clean drilldown key
+    //                                (e.g. CCN from scatter's clickValue)
+    //   2. clickData.value         ← raw cell/data value
+    //   3. clickData.name          ← display text (last resort)
+    const value =
+      clickData.clickValue != null && clickData.clickValue !== ''
+        ? String(clickData.clickValue)
+        : (clickData.value != null
+            ? String(clickData.value)
+            : String(name))
+
+    // Current app key from URL — replaces a legacy hardcoded "posterra"
+    // prefix so the same handler works across InHome_v1, MSSP, etc.
+    // Falls back to "posterra" only if the path is unexpectedly short.
+    const currentApp =
+      window.location.pathname.split('/')[2] || 'posterra'
 
     switch (action) {
       case 'filter_page': {
@@ -249,7 +265,7 @@ export default function WidgetGrid({ initialWidgets }) {
         const pageKey = widget.action_page_key || ''
         const tabKey = widget.action_tab_key || ''
         const param = widget.action_pass_value_as || ''
-        let targetUrl = `/my/posterra/${pageKey}`
+        let targetUrl = `/my/${currentApp}/${pageKey}`
         if (tabKey) targetUrl += `?tab=${tabKey}`
         if (param && value) {
           targetUrl += (targetUrl.includes('?') ? '&' : '?') + `${param}=${encodeURIComponent(value)}`

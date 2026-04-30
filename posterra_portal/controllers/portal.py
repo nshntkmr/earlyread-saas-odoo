@@ -110,6 +110,11 @@ def _build_page_config_json(app, page, tabs, page_filters, filter_options,
                 'is_visible':            pf.is_visible,
                 'is_multiselect':        pf.is_multiselect,
                 'is_searchable':         pf.is_searchable,
+                # ui_type drives FilterBar's renderer dispatch — 'default'
+                # falls through to the existing dropdown / multi-select /
+                # searchable behaviour; specialised values like
+                # 'hha_comparison' route to dedicated React components.
+                'ui_type':               pf.ui_type or 'default',
                 'options':               filter_options.get(pf.id, []),
                 'sequence':              pf.sequence,
             }
@@ -173,6 +178,18 @@ def _build_initial_widgets_json(widgets, widget_data):
             'annotation_type':    w.annotation_type or 'none',
             'annotation_text':    resolved_annotation_text,
             'annotation_position': w.annotation_position or 'top_right',
+            # Widget-level click action (for charts — bar / line / scatter / etc.)
+            # Tables use per-column click actions inside table_column_config
+            # which is serialized as part of `data` below. These four fields are
+            # the widget-wide equivalent — clicking ANY data point in the chart
+            # triggers them. React's WidgetGrid.handleWidgetClick reads them
+            # from the widget object (w.click_action, w.action_page_key, …)
+            # to decide where to navigate.
+            'click_action':         w.click_action or 'none',
+            'action_page_key':      w.action_page_key or '',
+            'action_tab_key':       w.action_tab_key or '',
+            'action_pass_value_as': w.action_pass_value_as or '',
+            'action_url_template':  w.action_url_template or '',
             'data':         wd,
         }
 
@@ -796,8 +813,44 @@ class PosterraPortal(CustomerPortal):
         for w in widgets:
             w_tab_key = w.tab_id.key if w.tab_id else None
             if not w_tab_key or w_tab_key == current_tab_key:
-                # Current tab or no-tab widget → execute SQL, full data
-                widget_data[w.id] = w.get_portal_data(portal_ctx)
+                # Current tab or no-tab widget → execute SQL, full data.
+                #
+                # For scope widgets in "Different SQL Per Option" mode
+                # (scope_mode='independent' + scope_query_mode='query'), route
+                # the initial render through the default scope option's
+                # execute_option_sql so the first paint uses the per-tab
+                # config (query, table_column_config, x/y columns) the admin
+                # actually configured for that tab.  Without this, the initial
+                # paint uses widget-level config (typically empty for scope
+                # widgets) while subsequent scope-tab clicks use the option's
+                # config — producing a visible inconsistency on first load
+                # (e.g. for table widgets: all SQL columns appear as auto-
+                # generated headers, then the "correct" subset appears after
+                # the first user click).
+                #
+                # Fallbacks preserve existing behaviour:
+                #   - no active options  → use widget.get_portal_data
+                #   - no option SQL      → use widget.get_portal_data
+                #   - non-query mode     → use widget.get_portal_data
+                portal_data = None
+                if (w.scope_mode == 'independent'
+                        and w.scope_query_mode == 'query'):
+                    active_opts = (
+                        w.scope_option_ids
+                         .filtered('is_active')
+                         .sorted('sequence'))
+                    if active_opts:
+                        default_val = w.scope_default_value or ''
+                        default_opt = (
+                            active_opts.filtered(lambda o: o.value == default_val)
+                            if default_val else active_opts.browse()
+                        )
+                        default_opt = default_opt[:1] or active_opts[:1]
+                        if default_opt and (default_opt.query_sql or '').strip():
+                            portal_data = default_opt.execute_option_sql(portal_ctx)
+                if portal_data is None:
+                    portal_data = w.get_portal_data(portal_ctx)
+                widget_data[w.id] = portal_data
             else:
                 # Other tab → deferred metadata only (no SQL execution)
                 widget_data[w.id] = {'_deferred': True}

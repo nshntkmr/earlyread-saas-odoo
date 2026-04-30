@@ -14,7 +14,13 @@ import * as echarts from 'echarts'
  *   data        — { echart_option: {...} }  (from widget_data / API)
  *   height      — number (pixels), default 350
  *   clickAction — string (none|filter_page|go_to_page|show_details|open_url)
- *   onChartClick — ({ name, value, seriesName, dataIndex }) => void
+ *   onChartClick — ({ name, value, clickValue, seriesName, dataIndex }) => void
+ *
+ * `clickValue` is a server-attached custom field on each data point
+ * (set in dashboard_widget._build_echart_option for scatter when the
+ * admin configures a "Click Value Column" flag). It carries a clean
+ * drilldown key (e.g. an HHA's CCN) so go_to_page navigation can pass
+ * a usable filter value instead of the multi-line tooltip text.
  */
 export default function EChartWidget({ data, height = 350, clickAction, onChartClick }) {
   const containerRef = useRef(null)
@@ -26,6 +32,10 @@ export default function EChartWidget({ data, height = 350, clickAction, onChartC
     onChartClick({
       name: params.name,
       value: params.value,
+      // Optional clean drilldown value — see jsdoc above. Older
+      // widgets without this field flow through as `undefined`,
+      // and WidgetGrid falls back to its existing logic.
+      clickValue: params.data?.clickValue,
       seriesName: params.seriesName,
       dataIndex: params.dataIndex,
     })
