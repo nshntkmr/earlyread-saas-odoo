@@ -6,6 +6,12 @@ import re
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..utils.sql_idents import (
+    IDENT_RE as _SQL_IDENT_RE,
+    TABLE_RE as _SQL_TABLE_RE,
+    quote_table as _quote_table,
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -675,7 +681,14 @@ class DashboardPageFilter(models.Model):
             return []
 
     # ── Schema source options (raw SQL) ─────────────────────────────────────
-    _IDENT_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+    #
+    # Identifier validation is shared with widget/section/badge SQL via
+    # ``posterra_portal.utils.sql_idents`` so the rules stay consistent
+    # across emission points. The class-level attributes are kept for
+    # backward compatibility with code that referenced ``self._IDENT_RE``
+    # before this refactor.
+    _IDENT_RE = _SQL_IDENT_RE
+    _TABLE_RE = _SQL_TABLE_RE
 
     def _build_schema_where(self, constraints, provider_ids=None,
                             all_filter_values=None):
@@ -825,7 +838,7 @@ class DashboardPageFilter(models.Model):
         if not table or not column:
             return []
 
-        if not self._IDENT_RE.match(table) or not self._IDENT_RE.match(column):
+        if not self._TABLE_RE.match(table) or not self._IDENT_RE.match(column):
             _logger.warning(
                 'dashboard.page.filter %s: invalid identifier '
                 'table=%r column=%r', self.id, table, column,
@@ -835,16 +848,22 @@ class DashboardPageFilter(models.Model):
         where_parts, params = self._build_schema_where(
             constraints, provider_ids, all_filter_values=all_filter_values)
         where_clause = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
+        # Quote each segment of the table name so ``gold.fact_referrals``
+        # becomes ``"gold"."fact_referrals"`` (proper db.table) rather
+        # than ``"gold.fact_referrals"`` (a single identifier with a dot).
         sql = (
-            f'SELECT DISTINCT "{column}" FROM "{table}" '
+            f'SELECT DISTINCT "{column}" FROM {_quote_table(table)} '
             f'{where_clause} ORDER BY "{column}"'
         )
         _logger.info('[CASCADE-SQL] _get_schema_source_options SQL: %s | params: %s', sql, params)
 
+        # Dispatch via executor — falls through to PostgresLocalExecutor
+        # for the local-Postgres path (existing behaviour) or to the
+        # connection's executor for external sources (e.g. ClickHouse).
         try:
-            with self.env.cr.savepoint():
-                self.env.cr.execute(sql, params)
-                rows = self.env.cr.fetchall()
+            from posterra_portal.utils.query_executors import get_executor
+            executor = get_executor(self.env, self.schema_source_id)
+            _cols, rows = executor.execute(sql, params)
         except Exception as exc:
             _logger.warning(
                 'dashboard.page.filter %s: schema source SQL error: %s',
@@ -853,7 +872,8 @@ class DashboardPageFilter(models.Model):
             return []
 
         options = []
-        for (raw,) in rows:
+        for row in rows:
+            raw = row[0] if row else None
             if raw is None or raw == '':
                 continue
             val = str(raw).strip()
@@ -884,7 +904,7 @@ class DashboardPageFilter(models.Model):
 
         select_cols = list(dict.fromkeys([value_col] + template_fields))
 
-        if not self._IDENT_RE.match(table):
+        if not self._TABLE_RE.match(table):
             _logger.warning(
                 'dashboard.page.filter %s: invalid table identifier %r',
                 self.id, table,
@@ -902,13 +922,13 @@ class DashboardPageFilter(models.Model):
             constraints, provider_ids, all_filter_values=all_filter_values)
         where_clause = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
         cols_sql = ', '.join(f'"{c}"' for c in select_cols)
-        sql = f'SELECT DISTINCT {cols_sql} FROM "{table}" {where_clause} ORDER BY "{value_col}"'
+        sql = f'SELECT DISTINCT {cols_sql} FROM {_quote_table(table)} {where_clause} ORDER BY "{value_col}"'
         _logger.info('[CASCADE-SQL] _get_schema_options_with_template SQL: %s | params: %s', sql, params)
 
         try:
-            with self.env.cr.savepoint():
-                self.env.cr.execute(sql, params)
-                rows = self.env.cr.fetchall()
+            from posterra_portal.utils.query_executors import get_executor
+            executor = get_executor(self.env, self.schema_source_id)
+            _cols, rows = executor.execute(sql, params)
         except Exception as exc:
             _logger.warning(
                 'dashboard.page.filter %s: schema template SQL error: %s | SQL: %s',

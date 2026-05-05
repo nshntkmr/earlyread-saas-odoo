@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         DATABASE CONNECTION — List View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_dashboard_connection_list" model="ir.ui.view">
+        <field name="name">dashboard.connection.list</field>
+        <field name="model">dashboard.connection</field>
+        <field name="arch" type="xml">
+            <list string="Database Connections">
+                <field name="name"/>
+                <field name="engine"/>
+                <field name="host"/>
+                <field name="database"/>
+                <field name="is_active"/>
+                <field name="last_test_result"/>
+                <field name="last_test_at"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         DATABASE CONNECTION — Form View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_dashboard_connection_form" model="ir.ui.view">
+        <field name="name">dashboard.connection.form</field>
+        <field name="model">dashboard.connection</field>
+        <field name="arch" type="xml">
+            <form string="Database Connection">
+                <header>
+                    <button name="action_test_connection"
+                            string="Test Connection"
+                            type="object"
+                            class="btn-primary"
+                            icon="fa-plug"/>
+                    <button name="action_invalidate_cache"
+                            string="Invalidate Cache"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-refresh"
+                            help="Drop the cached client on this Odoo worker. Use after rotating the password under password_param_key, or after a cluster restart."/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"
+                                   placeholder="e.g. ClickHouse — Production"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="General">
+                            <field name="engine"/>
+                            <field name="is_active"/>
+                            <field name="requires_tenant_filter"/>
+                            <field name="query_timeout_seconds"/>
+                        </group>
+                        <group string="Endpoint">
+                            <field name="host"
+                                   placeholder="e.g. ch-prod.example.azure.com"/>
+                            <field name="port"/>
+                            <field name="database"
+                                   placeholder="e.g. posterra_analytics"/>
+                            <field name="use_tls"/>
+                        </group>
+                    </group>
+                    <group string="Authentication">
+                        <field name="username"
+                               placeholder="e.g. app_user"/>
+                        <field name="password_param_key"
+                               placeholder="e.g. clickhouse.password.prod"/>
+                        <p class="text-muted" colspan="2">
+                            The password itself is stored in
+                            <code>ir.config_parameter</code> under the
+                            key above. Set it once via the Odoo shell:
+                            <code>env["ir.config_parameter"].sudo().set_param("&lt;key&gt;", "&lt;password&gt;")</code>.
+                        </p>
+                    </group>
+                    <group string="Last Test">
+                        <field name="last_test_result" readonly="1"/>
+                        <field name="last_test_at" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         DATABASE CONNECTION — Action + Menu
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="action_dashboard_connection" model="ir.actions.act_window">
+        <field name="name">Database Connections</field>
+        <field name="res_model">dashboard.connection</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Add an external database connection
+            </p>
+            <p>
+                Connections describe how to reach an external analytics
+                backend (e.g. ClickHouse). Schema sources can then point
+                at this connection to run queries against it.
+            </p>
+        </field>
+    </record>
+
+</odoo>

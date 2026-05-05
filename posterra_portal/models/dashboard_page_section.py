@@ -201,17 +201,40 @@ class DashboardPageSection(models.Model):
         if not val_col:
             return []
         lbl_col = (self.scope_label_column or '').strip() or val_col
-        table = self.scope_schema_source_id.source_name
+        # ``dashboard.schema.source`` exposes ``table_name``; ``source_name``
+        # was a frontend-side alias the React Designer uses for display
+        # ("source.column" labels) and was mistakenly used here when
+        # sections were converted to React. Reading a non-existent
+        # attribute on a real recordset raises AttributeError, so this
+        # path has been silently raising for every section in
+        # ``scope_mode='independent'`` since that conversion. Caught by
+        # Codex during the executor refactor pass.
+        table = self.scope_schema_source_id.table_name
         if not table:
             return []
-        sql = f'SELECT DISTINCT {val_col}'
+        from ..utils.sql_idents import (
+            is_valid_table, is_valid_ident, quote_table, quote_ident,
+        )
+        if not is_valid_table(table) or not is_valid_ident(val_col) or not is_valid_ident(lbl_col):
+            _logger.warning(
+                'dashboard.page.section %s: invalid scope identifiers '
+                'table=%r val=%r lbl=%r', self.id, table, val_col, lbl_col,
+            )
+            return []
+        qt = quote_table(table)
+        qv = quote_ident(val_col)
+        ql = quote_ident(lbl_col)
+        sql = f'SELECT DISTINCT {qv}'
         if lbl_col != val_col:
-            sql += f', {lbl_col}'
-        sql += f' FROM {table} WHERE {val_col} IS NOT NULL ORDER BY 1'
+            sql += f', {ql}'
+        sql += f' FROM {qt} WHERE {qv} IS NOT NULL ORDER BY 1'
         try:
-            with self.env.cr.savepoint():
-                self.env.cr.execute(sql)
-                rows = self.env.cr.fetchall()
+            # Dispatch via executor — uses scope_schema_source_id's
+            # connection. PostgresLocalExecutor wraps the same
+            # savepoint behaviour internally.
+            from ..utils.query_executors import get_executor
+            executor = get_executor(self.env, self.scope_schema_source_id)
+            _cols, rows = executor.execute(sql, {})
         except Exception as exc:
             _logger.warning('get_scope_options error section=%s: %s', self.id, exc)
             return []
@@ -315,12 +338,12 @@ class DashboardPageSection(models.Model):
             if m.group(1) not in safe_params:
                 safe_params[m.group(1)] = None
 
-        # Use a savepoint so a failed query doesn't poison the whole transaction
-        with self.env.cr.savepoint():
-            self.env.cr.execute(sql, safe_params)
-            cols = [desc[0] for desc in self.env.cr.description] if self.env.cr.description else []
-            rows = self.env.cr.fetchall()
-            return cols, rows
+        # Dispatch through the executor — uses self.schema_source_id
+        # so a CH-backed section runs against CH. PostgresLocalExecutor
+        # preserves the savepoint behaviour for the local-PG path.
+        from ..utils.query_executors import get_executor
+        executor = get_executor(self.env, self.schema_source_id)
+        return executor.execute(sql, safe_params)
 
     # =========================================================================
     # Comparison Bar builder

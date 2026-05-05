@@ -194,9 +194,14 @@ class DashboardWidgetScopeOption(models.Model):
                 if m.group(1) not in safe_params:
                     safe_params[m.group(1)] = None
 
-            self.env.cr.execute(sql, safe_params)
-            cols = [d[0] for d in self.env.cr.description]
-            rows = self.env.cr.fetchall()
+            # Dispatch through the executor. The scope option's own
+            # ``schema_source_id`` wins; if unset, fall back to the
+            # parent widget's schema source. This means a CH-backed
+            # widget scope-option SQL runs against CH automatically.
+            from ..utils.query_executors import get_executor
+            source = self.schema_source_id or self.widget_id.schema_source_id
+            executor = get_executor(self.env, source)
+            cols, rows = executor.execute(sql, safe_params)
 
             # Format result using per-option column config when available
             widget = self.widget_id

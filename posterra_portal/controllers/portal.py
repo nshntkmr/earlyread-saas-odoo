@@ -465,6 +465,12 @@ class PosterraPortal(CustomerPortal):
         if not app:
             return request.redirect('/my')
 
+        # Stash tenant_id on the request so query executors (CH and
+        # future external backends) can read it without re-resolving the
+        # app. Posterra's tenant boundary is the saas.app — every URL
+        # under /my/<app_key>/ is one tenant's request.
+        request.tenant_id = app.id
+
         # ── 2. Access check ────────────────────────────────────────────
         providers = request.env['hha.provider'].sudo().browse()  # empty default
 

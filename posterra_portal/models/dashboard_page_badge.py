@@ -142,10 +142,19 @@ class DashboardPageBadge(models.Model):
                     self.id, self.name, first_word)
                 return ''
 
-            self.env.cr.execute(sql, exec_params)
-            row = self.env.cr.dictfetchone()
-            if row:
-                return str(row.get('value', '') or '')
+            # Dispatch through the executor — uses the badge's
+            # schema_source_id so a CH-backed badge runs against CH.
+            from ..utils.query_executors import get_executor
+            executor = get_executor(self.env, self.schema_source_id)
+            cols, rows = executor.execute(sql, exec_params)
+            if rows:
+                # Old code used dictfetchone()['value']; replicate via
+                # column-name lookup so SELECTs without an explicit
+                # ``AS value`` alias still match (executor returns the
+                # underlying column name).
+                first_row = rows[0]
+                idx = cols.index('value') if 'value' in cols else 0
+                return str(first_row[idx] or '') if first_row[idx] is not None else ''
             return ''
 
         except Exception as exc:

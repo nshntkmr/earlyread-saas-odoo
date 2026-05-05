@@ -18,6 +18,8 @@
                 </header>
                 <field name="name"/>
                 <field name="table_name"/>
+                <field name="connection_id" optional="show"/>
+                <field name="engine" optional="hide"/>
                 <field name="table_alias"/>
                 <field name="column_count"/>
                 <field name="is_active"/>
@@ -46,6 +48,10 @@
                     </div>
                     <group>
                         <group>
+                            <field name="connection_id"
+                                   options="{'no_create': True}"
+                                   help="Leave empty to use the local Odoo Postgres."/>
+                            <field name="engine" readonly="1"/>
                             <field name="table_name"
                                    placeholder="e.g. hha_provider"/>
                             <field name="table_alias"

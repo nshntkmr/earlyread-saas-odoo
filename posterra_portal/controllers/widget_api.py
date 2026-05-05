@@ -38,6 +38,12 @@ _logger = logging.getLogger(__name__)
 def _get_api_user():
     """Extract and validate the Bearer JWT from the request headers.
 
+    Sets ``request.tenant_id = app.id`` on the request object so every
+    downstream call (filter cascade options, widget data, badge SQL,
+    saved-state ops) has tenant context — even endpoints that never
+    call ``_build_portal_ctx``. CH-backed schema sources require this
+    to be set; without it ``get_current_tenant_id()`` raises.
+
     Returns:
         (user, app) — both are sudo() recordsets.
 
@@ -59,6 +65,10 @@ def _get_api_user():
     app = request.env['saas.app'].sudo().browse(payload.get('app_id'))
     if not app.exists():
         raise ValueError('Token references an app that no longer exists')
+
+    # Tenant context for executor dispatch — must run before any
+    # CH-backed query downstream of this auth helper.
+    request.tenant_id = app.id
 
     return user, app
 
@@ -82,6 +92,13 @@ def _build_portal_ctx(page, user, app, kw):
         portal_ctx dict with keys: sql_params, filter_values_by_name,
         selected_hha
     """
+    # ``request.tenant_id`` is normally set inside ``_get_api_user()``
+    # so every JWT-authenticated route has tenant context. Re-asserting
+    # here covers the (rare) case of a caller that builds a portal_ctx
+    # without going through that helper — keeps the contract simple:
+    # any code path that builds a portal_ctx leaves tenant_id set.
+    request.tenant_id = app.id
+
     providers = request.env['hha.provider'].sudo().browse()
     selected_provider = None
 

@@ -3,7 +3,7 @@
 import logging
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -102,6 +102,18 @@ class DashboardSchemaSource(models.Model):
     table_alias  = fields.Char(string='SQL Alias', size=5)
     description  = fields.Text(string='Description')
     is_active    = fields.Boolean(default=True)
+    connection_id = fields.Many2one(
+        'dashboard.connection',
+        string='Connection',
+        ondelete='restrict',
+        help='External database connection. Leave empty to use the local '
+             'Odoo Postgres (default — every existing schema source).',
+    )
+    engine = fields.Char(
+        compute='_compute_engine', string='Engine', store=False,
+        help='Engine of the active connection, or "postgres_local" '
+             'when connection_id is empty.',
+    )
     column_ids   = fields.One2many(
         'dashboard.schema.column', 'source_id', string='Columns')
     relation_ids = fields.One2many(
@@ -109,10 +121,38 @@ class DashboardSchemaSource(models.Model):
     column_count = fields.Integer(
         compute='_compute_column_count', string='# Columns', store=True)
 
-    _sql_constraints = [
-        ('table_name_uniq', 'unique(table_name)',
-         'A schema source already exists for this table.'),
-    ]
+    # Uniqueness is enforced per-(connection, table) instead of globally
+    # so the same physical table name can exist on multiple backends
+    # (e.g. local Postgres ``hha_provider`` AND a CH ``shared.hha_provider``
+    # in a different cluster). NULL ``connection_id`` represents the
+    # local Postgres "connection" and is treated as a single value
+    # (not as SQL-NULL distinct semantics) so two PG sources still can't
+    # share a table name. Implemented as a Python ``@api.constrains``
+    # because Postgres ``UNIQUE(connection_id, table_name)`` would
+    # treat NULL connection_ids as distinct and admit duplicates.
+    _sql_constraints = []
+
+    @api.constrains('connection_id', 'table_name')
+    def _check_unique_per_connection(self):
+        for rec in self:
+            if not rec.table_name:
+                continue
+            domain = [
+                ('table_name', '=', rec.table_name),
+                ('connection_id', '=', rec.connection_id.id or False),
+                ('id', '!=', rec.id),
+            ]
+            if self.sudo().search_count(domain):
+                conn_label = rec.connection_id.name if rec.connection_id else 'Local Postgres'
+                raise ValidationError(
+                    f"A schema source for table '{rec.table_name}' "
+                    f"already exists on connection '{conn_label}'."
+                )
+
+    @api.depends('connection_id', 'connection_id.engine')
+    def _compute_engine(self):
+        for rec in self:
+            rec.engine = rec.connection_id.engine if rec.connection_id else 'postgres_local'
 
     @api.depends('column_ids')
     def _compute_column_count(self):
@@ -142,9 +182,18 @@ class DashboardSchemaSource(models.Model):
             _logger.info('No materialized views found in public schema.')
             return
 
-        # Existing table_names already registered
+        # Existing local-PG table_names already registered. CH-backed
+        # sources may legitimately share a table name with a local MV
+        # (e.g. ``hha_provider`` on both backends), so they're excluded
+        # from this check — otherwise a CH source named the same as
+        # an unregistered local MV would silently block the local MV
+        # from being auto-created here. This function only ever creates
+        # records with ``connection_id=False``, so the check should
+        # match that scope.
         existing = set(
-            self.sudo().search([]).mapped('table_name')
+            self.sudo()
+                .search([('connection_id', '=', False)])
+                .mapped('table_name')
         )
 
         created = 0
@@ -183,50 +232,25 @@ class DashboardSchemaSource(models.Model):
                 },
             }
 
-    # ── Auto-discover columns from pg_catalog ─────────────────────────────────
+    # ── Auto-discover columns ─────────────────────────────────────────────────
     def action_discover_columns(self):
-        """Button action: reads columns for self.table_name from pg_catalog.
-        Supports regular tables, views, AND materialized views.
-        Creates dashboard.schema.column records for each column found.
-        Skips columns that already exist (matched by column_name)."""
+        """Button action: reads columns for self.table_name and creates
+        dashboard.schema.column records.
+
+        For local-Postgres sources (connection_id IS NULL) we keep the
+        existing pg_catalog-based discovery, including the table-existence
+        check on relkind. For external connections (e.g. ClickHouse) we
+        dispatch through the executor's discover_columns() — the executor
+        knows how to introspect its own backend's catalog.
+        """
         self.ensure_one()
         if not self.table_name:
             raise UserError("Table name is required to discover columns.")
 
-        # Verify the table/view/matview exists in pg_class
-        # relkind: 'r' = table, 'v' = view, 'm' = materialized view
-        self.env.cr.execute("""
-            SELECT c.relkind
-              FROM pg_class c
-              JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname = 'public'
-               AND c.relname = %s
-               AND c.relkind IN ('r', 'v', 'm')
-        """, (self.table_name,))
-        result = self.env.cr.fetchone()
-        if not result:
-            raise UserError(
-                f"Table/view '{self.table_name}' does not exist in the public schema.")
-
-        relkind_label = {'r': 'table', 'v': 'view', 'm': 'materialized view'}
-        _logger.info("Discovering columns for %s '%s'",
-                     relkind_label.get(result[0], 'relation'), self.table_name)
-
-        # Read columns from pg_attribute + pg_type (works for tables, views, matviews)
-        self.env.cr.execute("""
-            SELECT a.attname                       AS column_name,
-                   format_type(a.atttypid, a.atttypmod) AS data_type,
-                   NOT a.attnotnull                AS is_nullable
-              FROM pg_attribute a
-              JOIN pg_class c ON c.oid = a.attrelid
-              JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname = 'public'
-               AND c.relname = %s
-               AND a.attnum > 0
-               AND NOT a.attisdropped
-             ORDER BY a.attnum
-        """, (self.table_name,))
-        rows = self.env.cr.fetchall()
+        if self.connection_id:
+            rows = self._discover_columns_via_executor()
+        else:
+            rows = self._discover_columns_local_postgres()
 
         if not rows:
             raise UserError(
@@ -237,16 +261,16 @@ class DashboardSchemaSource(models.Model):
         ColumnModel = self.env['dashboard.schema.column']
         created = 0
 
-        for col_name, pg_type, _nullable in rows:
+        for col_name, native_type in rows:
             if col_name in existing:
                 continue
 
-            # Map PostgreSQL type to simplified type
-            # format_type() may return e.g. 'character varying(255)' or 'numeric(10,2)'
-            # so try exact match first, then match the base type (before parentheses)
-            pg_lower = pg_type.lower()
-            base_type = pg_lower.split('(')[0].strip()
-            data_type = _PG_TYPE_MAP.get(pg_lower) or _PG_TYPE_MAP.get(base_type, 'text')
+            # Normalise the native type string to one of the platform's
+            # simplified types (text/integer/float/date/boolean). The
+            # mapping table covers Postgres tokens; ClickHouse types like
+            # ``LowCardinality(String)`` or ``Nullable(Int64)`` are
+            # normalised below.
+            data_type = _normalise_type(native_type)
 
             # Auto-generate display name: hha_state → Hha State
             display_name = col_name.replace('_', ' ').title()
@@ -282,6 +306,141 @@ class DashboardSchemaSource(models.Model):
                 'sticky': False,
             },
         }
+
+    def _discover_columns_local_postgres(self):
+        """Discover columns from the local Odoo Postgres.
+
+        Preserves the existing pg_class existence check (so admins still
+        get a clear error if the table was misnamed) and returns
+        ``[(name, native_type), ...]``.
+        """
+        self.ensure_one()
+        cr = self.env.cr
+        cr.execute("""
+            SELECT c.relkind
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = 'public'
+               AND c.relname = %s
+               AND c.relkind IN ('r', 'v', 'm')
+        """, (self.table_name,))
+        result = cr.fetchone()
+        if not result:
+            raise UserError(
+                f"Table/view '{self.table_name}' does not exist in the public schema.")
+
+        relkind_label = {'r': 'table', 'v': 'view', 'm': 'materialized view'}
+        _logger.info("Discovering columns for %s '%s' (postgres_local)",
+                     relkind_label.get(result[0], 'relation'), self.table_name)
+
+        cr.execute("""
+            SELECT a.attname,
+                   format_type(a.atttypid, a.atttypmod)
+              FROM pg_attribute a
+              JOIN pg_class c ON c.oid = a.attrelid
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = 'public'
+               AND c.relname = %s
+               AND a.attnum > 0
+               AND NOT a.attisdropped
+             ORDER BY a.attnum
+        """, (self.table_name,))
+        return cr.fetchall()
+
+    def _discover_columns_via_executor(self):
+        """Dispatch column discovery through the connection's executor.
+
+        Used for any schema source pointing at an external connection
+        (e.g. ClickHouse). The executor returns
+        ``[(name, native_type), ...]`` — the type string is engine-
+        specific and gets normalised by ``_normalise_type``.
+        """
+        self.ensure_one()
+        from posterra_portal.utils.query_executors import get_executor
+        executor = get_executor(self.env, self)
+        return executor.discover_columns(self.table_name)
+
+
+# ── Native-type normalisation (Postgres + ClickHouse) ────────────────────────
+#
+# The platform's simplified types are: text, integer, float, date, boolean.
+# Postgres types like ``character varying(255)`` are normalised by stripping
+# the length and looking up in ``_PG_TYPE_MAP``. ClickHouse wraps types like
+# ``LowCardinality(String)`` and ``Nullable(Int64)`` — we unwrap those
+# wrappers before mapping.
+
+_CH_TYPE_MAP = {
+    'string': 'text',
+    'fixedstring': 'text',
+    'uuid': 'text',
+    'enum8': 'text',
+    'enum16': 'text',
+    'int8': 'integer',
+    'int16': 'integer',
+    'int32': 'integer',
+    'int64': 'integer',
+    'int128': 'integer',
+    'int256': 'integer',
+    'uint8': 'integer',
+    'uint16': 'integer',
+    'uint32': 'integer',
+    'uint64': 'integer',
+    'uint128': 'integer',
+    'uint256': 'integer',
+    'float32': 'float',
+    'float64': 'float',
+    'decimal': 'float',
+    'decimal32': 'float',
+    'decimal64': 'float',
+    'decimal128': 'float',
+    'date': 'date',
+    'date32': 'date',
+    'datetime': 'date',
+    'datetime64': 'date',
+    'bool': 'boolean',
+}
+
+_CH_WRAPPER_RE = None
+
+
+def _normalise_type(native_type):
+    """Map a native column type to one of (text, integer, float, date, boolean).
+
+    Tries the Postgres mapping first (covers all existing schema sources),
+    then falls back to the ClickHouse mapping after unwrapping
+    ``LowCardinality(...)`` / ``Nullable(...)`` / ``Array(...)`` wrappers.
+    Unknown types default to 'text' — admins can override in the column
+    form if a guess is wrong.
+    """
+    if not native_type:
+        return 'text'
+    lower = native_type.lower()
+
+    # Postgres path — try exact match, then strip length spec.
+    pg = _PG_TYPE_MAP.get(lower)
+    if pg is not None:
+        return pg
+    base = lower.split('(')[0].strip()
+    pg = _PG_TYPE_MAP.get(base)
+    if pg is not None:
+        return pg
+
+    # ClickHouse path — unwrap nested wrappers, then look up.
+    inner = lower
+    for _ in range(4):  # unwrap up to 4 levels deep
+        for wrapper in ('lowcardinality', 'nullable', 'array'):
+            prefix = wrapper + '('
+            if inner.startswith(prefix) and inner.endswith(')'):
+                inner = inner[len(prefix):-1].strip()
+                break
+        else:
+            break
+    inner_base = inner.split('(')[0].strip()
+    ch = _CH_TYPE_MAP.get(inner_base)
+    if ch is not None:
+        return ch
+
+    return 'text'
 
 
 class DashboardSchemaColumn(models.Model):

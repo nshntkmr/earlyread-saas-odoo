@@ -27,6 +27,13 @@
               action="action_widget_template"
               sequence="20"/>
 
+    <!-- ── Database Connections ─────────────────────────────────────── -->
+    <menuitem id="menu_dashboard_connections"
+              name="Database Connections"
+              parent="menu_dashboard_builder_config"
+              action="action_dashboard_connection"
+              sequence="5"/>
+
     <!-- ── Schema Sources ───────────────────────────────────────────── -->
     <menuitem id="menu_schema_sources"
               name="Schema Sources"

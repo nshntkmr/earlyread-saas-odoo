@@ -720,17 +720,37 @@ class DashboardWidget(models.Model):
             } for o in self.scope_option_ids.filtered('is_active').sorted('sequence')]
         # Schema source fallback (for dropdown with dynamic options)
         if self.scope_schema_source_id and self.scope_value_column:
+            from ..utils.sql_idents import (
+                is_valid_table, is_valid_ident, quote_table, quote_ident,
+            )
             table = self.scope_schema_source_id.table_name
             val_col = self.scope_value_column
             lbl_col = self.scope_label_column or val_col
+            # Validate identifiers before string-concat into SQL.
+            # Refuses dotted column names but allows dotted table
+            # references (``gold.fact_referrals``) for CH-backed sources.
+            if not is_valid_table(table) or not is_valid_ident(val_col) or not is_valid_ident(lbl_col):
+                _logger.warning(
+                    'dashboard.widget %s: invalid scope identifiers '
+                    'table=%r val=%r lbl=%r', self.id, table, val_col, lbl_col,
+                )
+                return []
+            qt = quote_table(table)
+            qv = quote_ident(val_col)
+            ql = quote_ident(lbl_col)
             sql = (
-                f"SELECT DISTINCT {val_col} AS value, {lbl_col} AS label "
-                f"FROM {table} WHERE {val_col} IS NOT NULL ORDER BY {lbl_col}"
+                f"SELECT DISTINCT {qv} AS value, {ql} AS label "
+                f"FROM {qt} WHERE {qv} IS NOT NULL ORDER BY {ql}"
             )
-            self.env.cr.execute(sql)
+            # Dispatch via executor — uses scope_schema_source_id's
+            # connection (CH-backed if it has one). Falls through to
+            # PostgresLocalExecutor for the local-Postgres path.
+            from ..utils.query_executors import get_executor
+            executor = get_executor(self.env, self.scope_schema_source_id)
+            cols, rows = executor.execute(sql, {})
             return [
-                {'value': str(r['value']), 'label': str(r['label']), 'icon': ''}
-                for r in self.env.cr.dictfetchall()
+                {'value': str(r[0]), 'label': str(r[1]), 'icon': ''}
+                for r in rows
             ]
         return []
 
@@ -925,13 +945,15 @@ class DashboardWidget(models.Model):
             if isinstance(v, (list, tuple)) and len(v) == 1:
                 safe_params[k] = v[0]
 
-        # psycopg2 named params: %(key)s  — pass as dict
-        # Use a savepoint so a failed query doesn't poison the whole transaction
-        with self.env.cr.savepoint():
-            self.env.cr.execute(sql, safe_params)
-            cols = [desc[0] for desc in self.env.cr.description] if self.env.cr.description else []
-            rows = self.env.cr.fetchall()
-            return cols, rows
+        # Dispatch through the executor abstraction. Schema sources with
+        # ``connection_id IS NULL`` route to ``PostgresLocalExecutor``,
+        # which wraps ``self.env.cr.execute()`` inside a savepoint —
+        # identical behaviour to the pre-executor path. Sources pointing
+        # at a ``dashboard.connection`` route to that engine's executor
+        # (e.g. ClickHouseExecutor).
+        from ..utils.query_executors import get_executor
+        executor = get_executor(self.env, self.schema_source_id)
+        return executor.execute(sql, safe_params)
 
     # =========================================================================
     # ORM execution
@@ -4287,6 +4309,11 @@ class DashboardWidget(models.Model):
         """Execute annotation_query_sql separately; return (col_names, rows).
 
         Same safety checks as _execute_sql: SELECT/WITH only, no DML/DDL.
+
+        Dispatched through the executor of the widget's
+        ``schema_source_id`` so a CH-backed widget gets its annotation
+        query against the same backend as the main query — annotations
+        almost always reference the same data the widget aggregates.
         """
         self.ensure_one()
         sql = (self.annotation_query_sql or '').strip()
@@ -4307,11 +4334,9 @@ class DashboardWidget(models.Model):
         if _BLOCKED.search(sql_clean):
             raise ValueError('Annotation SQL contains a disallowed keyword.')
 
-        with self.env.cr.savepoint():
-            self.env.cr.execute(sql, dict(params))
-            ann_cols = [desc[0] for desc in self.env.cr.description] if self.env.cr.description else []
-            ann_rows = self.env.cr.fetchall()
-            return ann_cols, ann_rows
+        from ..utils.query_executors import get_executor
+        executor = get_executor(self.env, self.schema_source_id)
+        return executor.execute(sql, dict(params))
 
     # =========================================================================
     # Typography style helper
@@ -4689,10 +4714,12 @@ class DashboardWidget(models.Model):
             if m.group(1) not in safe_params:
                 safe_params[m.group(1)] = None
 
-        self.env.cr.execute(sql, safe_params)
-        d_cols = [d[0] for d in self.env.cr.description]
-        d_rows = self.env.cr.fetchall()
-        return d_cols, d_rows
+        # Dispatch through the executor — ranked-detail SQL must hit the
+        # same backend as the widget's main query (otherwise CH-backed
+        # widgets get correct totals but broken drill-down rows).
+        from ..utils.query_executors import get_executor
+        executor = get_executor(self.env, self.schema_source_id)
+        return executor.execute(sql, safe_params)
 
     def _build_detail_tile(self, tile_config, cols, rows):
         """Build one detail-panel tile. Dispatches by tile type.

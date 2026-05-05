@@ -63,6 +63,13 @@
             # Build: cd static/src/react && npm run build
         ],
     },
+    'external_dependencies': {
+        # clickhouse-connect is required only when an admin actually
+        # creates a ClickHouse-backed dashboard.connection. Listed here
+        # so a missing install fails fast at module load with a clear
+        # message rather than at first-query time.
+        'python': ['clickhouse-connect'],
+    },
     'installable': True,
     'application': True,
     'auto_install': False,

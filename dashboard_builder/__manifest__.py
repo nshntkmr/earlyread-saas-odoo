@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dashboard Builder',
-    'version': '19.0.1.1.0',
+    'version': '19.0.1.2.0',
     'category': 'Productivity',
     'summary': 'Visual widget builder with schema registry and query generation',
     'description': """
@@ -20,6 +20,7 @@
     'data': [
         'security/builder_security.xml',
         'security/ir.model.access.csv',
+        'views/dashboard_connection_views.xml',
         'views/dashboard_schema_views.xml',
         'views/widget_definition_views.xml',
         'views/widget_template_views.xml',
