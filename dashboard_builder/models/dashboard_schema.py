@@ -356,7 +356,9 @@ class DashboardSchemaSource(models.Model):
         specific and gets normalised by ``_normalise_type``.
         """
         self.ensure_one()
-        from posterra_portal.utils.query_executors import get_executor
+        # Cross-addon import: dashboard_builder → posterra_portal must
+        # use ``odoo.addons.<addon>`` namespace.
+        from odoo.addons.posterra_portal.utils.query_executors import get_executor
         executor = get_executor(self.env, self)
         return executor.discover_columns(self.table_name)
 

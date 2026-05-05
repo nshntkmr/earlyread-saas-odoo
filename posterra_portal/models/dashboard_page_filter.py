@@ -861,7 +861,7 @@ class DashboardPageFilter(models.Model):
         # for the local-Postgres path (existing behaviour) or to the
         # connection's executor for external sources (e.g. ClickHouse).
         try:
-            from posterra_portal.utils.query_executors import get_executor
+            from ..utils.query_executors import get_executor
             executor = get_executor(self.env, self.schema_source_id)
             _cols, rows = executor.execute(sql, params)
         except Exception as exc:
@@ -926,7 +926,7 @@ class DashboardPageFilter(models.Model):
         _logger.info('[CASCADE-SQL] _get_schema_options_with_template SQL: %s | params: %s', sql, params)
 
         try:
-            from posterra_portal.utils.query_executors import get_executor
+            from ..utils.query_executors import get_executor
             executor = get_executor(self.env, self.schema_source_id)
             _cols, rows = executor.execute(sql, params)
         except Exception as exc:

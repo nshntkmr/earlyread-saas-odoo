@@ -117,8 +117,11 @@ class DashboardConnection(models.Model):
     def _invalidate_one(connection_id):
         # Lazy import — clickhouse-connect may not be installed; we still
         # want write/unlink to succeed for postgres_local connections.
+        # Cross-addon import: dashboard_builder → posterra_portal must
+        # use ``odoo.addons.<addon>`` namespace, not bare ``posterra_portal``
+        # (which is not on sys.path under Odoo's loader).
         try:
-            from posterra_portal.utils.query_executors.clickhouse import (
+            from odoo.addons.posterra_portal.utils.query_executors.clickhouse import (
                 _invalidate_client,
             )
         except Exception:
@@ -138,7 +141,9 @@ class DashboardConnection(models.Model):
         raising on success, so admins get a clear green/red answer
         without a stack trace.
         """
-        from posterra_portal.utils.query_executors import (
+        # Cross-addon import: dashboard_builder → posterra_portal must
+        # use ``odoo.addons.<addon>`` namespace.
+        from odoo.addons.posterra_portal.utils.query_executors import (
             get_executor_for_connection,
         )
 
