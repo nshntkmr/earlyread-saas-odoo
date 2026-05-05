@@ -64,11 +64,16 @@
         ],
     },
     'external_dependencies': {
-        # clickhouse-connect is required only when an admin actually
-        # creates a ClickHouse-backed dashboard.connection. Listed here
-        # so a missing install fails fast at module load with a clear
-        # message rather than at first-query time.
-        'python': ['clickhouse-connect'],
+        # The PyPI package is published as ``clickhouse-connect`` (hyphen)
+        # — install it with ``pip install clickhouse-connect`` against
+        # Odoo's bundled Python — but Odoo's external-dependency check
+        # does ``importlib.import_module(name)``, which can only resolve
+        # valid Python identifiers. So the manifest must use the IMPORT
+        # name ``clickhouse_connect`` (underscore). Required only when
+        # an admin creates a ClickHouse-backed dashboard.connection;
+        # listing it here makes a missing install fail fast at module
+        # load with a clear message rather than at first-query time.
+        'python': ['clickhouse_connect'],
     },
     'installable': True,
     'application': True,
