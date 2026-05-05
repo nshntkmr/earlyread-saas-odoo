@@ -6,17 +6,17 @@ driver is imported lazily so this module loads cleanly even on hosts
 that haven't installed the dependency yet — the driver is only required
 when an admin actually creates a CH-backed schema source.
 
-Tenancy: every query ships ``app_tenant_id`` as a per-query setting
-inside ``client.query(settings={'app_tenant_id': '<id>', ...})``. CH
+Tenancy: every query ships ``SQL_tenant_id`` as a per-query setting
+inside ``client.query(settings={'SQL_tenant_id': '<id>', ...})``. CH
 row policies (defined cluster-side) read it via
-``getSetting('app_tenant_id')`` and filter rows accordingly. The
+``getSetting('SQL_tenant_id')`` and filter rows accordingly. The
 setting and the query travel in the same HTTP request so the binding
 is atomic — there is no cached session state for concurrent requests
 to race on. ``connection.requires_tenant_filter`` must stay True for
 any connection user-facing widgets touch; set False only for admin
 tooling that legitimately reads cross-tenant aggregates.
 
-Do NOT reintroduce ``client.command('SET app_tenant_id = ...')``
+Do NOT reintroduce ``client.command('SET SQL_tenant_id = ...')``
 followed by ``client.query(...)`` "for performance" — the cached
 clickhouse-connect client is shared across worker threads, and a
 two-step pattern races (thread A's SET overwritten by thread B before
@@ -218,8 +218,8 @@ class ClickHouseExecutor(BaseQueryExecutor):
     """ClickHouse executor with per-query tenant context + safety
     validation.
 
-    Tenant isolation strategy: ``app_tenant_id`` is sent as a per-query
-    setting (``client.query(settings={'app_tenant_id': '<id>'})``), NOT
+    Tenant isolation strategy: ``SQL_tenant_id`` is sent as a per-query
+    setting (``client.query(settings={'SQL_tenant_id': '<id>'})``), NOT
     as a session-level ``SET`` command. The cached client is shared
     across threads/requests, so any session-state approach
     (``client.command('SET ...')`` followed by ``client.query(...)``)
@@ -227,11 +227,11 @@ class ClickHouseExecutor(BaseQueryExecutor):
     thread A's query runs. clickhouse-connect ships the per-query
     settings inside the same HTTP request, so the SET and the query
     are atomic from the server's perspective. The CH-side row policy
-    reads ``getSetting('app_tenant_id')`` which sees the per-query
+    reads ``getSetting('SQL_tenant_id')`` which sees the per-query
     value transparently.
 
     Prerequisite (CH-side DDL): a settings profile must declare
-    ``app_tenant_id`` with ``READONLY = 0`` so the role can supply
+    ``SQL_tenant_id`` with ``READONLY = 0`` so the role can supply
     it per query — see Phase 4 DDL in the ClickHouse plan.
     """
 
@@ -259,8 +259,8 @@ class ClickHouseExecutor(BaseQueryExecutor):
                 )
             # Per-query setting — atomic, no session state, thread-safe
             # across the shared client. CH row policies read this via
-            # getSetting('app_tenant_id') and filter rows accordingly.
-            settings['app_tenant_id'] = str(tenant_id)
+            # getSetting('SQL_tenant_id') and filter rows accordingly.
+            settings['SQL_tenant_id'] = str(tenant_id)
         else:
             _logger.warning(
                 'CH connection %s ran a query with requires_tenant_filter=False '

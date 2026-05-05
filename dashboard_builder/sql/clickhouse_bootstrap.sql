@@ -8,9 +8,9 @@
 -- objects created here:
 --
 --   - ``app_role``     — the role granted to the connecting user
---   - ``app_profile``  — declares ``app_tenant_id`` as a per-query setting
+--   - ``app_profile``  — declares ``SQL_tenant_id`` as a per-query setting
 --                        the role is allowed to set; THIS is what makes
---                        ``client.query(settings={'app_tenant_id': '1'})``
+--                        ``client.query(settings={'SQL_tenant_id': '1'})``
 --                        functional. Without it, every query fails.
 --   - ``shared.*`` grant — cross-tenant reference data the role can read
 --   - row-policy templates — applied per fact/dim table in a paired
@@ -34,33 +34,39 @@
 -- ============================================================================
 --
 -- ClickHouse rejects any custom (non-built-in) setting whose prefix isn't
--- declared in the server-level ``custom_settings_prefixes`` config. Setting
--- this in a SETTINGS PROFILE does NOT work — it's a server-config setting
--- only.
+-- declared in the server-level ``custom_settings_prefixes`` config. We use
+-- the ``SQL_`` prefix because:
 --
--- Add to the cluster's ``users.xml`` (or ``config.d/custom_prefixes.xml``):
+--   - ClickHouse Cloud has ``SQL_`` in its default custom_settings_prefixes
+--     out of the box — no server-config change required.
+--   - Self-managed clusters: declare it explicitly (instructions below).
+--
+-- Quick verify (run from any client) — should return '42':
+--
+--     SELECT getSetting('SQL_tenant_id') SETTINGS SQL_tenant_id='42';
+--
+-- If that errors with "Setting SQL_tenant_id is neither a built-in setting
+-- nor started with the prefix...", the prefix is not registered.
+--
+-- For SELF-MANAGED ClickHouse, add to ``users.xml`` (or
+-- ``config.d/custom_prefixes.xml``):
 --
 --     <yandex>
---       <custom_settings_prefixes>app_</custom_settings_prefixes>
+--       <custom_settings_prefixes>SQL_</custom_settings_prefixes>
 --     </yandex>
 --
 -- Then reload config:
 --
 --     SYSTEM RELOAD CONFIG;
 --
--- Verify:
+-- For ClickHouse Cloud / Aiven / Azure Database for ClickHouse: usually
+-- pre-configured. If not, contact the provider's support to add ``SQL_``
+-- to ``custom_settings_prefixes``. Setting it via a SETTINGS PROFILE does
+-- NOT work — it's a server-level config only.
 --
---     SELECT name, value
---       FROM system.server_settings
---      WHERE name = 'custom_settings_prefixes';
---     -- expected: value contains 'app_'
---
--- For managed CH services (ClickHouse Cloud, Aiven, Azure Database for
--- ClickHouse), this is set through the provider's config UI / API. Confirm
--- with the ops team before running the rest of this script — without the
--- prefix declared, the profile created in section 2 will fail to apply
--- ``app_tenant_id`` and every query the addon runs returns
--- "Setting app_tenant_id is neither a built-in setting nor started with
+-- Without the prefix declared, the profile created in section 2 will fail
+-- to apply ``SQL_tenant_id`` and every query the addon runs returns
+-- "Setting SQL_tenant_id is neither a built-in setting nor started with
 -- the prefix..."
 
 -- ============================================================================
@@ -72,9 +78,9 @@ CREATE ROLE IF NOT EXISTS app_role;
 -- ============================================================================
 -- 2. Settings profile — the load-bearing piece
 -- ============================================================================
--- ``app_tenant_id`` is the per-query setting our executor sets via
--- ``client.query(settings={'app_tenant_id': str(saas.app.id)})``. Row policies
--- below read it via ``getSetting('app_tenant_id')`` and filter rows that
+-- ``SQL_tenant_id`` is the per-query setting our executor sets via
+-- ``client.query(settings={'SQL_tenant_id': str(saas.app.id)})``. Row policies
+-- below read it via ``getSetting('SQL_tenant_id')`` and filter rows that
 -- don't match.
 --
 -- Default value '' (empty string) — if a query sneaks through without the
@@ -90,7 +96,7 @@ CREATE ROLE IF NOT EXISTS app_role;
 
 CREATE SETTINGS PROFILE OR REPLACE app_profile
   SETTINGS
-    app_tenant_id = '' READONLY = 0
+    SQL_tenant_id = '' READONLY = 0
   TO app_role;
 
 -- ============================================================================
@@ -141,7 +147,7 @@ GRANT SELECT ON shared.* TO app_role;
 --   CREATE ROW POLICY OR REPLACE tenant_iso_<schema>_<table>
 --     ON <schema>.<table>
 --     FOR SELECT
---     USING tenant_id = getSetting('app_tenant_id')
+--     USING tenant_id = getSetting('SQL_tenant_id')
 --     TO app_role;
 --
 --   GRANT SELECT ON <schema>.<table> TO app_role;
@@ -152,14 +158,14 @@ GRANT SELECT ON shared.* TO app_role;
 -- CREATE ROW POLICY OR REPLACE tenant_iso_silver_fact_referrals
 --   ON silver.fact_referrals
 --   FOR SELECT
---   USING tenant_id = getSetting('app_tenant_id')
+--   USING tenant_id = getSetting('SQL_tenant_id')
 --   TO app_role;
 -- GRANT SELECT ON silver.fact_referrals TO app_role;
 --
 -- CREATE ROW POLICY OR REPLACE tenant_iso_gold_mv_hha_summary
 --   ON gold.mv_hha_summary
 --   FOR SELECT
---   USING tenant_id = getSetting('app_tenant_id')
+--   USING tenant_id = getSetting('SQL_tenant_id')
 --   TO app_role;
 -- GRANT SELECT ON gold.mv_hha_summary TO app_role;
 --

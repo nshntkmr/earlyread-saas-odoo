@@ -74,7 +74,7 @@ class DashboardConnection(models.Model):
         string='Enforce Tenant Filter',
         default=True,
         help='When True (recommended), every query against this '
-             'connection runs after a SET app_tenant_id = ... so '
+             'connection runs after a SET SQL_tenant_id = ... so '
              'CH row policies enforce isolation. Disable only for '
              'admin tooling that legitimately reads cross-tenant data.',
     )
