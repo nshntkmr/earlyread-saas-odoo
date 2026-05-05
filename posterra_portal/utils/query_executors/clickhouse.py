@@ -74,6 +74,22 @@ def _get_password(env, connection):
     )
 
 
+def _coerce_port(value, default=8443):
+    """Coerce a Char port field to int for clickhouse-connect.
+
+    The connection record stores ``port`` as Char (so the admin form
+    renders ``8443`` cleanly without a locale thousands separator).
+    clickhouse-connect's ``get_client`` accepts int or str, but
+    explicit int avoids any ambiguity.
+    """
+    if value in (None, '', False):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _get_client(env, connection):
     """Lazy-create + cache a clickhouse-connect client for this connection."""
     with _clients_lock:
@@ -92,7 +108,7 @@ def _get_client(env, connection):
 
     client = clickhouse_connect.get_client(
         host=connection.host,
-        port=connection.port or 8443,
+        port=_coerce_port(connection.port),
         username=connection.username or '',
         password=_get_password(env, connection),
         database=connection.database or 'default',

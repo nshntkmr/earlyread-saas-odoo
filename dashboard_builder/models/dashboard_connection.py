@@ -57,7 +57,11 @@ class DashboardConnection(models.Model):
 
     # ── Connection details ─────────────────────────────────────────────
     host = fields.Char(string='Host')
-    port = fields.Integer(string='Port', default=8443)
+    # Stored as Char (not Integer) so the form renders the raw digits
+    # without applying the user's locale thousands separator —
+    # ``8443`` instead of ``8,443`` / ``8.443``. Coerced to int by the
+    # executor before being passed to ``clickhouse-connect``.
+    port = fields.Char(string='Port', default='8443', size=5)
     database = fields.Char(string='Database')
     username = fields.Char(string='Username')
     password_param_key = fields.Char(
