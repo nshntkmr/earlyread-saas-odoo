@@ -1,0 +1,223 @@
+-- ============================================================================
+-- ClickHouse bootstrap DDL — load-bearing primitives for the Posterra addon
+-- ============================================================================
+--
+-- Run this script ONCE per ClickHouse cluster (Dev, Staging, Prod) BEFORE
+-- pointing any dashboard.connection record at it. The addon's executor
+-- (posterra_portal/utils/query_executors/clickhouse.py) depends on the
+-- objects created here:
+--
+--   - ``app_role``     — the role granted to the connecting user
+--   - ``app_profile``  — declares ``app_tenant_id`` as a per-query setting
+--                        the role is allowed to set; THIS is what makes
+--                        ``client.query(settings={'app_tenant_id': '1'})``
+--                        functional. Without it, every query fails.
+--   - ``shared.*`` grant — cross-tenant reference data the role can read
+--   - row-policy templates — applied per fact/dim table in a paired
+--                            grant+policy block (see section 4).
+--
+-- The user (``app_user``) is INTENTIONALLY NOT created here. User creation
+-- requires a real password; doing it in this script would either bake the
+-- password into git or create a passwordless user with grants until rotation.
+-- See section 5 for the manual user-creation step the operator runs after
+-- this script.
+--
+-- Run as a CH administrator (default user or another super-user). On managed
+-- CH services the equivalent UI/CLI may be needed for some statements.
+--
+-- Idempotency: every CREATE uses ``IF NOT EXISTS`` (for roles — never reset)
+-- or ``OR REPLACE`` (for profiles and row policies — these need to update
+-- cleanly when this file is updated).
+
+-- ============================================================================
+-- 0. Cluster prerequisite (NOT executed by this script — verify before running)
+-- ============================================================================
+--
+-- ClickHouse rejects any custom (non-built-in) setting whose prefix isn't
+-- declared in the server-level ``custom_settings_prefixes`` config. Setting
+-- this in a SETTINGS PROFILE does NOT work — it's a server-config setting
+-- only.
+--
+-- Add to the cluster's ``users.xml`` (or ``config.d/custom_prefixes.xml``):
+--
+--     <yandex>
+--       <custom_settings_prefixes>app_</custom_settings_prefixes>
+--     </yandex>
+--
+-- Then reload config:
+--
+--     SYSTEM RELOAD CONFIG;
+--
+-- Verify:
+--
+--     SELECT name, value
+--       FROM system.server_settings
+--      WHERE name = 'custom_settings_prefixes';
+--     -- expected: value contains 'app_'
+--
+-- For managed CH services (ClickHouse Cloud, Aiven, Azure Database for
+-- ClickHouse), this is set through the provider's config UI / API. Confirm
+-- with the ops team before running the rest of this script — without the
+-- prefix declared, the profile created in section 2 will fail to apply
+-- ``app_tenant_id`` and every query the addon runs returns
+-- "Setting app_tenant_id is neither a built-in setting nor started with
+-- the prefix..."
+
+-- ============================================================================
+-- 1. Role (load-bearing identity)
+-- ============================================================================
+
+CREATE ROLE IF NOT EXISTS app_role;
+
+-- ============================================================================
+-- 2. Settings profile — the load-bearing piece
+-- ============================================================================
+-- ``app_tenant_id`` is the per-query setting our executor sets via
+-- ``client.query(settings={'app_tenant_id': str(saas.app.id)})``. Row policies
+-- below read it via ``getSetting('app_tenant_id')`` and filter rows that
+-- don't match.
+--
+-- Default value '' (empty string) — if a query sneaks through without the
+-- setting populated, row policies will not match any tenant_id and the
+-- query returns zero rows. That's the desired fail-closed behaviour: better
+-- to show empty than wrong.
+--
+-- READONLY = 0 — the role is allowed to override the default per query.
+-- This is what enables our executor to set it.
+--
+-- Note: ``custom_settings_prefixes`` is NOT set here — it's a server-level
+-- config (see section 0). Setting it in a profile silently has no effect.
+
+CREATE SETTINGS PROFILE OR REPLACE app_profile
+  SETTINGS
+    app_tenant_id = '' READONLY = 0
+  TO app_role;
+
+-- ============================================================================
+-- 3. Read grants — ONLY cross-tenant reference data
+-- ============================================================================
+-- ``shared.*`` is cross-tenant by design (dim_diagnosis, dim_geo, dim_date,
+-- code lookups). It carries no tenant_id and gets no row policy — every
+-- tenant sees the same rows.
+--
+-- TENANT-SCOPED schemas (silver.*, gold.*) are NOT granted globally here.
+-- Granting them before per-table row policies exist means any authenticated
+-- ``app_user`` reads every tenant's rows. Each tenant-scoped table gets its
+-- grant + row policy in a paired block — see section 4.
+--
+-- Joins between a tenant-scoped fact and a shared dim are still safe because
+-- CH applies the row policy to the fact table BEFORE the join: the join
+-- only sees the rows the policy admitted, then enriches them with the
+-- shared dim.
+--
+-- PRECONDITION: the ``shared`` database must exist on this cluster before
+-- this script runs. Database lifecycle (creating ``shared``, ``silver``,
+-- ``gold`` schemas) is the data engineering / ingest pipeline's
+-- responsibility — out of scope for this addon's bootstrap. ClickHouse
+-- accepts grants on non-existent databases without raising, so a missing
+-- ``shared`` schema would silently produce a dormant grant that fails
+-- later with "Unknown database" the first time the addon queries
+-- ``shared.dim_*``. The verification checklist (phase2_verification.md
+-- section B) asserts ``shared`` exists before this script is applied;
+-- if it doesn't, escalate to data engineering rather than working around
+-- it here. To audit on-cluster:
+--
+--   SELECT name FROM system.databases WHERE name = 'shared';
+--   -- expected: one row
+
+GRANT SELECT ON shared.* TO app_role;
+
+-- ============================================================================
+-- 4. Per-table grant + row policy template
+-- ============================================================================
+-- For EACH tenant-scoped table you want app_user to read, run BOTH
+-- statements together — never grant without the policy.
+--
+-- Naming convention: ``tenant_iso_<schema>_<table>`` so policies sort
+-- together in ``system.row_policies`` for audit.
+--
+-- Replace <schema>, <table> per table:
+--
+--   CREATE ROW POLICY OR REPLACE tenant_iso_<schema>_<table>
+--     ON <schema>.<table>
+--     FOR SELECT
+--     USING tenant_id = getSetting('app_tenant_id')
+--     TO app_role;
+--
+--   GRANT SELECT ON <schema>.<table> TO app_role;
+--
+-- Concrete example — uncomment and adjust per tenant-scoped table as
+-- Phase 3+ rolls out CH-backed widgets:
+--
+-- CREATE ROW POLICY OR REPLACE tenant_iso_silver_fact_referrals
+--   ON silver.fact_referrals
+--   FOR SELECT
+--   USING tenant_id = getSetting('app_tenant_id')
+--   TO app_role;
+-- GRANT SELECT ON silver.fact_referrals TO app_role;
+--
+-- CREATE ROW POLICY OR REPLACE tenant_iso_gold_mv_hha_summary
+--   ON gold.mv_hha_summary
+--   FOR SELECT
+--   USING tenant_id = getSetting('app_tenant_id')
+--   TO app_role;
+-- GRANT SELECT ON gold.mv_hha_summary TO app_role;
+--
+-- Audit query — list every silver/gold table that ``app_role`` has been
+-- granted SELECT on but has no row policy attached for app_role
+-- (this set should always be empty):
+--
+--   SELECT g.access_type, g.database, g.table
+--     FROM system.grants g
+--     LEFT JOIN system.row_policies p
+--       ON p.database = g.database
+--      AND p.table = g.table
+--      AND has(p.apply_to_list, 'app_role')
+--    WHERE g.role_name = 'app_role'
+--      AND g.access_type = 'SELECT'
+--      AND g.database IN ('silver','gold')
+--      AND p.name IS NULL
+--    ORDER BY g.database, g.table;
+
+-- ============================================================================
+-- 5. Manual post-install steps (NOT run by this script)
+-- ============================================================================
+--
+-- (a) Create the connecting user. Done MANUALLY so the password is set
+--     atomically with creation — no passwordless window:
+--
+--     CREATE USER app_user
+--       IDENTIFIED BY '<strong-password-here>'
+--       DEFAULT ROLE app_role
+--       SETTINGS PROFILE 'app_profile';
+--
+--     If you need to rotate later:
+--
+--     ALTER USER app_user IDENTIFIED BY '<new-strong-password>';
+--
+-- (b) Store the password in Odoo's ir.config_parameter under the key
+--     referenced by your dashboard.connection.password_param_key field:
+--
+--     # Odoo shell
+--     env['ir.config_parameter'].sudo().set_param(
+--         'clickhouse.password.dev',  # or .staging / .prod
+--         '<same-strong-password>',
+--     )
+--
+-- (c) From the Odoo admin UI, create a dashboard.connection record pointing
+--     at this cluster, then click Test Connection. Green = bootstrap success.
+--
+-- (d) For each new tenant-scoped table, add its grant + row policy together
+--     in one block (see section 4). Re-run this file after appending new
+--     blocks; ``OR REPLACE`` and ``IF NOT EXISTS`` keep things idempotent.
+--
+-- (e) If you previously applied an earlier version of this bootstrap that
+--     created ``app_user`` with ``IDENTIFIED WITH no_password``, fix it now:
+--
+--     ALTER USER app_user IDENTIFIED BY '<strong-password>';
+--
+--     Then run the audit query in section 4 — no silver/gold table should
+--     have a SELECT grant without a matching row policy. If any do, drop
+--     those grants until you've authored the policy:
+--
+--     REVOKE SELECT ON <schema>.<table> FROM app_role;
