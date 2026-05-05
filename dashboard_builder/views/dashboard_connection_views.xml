@@ -53,12 +53,18 @@
                             <field name="engine"/>
                             <field name="is_active"/>
                             <field name="requires_tenant_filter"/>
-                            <field name="query_timeout_seconds"/>
+                            <!-- options={"format": false} disables the
+                                 locale thousands separator so port
+                                 8443 renders as "8443" and not
+                                 "8,443" / "8.443". -->
+                            <field name="query_timeout_seconds"
+                                   options='{"format": false}'/>
                         </group>
                         <group string="Endpoint">
                             <field name="host"
                                    placeholder="e.g. ch-prod.example.azure.com"/>
-                            <field name="port"/>
+                            <field name="port"
+                                   options='{"format": false}'/>
                             <field name="database"
                                    placeholder="e.g. posterra_analytics"/>
                             <field name="use_tls"/>
