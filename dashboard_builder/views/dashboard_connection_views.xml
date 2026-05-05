@@ -75,13 +75,22 @@
                     <group string="Authentication">
                         <field name="username"
                                placeholder="e.g. app_user"/>
+                        <field name="password"
+                               password="True"
+                               placeholder="paste the database password here"/>
                         <field name="password_param_key"
-                               placeholder="e.g. clickhouse.password.prod"/>
+                               placeholder="leave blank unless using ir.config_parameter"/>
                         <p class="text-muted" colspan="2">
-                            The password itself is stored in
-                            <code>ir.config_parameter</code> under the
-                            key above. Set it once via the Odoo shell:
-                            <code>env["ir.config_parameter"].sudo().set_param("&lt;key&gt;", "&lt;password&gt;")</code>.
+                            Type the password directly into the
+                            <strong>Password</strong> field above for the
+                            common case. The
+                            <strong>Password Config Key</strong> field
+                            is optional — only used when you want the
+                            secret stored in
+                            <code>ir.config_parameter</code> (or an
+                            external secret manager) instead of on
+                            this record. If both are set, the direct
+                            password wins.
                         </p>
                     </group>
                     <group string="Last Test">

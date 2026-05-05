@@ -67,11 +67,26 @@ def _invalidate_client(connection_id):
 
 
 def _get_password(env, connection):
-    if not connection.password_param_key:
-        return ''
-    return env['ir.config_parameter'].sudo().get_param(
-        connection.password_param_key, ''
-    )
+    """Resolve the password for a connection.
+
+    Priority:
+      1. ``connection.password`` — the direct password field on the
+         record. The common case; admin types it into the form.
+      2. ``connection.password_param_key`` → ``ir.config_parameter``
+         lookup. Optional indirection for setups that prefer storing
+         secrets outside the connection record (e.g. for separate
+         credential rotation lifecycle, or before integrating an
+         external secret manager).
+      3. Empty string — auth will fail, but cleanly.
+    """
+    direct = getattr(connection, 'password', '') or ''
+    if direct:
+        return direct
+    if connection.password_param_key:
+        return env['ir.config_parameter'].sudo().get_param(
+            connection.password_param_key, ''
+        )
+    return ''
 
 
 def _coerce_port(value, default=8443):

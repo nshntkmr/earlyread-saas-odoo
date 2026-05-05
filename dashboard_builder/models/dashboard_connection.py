@@ -64,10 +64,27 @@ class DashboardConnection(models.Model):
     port = fields.Char(string='Port', default='8443', size=5)
     database = fields.Char(string='Database')
     username = fields.Char(string='Username')
+    # Direct password field — the simple, common case. Typed in the
+    # form, saved on the record. Odoo's password=True flag tells the
+    # logger / auditor to redact it; widget="password" in the view
+    # masks the input.
+    password = fields.Char(
+        string='Password',
+        help='Database password for this connection. Saved on the '
+             'record (encrypted at rest by Postgres if encryption is '
+             'enabled at the cluster level). For high-security '
+             'deployments that require secrets in ir.config_parameter '
+             'or an external secret manager, leave this blank and set '
+             'Password Config Key instead.',
+    )
+    # Legacy / advanced indirection — kept for deployments that already
+    # use it. Looked up only when the direct ``password`` field is empty.
     password_param_key = fields.Char(
-        string='Password Config Key',
-        help='ir.config_parameter key that stores the password. '
-             'Set the value via the Odoo shell:\n'
+        string='Password Config Key (advanced)',
+        help='Optional. Alternative to typing the password directly: '
+             'name of an ir.config_parameter row that stores the '
+             'password. Used only if the Password field above is left '
+             'empty. Set via Odoo shell:\n'
              '  env["ir.config_parameter"].sudo().set_param('
              '"clickhouse.password.prod", "<password>")',
     )

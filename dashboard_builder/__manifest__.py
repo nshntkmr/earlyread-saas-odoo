@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dashboard Builder',
-    'version': '19.0.1.3.0',
+    'version': '19.0.1.4.0',
     'category': 'Productivity',
     'summary': 'Visual widget builder with schema registry and query generation',
     'description': """
