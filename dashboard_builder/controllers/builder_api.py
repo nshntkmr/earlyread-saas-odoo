@@ -224,16 +224,43 @@ class BuilderAPI(http.Controller):
             from ..services.query_builder import QueryBuilder
             qb = QueryBuilder(request.env)
 
+            # Resolve schema source for executor dispatch — see
+            # designer_api.preview() for the rationale + visual-mode
+            # cross-engine guard.
+            SchemaSource = request.env['dashboard.schema.source'].sudo()
+            schema_source = None
+            if mode == 'custom_sql':
+                source_id = body.get('schema_source_id')
+                if source_id:
+                    schema_source = SchemaSource.browse(int(source_id)).exists()
+            else:
+                config = body.get('config', {})
+                source_ids = config.get('source_ids') or []
+                if source_ids:
+                    sources = SchemaSource.browse(source_ids).exists()
+                    distinct_connections = {
+                        (s.connection_id.id if s.connection_id else None)
+                        for s in sources
+                    }
+                    if len(distinct_connections) > 1:
+                        return _json_err(
+                            400,
+                            'Visual builder cannot mix sources from different connections.',
+                        )
+                    schema_source = sources[:1]
+
             if mode == 'custom_sql':
                 sql = body.get('sql', '')
                 is_valid, err = qb.validate_query(sql)
                 if not is_valid:
                     return _json_err(400, f'Invalid SQL: {err}')
-                columns, rows = qb.execute_preview(sql, body.get('params', {}))
+                columns, rows = qb.execute_preview(
+                    sql, body.get('params', {}), schema_source=schema_source)
             else:
                 config = body.get('config', {})
                 sql = qb.build_select_query(config)
-                columns, rows = qb.execute_preview(sql, body.get('params', {}))
+                columns, rows = qb.execute_preview(
+                    sql, body.get('params', {}), schema_source=schema_source)
 
             # Convert rows to list of lists for JSON
             rows_list = [list(row) for row in rows]
@@ -558,7 +585,11 @@ class BuilderAPI(http.Controller):
                       if k not in ('click_column', 'click_value', 'detail_columns')}
             params['click_value'] = click_value
 
-            columns, rows = qb.execute_preview(sql, params, limit=50)
+            # Drill against the widget's schema source so CH-backed
+            # widgets drill against CH (not local PG).
+            columns, rows = qb.execute_preview(
+                sql, params, limit=50,
+                schema_source=widget.schema_source_id or None)
             rows_list = [list(row) for row in rows]
 
             return _json_resp({

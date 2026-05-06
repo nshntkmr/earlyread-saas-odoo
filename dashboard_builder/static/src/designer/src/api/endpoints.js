@@ -3,9 +3,22 @@
  */
 
 // ── Schema ────────────────────────────────────────────────────────────────────
-export const sourcesUrl     = (base) => `${base}/sources`
+// `sourcesUrl(base)` returns all schema sources (legacy default).
+// `sourcesUrl(base, { connection_id })` filters server-side by connection.
+//   - Pass `'local_pg'` (sentinel) to get only local Postgres sources.
+//   - Pass an integer connection id to get sources on that connection.
+//   - Omit / pass null to get all sources (mixed connections).
+export const sourcesUrl = (base, params = {}) => {
+  const qs = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    )
+  ).toString()
+  return `${base}/sources${qs ? '?' + qs : ''}`
+}
 export const sourceDetailUrl = (base, id) => `${base}/sources/${id}`
 export const sourceRelationsUrl = (base, id) => `${base}/sources/${id}/relations`
+export const connectionsUrl  = (base) => `${base}/connections`
 
 // ── Preview ───────────────────────────────────────────────────────────────────
 export const previewUrl = (base) => `${base}/preview`

@@ -5,25 +5,31 @@ import { sourcesUrl, sourceDetailUrl, sourceRelationsUrl } from '../../api/endpo
 /**
  * Step 2 (Visual mode): Select tables and configure JOINs.
  *
+ * Phase 3 Path C: ``connectionId`` filters the available source list
+ * server-side so the admin only sees tables on the picked connection
+ * (Local Postgres / ClickHouse-Production / etc). Defaults to
+ * 'local_pg' so existing PG flows are byte-identical.
+ *
  * Props:
- *   sources     — [{id, name, alias, columns: [...]}]
- *   joins       — [{relation_id, source_id, target_id, ...}]
- *   onUpdate    — ({sources, joins}) => void
- *   apiBase     — string
+ *   sources       — [{id, name, alias, columns: [...]}]
+ *   joins         — [{relation_id, source_id, target_id, ...}]
+ *   connectionId  — string  — 'local_pg' or stringified connection id
+ *   onUpdate      — ({sources, joins}) => void
+ *   apiBase       — string
  */
-export default function TableJoinBuilder({ sources, joins, onUpdate, apiBase }) {
+export default function TableJoinBuilder({ sources, joins, onUpdate, apiBase, connectionId = 'local_pg' }) {
   const [availableSources, setAvailableSources] = useState([])
   const [relations, setRelations] = useState([])
   const [loading, setLoading] = useState(false)
 
-  // Load available schema sources
+  // Load available schema sources, filtered by connection.
   useEffect(() => {
     setLoading(true)
-    designerFetch(sourcesUrl(apiBase))
+    designerFetch(sourcesUrl(apiBase, { connection_id: connectionId }))
       .then(data => setAvailableSources(data))
       .catch(err => console.error('Failed to load sources:', err))
       .finally(() => setLoading(false))
-  }, [apiBase])
+  }, [apiBase, connectionId])
 
   // Load relations when sources change
   useEffect(() => {

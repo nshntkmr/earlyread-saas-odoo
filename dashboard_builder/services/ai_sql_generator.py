@@ -15,13 +15,18 @@ import logging
 _logger = logging.getLogger(__name__)
 
 
-# ── System prompt — generic SQL rules for all requests ──────────────────────
+# ── System prompt — engine-agnostic core ──────────────────────────────────
+# The base prompt is split from the dialect-specific tail so the same
+# core rules apply across Postgres + ClickHouse (Phase 3 Path C). Use
+# ``build_system_prompt(engine)`` to assemble the right combination —
+# defaulting to ``'postgres_local'`` preserves byte-identical behaviour
+# for every existing PG widget that uses the AI Assistant.
 
-SYSTEM_PROMPT = """You are a PostgreSQL SQL expert generating queries for healthcare analytics dashboards.
+_PROMPT_BASE = """You are a SQL expert generating queries for healthcare analytics dashboards.
 
 RULES — follow these EXACTLY:
 1. Only SELECT or WITH statements. Never INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE.
-2. Use %(param_name)s for filter placeholders (psycopg2 named parameter syntax).
+2. Use %(param_name)s for filter placeholders (named parameter syntax — the engine driver translates).
 3. Filter operator MUST match the filter type shown in AVAILABLE FILTER PARAMETERS:
    - [MULTISELECT] filters: ALWAYS use IN %(param)s. Value is a tuple like ('FFS', 'MA').
      Optional clause: [[AND col IN %(param)s]]
@@ -35,7 +40,7 @@ RULES — follow these EXACTLY:
 6. For rates and ratios: ALWAYS compute as SUM(numerator_col) / NULLIF(SUM(denominator_col), 0) * multiplier.
    NEVER use AVG() on a pre-computed rate column (like timely_access_pct or hospitalization_rate).
    Pre-computed rates have different denominators per row — averaging them is mathematically wrong.
-7. Use %% for literal percent signs in string literals (psycopg2 escapes % as %%).
+7. Use %% for literal percent signs in string literals (the param binder escapes % as %%).
    Example: 'Target: 85%%' not 'Target: 85%'.
 8. For multi-metric output (bullet gauge, RAG scorecard, multi-ring): use UNION ALL with one SELECT block per metric.
 9. Return column names that match the chart type's expected format exactly.
@@ -79,6 +84,66 @@ STATUS KPI PATTERN:
 - The React component computes % change and trend arrow automatically.
 - Return raw numbers, NOT pre-formatted text.
 """
+
+# ── Postgres-specific dialect tail ────────────────────────────────────────
+
+_PROMPT_POSTGRES = """
+DIALECT — POSTGRESQL:
+- Date functions: date_trunc('month', dt), EXTRACT(year FROM dt), to_char(dt, 'YYYY-MM').
+- String functions: || for concat, ILIKE for case-insensitive match.
+- NULL handling: COALESCE(col, 0), NULLIF(num, 0).
+- Type casts: ::integer, ::text, ::date.
+- Most data lives in materialized views (mv_*). Use the view's columns directly — no joins
+  to dimension tables unless the query genuinely needs cross-MV correlation.
+- FFS vs MA scoping: WHERE ffs_ma = %(ffs_ma)s when filter is set; otherwise no scope.
+"""
+
+# ── ClickHouse-specific dialect tail ──────────────────────────────────────
+
+_PROMPT_CLICKHOUSE = """
+DIALECT — CLICKHOUSE:
+- Date functions: toStartOfMonth(dt), toYYYYMM(dt), toYear(dt), toDate(dt), formatDateTime(dt, '%Y-%m').
+  DO NOT use date_trunc — it does not exist in ClickHouse.
+  DO NOT use INTERVAL arithmetic (e.g. dt - INTERVAL '1 day'); use addDays(dt, -1) / subtractDays(dt, 1).
+- String functions: concat(a, b) (NOT ||), positionCaseInsensitive for case-insensitive match.
+- NULL handling: COALESCE works; NULLIF works (CH 22+).
+- Type casts: CAST(col AS Int64), toInt64(col), toString(col), toDate(col).
+- Common types you will see: LowCardinality(String) (for low-cardinality dimensions),
+  Nullable(...) (for nullable columns), Array(String) (for IN-like membership).
+  Treat these as their underlying scalar type when generating SQL — the executor unwraps them.
+- Tables are typically schema-qualified (e.g. ``shared.inhome_v2``, ``silver.fact_referrals``,
+  ``gold.kpi_summary``). Always include the schema prefix in FROM clauses.
+- For tenant-scoped tables (silver.*, gold.*): the row policy filters automatically via
+  getSetting('SQL_tenant_id'). DO NOT add WHERE tenant_id = ... unless explicitly asked —
+  it is redundant and the row policy already enforces isolation.
+- For shared.* tables: cross-tenant reference data, no row policy applies.
+- Aggregations: SUM/COUNT/MIN/MAX/AVG all behave as expected. uniqExact() for distinct counts
+  (faster than COUNT(DISTINCT ...)).
+- Avoid: WINDOW functions with PARTITION BY in some older CH versions — prefer GROUP BY
+  + arrayJoin tricks or pre-computed rollups when possible.
+"""
+
+# Backwards-compatible alias — every existing call site that imports
+# SYSTEM_PROMPT (e.g. tests, dialect-blind generators) keeps working.
+SYSTEM_PROMPT = _PROMPT_BASE + _PROMPT_POSTGRES
+
+
+def build_system_prompt(engine='postgres_local'):
+    """Return the system prompt tailored to the target engine.
+
+    ``engine`` mirrors ``dashboard.connection.engine`` values:
+        - ``'postgres_local'`` → PG dialect (default; existing behaviour)
+        - ``'clickhouse'``     → CH dialect (Phase 3 Path C)
+
+    Unknown engines fall back to PostgreSQL with a logged warning so a
+    misconfigured connection never silently produces broken SQL.
+    """
+    if engine == 'clickhouse':
+        return _PROMPT_BASE + _PROMPT_CLICKHOUSE
+    if engine and engine != 'postgres_local':
+        _logger.warning(
+            "build_system_prompt: unknown engine %r; falling back to PostgreSQL", engine)
+    return _PROMPT_BASE + _PROMPT_POSTGRES
 
 
 # ── Tool definition for structured output ──────────────────────────────────
@@ -493,6 +558,10 @@ class AiSqlGenerator:
             Source = self.env['dashboard.schema.source'].sudo()
             source = Source.browse(int(source_id))
             if source.exists():
+                # Engine drives the dialect prompt — Phase 3 Path C.
+                # Defaults to 'postgres_local' for sources without a
+                # connection (every existing PG-backed widget).
+                context['engine'] = source.engine or 'postgres_local'
                 context['primary_table'] = {
                     'table_name': source.table_name,
                     'display_name': source.name,
@@ -689,7 +758,7 @@ class AiSqlGenerator:
         message = client.messages.create(
             model=self._model,
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
+            system=build_system_prompt(context.get('engine')),
             tools=[GENERATE_SQL_TOOL],
             tool_choice={'type': 'tool', 'name': 'generate_sql'},
             messages=[
@@ -730,7 +799,7 @@ class AiSqlGenerator:
         message = client.messages.create(
             model=self._model,
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
+            system=build_system_prompt(context.get('engine')),
             tools=[GENERATE_SQL_TOOL],
             tool_choice={'type': 'tool', 'name': 'generate_sql'},
             messages=[
@@ -768,7 +837,7 @@ class AiSqlGenerator:
         message = client.messages.create(
             model=self._model,
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
+            system=build_system_prompt(context.get('engine')),
             tools=[GENERATE_SQL_TOOL],
             tool_choice={'type': 'tool', 'name': 'generate_sql'},
             messages=[
@@ -996,7 +1065,7 @@ class AiSqlGenerator:
             message = client.messages.create(
                 model=self._model,
                 max_tokens=2048,
-                system=SYSTEM_PROMPT,
+                system=build_system_prompt(context.get('engine')),
                 tools=[SUGGEST_TOOL],
                 tool_choice={'type': 'tool', 'name': 'suggest_queries'},
                 messages=[

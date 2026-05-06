@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { designerFetch } from '../../api/client'
-import { previewUrl, pageFiltersUrl } from '../../api/endpoints'
+import { previewUrl, pageFiltersUrl, sourcesUrl } from '../../api/endpoints'
 
 const SQL_COLUMN_HELP = {
   bar:           { cols: 'category, value1 [, value2, ...]', example: 'SELECT state, SUM(admits) AS admits FROM mv_hha GROUP BY state' },
@@ -49,8 +49,16 @@ function getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle) {
  * When appContext has a page selected, shows the page's actual filter
  * param_names as insert pills (instead of hardcoded COMMON_PARAMS).
  *
+ * Phase 3 Path C: requires a Schema Source pick (filtered by the parent's
+ * Connection dropdown) so the preview can dispatch via the right backend
+ * executor. Without a source, the preview falls back to local Postgres
+ * (zero-regression for existing PG flows).
+ *
  * Props:
  *   sql, xColumn, yColumns, seriesColumn, testResult, testParams, onUpdate, apiBase
+ *   schemaSourceId — int | null — picked source for executor dispatch
+ *   connectionId   — string     — 'local_pg' or stringified connection id;
+ *                                 filters the source dropdown server-side
  *   appContext  — { app, page, tab } | null — from AppContextBar
  *   chartType  — string — current chart type for SQL column help
  *   donutStyle — string — optional donut variant (standard, nested, multi_ring)
@@ -59,10 +67,12 @@ function getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle) {
 export default function CustomSqlEditor({
   sql, xColumn, yColumns, seriesColumn, testResult,
   testParams = {}, onUpdate, apiBase, appContext = null,
+  schemaSourceId = null, connectionId = 'local_pg',
   chartType, donutStyle, lineStyle, gaugeStyle,
 }) {
   const [testing, setTesting] = useState(false)
   const [pageParams, setPageParams] = useState([])
+  const [availableSources, setAvailableSources] = useState([])
 
   // Load page filter param names when page context changes
   useEffect(() => {
@@ -80,6 +90,20 @@ export default function CustomSqlEditor({
       })
       .catch(() => setPageParams([]))
   }, [apiBase, appContext?.page?.id])
+
+  // Load schema sources filtered by the picked connection. Phase 3 Path C —
+  // when admin switches connection, the picker re-fetches; sources from
+  // other connections drop out. If schemaSourceId references a source that
+  // no longer matches, the dropdown shows blank and admin must repick.
+  useEffect(() => {
+    let cancelled = false
+    designerFetch(sourcesUrl(apiBase, { connection_id: connectionId, app_id: appContext?.app?.id }))
+      .then(data => {
+        if (!cancelled) setAvailableSources(Array.isArray(data) ? data : [])
+      })
+      .catch(() => { if (!cancelled) setAvailableSources([]) })
+    return () => { cancelled = true }
+  }, [apiBase, connectionId, appContext?.app?.id])
 
   const setTestParam = useCallback((key, value) => {
     onUpdate({ testParams: { ...testParams, [key]: value } })
@@ -110,7 +134,15 @@ export default function CustomSqlEditor({
       }
       const result = await designerFetch(previewUrl(apiBase), {
         method: 'POST',
-        body: JSON.stringify({ mode: 'custom_sql', sql, params, page_id: appContext?.page?.id }),
+        body: JSON.stringify({
+          mode: 'custom_sql',
+          sql,
+          params,
+          page_id: appContext?.page?.id,
+          // Phase 3 Path B/C — server uses this for executor dispatch.
+          // Without it, the preview always runs against local Postgres.
+          schema_source_id: schemaSourceId,
+        }),
       })
       onUpdate({ testResult: { columns: result.columns, rows: result.rows, error: null } })
     } catch (err) {
@@ -127,6 +159,39 @@ export default function CustomSqlEditor({
   return (
     <div>
       <h3 className="wb-step-title">Custom SQL Query</h3>
+
+      {/* Schema Source picker — Phase 3 Path C. Required for executor
+          dispatch when targeting a non-local connection. The list is
+          filtered server-side by the parent's Connection dropdown. */}
+      <div className="wb-field-group">
+        <label className="wb-label" htmlFor="wb-custom-sql-source">
+          Schema Source
+          <span className="wb-hint-inline">
+            {' '}— picks the table this SQL queries (drives executor dispatch).
+          </span>
+        </label>
+        <select
+          id="wb-custom-sql-source"
+          className="wb-select"
+          value={schemaSourceId || ''}
+          onChange={e => onUpdate({ schemaSourceId: e.target.value ? parseInt(e.target.value, 10) : null })}
+          style={{ maxWidth: 480 }}
+        >
+          <option value="">— Select source —</option>
+          {availableSources.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.name}{s.table_name && s.table_name !== s.name ? ` (${s.table_name})` : ''}
+              {s.engine && s.engine !== 'postgres_local' ? ` · ${s.engine}` : ''}
+            </option>
+          ))}
+        </select>
+        {!schemaSourceId && (
+          <div style={{ color: '#a16207', fontSize: 12, marginTop: 4 }}>
+            ⚠ Without a schema source, the preview routes to local Postgres.
+            Pick a source for ClickHouse / non-local engines.
+          </div>
+        )}
+      </div>
 
       {/* SQL column help */}
       {chartType && SQL_COLUMN_HELP[getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle)] && (

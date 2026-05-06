@@ -82,7 +82,16 @@ class DesignerAPI(http.Controller):
         type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
     )
     def sources(self, **kw):
-        """List schema sources."""
+        """List schema sources.
+
+        Optional filters:
+            ?app_id=N           — restrict to sources scoped to that app
+                                  (when ``app_ids`` field exists)
+            ?connection_id=X    — restrict to sources on that connection.
+                                  X = ``local_pg`` (sentinel) or empty
+                                  matches sources with NULL connection_id.
+                                  Otherwise, an integer connection record id.
+        """
         try:
             _require_admin()
         except ValueError as e:
@@ -94,6 +103,22 @@ class DesignerAPI(http.Controller):
             source_domain.append('|')
             source_domain.append(('app_ids', '=', False))
             source_domain.append(('app_ids', 'in', [app_id]))
+
+        # Connection filter — drives the wizard's Connection→Source cascade
+        # in Phase 3 Path C. The local_pg sentinel (or empty/missing param)
+        # returns sources without a connection_id. An integer matches that
+        # connection's sources.
+        conn_filter = kw.get('connection_id')
+        if conn_filter is not None and conn_filter != '':
+            if conn_filter == 'local_pg':
+                source_domain.append(('connection_id', '=', False))
+            else:
+                try:
+                    source_domain.append(('connection_id', '=', int(conn_filter)))
+                except (TypeError, ValueError):
+                    return _json_error(
+                        400, f'Invalid connection_id: {conn_filter!r}')
+
         sources = request.env['dashboard.schema.source'].sudo().search(
             source_domain, order='name asc')
 
@@ -104,7 +129,51 @@ class DesignerAPI(http.Controller):
             'alias': s.table_alias or '',
             'column_count': s.column_count,
             'description': s.description or '',
+            # Connection metadata so the React wizard can label sources
+            # by engine ("[CH] shared.inhome_v2") and dispatch the AI
+            # Assistant to the right dialect prompt.
+            'connection_id': s.connection_id.id if s.connection_id else None,
+            'connection_name': s.connection_id.name if s.connection_id else 'Local Postgres',
+            'engine': s.engine or 'postgres_local',
         } for s in sources])
+
+    @http.route(
+        '/dashboard/designer/api/connections',
+        type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
+    )
+    def connections(self, **kw):
+        """List database connections available to the wizard.
+
+        Always includes a synthetic "Local Postgres" entry (id=`local_pg`)
+        so the dropdown has a stable default. Real ``dashboard.connection``
+        records are filtered to ``is_active=True`` — disabled connections
+        should not be selectable. Engine is exposed so the React wizard
+        can route the AI Assistant to the matching dialect prompt without
+        a second round-trip.
+        """
+        try:
+            _require_admin()
+        except ValueError as e:
+            return _json_error(403, str(e))
+
+        result = [{
+            'id': 'local_pg',
+            'name': 'Local Postgres',
+            'engine': 'postgres_local',
+            'is_active': True,
+        }]
+
+        connections = request.env['dashboard.connection'].sudo().search(
+            [('is_active', '=', True)], order='name asc')
+        for c in connections:
+            result.append({
+                'id': c.id,
+                'name': c.name,
+                'engine': c.engine,
+                'is_active': c.is_active,
+            })
+
+        return _json_response(result)
 
     @http.route(
         '/dashboard/designer/api/sources/<int:source_id>',
@@ -486,6 +555,36 @@ class DesignerAPI(http.Controller):
                 # No page context — use plain string params (safety net)
                 params = normalized
 
+            # ── Resolve schema source for executor dispatch ────────────
+            # Custom SQL: client sends `schema_source_id` directly.
+            # Visual mode: derive from `config.source_ids` (first source);
+            #   reject configs that mix sources from different connections
+            #   so we don't silently run the query against the wrong engine.
+            SchemaSource = request.env['dashboard.schema.source'].sudo()
+            schema_source = None
+            if mode == 'custom_sql':
+                source_id = body.get('schema_source_id')
+                if source_id:
+                    schema_source = SchemaSource.browse(int(source_id)).exists()
+            else:
+                config = body.get('config', {})
+                source_ids = config.get('source_ids') or []
+                if source_ids:
+                    sources = SchemaSource.browse(source_ids).exists()
+                    # Build distinct connection set; None = local PG.
+                    # Mixing local PG with a remote connection, or two
+                    # distinct remote connections, is rejected.
+                    distinct_connections = {
+                        (s.connection_id.id if s.connection_id else None)
+                        for s in sources
+                    }
+                    if len(distinct_connections) > 1:
+                        return _json_error(
+                            400,
+                            'Visual builder cannot mix sources from different connections.',
+                        )
+                    schema_source = sources[:1]
+
             if mode == 'custom_sql':
                 sql = body.get('sql', '')
                 is_valid, err = qb.validate_query(sql)
@@ -493,14 +592,14 @@ class DesignerAPI(http.Controller):
                     return _json_error(400, f'Invalid SQL: {err}')
                 _logger.info('Preview [custom_sql] params: %s', params)
                 _logger.info('Preview [custom_sql] SQL: %s', sql)
-                columns, rows = qb.execute_preview(sql, params)
+                columns, rows = qb.execute_preview(sql, params, schema_source=schema_source)
             else:
                 config = body.get('config', {})
                 sql = qb.build_select_query(config, multiselect_params=multiselect_params)
                 _logger.info('Preview [visual] multiselect_params: %s', multiselect_params)
                 _logger.info('Preview [visual] params: %s', params)
                 _logger.info('Preview [visual] SQL: %s', sql)
-                columns, rows = qb.execute_preview(sql, params)
+                columns, rows = qb.execute_preview(sql, params, schema_source=schema_source)
 
             rows_list = [list(row) for row in rows]
 

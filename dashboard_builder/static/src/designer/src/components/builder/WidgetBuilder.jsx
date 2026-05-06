@@ -12,6 +12,7 @@ import LivePreview              from './LivePreview'
 import TableConfigurator        from './TableConfigurator'
 import SmartTableConfigurator   from './SmartTableConfigurator'
 import AiSqlEditor        from './AiSqlEditor'
+import ConnectionPicker   from './ConnectionPicker'
 import WidgetControlsStep from './WidgetControlsStep'
 import OptionTabBar        from './OptionTabBar'
 import MasterRowLayoutStep from './MasterRowLayoutStep'
@@ -104,7 +105,12 @@ const initialState = {
   chartType: 'bar',
 
   // Step 2
-  dataMode: 'visual',           // 'visual' | 'custom_sql'
+  // Connection sentinel: 'local_pg' = NULL connection_id (default for all
+  // existing PG widgets, byte-identical to pre-Phase-3 behaviour). An
+  // integer (as string) selects a specific dashboard.connection record.
+  // Per-option in scope-mode widgets — routed via _routeToOption.
+  connectionId: 'local_pg',
+  dataMode: 'visual',           // 'visual' | 'custom_sql' | 'ai'
   sources: [],                  // selected sources with columns
   joins: [],                    // [{left_source_id, right_source_id, left_column, right_column}]
   customSql: {
@@ -114,6 +120,10 @@ const initialState = {
     seriesColumn: '',
     testResult: null,
     testParams: {},
+    // Schema source picker (Phase 3 Path C). Required for executor
+    // dispatch to non-local connections — without it, custom SQL
+    // previews route to local PG even when the SQL targets CH.
+    schemaSourceId: null,
   },
 
   // Step 3 (visual mode)
@@ -253,6 +263,17 @@ function reducer(state, action) {
     // Per-option config actions — routed via _routeToOption
     case 'SET_DATA_MODE':
       return _routeToOption(state, { dataMode: action.value })
+    case 'SET_CONNECTION_ID':
+      // Switching connection invalidates picked sources + joins (table
+      // names live in a different database). Custom SQL text is kept —
+      // the admin may legitimately want to migrate the same SQL across
+      // engines. Clearing customSql.testResult prevents stale preview.
+      return _routeToOption(state, {
+        connectionId: action.value,
+        sources: [],
+        joins: [],
+        customSql: { ...(getActiveConfig(state).customSql || {}), schemaSourceId: null, testResult: null },
+      })
     case 'SET_SOURCES':
       return _routeToOption(state, { sources: action.value })
     case 'SET_JOINS':
@@ -760,6 +781,16 @@ export default function WidgetBuilder({
                 />
               )}
               <h3 className="wb-step-title">Data Source</h3>
+
+              {/* Connection picker — Phase 3 Path C. Drives the
+                  schema-source filter across all three modes. Hidden
+                  when only Local Postgres exists (no choice to make). */}
+              <ConnectionPicker
+                value={ac.connectionId || 'local_pg'}
+                onChange={(newId) => dispatch({ type: 'SET_CONNECTION_ID', value: newId })}
+                apiBase={apiBase}
+              />
+
               <div className="wb-field-group">
                 <div className="wb-mode-toggle">
                   <button
@@ -800,6 +831,7 @@ export default function WidgetBuilder({
                   valueDisplay={state.visualFlags?.value_display}
                   appContext={appContext}
                   apiBase={apiBase}
+                  connectionId={ac.connectionId || 'local_pg'}
                   onSourcesChange={s => dispatch({ type: 'SET_SOURCES', value: s })}
                   onUpdate={v => dispatch({ type: 'SET_AI_RESULT', value: v })}
                   onPromptChange={v => dispatch({ type: 'SET_AI_PROMPT', value: v })}
@@ -812,6 +844,7 @@ export default function WidgetBuilder({
                 <TableJoinBuilder
                   sources={ac.sources || []}
                   joins={ac.joins || []}
+                  connectionId={ac.connectionId || 'local_pg'}
                   onUpdate={({ sources, joins }) => {
                     if (sources !== undefined) dispatch({ type: 'SET_SOURCES', value: sources })
                     if (joins !== undefined) dispatch({ type: 'SET_JOINS', value: joins })
@@ -824,11 +857,13 @@ export default function WidgetBuilder({
                   xColumn={(ac.customSql || {}).xColumn || ''}
                   yColumns={(ac.customSql || {}).yColumns || ''}
                   seriesColumn={(ac.customSql || {}).seriesColumn || ''}
+                  schemaSourceId={(ac.customSql || {}).schemaSourceId || null}
                   testResult={(ac.customSql || {}).testResult}
                   testParams={(ac.customSql || {}).testParams || {}}
                   onUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
                   apiBase={apiBase}
                   appContext={appContext}
+                  connectionId={ac.connectionId || 'local_pg'}
                   chartType={state.chartType}
                   donutStyle={state.visualFlags?.donut_style || 'standard'}
                   lineStyle={state.visualFlags?.line_style || 'basic'}

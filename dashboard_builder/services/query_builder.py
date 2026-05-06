@@ -387,13 +387,19 @@ class QueryBuilder:
 
         return True, None
 
-    def execute_preview(self, sql, params=None, limit=25):
+    def execute_preview(self, sql, params=None, limit=25, schema_source=None):
         """Executes SQL in read-only transaction with timeout.
 
         Resolves ``[[...]]`` optional clauses before execution.
         A clause is included only when every ``%(param)s`` inside has
         a meaningful value (not None, empty, 'all', or ``('__all__',)``).
         This ensures multiselect "All" selections suppress their clause.
+
+        When ``schema_source`` is provided and points at a non-local
+        connection, dispatches via ``get_executor()`` so CH/other-engine
+        sources preview against the right backend. When ``schema_source``
+        is None or has a NULL ``connection_id``, runs against the local
+        Postgres cursor — zero regression on existing PG widget previews.
 
         Returns: (columns: list[str], rows: list[tuple])
         """
@@ -404,44 +410,33 @@ class QueryBuilder:
         if not is_valid:
             raise ValueError(f"Query validation failed: {err}")
 
-        cr = self.env.cr
+        # Resolve macros (engine-agnostic; both local and remote paths need this)
+        exec_sql = self._resolve_macros(sql, params, limit)
 
+        # Dispatch to remote executor for CH-backed (or other-engine)
+        # schema sources. The factory returns PostgresLocalExecutor when
+        # connection_id is NULL, but we keep the explicit local path
+        # below so we can apply the savepoint + statement_timeout that
+        # admins rely on for runaway preview queries.
+        if schema_source and getattr(schema_source, 'connection_id', None):
+            from odoo.addons.posterra_portal.utils.query_executors import get_executor
+            try:
+                executor = get_executor(self.env, schema_source)
+                return executor.execute(exec_sql, params)
+            except Exception as e:
+                _logger.error(
+                    "Remote query execution failed: %s\nSQL: %s\nParams: %s",
+                    e, exec_sql, params)
+                raise ValueError(f"Query execution failed: {e}")
+
+        # Local PG path — unchanged from pre-Phase-3 behaviour.
+        cr = self.env.cr
         try:
             # Use savepoint so preview query is isolated and can't corrupt
             # the Odoo transaction. SET TRANSACTION READ ONLY can't be used
             # mid-transaction (PostgreSQL requires it before any query).
             cr.execute("SAVEPOINT preview_exec")
             cr.execute("SET LOCAL statement_timeout = '10s'")
-
-            exec_sql = sql
-
-            # Resolve {where_clause} macro — build WHERE from preview filter
-            # params, or fall back to 1=1 (show all data) when no filters.
-            # This mirrors portal-side substitution in dashboard_widget.py.
-            if '{where_clause}' in exec_sql:
-                where_parts = []
-                for key, val in (params or {}).items():
-                    if key.startswith('_'):
-                        continue
-                    if val is None or val == '' or val == 'all':
-                        continue
-                    if isinstance(val, (list, tuple)):
-                        if not val or val == ('__all__',):
-                            continue
-                        where_parts.append(f"{key} IN %({key})s")
-                    else:
-                        where_parts.append(f"{key} = %({key})s")
-                where_sql = ' AND '.join(where_parts) if where_parts else '1=1'
-                exec_sql = exec_sql.replace('{where_clause}', where_sql)
-
-            # Resolve [[optional clauses]] — same as filter_builder
-            if '[[' in exec_sql:
-                from odoo.addons.posterra_portal.utils.filter_builder import resolve_optional_clauses
-                exec_sql = resolve_optional_clauses(exec_sql, params)
-
-            # Apply limit if not already in the SQL
-            if limit and 'LIMIT' not in exec_sql.upper():
-                exec_sql = f'{exec_sql}\nLIMIT {int(limit)}'
 
             cr.execute(exec_sql, params)
             columns = [desc[0] for desc in cr.description] if cr.description else []
@@ -459,6 +454,43 @@ class QueryBuilder:
             except Exception:
                 pass  # Savepoint may already be gone
             raise ValueError(f"Query execution failed: {e}")
+
+    def _resolve_macros(self, sql, params, limit):
+        """Resolve ``{where_clause}``, ``[[optional]]`` clauses, and append
+        ``LIMIT N`` if the query lacks one. Pure string manipulation —
+        engine-agnostic; safe to run before dispatch decision.
+        """
+        exec_sql = sql
+
+        # Resolve {where_clause} macro — build WHERE from preview filter
+        # params, or fall back to 1=1 (show all data) when no filters.
+        # This mirrors portal-side substitution in dashboard_widget.py.
+        if '{where_clause}' in exec_sql:
+            where_parts = []
+            for key, val in (params or {}).items():
+                if key.startswith('_'):
+                    continue
+                if val is None or val == '' or val == 'all':
+                    continue
+                if isinstance(val, (list, tuple)):
+                    if not val or val == ('__all__',):
+                        continue
+                    where_parts.append(f"{key} IN %({key})s")
+                else:
+                    where_parts.append(f"{key} = %({key})s")
+            where_sql = ' AND '.join(where_parts) if where_parts else '1=1'
+            exec_sql = exec_sql.replace('{where_clause}', where_sql)
+
+        # Resolve [[optional clauses]] — same as filter_builder
+        if '[[' in exec_sql:
+            from odoo.addons.posterra_portal.utils.filter_builder import resolve_optional_clauses
+            exec_sql = resolve_optional_clauses(exec_sql, params)
+
+        # Apply limit if not already in the SQL
+        if limit and 'LIMIT' not in exec_sql.upper():
+            exec_sql = f'{exec_sql}\nLIMIT {int(limit)}'
+
+        return exec_sql
 
     # =========================================================================
     # PRIVATE HELPERS

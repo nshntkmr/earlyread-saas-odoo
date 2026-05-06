@@ -73,7 +73,7 @@ function getSuggestions(chartType, gaugeStyle) {
 
 export default function AiSqlEditor({
   sources, aiState = {}, chartType, gaugeStyle, lineStyle, donutStyle, ragLayout, kpiStyle, valueDisplay,
-  appContext, apiBase,
+  appContext, apiBase, connectionId = 'local_pg',
   onSourcesChange, onUpdate, onPromptChange, onSwitchToCustomSql,
 }) {
   const [loading, setLoading] = useState(false)
@@ -222,6 +222,7 @@ export default function AiSqlEditor({
       {/* ── Table selector (reuse TableJoinBuilder) ──────────────── */}
       <TableJoinBuilder
         sources={sources}
+        connectionId={connectionId}
         onUpdate={({ sources: newSources }) => {
           if (onSourcesChange) onSourcesChange(newSources)
         }}
