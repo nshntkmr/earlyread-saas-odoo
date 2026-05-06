@@ -355,6 +355,21 @@ class DesignerAPI(http.Controller):
                 # Coerce to string in case Odoo returns a non-string value
                 use_intent = str(use_intent_raw).strip().lower() not in ('false', '0', 'no')
 
+            # Phase 3 Path C fix-up: route CH around the intent pipeline.
+            # `generate_intent` uses INTENT_SYSTEM_PROMPT (not the dialect-
+            # split build_system_prompt) and SqlAssembler emits PG-only
+            # idioms (`::text` casts, single-segment table names). Until
+            # those land in a follow-up, force the legacy generate_sql /
+            # fix_sql / refine_sql path for non-PG sources — those flows
+            # already pick up dialect via context['engine'].
+            engine = context.get('engine') or 'postgres_local'
+            if engine != 'postgres_local':
+                use_intent = False
+                _logger.info(
+                    "AI: intent pipeline bypassed for engine=%s (legacy path "
+                    "is dialect-aware; intent pipeline is PG-only).", engine,
+                )
+
             if use_intent:
                 _logger.info(
                     "AI Intent Generate: chart=%s, prompt=%s",
@@ -534,6 +549,17 @@ class DesignerAPI(http.Controller):
             multiselect_params = set()
             if page_id:
                 try:
+                    # Phase 3 Path B fix-up: set request.tenant_id from the
+                    # page's app so CH executor's get_tenant_id() resolves
+                    # cleanly. Without this, multi-app admins hit the
+                    # accessible-app inference fallback and CH preview
+                    # raises "tenant_id is required" — even on shared.*
+                    # tables where the setting is harmless.
+                    Page = request.env['dashboard.page'].sudo()
+                    page_rec = Page.browse(int(page_id))
+                    if page_rec.exists() and page_rec.app_id:
+                        request.tenant_id = page_rec.app_id.id
+
                     PageFilter = request.env['dashboard.page.filter'].sudo()
                     page_filters = PageFilter.search([
                         ('page_id', '=', int(page_id)),
@@ -552,7 +578,11 @@ class DesignerAPI(http.Controller):
                     params = normalized
                     multiselect_params = set()
             else:
-                # No page context — use plain string params (safety net)
+                # No page context — use plain string params (safety net).
+                # request.tenant_id stays unset; if the picked schema source
+                # routes to a connection with requires_tenant_filter=True,
+                # the executor raises a clear ValueError rather than leaking
+                # data — that's the intended fail-loud behaviour.
                 params = normalized
 
             # ── Resolve schema source for executor dispatch ────────────
@@ -861,6 +891,15 @@ class DesignerAPI(http.Controller):
                     'y_columns': body.get('y_columns', ''),
                     'series_column': body.get('series_column', ''),
                 })
+                # Phase 3 Path C/B fix-up: persist the picked schema source
+                # so runtime executor dispatch works for CH-backed widgets.
+                # Visual mode infers from config.source_ids; custom_sql + AI
+                # come through here and must pass schema_source_id explicitly.
+                explicit_source_id = body.get('schema_source_id')
+                if explicit_source_id:
+                    schema_src = request.env['dashboard.schema.source'].sudo().browse(int(explicit_source_id))
+                    if schema_src.exists():
+                        def_vals['schema_source_id'] = schema_src.id
             else:
                 config = body.get('builder_config', {})
                 if isinstance(config, dict):
@@ -1055,6 +1094,20 @@ class DesignerAPI(http.Controller):
             update_vals['default_col_span'] = str(body['col_span'])
         if 'row_span' in body:
             update_vals['default_row_span'] = int(body['row_span'])
+
+        # Phase 3 Path C/B fix-up: accept explicit schema_source_id from
+        # custom_sql + AI saves so CH-backed widgets carry the right
+        # source after update. Setting to None clears it; empty string
+        # is treated as "not provided" (don't overwrite existing).
+        if 'schema_source_id' in body:
+            ssid = body.get('schema_source_id')
+            if ssid:
+                schema_src = request.env['dashboard.schema.source'].sudo().browse(int(ssid))
+                if schema_src.exists():
+                    update_vals['schema_source_id'] = schema_src.id
+            elif ssid is None:
+                # Explicit clear (e.g. admin moved widget back to local PG)
+                update_vals['schema_source_id'] = False
 
         if 'builder_config' in body:
             config = body['builder_config']

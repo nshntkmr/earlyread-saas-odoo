@@ -530,12 +530,16 @@ export function buildPreviewPayload(state, pageFilterValues) {
         params[paramName] = ''
       }
     }
+    // AI's source picker (TableJoinBuilder) puts the source on state.sources[0].
+    // Pass it through so the preview executor dispatches to the right backend.
+    const aiSourceId = (state.sources || [])[0]?.id || null
     return {
       mode: 'custom_sql',
       sql,
       params,
       chart_type: state.chartType,
       widget_config: widgetConfig,
+      schema_source_id: aiSourceId,
     }
   }
 
@@ -559,6 +563,12 @@ export function buildPreviewPayload(state, pageFilterValues) {
       params,
       chart_type: state.chartType,
       widget_config: widgetConfig,
+      // Phase 3 Path B fix-up: the wizard's final preview path goes
+      // through here (separate from CustomSqlEditor's inline Test Query).
+      // Without this, CH-backed Custom SQL widgets fail final preview
+      // with "relation X does not exist" because the dispatch falls
+      // back to local PG.
+      schema_source_id: state.customSql?.schemaSourceId || null,
     }
   }
 

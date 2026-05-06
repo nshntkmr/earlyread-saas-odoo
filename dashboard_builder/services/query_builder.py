@@ -42,6 +42,23 @@ def _safe_ident(name):
     return f'"{name}"'
 
 
+def _safe_table(name):
+    """Validate and quote a (possibly schema-qualified) table reference.
+
+    Postgres MVs are unqualified (``mv_hha_kpi_summary``); ClickHouse tables
+    are typically schema-qualified (``shared.inhome_v2``, ``gold.fact_referrals``).
+    Phase 3 Path C made the visual builder connection-aware, but the SQL
+    emission paths still went through ``_safe_ident`` which rejected dots —
+    causing schema-qualified CH tables to fail at build time. This helper
+    delegates to the shared ``posterra_portal.utils.sql_idents.quote_table``
+    so visual builder output matches what the runtime executor expects.
+    """
+    from odoo.addons.posterra_portal.utils.sql_idents import quote_table, is_valid_table
+    if not is_valid_table(name):
+        raise ValueError(f"Invalid SQL table reference: {name!r}")
+    return quote_table(name)
+
+
 def _safe_alias(alias):
     """Validate a short SQL alias (1-5 chars, alphanumeric/underscore)."""
     if not alias or not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]{0,4}$', alias):
@@ -550,7 +567,7 @@ class QueryBuilder:
         """
         if len(sources) == 1:
             src = sources[0]
-            return f'FROM {_safe_ident(src.table_name)} {alias_map[src.id]}'
+            return f'FROM {_safe_table(src.table_name)} {alias_map[src.id]}'
 
         # Multiple tables: need relations
         Relation = self.env['dashboard.schema.relation'].sudo()
@@ -572,7 +589,7 @@ class QueryBuilder:
         # Build JOIN chain: first source is the FROM table
         primary = sources[0]
         joined_ids = {primary.id}
-        from_parts = [f'FROM {_safe_ident(primary.table_name)} {alias_map[primary.id]}']
+        from_parts = [f'FROM {_safe_table(primary.table_name)} {alias_map[primary.id]}']
 
         # Iterate remaining sources and find relations
         remaining = list(sources[1:])
@@ -600,7 +617,7 @@ class QueryBuilder:
                         on_right = f'{alias_map[src.id]}.{_safe_ident(rel.source_column)}'
 
                     from_parts.append(
-                        f'{join_type} JOIN {_safe_ident(src.table_name)} {alias_map[src.id]} '
+                        f'{join_type} JOIN {_safe_table(src.table_name)} {alias_map[src.id]} '
                         f'ON {on_left} = {on_right}'
                     )
                     joined_ids.add(src.id)

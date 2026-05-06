@@ -1297,12 +1297,21 @@ function buildCreatePayload(state) {
       x_column: cs.xColumn || '',
       y_columns: cs.yColumns || '',
       series_column: cs.seriesColumn || '',
+      // Phase 3 Path C/B fix-up: persist the picked schema source so the
+      // saved widget routes to the right executor at runtime. Without
+      // this, CH-backed custom SQL widgets save with schema_source_id=null
+      // and fall back to local PG → "relation X does not exist".
+      schema_source_id: cs.schemaSourceId || null,
     }
   }
 
   // AI mode: save as custom_sql — the generated SQL is the artifact
   if (effectiveDataMode === 'ai') {
     const ai = effectiveConfig.aiState || state.aiState || {}
+    // AI assistant picks its source through the embedded TableJoinBuilder,
+    // so the source ID lives on effectiveConfig.sources[0]. Persist it
+    // exactly like custom_sql so runtime executor dispatch works.
+    const aiSources = effectiveConfig.sources || state.sources || []
     return {
       ...base,
       data_mode: 'custom_sql',  // stored as custom_sql for portal execution
@@ -1310,6 +1319,7 @@ function buildCreatePayload(state) {
       x_column: ai.xColumn || '',
       y_columns: ai.yColumns || '',
       series_column: ai.seriesColumn || '',
+      schema_source_id: aiSources[0]?.id || null,
       builder_config: JSON.stringify({
         ai_prompt: ai.prompt || '',
         ai_generated: true,
