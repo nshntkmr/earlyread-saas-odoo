@@ -224,6 +224,19 @@ class BuilderAPI(http.Controller):
             from ..services.query_builder import QueryBuilder
             qb = QueryBuilder(request.env)
 
+            # Phase 3 Path B fix-up: set request.tenant_id from the page's
+            # app so CH executor.get_tenant_id() resolves cleanly. Mirror
+            # of designer_api.preview() — without it, multi-app admins on
+            # tenant-enforced CH connections raise before the query runs.
+            page_id = body.get('page_id')
+            if page_id:
+                try:
+                    page_rec = request.env['dashboard.page'].sudo().browse(int(page_id))
+                    if page_rec.exists() and page_rec.app_id:
+                        request.tenant_id = page_rec.app_id.id
+                except (TypeError, ValueError):
+                    pass  # Bad page_id falls through; tenant resolution skipped.
+
             # Resolve schema source for executor dispatch — see
             # designer_api.preview() for the rationale + visual-mode
             # cross-engine guard.
@@ -339,6 +352,15 @@ class BuilderAPI(http.Controller):
                     'y_columns': body.get('y_columns', ''),
                     'series_column': body.get('series_column', ''),
                 })
+                # Phase 3 Path C/B fix-up: persist explicit schema_source_id
+                # so CH-backed custom_sql widgets created through this API
+                # route to the right executor at runtime. Mirrors
+                # designer_api.library_create.
+                explicit_source_id = body.get('schema_source_id')
+                if explicit_source_id:
+                    schema_src = request.env['dashboard.schema.source'].sudo().browse(int(explicit_source_id))
+                    if schema_src.exists():
+                        def_vals['schema_source_id'] = schema_src.id
             else:
                 config = body.get('config', {})
                 def_vals['builder_config'] = json.dumps(config)
@@ -347,6 +369,13 @@ class BuilderAPI(http.Controller):
                 from ..services.query_builder import QueryBuilder
                 qb = QueryBuilder(request.env)
                 def_vals['generated_sql'] = qb.build_select_query(config)
+
+                # Visual-mode source pin (mirrors designer_api.library_create)
+                if isinstance(config, dict) and config.get('source_ids'):
+                    primary_id = config['source_ids'][0]
+                    schema_src = request.env['dashboard.schema.source'].sudo().browse(primary_id)
+                    if schema_src.exists():
+                        def_vals['schema_source_id'] = schema_src.id
 
             # KPI fields
             if chart_type in ('kpi', 'status_kpi'):
@@ -477,6 +506,23 @@ class BuilderAPI(http.Controller):
             if key in body:
                 update_vals[key] = body[key]
 
+        # Phase 3 Path C/B fix-up: accept explicit schema_source_id from
+        # CH-backed updates so the widget keeps routing to the right
+        # executor at runtime. None / empty string means "leave unchanged";
+        # explicit null clears it (admin moved widget back to local PG).
+        if 'schema_source_id' in body:
+            ssid = body.get('schema_source_id')
+            if ssid:
+                schema_src = request.env['dashboard.schema.source'].sudo().browse(int(ssid))
+                if schema_src.exists():
+                    update_vals['schema_source_id'] = schema_src.id
+                    if widget.definition_id:
+                        widget.definition_id.sudo().write({'schema_source_id': schema_src.id})
+            elif ssid is None:
+                update_vals['schema_source_id'] = False
+                if widget.definition_id:
+                    widget.definition_id.sudo().write({'schema_source_id': False})
+
         # Builder config → regenerate SQL
         if 'config' in body:
             config = body['config']
@@ -489,6 +535,15 @@ class BuilderAPI(http.Controller):
                     'builder_config': json.dumps(config),
                     'generated_sql': qb.build_select_query(config),
                 })
+            # Pin schema_source_id from the visual config's first source
+            # so the saved widget keeps the right executor association.
+            if isinstance(config, dict) and config.get('source_ids') and 'schema_source_id' not in body:
+                primary_id = config['source_ids'][0]
+                schema_src = request.env['dashboard.schema.source'].sudo().browse(primary_id)
+                if schema_src.exists():
+                    update_vals['schema_source_id'] = schema_src.id
+                    if widget.definition_id:
+                        widget.definition_id.sudo().write({'schema_source_id': schema_src.id})
 
         # Sync scope fields to definition (so Edit/GET returns current values)
         if widget.definition_id:
