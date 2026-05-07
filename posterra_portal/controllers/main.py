@@ -8,6 +8,7 @@ from odoo.addons.web.controllers.utils import is_user_internal
 from odoo.http import request
 
 from .portal import _get_providers_for_user
+from ..utils.app_resolver import build_app_url, get_app_from_host
 
 _logger = logging.getLogger(__name__)
 
@@ -40,21 +41,42 @@ class PosterraHome(Home):
 
     @http.route()
     def login_successful_external_user(self, **kwargs):
-        """Override: redirect portal users to the correct app dashboard after login."""
+        """Override: send portal users to the right app after login.
+
+        Honor the subdomain context first — if the user logged in on an
+        app's own subdomain (e.g. ``inhome_v1.example.com/web/login``),
+        keep them on that app. Only fall back to the user's first
+        accessible app for bare-host logins, where there's no subdomain
+        signal to disambiguate.
+        """
         if request.session.uid:
+            host_app = get_app_from_host()
+            if host_app:
+                # Same-host redirect — relative path keeps the user on
+                # the subdomain they were already on.
+                return request.redirect('/')
             app = self._get_portal_app_for_user(request.session.uid)
             if app:
-                return request.redirect('/my/%s' % app.app_key)
+                return request.redirect(build_app_url(app, '/'))
         return super().login_successful_external_user(**kwargs)
 
     def _login_redirect(self, uid, redirect=None):
-        """Override: send portal users directly to their app; skip the /my double-hop.
+        """Override: send portal users to the right app after Odoo login.
 
-        Uses _get_portal_app_for_user so any new saas.app added by the admin
-        is automatically picked up without code changes.
+        Honor the subdomain context first — a user who hit
+        ``inhome_v1.example.com/web/login`` clearly wants the inhome_v1
+        app and shouldn't be silently bounced to whichever app comes
+        first in the DB.
+
+        For bare-host login (no subdomain), fall back to the user's
+        first accessible app via ``build_app_url`` (returns an absolute
+        URL so Odoo's redirect chain hops onto the right subdomain).
         """
         if not is_user_internal(uid):
+            if get_app_from_host():
+                # Already on an app subdomain — same-host redirect
+                return redirect or '/'
             app = self._get_portal_app_for_user(uid)
             if app:
-                return redirect or '/my/%s' % app.app_key
+                return redirect or build_app_url(app, '/')
         return super()._login_redirect(uid, redirect=redirect)

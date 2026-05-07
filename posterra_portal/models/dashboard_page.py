@@ -43,7 +43,7 @@ class DashboardPage(models.Model):
         string='Application',
         ondelete='restrict',
         index=True,
-        help='Application this page belongs to. Used by the generic /my/<app_key>/ route.',
+        help='Application this page belongs to. Resolved from the request host subdomain.',
     )
     icon = fields.Char()
     icon_color = fields.Char(string='Icon Color',
@@ -58,10 +58,10 @@ class DashboardPage(models.Model):
         ('mssp', 'MSSP Portal'),
         ('all',  'All Portals'),
     ], string='Portal Type', default='hha', required=True,
-       help='Controls which portal route shows this page.\n'
-            'HHA Portal  → /my/posterra  (provider-scoped, requires HHA match or direct assignment)\n'
-            'MSSP Portal → /my/mssp      (open access, requires Posterra MSSP User group)\n'
-            'All Portals → visible in both routes')
+       help='Controls which portal subdomain shows this page.\n'
+            'HHA Portal  → posterra.<host>  (provider-scoped, requires HHA match or direct assignment)\n'
+            'MSSP Portal → mssp.<host>      (open access, requires Posterra MSSP User group)\n'
+            'All Portals → visible in both subdomains')
     tab_ids = fields.One2many('dashboard.page.tab', 'page_id', string='Tabs')
     filter_ids = fields.One2many('dashboard.page.filter', 'page_id', string='Filters')
     filter_dependency_ids = fields.One2many(

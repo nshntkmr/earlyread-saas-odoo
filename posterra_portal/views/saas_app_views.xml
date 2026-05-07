@@ -109,7 +109,8 @@
             </p>
             <p>
                 Create an application to enable a branded portal at
-                <code>/my/&lt;app_key&gt;/</code>.
+                <code>&lt;app_key&gt;.&lt;your-domain&gt;</code>
+                (e.g. <code>posterra.example.com</code>).
                 Each app has its own pages, branding, and access rules.
             </p>
         </field>

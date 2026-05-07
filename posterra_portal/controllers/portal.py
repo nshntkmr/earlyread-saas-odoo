@@ -10,6 +10,8 @@ from odoo.addons.portal.controllers.portal import CustomerPortal
 from odoo.addons.web.controllers.utils import ensure_db
 from odoo.http import request, route
 
+from ..utils.app_resolver import get_app_from_host, build_app_url
+
 _logger = logging.getLogger(__name__)
 
 
@@ -407,9 +409,11 @@ class PosterraPortal(CustomerPortal):
 
     @route()
     def home(self, **kw):
-        """Override /my and /my/home: redirect Posterra users to the right portal.
+        """Override Odoo's /my and /my/home: bounce users to their app subdomain.
 
-        Priority:
+        Anyone landing on the legacy /my route (e.g. a stale Odoo redirect
+        after /web/login) is rerouted to the correct app's subdomain via
+        ``build_app_url``. Priority mirrors ``main.PosterraHome``:
           1. Group-based apps (e.g. MSSP) — checked in saas.app order
           2. HHA-provider apps (e.g. Posterra) — requires provider match
           3. No match → standard Odoo /my page
@@ -423,7 +427,7 @@ class PosterraPortal(CustomerPortal):
         )
         for app in group_apps:
             if app.access_group_xmlid and user.has_group(app.access_group_xmlid):
-                return request.redirect('/my/%s' % app.app_key)
+                return request.redirect(build_app_url(app, '/'))
 
         # HHA flow: direct assignment (Stage 1) or scope group (Stage 2)
         providers = _get_providers_for_user(user)
@@ -433,42 +437,46 @@ class PosterraPortal(CustomerPortal):
                 limit=1,
             )
             if hha_app:
-                return request.redirect('/my/%s' % hha_app.app_key)
-            return request.redirect('/my/posterra')  # safe fallback
+                return request.redirect(build_app_url(hha_app, '/'))
 
         return super().home(**kw)
 
     # ------------------------------------------------------------------ #
-    # GENERIC DASHBOARD ROUTE (Phase 5)                                   #
-    # Replaces the two hardcoded /my/posterra and /my/mssp routes.        #
-    # Any registered saas.app with a matching app_key is served here.    #
+    # GENERIC DASHBOARD ROUTE — subdomain-resolved                        #
+    # The app comes from the request's host header (posterra.example.com  #
+    # → app_key='posterra'), not from a URL prefix. URLs are clean:      #
+    #   /                                  → app default page            #
+    #   /<page_key>                        → specific page               #
+    #   /<page_key>/<tab_key>              → specific tab                #
+    # The old /my/<app_key>/... routes have been removed entirely.       #
     # ------------------------------------------------------------------ #
     @route([
-        '/my/<string:app_key>',
-        '/my/<string:app_key>/<string:page_key>',
-        '/my/<string:app_key>/<string:page_key>/<string:tab_key>',
+        '/',
+        '/<string:page_key>',
+        '/<string:page_key>/<string:tab_key>',
     ], type='http', auth='user', website=True)
-    def app_dashboard(self, app_key, page_key=None, tab_key=None, **kw):
+    def app_dashboard(self, page_key=None, tab_key=None, **kw):
         """Generic portal dashboard for any registered saas.app.
 
-        1. Resolve the app from the URL's app_key.
+        1. Resolve the app from the request's host (subdomain).
         2. Check access (HHA provider or security group).
         3. Load pages scoped to this app via app_id.
         4. Run the full filter / widget / section pipeline.
         5. Render posterra_portal.dashboard with an 'app' value in context.
         """
 
-        # ── 1. Resolve app ─────────────────────────────────────────────
-        app = request.env['saas.app'].sudo().search(
-            [('app_key', '=', app_key), ('is_active', '=', True)], limit=1,
-        )
+        # ── 1. Resolve app from host subdomain ────────────────────────
+        app = get_app_from_host()
         if not app:
-            return request.redirect('/my')
+            # Bare host or unknown subdomain — surface a 404 rather than
+            # silently routing into another app. Admins can hit /web for
+            # the Odoo backend on the bare host.
+            return request.not_found()
+        app_key = app.app_key  # downstream code still uses this name
 
         # Stash tenant_id on the request so query executors (CH and
         # future external backends) can read it without re-resolving the
-        # app. Posterra's tenant boundary is the saas.app — every URL
-        # under /my/<app_key>/ is one tenant's request.
+        # app. Posterra's tenant boundary is the saas.app.
         request.tenant_id = app.id
 
         # ── 2. Access check ────────────────────────────────────────────
@@ -480,13 +488,13 @@ class PosterraPortal(CustomerPortal):
         if app.access_mode == 'hha_provider':
             providers = _get_providers_for_user(request.env.user)
             if not providers and not is_superadmin:
-                return request.redirect('/my')
+                return request.redirect('/login')
         elif app.access_mode == 'group':
             if not is_superadmin and (
                 not app.access_group_xmlid
                 or not request.env.user.has_group(app.access_group_xmlid)
             ):
-                return request.redirect('/my')
+                return request.redirect('/login')
 
         # ── 4. Pages scoped to this app ────────────────────────────────
         pages = request.env['dashboard.page'].sudo().search(
@@ -949,13 +957,14 @@ class PosterraPortal(CustomerPortal):
         return request.render('posterra_portal.dashboard', values)
 
     # ------------------------------------------------------------------ #
-    # WHITE-LABEL LOGIN (Phase 4, updated in Phase 5)                     #
-    # Branded login page at /my/<app_key>/login — no Odoo chrome.         #
-    # app_key is resolved against saas.app for per-app branding.          #
+    # WHITE-LABEL LOGIN — subdomain-resolved                              #
+    # Branded login page at /login on each app subdomain                  #
+    # (e.g. posterra.example.com/login). The app comes from the host;    #
+    # branding (logo, colours, tagline) is loaded from the saas.app.    #
     # ------------------------------------------------------------------ #
-    @route(['/my/<string:app_key>/login'], type='http', auth='none',
+    @route(['/login'], type='http', auth='none',
            methods=['GET', 'POST'], readonly=False, website=True)
-    def posterra_login(self, app_key='posterra', redirect=None, **kw):
+    def posterra_login(self, redirect=None, **kw):
         """Branded login page for any registered saas.app.
 
         GET  — render the login form (unauthenticated).
@@ -970,19 +979,20 @@ class PosterraPortal(CustomerPortal):
             else:
                 request.update_env(user=request.session.uid)
 
-        # Validate app_key against saas.app registry
-        app = request.env['saas.app'].sudo().search(
-            [('app_key', '=', app_key), ('is_active', '=', True)], limit=1,
-        )
+        # Resolve app from the request's host subdomain
+        app = get_app_from_host()
         if not app:
+            # Bare host hitting /login — fall back to Odoo's standard login.
+            # Real users always land here via an app subdomain.
             return request.redirect('/web/login')
+        app_key = app.app_key
 
-        # Already authenticated → send to the right dashboard
+        # Already authenticated → send to the dashboard root for this app
         if request.session.uid:
-            target = redirect or '/my/%s' % app_key
+            target = redirect or '/'
             return request.redirect(target)
 
-        login_url = '/my/%s/login' % app_key
+        login_url = '/login'
         values = {
             'app':       app,
             'login_url': login_url,
@@ -1004,11 +1014,9 @@ class PosterraPortal(CustomerPortal):
                 }
                 request.session.authenticate(request.env, credential)
                 # Redirect to the explicit redirect param, or to this app's
-                # dashboard.  We don't use _login_redirect() here because that
-                # method lives on Home (a different controller hierarchy) and is
-                # not accessible from CustomerPortal.  The branded login page is
-                # always app-specific so the correct destination is /my/<app_key>.
-                target = redirect or '/my/%s' % app_key
+                # dashboard root. Same-origin since the user is already on
+                # the right subdomain.
+                target = redirect or '/'
                 return request.redirect(target)
             except odoo.exceptions.AccessDenied as e:
                 if e.args == odoo.exceptions.AccessDenied().args:

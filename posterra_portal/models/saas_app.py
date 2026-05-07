@@ -65,6 +65,41 @@ class SaaSApp(models.Model):
             app.page_count = len(app.page_ids)
 
     # ── Constraints ──────────────────────────────────────────────────────────
+
+    # Subdomain labels that must NOT be used as app_key. The platform serves
+    # each app on its own subdomain (e.g. posterra.example.com), so app_key
+    # collisions with reserved subdomains (`www`, `api`, ...) or with Odoo's
+    # own root routes (`web`, `odoo`, `static`, ...) would silently break
+    # routing — admin tooling, asset URLs, longpolling endpoints all live at
+    # the bare host and are reserved across every subdomain.
+    _RESERVED_APP_KEYS = frozenset({
+        'www', 'api', 'admin', 'mail', 'app', 'odoo',
+        'web', 'static', 'longpolling', 'jsonrpc', 'websocket',
+        'dashboard', 'portal', 'login', 'logout', 'signup',
+        'auth', 'mailto', 'localhost',
+    })
+
+    @api.constrains('app_key')
+    def _check_app_key_valid(self):
+        # The app_key is the lookup label that maps the request's
+        # subdomain to a saas.app record. We only reject empty values and
+        # reserved labels (`www`, `api`, `web`, ...) that would silently
+        # collide with platform routes. Any other characters the admin
+        # uses are passed through verbatim — DNS / TLS-cert validity is
+        # the operator's concern when wiring up the production wildcard
+        # cert and ingress (browsers + *.localhost in dev tolerate
+        # underscores and other characters that strict DNS forbids).
+        for app in self:
+            key = (app.app_key or '').lower().strip()
+            if not key:
+                raise ValidationError("App key is required.")
+            if key in self._RESERVED_APP_KEYS:
+                raise ValidationError(
+                    f"App key '{app.app_key}' is reserved and cannot be used "
+                    "as an app subdomain. Reserved keys: "
+                    f"{', '.join(sorted(self._RESERVED_APP_KEYS))}"
+                )
+
     @api.constrains('app_key')
     def _check_app_key_unique(self):
         for app in self:
@@ -159,7 +194,7 @@ class SaaSApp(models.Model):
         group_vals = {
             'name': '%s Portal User' % self.name,
             'comment': (
-                'Auto-created access group for the %s app (/my/%s). '
+                'Auto-created access group for the %s app (%s.* subdomain). '
                 'Assign this group to portal users who need access.'
             ) % (self.name, self.app_key),
         }

@@ -74,16 +74,9 @@ function AGGridTable({ data, onCellClick, searchText }) {
         const tabKey = colDef.actionTabKey || colDef.cellRendererParams?.tabKey || ''
         const param = colDef.actionFilterParam || colDef.cellRendererParams?.filterParam || colDef.field
         if (!pageKey) return
-        // Build URL explicitly from the current app key + target page key.
-        // The previous approach used a regex to swap the last URL segment,
-        // which mangles whenever the URL doesn't have a `/page` suffix
-        // (e.g. user at app root `/my/inhome_v1`) — turning the click
-        // into a navigation to a wrong app entirely. Explicit construction
-        // matches the pattern used by WidgetGrid.handleWidgetClick for
-        // chart widgets.
-        const currentApp =
-          window.location.pathname.split('/')[2] || 'posterra'
-        let targetUrl = `/my/${currentApp}/${pageKey}`
+        // App is implicit in the host (e.g. posterra.example.com), so
+        // links are same-host relative paths — no /my/<app_key>/ prefix.
+        let targetUrl = `/${pageKey}`
         if (tabKey) targetUrl += `?tab=${tabKey}`
         if (param && value) {
           targetUrl += (targetUrl.includes('?') ? '&' : '?') + `${param}=${encodeURIComponent(value)}`

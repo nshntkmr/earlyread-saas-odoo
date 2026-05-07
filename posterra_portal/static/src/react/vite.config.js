@@ -78,13 +78,24 @@ export default defineConfig({
       },
     },
   },
-  // Dev server: proxies /api/* and /my/* to the running Odoo instance
+  // Dev server: proxies /api/* and /web/* to the running Odoo instance.
+  //
+  // host: true binds Vite to 0.0.0.0 so it answers on any *.localhost host
+  // (Win11 / modern browsers resolve `<label>.localhost` to 127.0.0.1
+  // natively — no /etc/hosts edits needed). This lets you develop against
+  // the same subdomain URLs as production: `posterra.localhost:3000`,
+  // `mssp.localhost:3000`, etc.
+  //
+  // changeOrigin defaults to false in Vite, so the proxy preserves the
+  // original Host header — Odoo's app_resolver sees `posterra.localhost`
+  // (not `localhost`) and routes the request to the right saas.app.
   server: {
+    host: true,
     port: 3000,
     proxy: {
-      '/api': 'http://localhost:8069',
-      '/my':  'http://localhost:8069',
-      '/web': 'http://localhost:8069',
+      '/api':   'http://localhost:8069',
+      '/web':   'http://localhost:8069',
+      '/login': 'http://localhost:8069',
     },
   },
 })

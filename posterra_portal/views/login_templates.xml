@@ -1,23 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Strip website chrome from /web/login.
-         website.login_layout (priority=20) replaces web.frontend_layout with
-         website.layout, which adds the full website navbar + footer.
-         We override it at priority=30 to swap back to web.frontend_layout
-         with no_header + no_footer so the login card renders without chrome. -->
-    <template id="posterra_website_login_layout" inherit_id="website.login_layout"
-              priority="30" name="Posterra — Strip Login Chrome">
-        <xpath expr="//t[@t-call='website.layout']" position="replace">
-            <t t-call="web.frontend_layout">
-                <t t-set="no_header" t-value="True"/>
-                <t t-set="no_footer" t-value="True"/>
-                <t t-set="no_copyright" t-value="True"/>
-                <div class="oe_website_login_container" t-out="0"/>
-            </t>
-        </xpath>
-    </template>
-
     <!-- Posterra branding injected into web.login (the form template).
          We target web.login rather than web.login_layout because
          website.login_layout (priority=20) replaces the entire card structure
@@ -53,8 +36,11 @@
     </template>
 
     <!-- ================================================================ -->
-    <!-- STANDALONE BRANDED LOGIN — Phase 4                                -->
-    <!-- Served at /my/<app_key>/login by PosterraPortal.posterra_login.  -->
+    <!-- STANDALONE BRANDED LOGIN                                          -->
+    <!-- Served at /login on each app subdomain (e.g.                      -->
+    <!-- posterra.example.com/login) by PosterraPortal.posterra_login.    -->
+    <!-- App is resolved from the host header via get_app_from_host(),    -->
+    <!-- branding (logo, colours, tagline) loaded from the saas.app.    -->
     <!-- Does NOT inherit web.login — completely independent form.         -->
     <!-- Calls web.frontend_layout directly with no_header + no_footer.   -->
     <!-- ================================================================ -->

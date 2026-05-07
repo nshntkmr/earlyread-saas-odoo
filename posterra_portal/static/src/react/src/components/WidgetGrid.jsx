@@ -245,12 +245,6 @@ export default function WidgetGrid({ initialWidgets }) {
             ? String(clickData.value)
             : String(name))
 
-    // Current app key from URL — replaces a legacy hardcoded "posterra"
-    // prefix so the same handler works across InHome_v1, MSSP, etc.
-    // Falls back to "posterra" only if the path is unexpectedly short.
-    const currentApp =
-      window.location.pathname.split('/')[2] || 'posterra'
-
     switch (action) {
       case 'filter_page': {
         // Apply the clicked value as a filter on the current page
@@ -262,10 +256,12 @@ export default function WidgetGrid({ initialWidgets }) {
         break
       }
       case 'go_to_page': {
+        // App is implicit in the host (e.g. posterra.example.com), so
+        // links are same-host relative paths — no /my/<app_key>/ prefix.
         const pageKey = widget.action_page_key || ''
         const tabKey = widget.action_tab_key || ''
         const param = widget.action_pass_value_as || ''
-        let targetUrl = `/my/${currentApp}/${pageKey}`
+        let targetUrl = `/${pageKey}`
         if (tabKey) targetUrl += `?tab=${tabKey}`
         if (param && value) {
           targetUrl += (targetUrl.includes('?') ? '&' : '?') + `${param}=${encodeURIComponent(value)}`

@@ -28,7 +28,7 @@
                     <p class="pv-error-desc">
                         The page you requested doesn't exist or you don't have access.
                     </p>
-                    <a href="/my/posterra" class="btn btn-primary pv-error-btn">
+                    <a href="/" class="btn btn-primary pv-error-btn">
                         <i class="fa fa-home me-1"/>Go to Dashboard
                     </a>
                     <div class="pv-error-footer">Posterra &#169; 2026</div>
@@ -57,7 +57,7 @@
                     <p class="pv-error-desc">
                         You do not have permission to view this page.
                     </p>
-                    <a href="/my/posterra/login" class="btn btn-primary pv-error-btn">
+                    <a href="/login" class="btn btn-primary pv-error-btn">
                         <i class="fa fa-sign-in me-1"/>Sign In
                     </a>
                     <div class="pv-error-footer">Posterra &#169; 2026</div>
@@ -90,7 +90,7 @@
                     <p t-if="error_message" class="pv-error-desc">
                         <t t-esc="error_message"/>
                     </p>
-                    <a href="/my/posterra" class="btn btn-primary pv-error-btn">
+                    <a href="/" class="btn btn-primary pv-error-btn">
                         <i class="fa fa-home me-1"/>Go to Dashboard
                     </a>
                     <div class="pv-error-footer">Posterra &#169; 2026</div>
@@ -123,7 +123,7 @@
                     <p t-if="error_message" class="pv-error-desc">
                         <t t-esc="error_message"/>
                     </p>
-                    <a href="/my/posterra" class="btn btn-primary pv-error-btn">
+                    <a href="/" class="btn btn-primary pv-error-btn">
                         <i class="fa fa-home me-1"/>Go to Dashboard
                     </a>
                     <div class="pv-error-footer">Posterra &#169; 2026</div>

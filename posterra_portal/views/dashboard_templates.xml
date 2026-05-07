@@ -60,7 +60,7 @@
                         <i class="fa fa-user-circle pv-topbar-user-icon"/>
                         <span t-esc="request.env.user.name"/>
                     </div>
-                    <a t-attf-href="/web/session/logout?redirect=/my/#{app.app_key}/login"
+                    <a href="/web/session/logout?redirect=/login"
                        class="pv-topbar-logout-btn">
                         <i class="fa fa-sign-out"/>
                         <span>Sign Out</span>
@@ -84,7 +84,7 @@
                                 <t t-esc="sp['section'].name"/>
                             </div>
                             <t t-foreach="sp['pages']" t-as="page">
-                                <a t-attf-href="/my/#{app.app_key}/#{page.key}?hha_id=#{current_hha_id}"
+                                <a t-attf-href="/#{page.key}?hha_id=#{current_hha_id}"
                                    t-attf-class="pv-sidebar-item #{current_page_key == page.key and 'active' or ''}"
                                    t-att-title="page.name">
                                     <i t-attf-class="fa #{page.icon or 'fa-circle-o'} pv-sidebar-icon"

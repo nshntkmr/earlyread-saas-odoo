@@ -271,7 +271,7 @@
                             <group string="URL"
                                    invisible="click_action != 'open_url'">
                                 <field name="action_url_template"
-                                       placeholder="e.g. /my/posterra/hha/{value}"/>
+                                       placeholder="e.g. /hha/{value}"/>
                             </group>
 
                             <!-- Column links (table widgets) -->
@@ -556,7 +556,7 @@
                                                            placeholder="comma-separated columns"/>
                                                     <field name="action_url_template"
                                                            invisible="click_action != 'open_url'"
-                                                           placeholder="/my/app/detail/{value}"/>
+                                                           placeholder="/detail/{value}"/>
                                                 </group>
                                             </group>
                                         </sheet>

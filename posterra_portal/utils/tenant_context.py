@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """Tenant context resolution.
 
-The tenant boundary in Posterra is ``saas.app`` — every request to
-``/my/<app_key>`` is implicitly scoped to one app. Executors that talk to
-external backends (ClickHouse) must know which tenant to set on the
-session so row policies enforce isolation.
+The tenant boundary in Posterra is ``saas.app`` — every request lands on
+an app subdomain (e.g. ``posterra.example.com``) which implicitly scopes
+the session to one app. Executors that talk to external backends
+(ClickHouse) must know which tenant to set on the query so row policies
+enforce isolation.
 
 Flow:
-    URL ``/my/posterra``
-      → ``controllers/portal.py:app_dashboard`` resolves the app
+    Host ``posterra.example.com`` (or ``posterra.localhost:8069`` in dev)
+      → ``controllers/portal.py:app_dashboard`` calls
+        ``utils/app_resolver.get_app_from_host()`` → ``saas.app``
       → ``request.tenant_id = app.id`` is stashed on the request
       → executor's ``get_tenant_id()`` reads it back
 

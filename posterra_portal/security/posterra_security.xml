@@ -19,12 +19,12 @@
          For portal users whose data is MSSP / ACO / national-level (no per-HHA restriction).
          Being in this group is the ONLY access requirement — email domain and hha_provider_id
          are irrelevant.  Admin assigns this via Settings → Users → Groups.
-         Route: /my/mssp  (completely separate from the HHA portal at /my/posterra)
+         Subdomain: mssp.<base-host>  (completely separate from the HHA portal at posterra.<base-host>)
     -->
     <record id="group_posterra_mssp_user" model="res.groups">
         <field name="name">Posterra MSSP User</field>
         <field name="implied_ids" eval="[Command.link(ref('base.group_portal'))]"/>
-        <field name="comment">Portal users who access the MSSP / open-access dashboard (/my/mssp). No HHA provider restriction applies. Assign this group for ACO builders, MSSP analysts, or any user whose data is not HHA-specific.</field>
+        <field name="comment">Portal users who access the MSSP / open-access dashboard at the mssp.* subdomain. No HHA provider restriction applies. Assign this group for ACO builders, MSSP analysts, or any user whose data is not HHA-specific.</field>
     </record>
 
     <!-- Record Rule: Portal users can read HHA providers (filtering by email domain is done in controllers) -->

@@ -40,11 +40,12 @@ cd posterra_portal/static/src/react && npm run build
 ## Architecture Overview
 
 ```
-Browser URL: /my/<app_key>?<filter_params>&tab=<tab_key>
+Browser URL: <app_key>.<base-host>/<page_key>/<tab_key>?<filter_params>
+             (e.g. posterra.example.com/overview/command_center?hha_ccn=017014)
      |
      v
 portal.py (app_dashboard)
-  1. Resolve app from app_key
+  1. Resolve app from request host subdomain (utils/app_resolver.get_app_from_host)
   2. Access check (hha_provider mode OR group mode)
   3. Load pages, nav, current page/tab
   4. Load page_filters (per-page, from DB)
@@ -261,6 +262,9 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 
 ## Gotchas
 
+- **App resolution is by host subdomain, NOT URL prefix** — every request resolves its `saas.app` from the leftmost label of `request.httprequest.host` via `posterra_portal.utils.app_resolver.get_app_from_host`. The legacy `/my/<app_key>/...` routes were removed entirely; URLs are now `<app_key>.<base-host>/<page>/<tab>` (e.g. `posterra.localhost:8069/overview/command_center`). Cross-subdomain redirects (`/web/login` → user's app, the `home()` override) use `app_resolver.build_app_url(app, '/')`. Adding a new app: just create the `saas.app` record — DNS wildcard `*.<base-host>` handles routing. Local dev: `*.localhost` works natively in modern browsers (no `/etc/hosts` edits). Reserved subdomains (`www`, `api`, `admin`, `web`, `static`, `longpolling`, `dashboard`, `portal`, ...) are rejected by `saas.app._check_app_key_valid` and also blocklisted in `app_resolver._RESERVED_SUBDOMAINS` as a runtime guard.
+- **Vite dev server proxy preserves Host header** — `vite.config.js` sets `server.host = true` (binds 0.0.0.0) and uses default `changeOrigin: false`, so `posterra.localhost:3000` (Vite) proxying `/api/*` to `localhost:8069` (Odoo) keeps the `Host: posterra.localhost` header. Without this, Odoo would resolve to no app and 404.
+- **Reverse proxy in production must forward Host header faithfully** — Azure Front Door, nginx, etc. need to send the original `Host` header (or `X-Forwarded-Host`) so `app_resolver.get_app_from_host` sees `<tenant>.<base-host>`. Set Odoo's `proxy_mode = True` so it trusts forwarded headers.
 - **`hha_id` param removed from `app_dashboard()` signature** — all URL params now go to `**kw` for generic access. This was intentional to avoid Odoo capturing named params before `**kw`.
 - **`provider_map` keys are Odoo record IDs** (not CCNs). Built at portal.py step 9 but NOT passed to React — only used in template context.
 - **Hidden filters (`is_visible=False`)** are excluded from React state and URL by `FilterContext.jsx`. They are server-side SQL context only (e.g., hha_ccn, hha_name for widget SQL).
@@ -306,7 +310,7 @@ widget.get_portal_data(portal_ctx) → SQL interpolation with %(param)s
 ## Testing Checklist (Filter Changes)
 
 ### Core Filter Flow
-1. Load with single provider: `/my/posterra?hha_ccn=017014&year=2024,2023&ffs_ma=MA&tab=command_center`
+1. Load with single provider: `posterra.localhost:8069/overview/command_center?hha_ccn=017014&year=2024,2023&ffs_ma=MA`
 2. Verify State/County/City auto-populate from provider's geo data (not "All")
 3. Load with multi-provider CSV: `hha_ccn=017014,047114` → geo auto-selects if all share same state, else "All"
 4. Load without provider param (multi-provider user) → geo filters show "All"
