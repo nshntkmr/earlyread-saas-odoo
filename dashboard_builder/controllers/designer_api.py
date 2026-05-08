@@ -509,10 +509,8 @@ class DesignerAPI(http.Controller):
         try:
             result = assembler.assemble(intent)
         except ValueError as assembler_err:
-            _logger.warning(
-                'SqlAssembler validation failed: %s | intent=%s',
-                assembler_err, intent,
-            )
+            _logger.warning('SqlAssembler validation failed: %s', assembler_err)
+            _logger.debug('Failed intent payload: %s', intent)
             return _json_error(400, str(assembler_err))
 
         # 4. Validate the assembled SQL
