@@ -717,7 +717,7 @@ class DashboardPageFilter(models.Model):
 
         # ── 1. Cascade constraints ───────────────────────────────────────
         for src_filter, value in constraints.items():
-            _logger.info(
+            _logger.debug(
                 '[CASCADE-SQL] target_filter=%s(id=%s), src_filter=%s(id=%s), '
                 'src.model_name=%r, src.field_name=%r, src.schema_column_name=%r, '
                 'value=%r, scope_col=%r',
@@ -794,7 +794,7 @@ class DashboardPageFilter(models.Model):
                 sib_col = (sib.schema_column_name or '').strip()
                 if not sib_col or not self._IDENT_RE.match(sib_col):
                     continue
-                _logger.info(
+                _logger.debug(
                     '[CASCADE-SQL]   same-table sibling: %s(id=%s), col=%r, val=%r',
                     sib.display_label, sib.id, sib_col, sib_val,
                 )
