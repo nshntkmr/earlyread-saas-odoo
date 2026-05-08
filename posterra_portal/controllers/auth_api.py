@@ -36,7 +36,23 @@ REFRESH_TOKEN_TTL = 86400 * 7   # 7 days
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
 def _get_jwt_secret():
-    """Return (or generate) the HS256 signing secret from ir.config_parameter."""
+    """Return the HS256 signing secret.
+
+    Resolution priority:
+      1. ``POSTERRA_JWT_SECRET`` env var — production path. ESO syncs
+         the value from Azure Key Vault to a Kubernetes Secret, mounted
+         as an env var on every Odoo pod. All replicas see the same
+         secret, so tokens issued by pod A validate on pod B.
+      2. ``ir.config_parameter`` ``posterra_portal.jwt_secret`` — dev /
+         single-pod fallback. Auto-generated on first read.
+
+    Without (1), multi-pod deployments race to generate the secret on
+    cold boot — pod A writes the param while pod B reads partial state,
+    and tokens fail to cross-validate. Env-first eliminates the race.
+    """
+    env_secret = os.environ.get('POSTERRA_JWT_SECRET')
+    if env_secret:
+        return env_secret
     param = request.env['ir.config_parameter'].sudo()
     secret = param.get_param('posterra_portal.jwt_secret')
     if not secret:
@@ -219,30 +235,57 @@ class PosterraAuthAPI(http.Controller):
         user = request.env['res.users'].sudo().browse(uid)
 
         # ── 2. Resolve app ────────────────────────────────────────────────
+        # Two paths: explicit ``app_key`` from the request, or auto-detect.
+        #
+        # Security contract:
+        #   - Explicit ``app_key`` MUST pass ``user_can_access_app``. If
+        #     the user lacks access, return 403 — do NOT fall through to
+        #     auto-detect, since silent fall-through hides bypass attempts
+        #     and yields a token for an unrelated app the user happens to
+        #     be authorised for. Auditable failure > silent success.
+        #   - Auto-detect iterates ALL active apps and picks the first
+        #     one the user is authorised for via the helper. The previous
+        #     "first hha_provider app" shortcut returned 403 incorrectly
+        #     when the user was authorised for app B but app A came first
+        #     in the DB.
+        #   - System / dashboard admins bypass the access helper. They
+        #     legitimately need cross-app visibility and are typically
+        #     not enrolled in every app's ``portal_app_ids``. Same bypass
+        #     applies to the browser route (see portal.app_dashboard).
+        from ..utils.access import user_can_access_app
+        from .portal import _is_dashboard_admin
+
+        is_superadmin = _is_dashboard_admin(user)
         app = None
+
         if app_key:
-            app = request.env['saas.app'].sudo().search(
+            candidate = request.env['saas.app'].sudo().search(
                 [('app_key', '=', app_key), ('is_active', '=', True)], limit=1,
             )
+            if not candidate:
+                return _json_error(404, f'App {app_key!r} not found')
+            if not is_superadmin and not user_can_access_app(user, candidate):
+                _logger.info(
+                    'api_login: user %r requested app_key=%r but lacks access',
+                    login_val, app_key,
+                )
+                return _json_error(403, f'No access to app {app_key!r}')
+            app = candidate
 
         if not app:
-            # Auto-detect: group-based apps first (MSSP), then HHA-provider apps
-            from .portal import _get_providers_for_user
-            group_apps = request.env['saas.app'].sudo().search(
-                [('access_mode', '=', 'group'), ('is_active', '=', True)],
-                order='id asc',
+            # Auto-detect: iterate ALL active apps; pick the first
+            # authorised one. Helper is the single source of truth — no
+            # separate per-mode logic.
+            candidates = request.env['saas.app'].sudo().search(
+                [('is_active', '=', True)], order='id asc',
             )
-            for ga in group_apps:
-                if ga.access_group_xmlid and user.has_group(ga.access_group_xmlid):
-                    app = ga
-                    break
-            if not app:
-                providers = _get_providers_for_user(user)
-                if providers:
-                    app = request.env['saas.app'].sudo().search(
-                        [('access_mode', '=', 'hha_provider'), ('is_active', '=', True)],
-                        limit=1,
-                    )
+            if is_superadmin:
+                app = candidates[:1]
+            else:
+                for cand in candidates:
+                    if user_can_access_app(user, cand):
+                        app = cand
+                        break
 
         if not app:
             return _json_error(403, 'No accessible app found for this user')
@@ -351,11 +394,39 @@ class PosterraAuthAPI(http.Controller):
         if payload.get('type') != 'refresh':
             return _json_error(401, 'Expected a refresh token, got access token')
 
+        # Reload user + app from DB and re-run the access helper on every
+        # refresh. Without this, revoked access (admin removed user from
+        # portal_app_ids, app deactivated, user archived, etc.) stays
+        # valid for the full refresh-token TTL — 7 days. Reissuing from
+        # token claims alone is the gap P0-4 closes.
+        # Superadmins bypass the helper to match login + browser route,
+        # but the active-user check below applies even to superadmins —
+        # an archived admin must not refresh tokens.
+        from ..utils.access import user_can_access_app
+        from .portal import _is_dashboard_admin
+
+        user = request.env['res.users'].sudo().browse(payload.get('user_id'))
+        if not user.exists():
+            return _json_error(401, 'Token references a user that no longer exists')
+        if not user.active:
+            return _json_error(401, 'User account is deactivated')
+        app = request.env['saas.app'].sudo().browse(payload.get('app_id'))
+        if not app.exists() or not app.is_active:
+            return _json_error(401, 'Token references an app that no longer exists')
+        if not _is_dashboard_admin(user) and not user_can_access_app(user, app):
+            _logger.info(
+                'api_refresh: access revoked for user_id=%s app_id=%s; '
+                'rejecting refresh',
+                payload.get('user_id'), payload.get('app_id'),
+            )
+            return _json_error(401, 'Access to this app has been revoked')
+
         now = int(time.time())
         access_token = _make_token({
             'type':    'access',
-            'user_id': payload['user_id'],
-            'app_id':  payload['app_id'],
+            'user_id': user.id,
+            'app_id':  app.id,
+            'app_key': app.app_key,
             'exp':     now + ACCESS_TOKEN_TTL,
             'iat':     now,
         })

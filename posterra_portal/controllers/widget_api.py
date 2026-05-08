@@ -38,11 +38,11 @@ _logger = logging.getLogger(__name__)
 def _get_api_user():
     """Extract and validate the Bearer JWT from the request headers.
 
-    Sets ``request.tenant_id = app.id`` on the request object so every
-    downstream call (filter cascade options, widget data, badge SQL,
-    saved-state ops) has tenant context — even endpoints that never
-    call ``_build_portal_ctx``. CH-backed schema sources require this
-    to be set; without it ``get_current_tenant_id()`` raises.
+    Sets ``request.tenant_id = app.app_key`` on the request object so
+    every downstream call (filter cascade options, widget data, badge
+    SQL, saved-state ops) has tenant context — even endpoints that
+    never call ``_build_portal_ctx``. CH-backed schema sources require
+    this to be set; without it ``get_current_tenant_id()`` raises.
 
     Returns:
         (user, app) — both are sudo() recordsets.
@@ -61,14 +61,39 @@ def _get_api_user():
     user = request.env['res.users'].sudo().browse(payload['user_id'])
     if not user.exists():
         raise ValueError('Token references a user that no longer exists')
+    # Reject deactivated users — applies BEFORE the superadmin bypass.
+    # A token issued before archiving must stop working immediately,
+    # even if the token's user_id was a system admin. ``user.active`` is
+    # the canonical revocation handle.
+    if not user.active:
+        raise ValueError('User account is deactivated')
 
     app = request.env['saas.app'].sudo().browse(payload.get('app_id'))
-    if not app.exists():
+    if not app.exists() or not app.is_active:
         raise ValueError('Token references an app that no longer exists')
 
+    # Defence in depth: token issuance access-checked the (user, app) pair
+    # at login time (see auth_api.api_login + portal.session_refresh_token,
+    # both of which call user_can_access_app). But membership can change
+    # between issue and use — admin removes the user from portal_app_ids,
+    # deactivates the app, drops the group XML ID. Re-check on every JWT
+    # request so revoked access takes effect immediately, not after the
+    # 1-hour token expiry. Cheap (one cached partner read).
+    # Superadmins bypass the helper to match the browser dashboard route
+    # (portal.app_dashboard) and the login/refresh paths — without this
+    # bypass, an admin could load the QWeb shell but every API call
+    # would 401, breaking cross-app debugging. The active check above
+    # already gates the bypass, so an archived superadmin is rejected.
+    from ..utils.access import user_can_access_app
+    from .portal import _is_dashboard_admin
+    if not _is_dashboard_admin(user) and not user_can_access_app(user, app):
+        raise ValueError('Access to this app has been revoked')
+
     # Tenant context for executor dispatch — must run before any
-    # CH-backed query downstream of this auth helper.
-    request.tenant_id = app.id
+    # CH-backed query downstream of this auth helper. Uses the stable
+    # string ``app_key`` (DNS-validated). CH row policies see consistent
+    # values across PG rebuilds.
+    request.tenant_id = app.app_key
 
     return user, app
 
@@ -97,7 +122,7 @@ def _build_portal_ctx(page, user, app, kw):
     # here covers the (rare) case of a caller that builds a portal_ctx
     # without going through that helper — keeps the contract simple:
     # any code path that builds a portal_ctx leaves tenant_id set.
-    request.tenant_id = app.id
+    request.tenant_id = app.app_key
 
     providers = request.env['hha.provider'].sudo().browse()
     selected_provider = None
@@ -155,11 +180,42 @@ def _build_portal_ctx(page, user, app, kw):
                     hha_auto_fill[param_key] = str(val).strip()
 
     # ── Resolve filter values from query params ───────────────────────────
+    # Forgery validation: for filters with ``scope_to_user_hha=True``,
+    # the URL value MUST be in the user's accessible provider set —
+    # otherwise the request is constructing a query against another
+    # tenant's HHA. Superadmins bypass (cross-tenant debugging).
+    from ..utils.access import values_in_user_scope, ForgedProviderValueError
+    from .portal import _is_dashboard_admin
+    is_superadmin = _is_dashboard_admin(user)
+
+    # Forgery validation gate. Two opt-ins trigger validation:
+    #   1. scope_to_user_hha=True — admin explicitly said "this filter is
+    #      bounded by user's HHA scope". Always validate.
+    #   2. is_provider_selector=True AND access_mode='hha_provider' —
+    #      the provider selector IS the multi-tenant boundary in HHA-mode
+    #      apps. Even if the admin forgot to flip scope_to_user_hha, the
+    #      selector must enforce the user's scope. (Group-mode apps have
+    #      no per-user HHA scope, so we do not enforce there — admins
+    #      can still flip scope_to_user_hha=True when they do want it.)
+    is_hha_app = (app.access_mode == 'hha_provider')
+
     filter_values = {}
     for f in page_filters:
         eff_param = f.param_name or f.field_name or ''
         if eff_param:
             url_val  = (kw.get(eff_param) or '').strip()
+            should_validate = (
+                getattr(f, 'scope_to_user_hha', False)
+                or (is_hha_app and getattr(f, 'is_provider_selector', False))
+            )
+            if (url_val
+                    and not is_superadmin
+                    and should_validate
+                    and not values_in_user_scope(url_val, f, providers)):
+                raise ForgedProviderValueError(
+                    f'Provider value not in your accessible set '
+                    f'for filter {eff_param!r}'
+                )
             auto_val = hha_auto_fill.get(eff_param, '')
             if url_val or auto_val:
                 filter_values[f.id] = url_val or auto_val
@@ -504,8 +560,14 @@ class PosterraWidgetAPI(http.Controller):
             return _json_error(403, 'Widget does not belong to your app')
 
         # ── Build portal_ctx from query params ────────────────────────────
+        # ForgedProviderValueError must be caught BEFORE Exception so it
+        # surfaces as 403, not 500 (the generic catch is below).
+        from ..utils.access import ForgedProviderValueError
         try:
             portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw)
+        except ForgedProviderValueError as exc:
+            _logger.info('api_widget_data: forged provider value widget=%s: %s', widget_id, exc)
+            return _json_error(403, str(exc))
         except Exception as exc:
             _logger.warning('api_widget_data: portal_ctx error widget=%s: %s', widget_id, exc)
             return _json_error(500, f'Context build error: {exc}')
@@ -599,8 +661,11 @@ class PosterraWidgetAPI(http.Controller):
         if not row_key:
             return _json_error(400, 'row_key parameter is required')
 
+        from ..utils.access import ForgedProviderValueError
         try:
             portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw)
+        except ForgedProviderValueError as exc:
+            return _json_error(403, str(exc))
         except Exception as exc:
             return _json_error(500, f'Context build error: {exc}')
 
@@ -669,8 +734,12 @@ class PosterraWidgetAPI(http.Controller):
         if section.page_id.app_id.id != app.id:
             return _json_error(403, 'Section does not belong to your app')
 
+        from ..utils.access import ForgedProviderValueError
         try:
             portal_ctx = _build_portal_ctx(section.page_id, user, app, kw)
+        except ForgedProviderValueError as exc:
+            _logger.info('api_section_data: forged provider value section=%s: %s', section_id, exc)
+            return _json_error(403, str(exc))
         except Exception as exc:
             _logger.warning('api_section_data: portal_ctx error section=%s: %s', section_id, exc)
             return _json_error(500, f'Context build error: {exc}')
@@ -749,12 +818,32 @@ class PosterraWidgetAPI(http.Controller):
             return _json_error(403, 'Filter does not belong to your app')
 
         # ── Resolve provider_ids for scoped filters ───────────────────────
+        accessible = _get_providers_for_user(user)
         provider_ids = None
         if f.scope_to_user_hha:
-            accessible = _get_providers_for_user(user)
             provider_ids = accessible.ids or None
 
-        # ── Fetch options (unchanged) ─────────────────────────────────────
+        # ── Forgery validation: parent_value must be in user's scope when
+        # the parent filter is provider-scoped. Without this, a forged
+        # parent_value flows into ``f.get_options(parent_value=...)`` and
+        # the resulting SQL queries another tenant's options.
+        from ..utils.access import (
+            ForgedProviderValueError, assert_provider_url_values_authorised,
+        )
+        from .portal import _is_dashboard_admin
+        is_superadmin = _is_dashboard_admin(user)
+        parent = f.depends_on_filter_id
+        if parent and parent_value:
+            try:
+                assert_provider_url_values_authorised(
+                    {parent: parent_value},
+                    f.page_id.filter_ids, app, accessible, is_superadmin,
+                )
+            except ForgedProviderValueError as exc:
+                _logger.info('api_filters_cascade: forged parent_value filter=%s: %s', fid, exc)
+                return _json_error(403, str(exc))
+
+        # ── Fetch options ─────────────────────────────────────────────────
         try:
             options = f.get_options(
                 parent_value=parent_value,
@@ -849,10 +938,36 @@ class PosterraWidgetAPI(http.Controller):
             return _json_error(403, 'Filter does not belong to your app')
 
         # ── Resolve provider_ids for scoped filters ───────────────────────
+        accessible = _get_providers_for_user(user)
         provider_ids = None
         if f.scope_to_user_hha:
-            accessible = _get_providers_for_user(user)
             provider_ids = accessible.ids or None
+
+        # ── Forgery validation: client-supplied constraint_values
+        # (keyed by source filter id) AND all_filter_values (keyed by
+        # param_name) MUST not contain values forged for provider-scoped
+        # filters. Without this, the cascade builds option SQL using
+        # another tenant's CCN as a constraint.
+        from ..utils.access import (
+            ForgedProviderValueError, assert_provider_url_values_authorised,
+        )
+        from .portal import _is_dashboard_admin
+        is_superadmin = _is_dashboard_admin(user)
+        page_filters_for_validation = f.page_id.filter_ids
+        try:
+            if constraint_values:
+                assert_provider_url_values_authorised(
+                    constraint_values,
+                    page_filters_for_validation, app, accessible, is_superadmin,
+                )
+            if all_filter_values:
+                assert_provider_url_values_authorised(
+                    all_filter_values,
+                    page_filters_for_validation, app, accessible, is_superadmin,
+                )
+        except ForgedProviderValueError as exc:
+            _logger.info('api_filters_cascade_multi: forged value filter=%s: %s', fid, exc)
+            return _json_error(403, str(exc))
 
         # ── Strip stale downstream values from all_filter_values ─────────
         # When a source filter changes (e.g. Provider), its resets_target
@@ -885,7 +1000,11 @@ class PosterraWidgetAPI(http.Controller):
                     }
 
         # ── Fetch options ─────────────────────────────────────────────────
-        _logger.info(
+        # Held at DEBUG: constraint_values + all_filter_values can carry
+        # CCN / state / county user-facing data; not appropriate for
+        # long-retention production logs. The summary ``returned %d
+        # options`` line below stays at INFO for ops visibility.
+        _logger.debug(
             '[CASCADE-API] cascade/multi: target_filter=%s(id=%s), '
             'constraint_values=%s, all_filter_values=%s, provider_ids=%s',
             f.display_label, fid, constraint_values, all_filter_values, provider_ids,
@@ -937,8 +1056,12 @@ class PosterraWidgetAPI(http.Controller):
         if page.app_id.id != app.id:
             return _json_error(403, 'Page does not belong to your app')
 
+        from ..utils.access import ForgedProviderValueError
         try:
             portal_ctx = _build_portal_ctx(page, user, app, kw)
+        except ForgedProviderValueError as exc:
+            _logger.info('api_page_badges: forged provider value page=%s: %s', page_id, exc)
+            return _json_error(403, str(exc))
         except Exception as exc:
             _logger.warning('api_page_badges: portal_ctx error page=%s: %s', page_id, exc)
             return _json_error(500, f'Context build error: {exc}')
@@ -1030,6 +1153,66 @@ class PosterraWidgetAPI(http.Controller):
         page = request.env['dashboard.page'].sudo().browse(page_id)
         if not page.exists() or page.app_id.id != app.id:
             return _json_error(404, 'Page not found or access denied')
+
+        # Normalise ``current_values`` to a string-valued dict BEFORE
+        # validation. Two coercions:
+        #   1. dict(): handles arrays of [key, value] pairs (a previous
+        #      version of this fix gated on ``isinstance(..., dict)`` and
+        #      array-of-pairs payloads bypassed validation).
+        #   2. str() on values: JSON can deliver ints / lists / objects
+        #      in fields the contract expects as strings. Without this,
+        #      ``values_in_user_scope`` would call ``.strip()`` on an
+        #      int and raise AttributeError → 500. Coerce up-front.
+        # Malformed shapes (non-dict, non-pair-iterable) return 400.
+        if current_values:
+            try:
+                current_values = (
+                    current_values if isinstance(current_values, dict)
+                    else dict(current_values)
+                )
+            except (TypeError, ValueError) as exc:
+                return _json_error(400,
+                                   f'Invalid current_values: must be a dict '
+                                   f'or sequence of [key, value] pairs ({exc})')
+            current_values = {
+                k: ('' if v is None else str(v))
+                for k, v in current_values.items()
+            }
+        else:
+            current_values = {}
+
+        # Stringify changed_value too — same JSON coercion concern.
+        if changed_value is None:
+            changed_value = ''
+        elif not isinstance(changed_value, str):
+            changed_value = str(changed_value)
+
+        # ── Forgery validation: ``changed_value`` (bound to
+        # ``changed_filter_id``) and every entry in ``current_values``
+        # MUST not be forged for provider-scoped filters. The cascade
+        # walker uses these as constraints when fetching options for
+        # downstream filters — without validation, a forged provider
+        # value silently builds option SQL against another tenant.
+        from ..utils.access import (
+            ForgedProviderValueError, assert_provider_url_values_authorised,
+        )
+        from .portal import _is_dashboard_admin
+        is_superadmin = _is_dashboard_admin(user)
+        accessible = _get_providers_for_user(user)
+        try:
+            if changed_value:
+                assert_provider_url_values_authorised(
+                    {changed_filter_id: changed_value},
+                    page.filter_ids, app, accessible, is_superadmin,
+                )
+            if current_values:
+                assert_provider_url_values_authorised(
+                    current_values,
+                    page.filter_ids, app, accessible, is_superadmin,
+                )
+        except ForgedProviderValueError as exc:
+            _logger.info('api_filters_resolve: forged value page=%s: %s', page_id, exc)
+            return _json_error(403, str(exc))
 
         # ── Load all dependencies for this page ────────────────────────────
         deps = request.env['dashboard.filter.dependency'].sudo().search([

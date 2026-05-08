@@ -31,7 +31,16 @@ def _get_verify_token():
 
 
 def _auth_admin():
-    """Extract JWT, verify, return user. Raises ValueError if not admin."""
+    """Extract JWT, verify, return user. Raises ValueError if not admin.
+
+    Admin role contract: ``dashboard_builder.group_dashboard_builder_admin``
+    OR ``base.group_system``. The previous gate of ``base.group_user`` was
+    too broad — any internal Odoo user could hit /dashboard/builder/*
+    endpoints (schema source CRUD, widget definitions, AI SQL generation,
+    place_from_library, etc.). The builder admin group is the documented
+    role for this surface; system admins pass via implication / explicit
+    OR so the gate doesn't block legitimate platform admins.
+    """
     _verify_token = _get_verify_token()
 
     auth_header = request.httprequest.headers.get('Authorization', '')
@@ -45,16 +54,34 @@ def _auth_admin():
     user = request.env['res.users'].sudo().browse(payload['user_id'])
     if not user.exists():
         raise ValueError('Token references a nonexistent user')
+    if not user.active:
+        raise ValueError('User account is deactivated')
 
-    # Admin check: must be internal user (not portal)
-    if not user.has_group('base.group_user'):
-        raise ValueError('Admin access required')
+    # Defensive: the builder admin group XML ID lives in this addon,
+    # but ``has_group`` may raise if the ir.model.data row hasn't been
+    # loaded yet (e.g. during install). Catch and treat as "no access"
+    # rather than 500-ing the route.
+    is_admin = False
+    try:
+        is_admin = (
+            user.has_group('base.group_system')
+            or user.has_group('dashboard_builder.group_dashboard_builder_admin')
+        )
+    except Exception:
+        is_admin = False
+    if not is_admin:
+        raise ValueError('Dashboard builder admin access required')
 
     return user
 
 
 def _auth_any():
-    """Extract JWT, verify, return user (any role)."""
+    """Extract JWT, verify, return user (any role).
+
+    Used by the drill-down endpoint, which is open to any authenticated
+    user (the row-level data access is enforced downstream by ACLs and
+    the tenant_id row policies on CH-backed connections).
+    """
     _verify_token = _get_verify_token()
 
     auth_header = request.httprequest.headers.get('Authorization', '')
@@ -68,6 +95,8 @@ def _auth_any():
     user = request.env['res.users'].sudo().browse(payload['user_id'])
     if not user.exists():
         raise ValueError('Token references a nonexistent user')
+    if not user.active:
+        raise ValueError('User account is deactivated')
 
     return user
 
@@ -118,14 +147,41 @@ class BuilderAPI(http.Controller):
         type='http', auth='none', methods=['GET'], csrf=False, readonly=True,
     )
     def get_sources(self, **kw):
-        """GET /api/v1/builder/sources → list of schema sources."""
+        """GET /api/v1/builder/sources → list of schema sources.
+
+        Optional query param: ``?app_id=N`` — restrict to sources
+        scoped to that app. ``dashboard.schema.source.app_ids`` (Many2many
+        on saas.app, defined in
+        posterra_portal.models.dashboard_builder_ext) gates per-app
+        availability. Convention: empty ``app_ids`` = globally available;
+        non-empty = restricted to the listed apps.
+
+        Contract scope: ``app_id`` is OPTIONAL filtering, NOT a hard
+        per-app security boundary. Posterra's current model treats
+        builder admins as platform-wide staff (system + dashboard
+        builder admin groups), so the default response is the global
+        admin view. When per-app admin separation lands (P1 roadmap),
+        callers will be required to supply ``app_id`` derived from the
+        admin's own app permissions — at that point the gate becomes
+        a real boundary, not just UI filtering.
+        """
         try:
             _auth_admin()
         except ValueError as e:
             return _json_err(403, str(e))
 
+        domain = [('is_active', '=', True)]
+        app_id = kw.get('app_id')
+        if app_id:
+            try:
+                app_id = int(app_id)
+            except (TypeError, ValueError):
+                return _json_err(400, 'app_id must be an integer')
+            # Sources with no app_ids set = global; or where app_id is in the set
+            domain += ['|', ('app_ids', '=', False), ('app_ids', 'in', [app_id])]
+
         sources = request.env['dashboard.schema.source'].sudo().search(
-            [('is_active', '=', True)], order='name asc')
+            domain, order='name asc')
 
         data = [{
             'id': s.id,
@@ -143,7 +199,13 @@ class BuilderAPI(http.Controller):
         type='http', auth='none', methods=['GET'], csrf=False, readonly=True,
     )
     def get_source_detail(self, source_id, **kw):
-        """GET /api/v1/builder/sources/<id> → source with columns."""
+        """GET /api/v1/builder/sources/<id> → source with columns.
+
+        Optional ``?app_id=N`` — when supplied, the source's ``app_ids``
+        must allow that app (empty = global, or app_id in the set);
+        otherwise 404 (don't reveal existence to a caller scoped to
+        a different app).
+        """
         try:
             _auth_admin()
         except ValueError as e:
@@ -152,6 +214,16 @@ class BuilderAPI(http.Controller):
         src = request.env['dashboard.schema.source'].sudo().browse(source_id)
         if not src.exists():
             return _json_err(404, 'Schema source not found')
+
+        app_id = kw.get('app_id')
+        if app_id:
+            try:
+                app_id = int(app_id)
+            except (TypeError, ValueError):
+                return _json_err(400, 'app_id must be an integer')
+            # When app_ids is non-empty, the requested app must be in it.
+            if src.app_ids and app_id not in src.app_ids.ids:
+                return _json_err(404, 'Schema source not found')
 
         data = {
             'id': src.id,
@@ -233,7 +305,7 @@ class BuilderAPI(http.Controller):
                 try:
                     page_rec = request.env['dashboard.page'].sudo().browse(int(page_id))
                     if page_rec.exists() and page_rec.app_id:
-                        request.tenant_id = page_rec.app_id.id
+                        request.tenant_id = page_rec.app_id.app_key
                 except (TypeError, ValueError):
                     pass  # Bad page_id falls through; tenant resolution skipped.
 
@@ -707,7 +779,14 @@ class BuilderAPI(http.Controller):
         type='http', auth='none', methods=['GET'], csrf=False, readonly=True,
     )
     def get_library(self, **kw):
-        """GET /api/v1/builder/library → list of widget definitions."""
+        """GET /api/v1/builder/library → list of widget definitions.
+
+        Optional query params:
+          - ``?category=X``: filter by category
+          - ``?app_id=N``: restrict to definitions visible to that app
+            via ``dashboard.widget.definition.app_ids`` (empty = global,
+            non-empty = restricted to listed apps). P0-17 contract.
+        """
         try:
             _auth_admin()
         except ValueError as e:
@@ -716,6 +795,13 @@ class BuilderAPI(http.Controller):
         domain = [('is_active', '=', True)]
         if kw.get('category'):
             domain.append(('category', '=', kw['category']))
+        app_id = kw.get('app_id')
+        if app_id:
+            try:
+                app_id = int(app_id)
+            except (TypeError, ValueError):
+                return _json_err(400, 'app_id must be an integer')
+            domain += ['|', ('app_ids', '=', False), ('app_ids', 'in', [app_id])]
 
         defs = request.env['dashboard.widget.definition'].sudo().search(
             domain, order='category, name')
@@ -737,7 +823,11 @@ class BuilderAPI(http.Controller):
         type='http', auth='none', methods=['GET'], csrf=False, readonly=True,
     )
     def get_library_detail(self, def_id, **kw):
-        """GET /api/v1/builder/library/<id> → full definition detail."""
+        """GET /api/v1/builder/library/<id> → full definition detail.
+
+        Optional ``?app_id=N``: when supplied, definition's ``app_ids``
+        must allow that app; otherwise 404 (don't reveal existence).
+        """
         try:
             _auth_admin()
         except ValueError as e:
@@ -746,6 +836,15 @@ class BuilderAPI(http.Controller):
         defn = request.env['dashboard.widget.definition'].sudo().browse(def_id)
         if not defn.exists():
             return _json_err(404, 'Widget definition not found')
+
+        app_id = kw.get('app_id')
+        if app_id:
+            try:
+                app_id = int(app_id)
+            except (TypeError, ValueError):
+                return _json_err(400, 'app_id must be an integer')
+            if defn.app_ids and app_id not in defn.app_ids.ids:
+                return _json_err(404, 'Widget definition not found')
 
         data = {
             'id': defn.id,
@@ -800,12 +899,20 @@ class BuilderAPI(http.Controller):
             'ranked_detail_config': defn.ranked_detail_config or '',
         }
 
-        # Include scope options from the first widget instance (if any)
+        # Include scope options from a widget instance (if any).
+        # P2 fix: when ``app_id`` is supplied, scope the instance lookup
+        # to widgets on pages of that app — otherwise the "first
+        # instance" pull leaks SQL/config defaults from a different
+        # app's instance. Without an app_id filter the pull is
+        # global-admin-view (acceptable for Posterra's current model
+        # of platform-wide builder admins).
         scope_options = []
         try:
             Widget = request.env['dashboard.widget']
-            instances = Widget.sudo().search(
-                [('definition_id', '=', defn.id)], limit=1)
+            instance_domain = [('definition_id', '=', defn.id)]
+            if app_id:  # ``app_id`` from the validated query param above
+                instance_domain.append(('page_id.app_id', '=', app_id))
+            instances = Widget.sudo().search(instance_domain, limit=1)
             if instances:
                 for o in instances[0].scope_option_ids.sorted('sequence'):
                     scope_options.append({
@@ -859,15 +966,53 @@ class BuilderAPI(http.Controller):
         body = _get_body()
         page_id = body.get('page_id')
 
-        # Support page_key + tab_key (from portal LibraryPicker)
+        # Support page_key + tab_key (from portal LibraryPicker).
+        # P0-15: ``page_key`` resolution requires ``app_id`` context.
+        # Without it, a global ``Page.search([('key', '=', ...)], limit=1)``
+        # picks any app's page with a matching key — non-deterministic
+        # at best, accidental cross-app misplacement at worst.
+        # After P0-7's UNIQUE(app_id, key) constraint, two apps cannot
+        # share a page key, but the search still needs an app_id to
+        # narrow the result. Callers must supply either:
+        #   - ``page_id`` (numeric) — preferred, unambiguous
+        #   - ``page_key`` PLUS ``app_id`` — disambiguates the search
         if not page_id and body.get('page_key'):
+            app_id = body.get('app_id')
+            if not app_id:
+                return _json_err(
+                    400,
+                    'app_id is required when looking up by page_key '
+                    '(or pass page_id directly)',
+                )
+            try:
+                app_id = int(app_id)
+            except (TypeError, ValueError):
+                return _json_err(400, 'app_id must be an integer')
             Page = request.env['dashboard.page'].sudo()
-            page = Page.search([('key', '=', body['page_key'])], limit=1)
+            page = Page.search([
+                ('key', '=', body['page_key']),
+                ('app_id', '=', app_id),
+            ], limit=1)
             if page:
                 page_id = page.id
 
         if not page_id:
-            return _json_err(400, 'page_id or page_key is required')
+            return _json_err(400, 'page_id (or page_key + app_id) is required')
+
+        # P0-17: definition's ``app_ids`` must allow the target page's
+        # ``app_id``. Empty app_ids = globally available; non-empty =
+        # restricted. Without this, a global "place anywhere" admin
+        # could drop an HHA-only widget definition onto an MSSP page.
+        target_page = request.env['dashboard.page'].sudo().browse(page_id)
+        if not target_page.exists():
+            return _json_err(404, 'Target page not found')
+        if defn.app_ids and target_page.app_id.id not in defn.app_ids.ids:
+            return _json_err(
+                403,
+                f'Widget definition {defn.name!r} is restricted to '
+                f'{", ".join(defn.app_ids.mapped("app_key")) or "specific apps"}; '
+                f'target page belongs to app {target_page.app_id.app_key!r}.',
+            )
 
         # Resolve tab_key → tab_id if needed
         tab_id = body.get('tab_id')

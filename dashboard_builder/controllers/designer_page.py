@@ -22,11 +22,25 @@ class DesignerPage(http.Controller):
         """Render the Dashboard Designer single-page app."""
         user = request.env.user
 
-        # Admin check
-        is_admin = (
-            user.has_group('dashboard_builder.group_dashboard_builder_admin')
-            or user.has_group('base.group_system')
-        )
+        # Reject deactivated users up-front. Odoo auth='user' verifies
+        # the session but may not invalidate cached sessions immediately
+        # on archive — explicit check keeps the contract consistent with
+        # the rest of the auth surfaces (portal.app_dashboard, builder
+        # _auth_admin, designer _require_admin).
+        if not user or user._is_public() or not user.active:
+            return request.redirect('/web/login')
+
+        # Admin check: dashboard builder admin OR system admin. Defensive
+        # try/except in case the group XML ID isn't loaded yet during
+        # install / upgrade.
+        is_admin = False
+        try:
+            is_admin = (
+                user.has_group('base.group_system')
+                or user.has_group('dashboard_builder.group_dashboard_builder_admin')
+            )
+        except Exception:
+            is_admin = False
         if not is_admin:
             return request.redirect('/web#action=&error=Access+Denied')
 

@@ -15,7 +15,16 @@
     """,
     'author': 'Posterra',
     'website': 'https://posterra.com',
-    'depends': ['base', 'portal', 'auth_signup', 'hha_crm_integration', 'dashboard_builder'],
+    # P0-16: ``hha_crm_integration`` removed — verified stale.
+    # Grep across posterra_portal + dashboard_builder finds zero
+    # references to crm.lead extensions, external_lead_id,
+    # npi_physician, ccn_facility, or lead_type. The addon still
+    # exists at the operator's Odoo install path and can be installed
+    # standalone for its CRM features; it just isn't a hard dependency
+    # of the portal. Removing the dep means a fresh Azure deploy
+    # doesn't need to vendor / submodule that addon to make
+    # posterra_portal load.
+    'depends': ['base', 'portal', 'auth_signup', 'dashboard_builder'],
     'data': [
         # Security — groups must load first
         'security/posterra_security.xml',

@@ -59,10 +59,31 @@ _logger = logging.getLogger(__name__)
 # ── Auth helper ──────────────────────────────────────────────────────────────
 
 def _require_admin():
-    """Check that the current session user is a builder admin."""
+    """Check that the current session user is a builder admin.
+
+    Admin role: ``dashboard_builder.group_dashboard_builder_admin`` OR
+    ``base.group_system`` (system admins). The active-user gate runs
+    before the group check so an archived admin is rejected even though
+    Odoo's session store may not have invalidated their session yet.
+
+    Defensive: ``has_group`` may raise ``ValueError`` during install /
+    upgrade if the ir.model.data row for the admin group hasn't loaded
+    yet. Catch and treat as "no access" rather than 500-ing the route.
+    """
     user = request.env.user
-    if not (user.has_group('dashboard_builder.group_dashboard_builder_admin')
-            or user.has_group('base.group_system')):
+    if not user or user._is_public():
+        raise ValueError('Authentication required')
+    if not user.active:
+        raise ValueError('User account is deactivated')
+    is_admin = False
+    try:
+        is_admin = (
+            user.has_group('base.group_system')
+            or user.has_group('dashboard_builder.group_dashboard_builder_admin')
+        )
+    except Exception:
+        is_admin = False
+    if not is_admin:
         raise ValueError('Dashboard Builder Admin access required')
     return user
 
@@ -558,7 +579,7 @@ class DesignerAPI(http.Controller):
                     Page = request.env['dashboard.page'].sudo()
                     page_rec = Page.browse(int(page_id))
                     if page_rec.exists() and page_rec.app_id:
-                        request.tenant_id = page_rec.app_id.id
+                        request.tenant_id = page_rec.app_id.app_key
 
                     PageFilter = request.env['dashboard.page.filter'].sudo()
                     page_filters = PageFilter.search([
@@ -620,15 +641,19 @@ class DesignerAPI(http.Controller):
                 is_valid, err = qb.validate_query(sql)
                 if not is_valid:
                     return _json_error(400, f'Invalid SQL: {err}')
-                _logger.info('Preview [custom_sql] params: %s', params)
-                _logger.info('Preview [custom_sql] SQL: %s', sql)
+                # SQL/params held at DEBUG: production Log Analytics may
+                # retain logs for 7 years (HIPAA), and full preview SQL
+                # can carry filter values that touch PHI. Devs enable
+                # per-module DEBUG locally for troubleshooting.
+                _logger.debug('Preview [custom_sql] params: %s', params)
+                _logger.debug('Preview [custom_sql] SQL: %s', sql)
                 columns, rows = qb.execute_preview(sql, params, schema_source=schema_source)
             else:
                 config = body.get('config', {})
                 sql = qb.build_select_query(config, multiselect_params=multiselect_params)
-                _logger.info('Preview [visual] multiselect_params: %s', multiselect_params)
-                _logger.info('Preview [visual] params: %s', params)
-                _logger.info('Preview [visual] SQL: %s', sql)
+                _logger.debug('Preview [visual] multiselect_params: %s', multiselect_params)
+                _logger.debug('Preview [visual] params: %s', params)
+                _logger.debug('Preview [visual] SQL: %s', sql)
                 columns, rows = qb.execute_preview(sql, params, schema_source=schema_source)
 
             rows_list = [list(row) for row in rows]

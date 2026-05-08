@@ -10,8 +10,10 @@
 --   - ``app_role``     — the role granted to the connecting user
 --   - ``app_profile``  — declares ``SQL_tenant_id`` as a per-query setting
 --                        the role is allowed to set; THIS is what makes
---                        ``client.query(settings={'SQL_tenant_id': '1'})``
+--                        ``client.query(settings={'SQL_tenant_id': 'posterra'})``
 --                        functional. Without it, every query fails.
+--                        (P0-10: tenant_id is now the string app_key, not
+--                        the integer app.id — survives PG rebuilds.)
 --   - ``shared.*`` grant — cross-tenant reference data the role can read
 --   - row-policy templates — applied per fact/dim table in a paired
 --                            grant+policy block (see section 4).
@@ -79,9 +81,14 @@ CREATE ROLE IF NOT EXISTS app_role;
 -- 2. Settings profile — the load-bearing piece
 -- ============================================================================
 -- ``SQL_tenant_id`` is the per-query setting our executor sets via
--- ``client.query(settings={'SQL_tenant_id': str(saas.app.id)})``. Row policies
--- below read it via ``getSetting('SQL_tenant_id')`` and filter rows that
--- don't match.
+-- ``client.query(settings={'SQL_tenant_id': str(saas.app.app_key)})``.
+-- The contract is the **stable string app_key** (e.g. ``'posterra'``,
+-- ``'mssp'``, ``'inhome'``) — NOT the numeric ``app.id``, which shifts
+-- across fresh-seed deploys. Row policies below read via
+-- ``getSetting('SQL_tenant_id')`` and filter rows whose ``tenant_id``
+-- column doesn't match. Row-policy DDL must therefore use string
+-- comparison: ``USING tenant_id = getSetting('SQL_tenant_id')``
+-- where ``tenant_id`` is a ``LowCardinality(String)`` column.
 --
 -- Default value '' (empty string) — if a query sneaks through without the
 -- setting populated, row policies will not match any tenant_id and the

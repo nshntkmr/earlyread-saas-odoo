@@ -11,7 +11,7 @@ Flow:
     Host ``posterra.example.com`` (or ``posterra.localhost:8069`` in dev)
       → ``controllers/portal.py:app_dashboard`` calls
         ``utils/app_resolver.get_app_from_host()`` → ``saas.app``
-      → ``request.tenant_id = app.id`` is stashed on the request
+      → ``request.tenant_id = app.app_key`` is stashed on the request
       → executor's ``get_tenant_id()`` reads it back
 
 For non-HTTP code paths (cron jobs, queue workers, tests), we fall back
@@ -25,9 +25,13 @@ system is built to prevent.
 def get_current_tenant_id(env, request=None):
     """Resolve the tenant_id for the current execution context.
 
-    Returns a string (e.g. ``'1'``, ``'2'``) — ClickHouse stores tenant
-    IDs as ``LowCardinality(String)`` so we keep them strings end-to-end
-    and leave room to switch to UUIDs later without a schema change.
+    Returns the stable string ``saas.app.app_key`` (e.g. ``'posterra'``,
+    ``'mssp'``, ``'inhome'``). ClickHouse stores tenant IDs as
+    ``LowCardinality(String)`` and reads via
+    ``getSetting('SQL_tenant_id')`` for row policies. The string app_key
+    is stable across PG rebuilds (a fresh Azure deploy keeps the same
+    tenant tags in CH), human-readable in ``system.query_log``, and
+    matches the DNS subdomain.
 
     Raises:
         ValueError if no tenant can be determined unambiguously. Callers
@@ -54,32 +58,22 @@ def get_current_tenant_id(env, request=None):
             "cannot pick a tenant without an HTTP request context"
         )
 
-    return str(accessible.id)
+    return accessible.app_key
 
 
 def _user_has_access(user, app):
-    """Replicate the access checks from controllers/portal.py:app_dashboard.
+    """Mirror of ``posterra_portal.utils.access.user_can_access_app``.
 
-    HHA-provider apps: user has access if they have any HHA provider
-    visible to them (direct hha_provider_id or via scope group).
+    Kept as a thin wrapper so the fallback path in
+    ``get_current_tenant_id`` (used by cron / queue workers / tests
+    without an HTTP request) shares the same authorisation contract as
+    the HTTP surfaces. The contract: ``portal_app_ids`` membership AND
+    a per-mode data-scope precondition (group membership for
+    ``access_mode='group'`` apps; provider linkage for ``hha_provider``
+    apps).
 
-    Group apps: user has access if they belong to the configured group.
+    Importing the helper at call time keeps this module load-order safe
+    — ``utils.access`` doesn't import anything that re-enters here.
     """
-    if not app.is_active:
-        return False
-    if app.access_mode == 'hha_provider':
-        partner = user.partner_id
-        if partner.hha_provider_id:
-            return True
-        scope_group = getattr(partner, 'hha_scope_group_id', False)
-        if scope_group and getattr(scope_group, 'provider_ids', False):
-            return True
-        return False
-    if app.access_mode == 'group':
-        if not app.access_group_xmlid:
-            return False
-        try:
-            return user.has_group(app.access_group_xmlid)
-        except Exception:
-            return False
-    return False
+    from .access import user_can_access_app
+    return user_can_access_app(user, app)

@@ -731,7 +731,7 @@ class DashboardPageFilter(models.Model):
                 and src_filter.field_name == 'id'
                 and not src_filter.schema_source_id
             )
-            _logger.info('[CASCADE-SQL]   dep_is_hha_provider_id=%s', dep_is_hha_provider_id)
+            _logger.debug('[CASCADE-SQL]   dep_is_hha_provider_id=%s', dep_is_hha_provider_id)
             is_multi, parsed = self._parse_multi_parent(value)
 
             if dep_is_hha_provider_id and scope_col:
@@ -759,7 +759,7 @@ class DashboardPageFilter(models.Model):
                     src_filter.schema_column_name or src_filter.param_name
                     or src_filter.field_name or ''
                 ).strip()
-                _logger.info('[CASCADE-SQL]   else branch: parent_col=%r', parent_col)
+                _logger.debug('[CASCADE-SQL]   else branch: parent_col=%r', parent_col)
                 if parent_col and self._IDENT_RE.match(parent_col):
                     if is_multi:
                         pname = _next_param('val_list')
@@ -808,7 +808,10 @@ class DashboardPageFilter(models.Model):
                     where_parts.append(f'"{sib_col}" = %({pname})s')
                     params[pname] = sib_val
 
-        _logger.info('[CASCADE-SQL] final where_parts=%s, params=%s', where_parts, params)
+        # Held at DEBUG: ``params`` contains user-facing filter values
+        # (CCNs, state names, etc.) which can be PHI-adjacent and must
+        # not retain in long-retention production logs.
+        _logger.debug('[CASCADE-SQL] final where_parts=%s, params=%s', where_parts, params)
 
         # ── 2. HHA user scoping ──────────────────────────────────────────
         if self.scope_to_user_hha and provider_ids and scope_col:
@@ -855,7 +858,7 @@ class DashboardPageFilter(models.Model):
             f'SELECT DISTINCT "{column}" FROM {_quote_table(table)} '
             f'{where_clause} ORDER BY "{column}"'
         )
-        _logger.info('[CASCADE-SQL] _get_schema_source_options SQL: %s | params: %s', sql, params)
+        _logger.debug('[CASCADE-SQL] _get_schema_source_options SQL: %s | params: %s', sql, params)
 
         # Dispatch via executor — falls through to PostgresLocalExecutor
         # for the local-Postgres path (existing behaviour) or to the
@@ -923,15 +926,22 @@ class DashboardPageFilter(models.Model):
         where_clause = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
         cols_sql = ', '.join(f'"{c}"' for c in select_cols)
         sql = f'SELECT DISTINCT {cols_sql} FROM {_quote_table(table)} {where_clause} ORDER BY "{value_col}"'
-        _logger.info('[CASCADE-SQL] _get_schema_options_with_template SQL: %s | params: %s', sql, params)
+        _logger.debug('[CASCADE-SQL] _get_schema_options_with_template SQL: %s | params: %s', sql, params)
 
         try:
             from ..utils.query_executors import get_executor
             executor = get_executor(self.env, self.schema_source_id)
             _cols, rows = executor.execute(sql, params)
         except Exception as exc:
+            # WARNING-level log of the failure; the raw SQL goes to DEBUG
+            # only (long-retention production logs shouldn't keep
+            # filter-value-shaped strings even when wrapped in errors).
             _logger.warning(
-                'dashboard.page.filter %s: schema template SQL error: %s | SQL: %s',
+                'dashboard.page.filter %s: schema template SQL error (%s)',
+                self.id, exc.__class__.__name__,
+            )
+            _logger.debug(
+                'dashboard.page.filter %s: error details: %s | SQL: %s',
                 self.id, exc, sql,
             )
             return []

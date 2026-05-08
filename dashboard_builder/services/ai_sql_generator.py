@@ -11,6 +11,7 @@ Different apps, pages, tables, and filters produce different SQL.
 
 import json
 import logging
+import os
 
 _logger = logging.getLogger(__name__)
 
@@ -511,15 +512,32 @@ class AiSqlGenerator:
 
     def __init__(self, env):
         self.env = env
+        # Resolution priority for each value:
+        #   1. ``POSTERRA_AI_*`` env vars — production. ESO syncs from
+        #      Azure Key Vault to a K8s Secret mounted as env vars.
+        #      Rotation requires pod rollout restart (worker-cached at
+        #      __init__ time).
+        #   2. ``ir.config_parameter`` — dev / single-pod fallback,
+        #      editable from Odoo admin (Technical → System Parameters).
         ICP = env['ir.config_parameter'].sudo()
-        self._api_key = ICP.get_param('dashboard_builder.ai_api_key', '')
-        self._endpoint = ICP.get_param('dashboard_builder.ai_endpoint', '')
-        self._model = ICP.get_param('dashboard_builder.ai_model', 'claude-sonnet-4-6')
+        self._api_key = (
+            os.environ.get('POSTERRA_AI_API_KEY')
+            or ICP.get_param('dashboard_builder.ai_api_key', '')
+        )
+        self._endpoint = (
+            os.environ.get('POSTERRA_AI_ENDPOINT')
+            or ICP.get_param('dashboard_builder.ai_endpoint', '')
+        )
+        self._model = (
+            os.environ.get('POSTERRA_AI_MODEL')
+            or ICP.get_param('dashboard_builder.ai_model', 'claude-sonnet-4-6')
+        )
 
         if not self._api_key or not self._endpoint:
             _logger.warning('AI SQL Generator: API key or endpoint not configured. '
-                            'Set dashboard_builder.ai_api_key and dashboard_builder.ai_endpoint '
-                            'in System Parameters.')
+                            'Set POSTERRA_AI_API_KEY / POSTERRA_AI_ENDPOINT env vars '
+                            '(production) or dashboard_builder.ai_api_key / .ai_endpoint '
+                            'in System Parameters (dev).')
 
     def _get_client(self):
         """Lazy-initialize the Anthropic client."""
@@ -752,8 +770,12 @@ class AiSqlGenerator:
         client = self._get_client()
         user_message = self._build_user_message(context, user_prompt)
 
-        _logger.info('AI SQL Generate: chart=%s, prompt=%s',
-                     context.get('chart_type'), user_prompt[:100])
+        # Prompt + chart kept at DEBUG. Prompts may include admin-typed
+        # column descriptions or filter terms that touch PHI semantics
+        # (e.g. "show me Medicare claims for hospital X"); long-term
+        # retention in Log Analytics is a privacy concern.
+        _logger.debug('AI SQL Generate: chart=%s, prompt=%s',
+                      context.get('chart_type'), user_prompt[:100])
 
         message = client.messages.create(
             model=self._model,
@@ -771,8 +793,8 @@ class AiSqlGenerator:
             if hasattr(block, 'type') and block.type == 'tool_use':
                 if block.name == 'generate_sql':
                     result = block.input
-                    _logger.info('AI SQL Generate: success, sql=%s',
-                                 result.get('sql', '')[:200])
+                    _logger.debug('AI SQL Generate: success, sql=%s',
+                                  result.get('sql', '')[:200])
                     return result
 
         raise ValueError('AI did not return structured SQL output. '
@@ -794,7 +816,9 @@ class AiSqlGenerator:
             f"Generate a corrected version that fixes the error."
         )
 
-        _logger.info('AI SQL Fix: error=%s', error_message[:200])
+        # Error message may include the SQL fragment that failed —
+        # held at DEBUG to keep raw SQL out of long-retention logs.
+        _logger.debug('AI SQL Fix: error=%s', error_message[:200])
 
         message = client.messages.create(
             model=self._model,
@@ -832,7 +856,7 @@ class AiSqlGenerator:
             f"Generate the updated SQL that incorporates the requested changes."
         )
 
-        _logger.info('AI SQL Refine: request=%s', refinement_prompt[:100])
+        _logger.debug('AI SQL Refine: request=%s', refinement_prompt[:100])
 
         message = client.messages.create(
             model=self._model,
@@ -874,8 +898,8 @@ class AiSqlGenerator:
         client = self._get_client()
         user_message = self._build_intent_user_message(context, user_prompt)
 
-        _logger.info('AI Intent Generate: chart=%s, prompt=%s',
-                     context.get('chart_type'), user_prompt[:100])
+        _logger.debug('AI Intent Generate: chart=%s, prompt=%s',
+                      context.get('chart_type'), user_prompt[:100])
 
         message = client.messages.create(
             model=self._model,
@@ -915,7 +939,7 @@ class AiSqlGenerator:
             % (json.dumps(previous_intent, indent=2), refinement_prompt)
         )
 
-        _logger.info('AI Intent Refine: request=%s', refinement_prompt[:100])
+        _logger.debug('AI Intent Refine: request=%s', refinement_prompt[:100])
 
         message = client.messages.create(
             model=self._model,
@@ -952,7 +976,7 @@ class AiSqlGenerator:
             % (json.dumps(previous_intent, indent=2), error_message)
         )
 
-        _logger.info('AI Intent Fix: error=%s', error_message[:200])
+        _logger.debug('AI Intent Fix: error=%s', error_message[:200])
 
         message = client.messages.create(
             model=self._model,

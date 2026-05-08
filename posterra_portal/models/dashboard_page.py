@@ -30,6 +30,23 @@ class DashboardPage(models.Model):
     _description = 'Dashboard Page'
     _order = 'sequence asc, id asc'
 
+    # Per-app uniqueness on (app_id, key). Combined with the
+    # ``portal.app_dashboard`` search using ``current_page.id`` (P0-7),
+    # this is the DB-level guarantee that two apps cannot have a page
+    # with the same key. The previous controller search by ``page_id.key``
+    # would have happily mixed records across apps; this constraint
+    # makes that impossible at write time.
+    #
+    # Migration note: if existing data already has duplicate (app_id, key)
+    # pairs (admin-created pages), module upgrade will FAIL with a clear
+    # error. Resolve by changing one of the duplicate keys via admin UI
+    # before re-applying. Posterra's seed XML uses unique keys per app.
+    _sql_constraints = [
+        ('app_key_uniq',
+         'unique(app_id, key)',
+         'A page key must be unique within an app.'),
+    ]
+
     name           = fields.Char(required=True)
     key            = fields.Char(required=True, index=True)
     nav_section_id = fields.Many2one(
@@ -45,6 +62,18 @@ class DashboardPage(models.Model):
         index=True,
         help='Application this page belongs to. Resolved from the request host subdomain.',
     )
+    # Note on ``app_id``: NOT marked required because the ``post_init_hook``
+    # ``_populate_app_ids`` backfills app_id from ``portal_type`` AFTER
+    # XML data files load. If we made the field required, fresh installs
+    # would fail (XML loads first) and upgrades with pre-existing
+    # NULL-app_id rows would fail the NOT NULL transition. The
+    # ``unique(app_id, key)`` constraint enforces tenant isolation when
+    # app_id is set; NULL-app_id pages are unreachable by the portal
+    # route (which requires an app from the subdomain) and are
+    # effectively dead records.
+    # Pre-migration check (admin runs before upgrade):
+    #     SELECT id, name, key FROM dashboard_page WHERE app_id IS NULL;
+    # Any rows returned should be deleted or have app_id assigned.
     icon = fields.Char()
     icon_color = fields.Char(string='Icon Color',
         help='CSS color for the sidebar icon (e.g. #38b2ac, coral, rgb(100,200,50)). '
@@ -115,6 +144,17 @@ class DashboardPageTab(models.Model):
     _name = 'dashboard.page.tab'
     _description = 'Dashboard Page Tab'
     _order = 'sequence asc, id asc'
+
+    # Per-page tab key uniqueness. Tabs belong to one page (page_id is
+    # required + ondelete='cascade'), and tab key resolution in the
+    # controller assumes uniqueness within a page. Without this, two
+    # tabs with key='command_center' on the same page would be picked
+    # ambiguously by ``current_tab_key`` matching.
+    _sql_constraints = [
+        ('page_key_uniq',
+         'unique(page_id, key)',
+         'A tab key must be unique within a page.'),
+    ]
 
     name = fields.Char(required=True)
     key = fields.Char(required=True, index=True)

@@ -28,7 +28,7 @@ _logger = logging.getLogger(__name__)
 # runtime guard for hostile / typo'd hosts (e.g. ``www.example.com``,
 # ``api.example.com``).
 _RESERVED_SUBDOMAINS = frozenset({
-    'www', 'api', 'admin', 'mail', 'app', 'odoo',
+    'www', 'api', 'admin', 'admin-probe', 'mail', 'app', 'odoo',
     'web', 'static', 'longpolling', 'jsonrpc', 'websocket',
     'dashboard', 'portal', 'login', 'logout', 'signup',
     'auth', 'mailto',

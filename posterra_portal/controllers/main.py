@@ -7,7 +7,7 @@ from odoo.addons.web.controllers.home import Home
 from odoo.addons.web.controllers.utils import is_user_internal
 from odoo.http import request
 
-from .portal import _get_providers_for_user
+from ..utils.access import user_can_access_app
 from ..utils.app_resolver import build_app_url, get_app_from_host
 
 _logger = logging.getLogger(__name__)
@@ -18,25 +18,26 @@ class PosterraHome(Home):
     def _get_portal_app_for_user(self, uid):
         """Return the first saas.app this user can access, or None.
 
-        Mirrors the priority of portal.py home():
-          1. group-based apps (id asc)   — e.g. MSSP Portal
-          2. hha_provider apps (id asc)  — e.g. Posterra
+        Iterates active apps in id order and picks the first one the
+        user is authorised for via ``user_can_access_app`` — the same
+        helper used by login, session-refresh, JWT validation, and the
+        browser dashboard route. Single source of truth for "can this
+        user use this app?".
 
-        Fully driven by admin-configured saas.app records; no app_key is hardcoded.
+        Previously this used a per-mode shortcut ("any group app where
+        user has the group, else first hha_provider app if user has
+        any provider"), which ignored ``portal_app_ids`` and could send
+        a user to the wrong app on /web/login redirect.
+
+        Returns the first matching ``saas.app`` record or ``None``.
         """
         user = request.env['res.users'].sudo().browse(uid)
-        # Group-based apps first (so MSSP users are never accidentally matched as HHA)
-        group_apps = request.env['saas.app'].sudo().search(
-            [('access_mode', '=', 'group'), ('is_active', '=', True)], order='id asc')
-        for app in group_apps:
-            if app.access_group_xmlid and user.has_group(app.access_group_xmlid):
+        candidates = request.env['saas.app'].sudo().search(
+            [('is_active', '=', True)], order='id asc',
+        )
+        for app in candidates:
+            if user_can_access_app(user, app):
                 return app
-        # HHA-provider apps
-        if _get_providers_for_user(user):
-            hha_app = request.env['saas.app'].sudo().search(
-                [('access_mode', '=', 'hha_provider'), ('is_active', '=', True)], limit=1)
-            if hha_app:
-                return hha_app
         return None
 
     @http.route()

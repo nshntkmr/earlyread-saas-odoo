@@ -17,6 +17,7 @@
             <field name="icon">fa-home</field>
             <field name="sequence">10</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_overview_command_center" model="dashboard.page.tab">
@@ -46,6 +47,7 @@
             <field name="icon">fa-hospital-o</field>
             <field name="sequence">20</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_hospitals_performance" model="dashboard.page.tab">
@@ -81,6 +83,7 @@
             <field name="icon">fa-user-md</field>
             <field name="sequence">30</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_physicians_referral_activity" model="dashboard.page.tab">
@@ -110,6 +113,7 @@
             <field name="icon">fa-line-chart</field>
             <field name="sequence">40</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_competitive_market_share" model="dashboard.page.tab">
@@ -142,6 +146,7 @@
             <field name="icon">fa-dashboard</field>
             <field name="sequence">10</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_cc_operations" model="dashboard.page.tab">
@@ -171,6 +176,7 @@
             <field name="icon">fa-trophy</field>
             <field name="sequence">20</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_lb_overall_rank" model="dashboard.page.tab">
@@ -200,6 +206,7 @@
             <field name="icon">fa-exclamation-triangle</field>
             <field name="sequence">30</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_mt_active_threats" model="dashboard.page.tab">
@@ -229,6 +236,7 @@
             <field name="icon">fa-compass</field>
             <field name="sequence">40</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_strategy_goals" model="dashboard.page.tab">
@@ -261,6 +269,7 @@
             <field name="icon">fa-file-text-o</field>
             <field name="sequence">10</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_reports_builder" model="dashboard.page.tab">
@@ -290,6 +299,7 @@
             <field name="icon">fa-list-alt</field>
             <field name="sequence">20</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_episodes_overview" model="dashboard.page.tab">
@@ -325,6 +335,7 @@
             <field name="icon">fa-share-alt</field>
             <field name="sequence">30</field>
             <field name="portal_type">hha</field>
+            <field name="app_id" ref="posterra_portal.app_posterra"/>
         </record>
 
         <record id="tab_rs_by_source" model="dashboard.page.tab">

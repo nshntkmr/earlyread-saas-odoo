@@ -328,31 +328,52 @@ class PosterraPortal(CustomerPortal):
         user = request.env.user
         if not user or user._is_public():
             return _json_error(401, 'Not authenticated')
+        # Reject deactivated users — applies BEFORE any app/superadmin
+        # logic. Odoo auth='user' may not invalidate cached sessions
+        # immediately on archive; the explicit check ensures revocation
+        # takes effect regardless of session-store state.
+        if not user.active:
+            return _json_error(401, 'User account is deactivated')
 
-        # Resolve the app from the query param or auto-detect
+        # Resolve the app from the query param or auto-detect.
+        # Same security contract as ``api_login`` (see auth_api.py):
+        # explicit ``app_key`` must pass ``user_can_access_app`` (or
+        # bypass for superadmins). Auto-detect iterates active apps and
+        # picks the first authorised one — replaces the legacy
+        # "first hha_provider app" shortcut that returned 403 when the
+        # user was authorised for app B but app A came first in DB.
+        from ..utils.access import user_can_access_app
+
+        is_superadmin = _is_dashboard_admin(user)
         app_key = (kw.get('app_key') or '').strip()
         app = None
+
         if app_key:
-            app = request.env['saas.app'].sudo().search(
+            candidate = request.env['saas.app'].sudo().search(
                 [('app_key', '=', app_key), ('is_active', '=', True)], limit=1,
             )
+            if not candidate:
+                return _json_error(404, f'App {app_key!r} not found')
+            if not is_superadmin and not user_can_access_app(user, candidate):
+                _logger.info(
+                    'session_refresh: user %r requested app_key=%r but lacks access',
+                    user.login, app_key,
+                )
+                return _json_error(403, f'No access to app {app_key!r}')
+            app = candidate
+
         if not app:
-            # Auto-detect: same logic as home()
-            group_apps = request.env['saas.app'].sudo().search(
-                [('access_mode', '=', 'group'), ('is_active', '=', True)],
-                order='id asc',
+            candidates = request.env['saas.app'].sudo().search(
+                [('is_active', '=', True)], order='id asc',
             )
-            for ga in group_apps:
-                if ga.access_group_xmlid and user.has_group(ga.access_group_xmlid):
-                    app = ga
-                    break
-            if not app:
-                providers = _get_providers_for_user(user)
-                if providers:
-                    app = request.env['saas.app'].sudo().search(
-                        [('access_mode', '=', 'hha_provider'), ('is_active', '=', True)],
-                        limit=1,
-                    )
+            if is_superadmin:
+                app = candidates[:1]
+            else:
+                for cand in candidates:
+                    if user_can_access_app(user, cand):
+                        app = cand
+                        break
+
         if not app:
             return _json_error(403, 'No accessible app found for this user')
 
@@ -477,24 +498,42 @@ class PosterraPortal(CustomerPortal):
         # Stash tenant_id on the request so query executors (CH and
         # future external backends) can read it without re-resolving the
         # app. Posterra's tenant boundary is the saas.app.
-        request.tenant_id = app.id
+        # tenant_id is the stable string ``app_key`` (DNS-validated by
+        # _check_app_key_valid). ClickHouse row policies key on this via
+        # ``getSetting('SQL_tenant_id')``. Survives PG rebuilds — fresh
+        # Azure deploys keep the same tenant tags in CH.
+        request.tenant_id = app.app_key
 
         # ── 2. Access check ────────────────────────────────────────────
+        # Reject deactivated users up-front — an archived user
+        # (active=False) is the standard revocation handle and must not
+        # render the dashboard, even if they're a superadmin. Odoo
+        # auth='user' verifies the session but doesn't always invalidate
+        # cached sessions on archive, so we re-check defensively here.
+        user = request.env.user
+        if not user or user._is_public() or not user.active:
+            return request.redirect('/login')
+
+        # System admins and dashboard builder admins bypass app-access
+        # checks (cross-app debugging) but must still be active.
+        is_superadmin = _is_dashboard_admin(user)
+
+        # Single source of truth for authorisation: portal_app_ids
+        # membership AND the per-mode data-scope precondition. See
+        # posterra_portal/utils/access.py for the full contract. The
+        # earlier per-mode logic here did NOT check portal_app_ids and
+        # let any user with a provider link access any HHA app — exactly
+        # the bypass P0-2 closes.
+        from ..utils.access import user_can_access_app
+        if not is_superadmin and not user_can_access_app(user, app):
+            return request.redirect('/login')
+
+        # Resolve provider scope for downstream filter handling. This is
+        # the user's *data scope* now that authorisation has succeeded —
+        # NOT a second access check.
         providers = request.env['hha.provider'].sudo().browse()  # empty default
-
-        # System admins and dashboard builder admins bypass access checks
-        is_superadmin = _is_dashboard_admin(request.env.user)
-
         if app.access_mode == 'hha_provider':
             providers = _get_providers_for_user(request.env.user)
-            if not providers and not is_superadmin:
-                return request.redirect('/login')
-        elif app.access_mode == 'group':
-            if not is_superadmin and (
-                not app.access_group_xmlid
-                or not request.env.user.has_group(app.access_group_xmlid)
-            ):
-                return request.redirect('/login')
 
         # ── 4. Pages scoped to this app ────────────────────────────────
         pages = request.env['dashboard.page'].sudo().search(
@@ -537,9 +576,13 @@ class PosterraPortal(CustomerPortal):
                 break
 
         # ── 7. Page filters ───────────────────────────────────────────
+        # Search by current_page.id (not page_id.key) so two pages with
+        # the same key in different apps cannot mix. Combined with the
+        # _sql_constraints UNIQUE(app_id, key) on dashboard.page, the
+        # tenant boundary at the page level is now DB-enforced.
         page_filters = (
             request.env['dashboard.page.filter'].sudo().search([
-                ('page_id.key', '=', effective_page_key),
+                ('page_id', '=', current_page.id),
                 ('is_active', '=', True),
             ], order='sequence asc')
             if current_page
@@ -684,11 +727,42 @@ class PosterraPortal(CustomerPortal):
                             hha_auto_fill[param_key] = values.pop()
                         # else: different values or empty → leave as "All"
 
+        # Forgery validation. Two opt-ins trigger:
+        #   1. scope_to_user_hha=True — admin explicitly opted into
+        #      user-scope enforcement.
+        #   2. is_provider_selector=True AND access_mode='hha_provider' —
+        #      the provider selector is the multi-tenant boundary in
+        #      HHA apps. Validate even when admin forgets to flip
+        #      scope_to_user_hha. Group-mode apps don't enforce here
+        #      because they have no per-user HHA scope.
+        # Superadmins bypass. Raises 403 — explicit failure, not silent
+        # clamping. (Mirror of widget_api._build_portal_ctx logic.)
+        from werkzeug.exceptions import Forbidden
+        from ..utils.access import values_in_user_scope
+        is_hha_app = (app.access_mode == 'hha_provider')
+
         filter_values = {}
         for f in page_filters:
             eff_param = f.param_name or f.field_name or ''
             if eff_param:
                 url_val  = (kw.get(eff_param) or '').strip()
+                should_validate = (
+                    getattr(f, 'scope_to_user_hha', False)
+                    or (is_hha_app and getattr(f, 'is_provider_selector', False))
+                )
+                if (url_val
+                        and not is_superadmin
+                        and should_validate
+                        and not values_in_user_scope(url_val, f, providers)):
+                    _logger.info(
+                        'app_dashboard: forged provider value for filter %r '
+                        'by user %r on app %r',
+                        eff_param, request.env.user.login, app.app_key,
+                    )
+                    raise Forbidden(
+                        f'Provider value not in your accessible set '
+                        f'for filter {eff_param!r}'
+                    )
                 auto_val = hha_auto_fill.get(eff_param, '')
                 # For auto-fill filters, prefer the server-derived value
                 # over any stale URL value that may have leaked from the client.
@@ -819,10 +893,11 @@ class PosterraPortal(CustomerPortal):
         # Load ALL widgets for the page (all tabs). Execute SQL only for
         # current-tab widgets. Other-tab widgets get deferred metadata —
         # React lazy-loads them via per-widget API when the tab is clicked.
+        # Search by current_page.id, not page key — see filters comment.
         widgets = request.env['dashboard.widget'].sudo().search([
-            ('page_id.key', '=', effective_page_key),
+            ('page_id', '=', current_page.id if current_page else 0),
             ('is_active', '=', True),
-        ], order='sequence asc')
+        ], order='sequence asc') if current_page else request.env['dashboard.widget']
         widget_data = {}
         for w in widgets:
             w_tab_key = w.tab_id.key if w.tab_id else None
@@ -870,10 +945,11 @@ class PosterraPortal(CustomerPortal):
                 widget_data[w.id] = {'_deferred': True}
 
         # ── 10. Page sections ──────────────────────────────────────────
+        # Search by current_page.id, not page key — see filters comment.
         page_sections = request.env['dashboard.page.section'].sudo().search([
-            ('page_id.key', '=', effective_page_key),
+            ('page_id', '=', current_page.id if current_page else 0),
             ('is_active', '=', True),
-        ], order='sequence asc')
+        ], order='sequence asc') if current_page else request.env['dashboard.page.section']
         section_data = {sec.id: sec.get_portal_data(portal_ctx) for sec in page_sections}
 
         # ── 10b. Page header badges ───────────────────────────────────

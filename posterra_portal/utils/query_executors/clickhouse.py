@@ -37,6 +37,7 @@ both numbers small in production sizing.
 
 import datetime
 import logging
+import os
 import re
 import threading
 
@@ -70,22 +71,36 @@ def _get_password(env, connection):
     """Resolve the password for a connection.
 
     Priority:
-      1. ``connection.password`` — the direct password field on the
-         record. The common case; admin types it into the form.
-      2. ``connection.password_param_key`` → ``ir.config_parameter``
-         lookup. Optional indirection for setups that prefer storing
-         secrets outside the connection record (e.g. for separate
-         credential rotation lifecycle, or before integrating an
-         external secret manager).
-      3. Empty string — auth will fail, but cleanly.
+      1. ``os.environ[connection.password_param_key]`` — production path.
+         The admin sets ``password_param_key`` to a stable name (e.g.
+         ``POSTERRA_CH_PASSWORD_PROD``); ESO syncs the secret from Azure
+         Key Vault into a Kubernetes Secret with the same name, mounted
+         as an env var on every pod. We deliberately key by the
+         admin-supplied string, NOT ``connection.id`` — IDs shift across
+         fresh-seed deploys, so id-keyed env vars would break on every
+         redeploy.
+      2. ``connection.password`` — admin-typed direct field. Common in
+         dev / single-pod installs.
+      3. ``connection.password_param_key`` → ``ir.config_parameter``
+         lookup. Legacy indirection retained for installs already using
+         it; takes effect when neither env nor direct field is set.
+      4. Empty string — auth will fail, but cleanly.
+
+    Cache invalidation: rotation requires a rolling pod restart
+    (``kubectl rollout restart deploy/odoo-http``) — clickhouse-connect
+    clients are cached per worker keyed by ``connection.id`` and don't
+    notice env-var changes. Documented in the rotate-secrets runbook.
     """
+    key = connection.password_param_key or ''
+    if key:
+        env_secret = os.environ.get(key)
+        if env_secret:
+            return env_secret
     direct = getattr(connection, 'password', '') or ''
     if direct:
         return direct
-    if connection.password_param_key:
-        return env['ir.config_parameter'].sudo().get_param(
-            connection.password_param_key, ''
-        )
+    if key:
+        return env['ir.config_parameter'].sudo().get_param(key, '')
     return ''
 
 

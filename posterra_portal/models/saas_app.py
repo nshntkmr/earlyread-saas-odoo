@@ -1,7 +1,16 @@
 # -*- coding: utf-8 -*-
 
+import re
+
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+
+# RFC 1035 DNS label regex (also RFC 1123 — leading digits allowed):
+# lowercase alphanumeric and hyphens, no leading or trailing hyphen,
+# 1-63 characters. ``app_key`` doubles as the subdomain label, so
+# wildcard TLS (Let's Encrypt) and Azure ingress both reject anything
+# non-conforming. Enforce here so admins can't save an unusable value.
+_DNS_LABEL_RE = re.compile(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
 
 
 class SaaSApp(models.Model):
@@ -9,6 +18,26 @@ class SaaSApp(models.Model):
     _description = 'SaaS Application'
     _rec_name    = 'name'
     _order       = 'name asc'
+
+    # DB-level uniqueness on app_key. The Python ``_check_app_key_unique``
+    # constraint provides a friendly error message for normal flows, but
+    # in a multi-replica deployment two pods could pass the Python check
+    # concurrently and both insert the same key — the Python constraint
+    # is not atomic. The SQL UNIQUE catches the race at the DB level.
+    # ``get_app_from_host(..., limit=1)`` would otherwise be
+    # non-deterministic across duplicates, which silently breaks
+    # multi-tenant routing.
+    #
+    # Migration note: pre-deploy duplicate check
+    #   SELECT app_key, COUNT(*) FROM saas_app
+    #    GROUP BY app_key HAVING COUNT(*) > 1;
+    # must return zero rows or the upgrade will fail with a clear
+    # "duplicate key value violates unique constraint" error.
+    _sql_constraints = [
+        ('app_key_uniq',
+         'unique(app_key)',
+         'App key must be unique across all apps.'),
+    ]
 
     name             = fields.Char(required=True)
     app_key          = fields.Char(
@@ -73,7 +102,7 @@ class SaaSApp(models.Model):
     # routing — admin tooling, asset URLs, longpolling endpoints all live at
     # the bare host and are reserved across every subdomain.
     _RESERVED_APP_KEYS = frozenset({
-        'www', 'api', 'admin', 'mail', 'app', 'odoo',
+        'www', 'api', 'admin', 'admin-probe', 'mail', 'app', 'odoo',
         'web', 'static', 'longpolling', 'jsonrpc', 'websocket',
         'dashboard', 'portal', 'login', 'logout', 'signup',
         'auth', 'mailto', 'localhost',
@@ -81,18 +110,31 @@ class SaaSApp(models.Model):
 
     @api.constrains('app_key')
     def _check_app_key_valid(self):
-        # The app_key is the lookup label that maps the request's
-        # subdomain to a saas.app record. We only reject empty values and
-        # reserved labels (`www`, `api`, `web`, ...) that would silently
-        # collide with platform routes. Any other characters the admin
-        # uses are passed through verbatim — DNS / TLS-cert validity is
-        # the operator's concern when wiring up the production wildcard
-        # cert and ingress (browsers + *.localhost in dev tolerate
-        # underscores and other characters that strict DNS forbids).
+        # ``app_key`` is the lookup label that maps the request's
+        # subdomain to a saas.app record AND the tenant_id used by
+        # ClickHouse row policies (P0-10). It must be:
+        #   1. Non-empty.
+        #   2. A valid RFC 1035 DNS label (lowercase alphanumeric and
+        #      hyphens, no leading/trailing hyphen, 1-63 chars). Wildcard
+        #      TLS and ingress route by this label — invalid forms break
+        #      both at runtime.
+        #   3. Not in the reserved set (would collide with platform
+        #      routes such as ``www``, ``api``, ``admin-probe`` for
+        #      K8s liveness probes, etc.).
+        # Note: write-time normalisation (.strip().lower()) is performed
+        # in create() / write() overrides BEFORE this constraint runs.
         for app in self:
-            key = (app.app_key or '').lower().strip()
+            key = (app.app_key or '').strip()
             if not key:
                 raise ValidationError("App key is required.")
+            if not _DNS_LABEL_RE.match(key):
+                raise ValidationError(
+                    f"App key '{app.app_key}' is not a valid DNS label. "
+                    "Use lowercase letters, digits, and hyphens only "
+                    "(e.g. 'inhome-v1', not 'inhome_v1'). Underscores, "
+                    "uppercase letters, and leading/trailing hyphens are "
+                    "not allowed because the key is used as a subdomain."
+                )
             if key in self._RESERVED_APP_KEYS:
                 raise ValidationError(
                     f"App key '{app.app_key}' is reserved and cannot be used "
@@ -116,6 +158,16 @@ class SaaSApp(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # Normalise app_key BEFORE super() so the DB-stored value matches
+        # what the validator checks. ``@api.constrains`` sees the stored
+        # value, not a transient .strip().lower() copy — without write-
+        # time normalisation, ``"Inhome "`` (trailing space, capital I)
+        # passes the validator's local strip-and-lower check but lands
+        # in the DB as-is, then ``app_resolver.get_app_from_host()``
+        # (which lowercases the leftmost label) fails to match it.
+        for vals in vals_list:
+            if 'app_key' in vals and isinstance(vals['app_key'], str):
+                vals['app_key'] = vals['app_key'].strip().lower()
         records = super().create(vals_list)
         for app in records:
             if app.access_mode == 'group' and app._needs_access_group():
@@ -123,6 +175,8 @@ class SaaSApp(models.Model):
         return records
 
     def write(self, vals):
+        if 'app_key' in vals and isinstance(vals['app_key'], str):
+            vals['app_key'] = vals['app_key'].strip().lower()
         res = super().write(vals)
         if vals.get('access_mode') == 'group':
             for app in self:

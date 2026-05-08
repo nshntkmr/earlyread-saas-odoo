@@ -114,13 +114,16 @@ def _format_kpi_preview(chart_type, columns, rows, config):
             sec_val = rows[0][col_idx[y_col]]
             result['secondary'] = f'{y_col}: {_format_value(sec_val, config.get("kpi_format", "number"))}'
 
-    # Status KPI — icon/css
-    _logger.info("PREVIEW DEBUG: chart_type=%r, has_rows=%s, y_cols_raw=%r",
-                 chart_type, bool(rows), y_cols_raw)
+    # Status KPI — icon/css. Diagnostics held at DEBUG: ``raw_val`` and
+    # other row data may be PHI-adjacent and must not retain in long-
+    # retention production logs (was incorrectly INFO labelled "PREVIEW
+    # DEBUG", which is the level it should have been all along).
+    _logger.debug("PREVIEW DEBUG: chart_type=%r, has_rows=%s, y_cols_raw=%r",
+                  chart_type, bool(rows), y_cols_raw)
     if chart_type == 'status_kpi' and rows:
         status_col = config.get('status_column', '')
-        _logger.info("PREVIEW DEBUG: status_col=%r, y_cols_raw=%r, raw_val=%r",
-                     status_col, y_cols_raw, raw_val)
+        _logger.debug("PREVIEW DEBUG: status_col=%r, y_cols_raw=%r, raw_val=%r",
+                      status_col, y_cols_raw, raw_val)
         if status_col and status_col in col_idx:
             # Explicit status column with text values (up/down/warning/etc.)
             status_val = str(rows[0][col_idx[status_col]]).lower()
@@ -146,7 +149,7 @@ def _format_kpi_preview(chart_type, columns, rows, config):
                 except (TypeError, ValueError):
                     _logger.exception("PREVIEW DEBUG: float conversion failed")
 
-    _logger.info("PREVIEW DEBUG: final result keys=%s", list(result.keys()))
+    _logger.debug("PREVIEW DEBUG: final result keys=%s", list(result.keys()))
     return result
 
 

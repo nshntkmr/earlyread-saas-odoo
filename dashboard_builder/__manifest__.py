@@ -27,6 +27,15 @@
         'views/menuitems.xml',
         'views/designer_templates.xml',
     ],
+    'external_dependencies': {
+        # ``anthropic`` (PyPI: ``anthropic``) powers the AI SQL Generator
+        # in services/ai_sql_generator.py. Import name matches PyPI name
+        # (``from anthropic import AnthropicFoundry``). Required as soon
+        # as an admin clicks "Generate SQL with AI"; declaring it here
+        # surfaces a clear missing-install error at module load rather
+        # than at first call.
+        'python': ['anthropic'],
+    },
     'installable': True,
     'application': True,
     'auto_install': False,
