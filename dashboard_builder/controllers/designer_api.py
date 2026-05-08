@@ -392,20 +392,16 @@ class DesignerAPI(http.Controller):
                 )
 
             if use_intent:
-                _logger.info(
-                    "AI Intent Generate: chart=%s, prompt=%s",
-                    chart_type, (prompt or '')[:80],
-                )
+                _logger.info("AI Intent Generate: chart=%s", chart_type)
+                _logger.debug("AI Intent prompt: %s", prompt or '')
                 return self._ai_generate_intent(
                     ai, context, prompt, previous_intent, error_message,
                     source_id, page_id, body,
                 )
 
             # ── Legacy pipeline (opt-in only via feature gate) ───────
-            _logger.info(
-                "AI Legacy Generate: chart=%s, prompt=%s",
-                chart_type, (prompt or '')[:80],
-            )
+            _logger.info("AI Legacy Generate: chart=%s", chart_type)
+            _logger.debug("AI Legacy prompt: %s", prompt or '')
             if error_message and previous_sql:
                 result = ai.fix_sql(context, previous_sql, error_message)
             elif previous_sql:

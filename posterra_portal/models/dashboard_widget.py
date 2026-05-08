@@ -815,7 +815,7 @@ class DashboardWidget(models.Model):
                         exclude_params=exclude,
                     )
                     where_sql, built_params = builder.build()
-                    _logger.info(
+                    _logger.debug(
                         'WIDGET %s [%s] WHERE: %s | source_cols=%s | exclude=%s',
                         self.id, self.name, where_sql, source_columns, exclude,
                     )

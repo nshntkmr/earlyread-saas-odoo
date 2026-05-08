@@ -321,9 +321,10 @@ class ClickHouseExecutor(BaseQueryExecutor):
             )
         except Exception as exc:
             _logger.warning(
-                'ClickHouse query failed (connection=%s): %s | sql[:200]=%s',
-                self.connection.name, exc, ch_query[:200],
+                'ClickHouse query failed (connection=%s): %s',
+                self.connection.name, exc,
             )
+            _logger.debug('Failed CH SQL: %s', ch_query)
             raise
 
         rows = [tuple(r) for r in result.result_rows]
