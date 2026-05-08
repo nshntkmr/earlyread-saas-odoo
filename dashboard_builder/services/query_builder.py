@@ -441,9 +441,8 @@ class QueryBuilder:
                 executor = get_executor(self.env, schema_source)
                 return executor.execute(exec_sql, params)
             except Exception as e:
-                _logger.error(
-                    "Remote query execution failed: %s\nSQL: %s\nParams: %s",
-                    e, exec_sql, params)
+                _logger.error("Remote query execution failed: %s", e)
+                _logger.debug("Failed SQL: %s | params: %s", exec_sql, params)
                 raise ValueError(f"Query execution failed: {e}")
 
         # Local PG path — unchanged from pre-Phase-3 behaviour.
@@ -463,8 +462,8 @@ class QueryBuilder:
             return columns, rows
 
         except Exception as e:
-            _logger.error("Query execution failed: %s\nSQL: %s\nParams: %s",
-                          e, sql, params)
+            _logger.error("Query execution failed: %s", e)
+            _logger.debug("Failed SQL: %s | params: %s", sql, params)
             try:
                 cr.execute("ROLLBACK TO SAVEPOINT preview_exec")
                 cr.execute("RELEASE SAVEPOINT preview_exec")
