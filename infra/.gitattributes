@@ -7,3 +7,4 @@
 *.tf         text eol=lf
 *.tfvars     text eol=lf
 *.tfvars.example text eol=lf
+*.hcl        text eol=lf
