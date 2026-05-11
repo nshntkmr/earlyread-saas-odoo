@@ -1,0 +1,9 @@
+# Force LF line endings for files that should never get CRLF.
+#
+# bootstrap.sh: needs LF because bash on Linux/WSL fails on CRLF-shebang lines.
+# .tf / .tfvars: Terraform handles either, but LF is the canonical formatting
+#                and stops `terraform fmt` from showing diffs after Windows checkout.
+*.sh         text eol=lf
+*.tf         text eol=lf
+*.tfvars     text eol=lf
+*.tfvars.example text eol=lf

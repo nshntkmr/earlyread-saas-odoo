@@ -1,0 +1,17 @@
+# Terraform local state, plans, and secrets
+**/.terraform/*
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/crash.log
+**/crash.*.log
+
+# tfvars contain credentials and per-deploy values; never commit
+**/*.tfvars
+**/*.auto.tfvars
+!**/*.tfvars.example
+
+# Provider lock files ARE committed (reproducibility) — do NOT exclude .terraform.lock.hcl
+
+# Bootstrap output
+terraform/bootstrap/bootstrap-output.txt

@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in your values.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# ─── Required ─────────────────────────────────────────────────────────────────
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# ─── Optional overrides (uncomment to change from defaults) ───────────────────
+
+# location          = "eastus2"
+# vnet_cidr         = "10.10.0.0/16"
+# aks_subnet_cidr   = "10.10.0.0/22"
+# pg_subnet_cidr    = "10.10.4.0/24"
+# appgw_subnet_cidr = "10.10.5.0/24"
+# pe_subnet_cidr    = "10.10.6.0/24"
