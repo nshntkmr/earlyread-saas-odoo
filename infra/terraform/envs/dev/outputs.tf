@@ -1,3 +1,5 @@
+# ─── M1 — Networking + DNS ───────────────────────────────────────────────────
+
 output "resource_group_name" {
   value       = azurerm_resource_group.this.name
   description = "Name of the dev resource group."
@@ -26,4 +28,55 @@ output "dns_zone_name" {
 output "dns_zone_nameservers" {
   value       = module.dns.nameservers
   description = "MANUAL STEP: Add these as NS records on host 'dev' under earlyread.ai at GoDaddy."
+}
+
+# ─── M2 — PostgreSQL ─────────────────────────────────────────────────────────
+
+output "pg_server_name" {
+  value       = module.postgresql.server_name
+  description = "Dev PG Flex server name."
+}
+
+output "pg_fqdn" {
+  value       = module.postgresql.fqdn
+  description = "Dev PG server FQDN. Resolves to a 10.10.4.x private IP from inside the VNet."
+}
+
+output "pg_database_name" {
+  value       = module.postgresql.database_name
+  description = "Initial database name inside PG."
+}
+
+output "pg_admin_username" {
+  value       = module.postgresql.admin_username
+  description = "PG admin login. Password is in Key Vault under 'pg-admin-password'."
+}
+
+# ─── M2 — Key Vault ──────────────────────────────────────────────────────────
+
+output "kv_name" {
+  value       = module.keyvault.name
+  description = "Key Vault name."
+}
+
+output "kv_uri" {
+  value       = module.keyvault.uri
+  description = "Key Vault HTTPS endpoint."
+}
+
+output "kv_secret_names" {
+  value       = module.keyvault.secret_names
+  description = "Secrets seeded in this Key Vault. Replace any 'REPLACE_ME' placeholders before M5."
+}
+
+# ─── M2 — Filestore (Azure Files) ────────────────────────────────────────────
+
+output "filestore_storage_account_name" {
+  value       = module.filestore.storage_account_name
+  description = "Storage account hosting the Azure Files share."
+}
+
+output "filestore_share_url" {
+  value       = module.filestore.share_url
+  description = "Azure Files share URL. Mounted at /var/lib/odoo in M5 AKS pods."
 }

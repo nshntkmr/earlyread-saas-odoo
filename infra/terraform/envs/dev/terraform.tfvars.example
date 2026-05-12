@@ -6,7 +6,13 @@
 
 subscription_id = "00000000-0000-0000-0000-000000000000"
 
-# ─── Optional overrides (uncomment to change from defaults) ───────────────────
+# Allow your public IP through the Key Vault + Storage firewalls so Terraform
+# can seed secrets and the Files share from your laptop.  Required while
+# public-with-firewall mode is enabled; check yours with:
+#   (Invoke-WebRequest ifconfig.me -UseBasicParsing).Content
+allowed_ips = ["49.37.72.58/32"]
+
+# ─── M1 Optional overrides ────────────────────────────────────────────────────
 
 # location          = "eastus2"
 # vnet_cidr         = "10.10.0.0/16"
@@ -14,3 +20,16 @@ subscription_id = "00000000-0000-0000-0000-000000000000"
 # pg_subnet_cidr    = "10.10.4.0/24"
 # appgw_subnet_cidr = "10.10.5.0/24"
 # pe_subnet_cidr    = "10.10.6.0/24"
+
+# ─── M2 Optional overrides ────────────────────────────────────────────────────
+
+# pg_admin_username             = "psadmin"
+# pg_sku_name                   = "B_Standard_B1ms"
+# pg_storage_mb                 = 32768
+# pg_backup_retention_days      = 7
+# pg_geo_redundant_backup_enabled = false
+# pg_pgbouncer_enabled          = false
+# pg_database_name              = "posterra_dev"
+# kv_name                       = "earlyread-saas-dev-kv"
+# filestore_storage_name        = "earlyreaddevfseread"
+# filestore_quota_gb            = 100
