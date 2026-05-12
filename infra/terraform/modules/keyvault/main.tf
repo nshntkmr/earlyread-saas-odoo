@@ -131,7 +131,9 @@ resource "azurerm_key_vault_secret" "secrets" {
   tags = var.tags
 
   lifecycle {
-    ignore_changes = [value, version, content_type, tags]
+    # 'version' is a provider-computed attribute (Azure assigns it),
+    # not something we configure. Including it would be redundant.
+    ignore_changes = [value, content_type, tags]
   }
 
   depends_on = [time_sleep.wait_for_kv_role]
