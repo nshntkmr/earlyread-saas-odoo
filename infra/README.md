@@ -185,7 +185,8 @@ Plus state backend storage (<$1) and provider/data egress (~$5-10) shared.
 ## Notes
 
 - **All `.tfvars` files are gitignored.** Only `.tfvars.example` templates are committed. `backend.hcl` is committed (no secrets in it; just storage account name + container).
-- **KV / Storage firewalls allow only your IP** (in `allowed_ips`) plus the AKS subnet (for M3+ workloads). When your laptop IP changes, update `terraform.tfvars` and re-apply.
+- **KV / Storage firewalls allow only your IP** (in `allowed_ips`) plus the `AzureServices` bypass. When your laptop IP changes, update `terraform.tfvars` and re-apply.
+- **AKS pods (M3+) reach KV / Storage via the Private Endpoints**, not subnet service endpoints. This is intentional — service endpoints would require enabling `Microsoft.KeyVault` / `Microsoft.Storage` on the AKS subnet (which M1 didn't do, and PEs are the more secure forward-looking pattern). Resolution is transparent via the private DNS zones linked to each VNet.
 - **`use_azuread_auth = true` in `backend.hcl`** is commented-out — would tighten state backend to RBAC-only (no shared keys). Switch to it once SP has `Storage Blob Data Contributor` on the state storage account.
 - **PG password rotation**: managed via Key Vault. Set new value with `az keyvault secret set --vault-name <kv> --name pg-admin-password --value <new>`. Then `az postgres flexible-server update --resource-group <rg> --name <server> --admin-password <new>`. Terraform `lifecycle.ignore_changes` keeps it from reverting.
 - **Replace placeholders before M5**: `ch-password-prod`, `ai-api-key`. Use portal or `az keyvault secret set`.

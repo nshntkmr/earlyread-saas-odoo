@@ -96,9 +96,10 @@ module "keyvault" {
   vnet_id             = module.network.vnet_id
   pe_subnet_id        = module.network.subnet_ids["pe"]
   allowed_ips         = var.allowed_ips
-  # AKS subnet pre-allowed so M3 workload identity can read secrets without
-  # a separate VNet rule change.
-  allowed_subnet_ids = [module.network.subnet_ids["aks"]]
+  # NOTE: allowed_subnet_ids intentionally NOT set. Service-endpoint-based
+  # subnet ACL would require Microsoft.KeyVault service endpoint on the
+  # AKS subnet (M1 doesn't enable it).  AKS pods (M3+) reach KV via the
+  # Private Endpoint instead — fully transparent via private DNS.
 
   initial_secrets = {
     "pg-admin-password" = random_password.pg_admin.result
@@ -122,8 +123,10 @@ module "filestore" {
   vnet_id             = module.network.vnet_id
   pe_subnet_id        = module.network.subnet_ids["pe"]
   allowed_ips         = var.allowed_ips
-  allowed_subnet_ids  = [module.network.subnet_ids["aks"]]
-  quota_gb            = var.filestore_quota_gb
+  # NOTE: allowed_subnet_ids intentionally NOT set.  Same reasoning as the
+  # keyvault module — AKS pods (M3+) reach the Files share via the
+  # Private Endpoint, not subnet service endpoints.
+  quota_gb = var.filestore_quota_gb
 
   tags = local.tags
 }

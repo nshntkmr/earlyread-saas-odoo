@@ -10,7 +10,8 @@ subscription_id = "00000000-0000-0000-0000-000000000000"
 # can seed secrets and the Files share from your laptop.  Required while
 # public-with-firewall mode is enabled; check yours with:
 #   (Invoke-WebRequest ifconfig.me -UseBasicParsing).Content
-allowed_ips = ["49.37.72.58/32"]
+# Replace with your actual IP before copying to terraform.tfvars.
+allowed_ips = ["YOUR.PUBLIC.IP.HERE/32"]
 
 # ─── M1 Optional overrides ────────────────────────────────────────────────────
 

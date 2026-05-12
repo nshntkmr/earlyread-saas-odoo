@@ -93,6 +93,11 @@ resource "azurerm_postgresql_flexible_server_database" "this" {
 }
 
 # Built-in PgBouncer for Standard SKUs (staging only — Burstable doesn't support it)
+#
+# The two configuration parameters MUST be serialized: 'pgbouncer.enabled'
+# is the master switch and other pgbouncer.* settings can only be applied
+# AFTER it's true.  Parallel apply (Terraform's default) can race and one
+# of the configs may fail.  Explicit depends_on enforces order.
 resource "azurerm_postgresql_flexible_server_configuration" "pgbouncer_enabled" {
   count     = var.pgbouncer_enabled ? 1 : 0
   name      = "pgbouncer.enabled"
@@ -101,10 +106,11 @@ resource "azurerm_postgresql_flexible_server_configuration" "pgbouncer_enabled" 
 }
 
 resource "azurerm_postgresql_flexible_server_configuration" "pgbouncer_pool_mode" {
-  count     = var.pgbouncer_enabled ? 1 : 0
-  name      = "pgbouncer.pool_mode"
-  server_id = azurerm_postgresql_flexible_server.this.id
-  value     = "TRANSACTION"
+  count      = var.pgbouncer_enabled ? 1 : 0
+  depends_on = [azurerm_postgresql_flexible_server_configuration.pgbouncer_enabled]
+  name       = "pgbouncer.pool_mode"
+  server_id  = azurerm_postgresql_flexible_server.this.id
+  value      = "TRANSACTION"
 }
 
 # Force all connections to use TLS
