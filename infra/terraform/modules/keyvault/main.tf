@@ -37,7 +37,7 @@ resource "azurerm_key_vault" "this" {
   resource_group_name           = var.resource_group_name
   tenant_id                     = data.azurerm_client_config.current.tenant_id
   sku_name                      = "standard"
-  enable_rbac_authorization     = true
+  rbac_authorization_enabled    = true # azurerm 4.x renamed from enable_rbac_authorization
   public_network_access_enabled = true
   purge_protection_enabled      = true
   soft_delete_retention_days    = 90
@@ -116,10 +116,15 @@ resource "azurerm_private_endpoint" "kv" {
 # Terraform creates each secret slot once with the supplied initial value.
 # Replace placeholders ('REPLACE_ME') manually before M5.
 
+# Iterate over the SECRET NAMES (which are non-sensitive metadata like
+# "pg-admin-password"), and look up the sensitive value via map lookup.
+# Cannot do `for_each = var.initial_secrets` directly because the map is
+# marked sensitive and Terraform refuses to use sensitive values as
+# for_each keys (keys would leak into resource addresses, plan output, etc).
 resource "azurerm_key_vault_secret" "secrets" {
-  for_each     = var.initial_secrets
-  name         = each.key
-  value        = each.value
+  for_each     = toset(nonsensitive(keys(var.initial_secrets)))
+  name         = each.value
+  value        = var.initial_secrets[each.value]
   key_vault_id = azurerm_key_vault.this.id
   content_type = "text/plain"
 
