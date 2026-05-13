@@ -61,7 +61,7 @@ infra/
   - OIDC issuer + Workload Identity enabled
   - AGIC add-on (managed identity model)
   - Local accounts enabled — `az aks get-credentials --admin` works
-- App Gateway v2 + WAF v2 (`Detection` mode initially), autoscale 1-10
+- App Gateway v2 (`Standard_v2` SKU — no WAF; see Notes for WAF upgrade trigger), autoscale 1-10
 - Wildcard DNS A record (`*.{env}.earlyread.ai` → App Gateway public IP)
 - User-Assigned Managed Identities (no AAD apps):
   - `earlyread-saas-{env}-eso-id` → Key Vault Secrets User on env KV
@@ -284,7 +284,7 @@ kubectl delete namespace test
 | M2 — PG, KV, Files, PEs | ~50 | ~165 |
 | M3 — AKS system pool (D4as_v5 × 2) | ~140 | ~140-210 |
 | M3 — AKS user pool | ~70 (D2 × 1-2) | ~280-420 (D4 × 2-3) |
-| M3 — App Gateway v2 + WAF v2 | ~255 | ~255 |
+| M3 — App Gateway v2 (Standard_v2; WAF deferred) | ~180 | ~180 |
 | M3 — Container Insights / Log Analytics | ~15 | ~30 |
 | **Per-env subtotal (M1+M2+M3)** | **~$580** | **~$920-1,130** |
 
@@ -298,6 +298,8 @@ Plus shared: ACR Standard ~$20/mo; state backend < $1/mo.
 
 - **AKS system pool minimums** (hard Azure rule): ≥ 2 nodes AND ≥ 4 vCPU SKU. Using D4as_v5 to comply.
 - **AKS uses local accounts** for `--admin` kubectl access. To lock down: set `local_account_disabled = true` in the aks module (post-M9 when prod-ready).
+- **App Gateway runs Standard_v2 (no WAF)** in both dev and staging. Saves ~$288/mo combined vs WAF_v2. HIPAA does NOT require WAF — only "technical safeguards" which we have (TLS, RBAC, private endpoints, encryption at rest). WAF is a defense-in-depth layer added when handling real PHI in prod.
+  - **WAF upgrade trigger**: before serving real customer PHI (prod cutover OR staging onboarding the first paying customer). Switch by setting `appgw_sku = "WAF_v2"` in the env's `terraform.tfvars`. **Important**: SKU change is NOT in-place — Terraform will destroy the App Gateway and re-create it. ~5-10 min downtime for that env. Schedule accordingly.
 - **AGIC writes App Gateway routing rules, NOT DNS records**. Our wildcard `*.<env>.earlyread.ai` A record (managed by Terraform) handles DNS for all tenant subdomains uniformly.
 - **Apply order is strict**: shared → env infra → env services. Cannot apply services before AKS exists.
 - **Two-phase apply per env** avoids the chicken-and-egg of helm/kubernetes providers needing a kubeconfig that doesn't exist until AKS is created.

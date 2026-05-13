@@ -140,6 +140,7 @@ module "appgw" {
   location            = var.location
   resource_group_name = azurerm_resource_group.this.name
   appgw_subnet_id     = module.network.subnet_ids["appgw"]
+  sku_name            = var.appgw_sku
   waf_mode            = var.waf_mode
 
   tags = local.tags

@@ -1,13 +1,22 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# App Gateway v2 + WAF v2 module
+# App Gateway v2 module (SKU configurable: Standard_v2 or WAF_v2)
 #
 # Public HTTPS front door. Terminates TLS, routes by host header to AKS
-# Services, applies WAF rules.  AGIC (the AKS add-on) manages the runtime
-# config (backend pools, listeners, routing rules) — Terraform only creates
-# the gateway, public IP, and baseline defaults.
+# Services. AGIC (the AKS add-on) manages the runtime config (backend pools,
+# listeners, routing rules) — Terraform only creates the gateway, public IP,
+# and baseline defaults.
 #
-# WAF mode starts in Detection (logs but doesn't block) per parent plan;
-# flips to Prevention in M6 once a 2-week ruleset baseline is established.
+# SKU options:
+#   • Standard_v2 — TLS + routing + autoscale + AGIC integration, NO WAF
+#                   (~$180/mo fixed). Default for non-prod.
+#   • WAF_v2      — adds OWASP rule sets + bot management + custom WAF rules
+#                   (~$324/mo fixed). Required for prod / when WAF is desired.
+#
+# SKU cannot be changed in-place — switching requires recreating the
+# App Gateway and re-pointing DNS. Pick the right SKU per-env.
+#
+# When sku_name = "WAF_v2", waf_mode starts in Detection (logs but doesn't
+# block) per parent plan; flips to Prevention in M6 after baseline period.
 # ─────────────────────────────────────────────────────────────────────────────
 
 terraform {
@@ -35,8 +44,8 @@ resource "azurerm_application_gateway" "this" {
   resource_group_name = var.resource_group_name
 
   sku {
-    name = "WAF_v2"
-    tier = "WAF_v2"
+    name = var.sku_name
+    tier = var.sku_name
   }
 
   autoscale_configuration {
@@ -95,11 +104,17 @@ resource "azurerm_application_gateway" "this" {
     backend_http_settings_name = "default-backend-settings"
   }
 
-  waf_configuration {
-    enabled          = true
-    firewall_mode    = var.waf_mode
-    rule_set_type    = "OWASP"
-    rule_set_version = "3.2"
+  # waf_configuration block is ONLY valid when sku_name = "WAF_v2".
+  # Azure rejects this block on Standard_v2. Dynamic block conditionally
+  # emits it based on SKU.
+  dynamic "waf_configuration" {
+    for_each = var.sku_name == "WAF_v2" ? [1] : []
+    content {
+      enabled          = true
+      firewall_mode    = var.waf_mode
+      rule_set_type    = "OWASP"
+      rule_set_version = "3.2"
+    }
   }
 
   tags = var.tags

@@ -18,8 +18,19 @@ variable "appgw_subnet_id" {
   type        = string
 }
 
+variable "sku_name" {
+  description = "App Gateway SKU. 'Standard_v2' (~$180/mo, no WAF) or 'WAF_v2' (~$324/mo, OWASP rule sets + bot management). SKU cannot be changed in-place — switching later requires gateway recreation + DNS cutover."
+  type        = string
+  default     = "Standard_v2"
+
+  validation {
+    condition     = contains(["Standard_v2", "WAF_v2"], var.sku_name)
+    error_message = "sku_name must be 'Standard_v2' or 'WAF_v2'."
+  }
+}
+
 variable "waf_mode" {
-  description = "WAF mode. Start with Detection (logs only); flip to Prevention in M6."
+  description = "WAF mode. Only used when sku_name = WAF_v2. Start with Detection (logs only); flip to Prevention in M6."
   type        = string
   default     = "Detection"
 

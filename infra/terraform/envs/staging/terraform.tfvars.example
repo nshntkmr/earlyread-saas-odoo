@@ -43,4 +43,5 @@ allowed_ips = ["YOUR.PUBLIC.IP.HERE/32"]
 # user_max_count       = 3
 # admin_group_object_ids = []
 # cluster_admin_oids     = []
-# waf_mode             = "Detection"
+# appgw_sku            = "Standard_v2"        # 'Standard_v2' (no WAF, ~$180/mo) or 'WAF_v2' (~$324/mo); upgrade to WAF_v2 before prod
+# waf_mode             = "Detection"          # Only used when appgw_sku = WAF_v2

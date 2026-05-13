@@ -48,4 +48,5 @@ allowed_ips = ["YOUR.PUBLIC.IP.HERE/32"]
 # user_max_count       = 2
 # admin_group_object_ids = []                 # Azure AD groups for system:masters
 # cluster_admin_oids     = []                 # Principal OIDs for Azure RBAC cluster admin
-# waf_mode             = "Detection"
+# appgw_sku            = "Standard_v2"        # 'Standard_v2' (no WAF, ~$180/mo) or 'WAF_v2' (~$324/mo)
+# waf_mode             = "Detection"          # Only used when appgw_sku = WAF_v2

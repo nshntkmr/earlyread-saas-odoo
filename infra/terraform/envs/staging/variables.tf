@@ -205,8 +205,14 @@ variable "cluster_admin_oids" {
 
 # ─── M3 — App Gateway ────────────────────────────────────────────────────────
 
+variable "appgw_sku" {
+  description = "App Gateway SKU. 'Standard_v2' (~$180/mo, no WAF) or 'WAF_v2' (~$324/mo). SKU cannot be changed in-place — switching requires gateway recreation + DNS cutover. Staging: Standard_v2 for now (non-prod); upgrade to WAF_v2 before prod cutover."
+  type        = string
+  default     = "Standard_v2"
+}
+
 variable "waf_mode" {
-  description = "WAF firewall mode. Detection for first 2 weeks per parent plan."
+  description = "WAF firewall mode. Only applied when appgw_sku = WAF_v2. Detection for first 2 weeks per parent plan."
   type        = string
   default     = "Detection"
 }
