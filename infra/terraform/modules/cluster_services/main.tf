@@ -2,8 +2,8 @@
 # Cluster Services module — runs INSIDE the AKS cluster
 #
 # Applied as part of envs/<env>/services/, NOT envs/<env>/. Splits cluster
-# infra (azurerm only) from cluster runtime services (azurerm + kubernetes +
-# helm) to avoid race conditions on first apply.
+# infra (azurerm only) from cluster runtime services (azurerm + helm + kubectl)
+# to avoid race conditions on first apply.
 #
 # Resources created:
 #   • cert-manager Helm release with workload identity wiring
@@ -11,6 +11,13 @@
 #   • Let's Encrypt production ClusterIssuer (same; switch issuer ref in M5)
 #   • ESO Helm release with workload identity wiring
 #   • ClusterSecretStore pointing at the env's KV (via the ESO UAMI)
+#
+# Uses gavinbunney/kubectl (not hashicorp/kubernetes) for the ClusterIssuer
+# and ClusterSecretStore resources because those reference CRDs that don't
+# exist until cert-manager / ESO Helm installs complete. The hashicorp
+# kubernetes_manifest resource validates against the API at PLAN time, which
+# fails when the CRDs don't exist yet. kubectl_manifest does not — it just
+# applies the YAML at apply time.
 # ─────────────────────────────────────────────────────────────────────────────
 
 terraform {
@@ -19,13 +26,13 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.10"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.30"
-    }
     helm = {
       source  = "hashicorp/helm"
       version = "~> 2.16"
+    }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
     }
   }
 }
@@ -40,15 +47,13 @@ resource "helm_release" "cert_manager" {
   create_namespace = true
   version          = var.cert_manager_chart_version
 
-  # CRDs installed by the chart (otherwise the kubernetes_manifest blocks
-  # below would fail at apply because ClusterIssuer kind would be unknown).
+  # CRDs installed by the chart so kubectl_manifest resources below find them.
   set {
     name  = "installCRDs"
     value = "true"
   }
 
   # Wire workload identity onto the cert-manager ServiceAccount + pod labels.
-  # See https://cert-manager.io/docs/configuration/acme/dns01/azuredns/
   set {
     name  = "serviceAccount.labels.azure\\.workload\\.identity/use"
     value = "true"
@@ -65,8 +70,8 @@ resource "helm_release" "cert_manager" {
 
 # Let's Encrypt staging issuer (higher rate limits, friendlier for debugging).
 # M5 first cert request will use this; flip to letsencrypt-prod after verifying.
-resource "kubernetes_manifest" "letsencrypt_staging" {
-  manifest = {
+resource "kubectl_manifest" "letsencrypt_staging" {
+  yaml_body = yamlencode({
     apiVersion = "cert-manager.io/v1"
     kind       = "ClusterIssuer"
     metadata = {
@@ -94,15 +99,15 @@ resource "kubernetes_manifest" "letsencrypt_staging" {
         }]
       }
     }
-  }
+  })
 
   depends_on = [helm_release.cert_manager]
 }
 
-# Let's Encrypt production issuer (rate-limited; only flip to this when
-# staging has been verified end-to-end).
-resource "kubernetes_manifest" "letsencrypt_prod" {
-  manifest = {
+# Let's Encrypt production issuer (rate-limited; flip to this when staging
+# has been verified end-to-end).
+resource "kubectl_manifest" "letsencrypt_prod" {
+  yaml_body = yamlencode({
     apiVersion = "cert-manager.io/v1"
     kind       = "ClusterIssuer"
     metadata = {
@@ -130,7 +135,7 @@ resource "kubernetes_manifest" "letsencrypt_prod" {
         }]
       }
     }
-  }
+  })
 
   depends_on = [helm_release.cert_manager]
 }
@@ -175,8 +180,8 @@ resource "helm_release" "external_secrets" {
 # ClusterSecretStore — the integration point between ESO and the env's KV.
 # Helm chart M5 will create ExternalSecret resources that reference this
 # store name.
-resource "kubernetes_manifest" "kv_cluster_secret_store" {
-  manifest = {
+resource "kubectl_manifest" "kv_cluster_secret_store" {
+  yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ClusterSecretStore"
     metadata = {
@@ -195,7 +200,7 @@ resource "kubernetes_manifest" "kv_cluster_secret_store" {
         }
       }
     }
-  }
+  })
 
   depends_on = [helm_release.external_secrets]
 }
