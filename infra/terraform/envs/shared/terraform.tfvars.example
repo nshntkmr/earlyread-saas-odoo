@@ -1,0 +1,9 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in your subscription_id.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# Optional overrides
+# location = "eastus2"
+# acr_name = "earlyreadsaasacreread"   # must be globally unique

@@ -130,3 +130,83 @@ variable "allowed_ips" {
   type        = list(string)
   default     = []
 }
+
+# ─── M3 — Shared resources ───────────────────────────────────────────────────
+
+variable "acr_name" {
+  description = "Shared ACR name (created by envs/shared/, referenced via data source)."
+  type        = string
+  default     = "earlyreadsaasacreread"
+}
+
+# ─── M3 — AKS ────────────────────────────────────────────────────────────────
+
+variable "kubernetes_version" {
+  description = "AKS Kubernetes version. Verify availability with `az aks get-versions --location eastus2`."
+  type        = string
+  default     = "1.34.6"
+}
+
+variable "pod_cidr" {
+  description = "Pod CIDR for CNI Overlay (RFC 6598 range — doesn't consume VNet IPs)."
+  type        = string
+  default     = "100.64.0.0/16"
+}
+
+# Dev system pool — must be ≥ 4 vCPU SKU AND ≥ 2 nodes (AKS rule)
+variable "system_vm_size" {
+  description = "AKS system pool VM SKU. Must be ≥ Standard_D4as_v5 (4vCPU/16GB) for AKS minimums."
+  type        = string
+  default     = "Standard_D4as_v5"
+}
+
+variable "system_min_count" {
+  description = "System pool min node count. AKS requires ≥ 2."
+  type        = number
+  default     = 2
+}
+
+variable "system_max_count" {
+  description = "System pool max node count. Dev: fixed at 2 (min=max=2)."
+  type        = number
+  default     = 2
+}
+
+# Dev user pool — cost-optimized
+variable "user_vm_size" {
+  description = "AKS user pool VM SKU. Dev: D2as_v5 (2vCPU/8GB)."
+  type        = string
+  default     = "Standard_D2as_v5"
+}
+
+variable "user_min_count" {
+  description = "User pool min node count."
+  type        = number
+  default     = 1
+}
+
+variable "user_max_count" {
+  description = "User pool max node count."
+  type        = number
+  default     = 2
+}
+
+variable "admin_group_object_ids" {
+  description = "Azure AD group OIDs granted system:masters (K8s RBAC). Empty = use --admin flag for ad-hoc kubectl."
+  type        = list(string)
+  default     = []
+}
+
+variable "cluster_admin_oids" {
+  description = "Principal OIDs granted 'Azure Kubernetes Service RBAC Cluster Admin' (Azure RBAC layer). Empty = relies on --admin flag local accounts."
+  type        = list(string)
+  default     = []
+}
+
+# ─── M3 — App Gateway ────────────────────────────────────────────────────────
+
+variable "waf_mode" {
+  description = "WAF firewall mode. Detection for first 2 weeks per parent plan; flip to Prevention in M6."
+  type        = string
+  default     = "Detection"
+}

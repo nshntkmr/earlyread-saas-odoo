@@ -6,11 +6,6 @@
 
 subscription_id = "00000000-0000-0000-0000-000000000000"
 
-# Allow your public IP through the Key Vault + Storage firewalls so Terraform
-# can seed secrets and the Files share from your laptop.  Required while
-# public-with-firewall mode is enabled; check yours with:
-#   (Invoke-WebRequest ifconfig.me -UseBasicParsing).Content
-# Replace with your actual IP before copying to terraform.tfvars.
 allowed_ips = ["YOUR.PUBLIC.IP.HERE/32"]
 
 # ─── M1 Optional overrides ────────────────────────────────────────────────────
@@ -34,3 +29,18 @@ allowed_ips = ["YOUR.PUBLIC.IP.HERE/32"]
 # kv_name                       = "earlyread-saas-stg-kv"
 # filestore_storage_name        = "earlyreadstgfseread"
 # filestore_quota_gb            = 100
+
+# ─── M3 Optional overrides — staging prod-replica sizing ──────────────────────
+
+# acr_name             = "earlyreadsaasacreread"
+# kubernetes_version   = "1.34.6"
+# pod_cidr             = "100.64.0.0/16"
+# system_vm_size       = "Standard_D4as_v5"
+# system_min_count     = 2
+# system_max_count     = 3                    # Staging: autoscale 2-3
+# user_vm_size         = "Standard_D4as_v5"   # Staging: prod-replica D4
+# user_min_count       = 2
+# user_max_count       = 3
+# admin_group_object_ids = []
+# cluster_admin_oids     = []
+# waf_mode             = "Detection"

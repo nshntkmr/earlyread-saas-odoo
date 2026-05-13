@@ -12,12 +12,12 @@ output "vnet_name" {
 
 output "subnet_ids" {
   value       = module.network.subnet_ids
-  description = "Map of subnet name → resource ID. Consumed by M2 (PG), M3 (AKS, AppGw, PEs)."
+  description = "Map of subnet name → resource ID."
 }
 
 output "natgw_public_ip" {
   value       = module.network.natgw_public_ip
-  description = "Fixed public IP for outbound from staging. Allow-list this on ClickHouse Cloud + Anthropic."
+  description = "Fixed public IP for outbound from staging. Allow-list on ClickHouse Cloud + Anthropic."
 }
 
 output "dns_zone_name" {
@@ -27,7 +27,7 @@ output "dns_zone_name" {
 
 output "dns_zone_nameservers" {
   value       = module.dns.nameservers
-  description = "MANUAL STEP: Add these as NS records on host 'staging' under earlyread.ai at GoDaddy."
+  description = "MANUAL STEP: Add as NS records on host 'staging' under earlyread.ai at GoDaddy."
 }
 
 # ─── M2 — PostgreSQL ─────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ output "kv_uri" {
 
 output "kv_secret_names" {
   value       = module.keyvault.secret_names
-  description = "Secrets seeded in this Key Vault. Replace any 'REPLACE_ME' placeholders before M5."
+  description = "Secrets seeded in this Key Vault."
 }
 
 # ─── M2 — Filestore (Azure Files) ────────────────────────────────────────────
@@ -78,5 +78,42 @@ output "filestore_storage_account_name" {
 
 output "filestore_share_url" {
   value       = module.filestore.share_url
-  description = "Azure Files share URL. Mounted at /var/lib/odoo in M5 AKS pods."
+  description = "Azure Files share URL."
+}
+
+# ─── M3 — AKS + App Gateway + Workload Identity ─────────────────────────────
+
+output "aks_cluster_name" {
+  value       = module.aks.name
+  description = "Staging AKS cluster name."
+}
+
+output "aks_oidc_issuer_url" {
+  value       = module.aks.oidc_issuer_url
+  description = "AKS cluster OIDC issuer URL."
+}
+
+output "appgw_name" {
+  value       = module.appgw.name
+  description = "App Gateway name."
+}
+
+output "appgw_public_ip" {
+  value       = module.appgw.public_ip
+  description = "App Gateway public IP. Wildcard *.staging.earlyread.ai DNS record targets this."
+}
+
+output "appgw_public_ip_fqdn" {
+  value       = module.appgw.public_ip_fqdn
+  description = "Azure-assigned cloudapp.azure.com FQDN for the App Gateway public IP."
+}
+
+output "eso_uami_client_id" {
+  value       = module.workload_identity.eso_uami_client_id
+  description = "client_id of the ESO UAMI."
+}
+
+output "cert_manager_uami_client_id" {
+  value       = module.workload_identity.cert_manager_uami_client_id
+  description = "client_id of the cert-manager UAMI."
 }

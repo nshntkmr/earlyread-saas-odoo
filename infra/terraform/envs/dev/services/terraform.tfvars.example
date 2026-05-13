@@ -1,0 +1,6 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in your subscription_id.
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# acme_email defaults to nishant.singh@humbianalytics.com; override if needed.
+# acme_email = "alerts@yourdomain.com"

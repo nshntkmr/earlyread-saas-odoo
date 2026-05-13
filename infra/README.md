@@ -7,58 +7,81 @@ Azure infrastructure-as-code for the Earlyread SaaS platform.
 ```
 infra/
 ├── README.md                       (this file)
-├── .gitignore                      (excludes tfstate, tfvars, .terraform/)
-├── .gitattributes                  (forces LF on .sh / .tf / .tfvars / .hcl)
+├── .gitignore
+├── .gitattributes
 └── terraform/
     ├── bootstrap/                  (one-time state backend setup; not used this deployment)
-    │   ├── README.md
-    │   └── bootstrap.sh
     ├── modules/                    (reusable building blocks)
-    │   ├── network/                (VNet, subnets, NAT gateway)        — M1
-    │   ├── dns/                    (Azure public DNS zone)             — M1
-    │   ├── postgresql/             (PG Flex + private DNS + VNet link) — M2
-    │   ├── keyvault/               (KV + PE + private DNS + secrets)   — M2
-    │   └── filestore/              (Storage + Files share + PE + DNS)  — M2
-    └── envs/                       (per-environment instantiation)
-        ├── dev/
-        └── staging/
+    │   ├── network/                (VNet, subnets, NAT gateway)              — M1
+    │   ├── dns/                    (Azure public DNS zone)                   — M1
+    │   ├── postgresql/             (PG Flex + private DNS + VNet link)       — M2
+    │   ├── keyvault/               (KV + PE + private DNS + secrets)         — M2
+    │   ├── filestore/              (Storage + Files share + PE + DNS)        — M2
+    │   ├── acr/                    (Container Registry Standard, shared)     — M3
+    │   ├── aks/                    (AKS cluster + node pools + AGIC add-on)  — M3
+    │   ├── appgw/                  (App Gateway v2 + WAF v2 + public IP)     — M3
+    │   ├── workload_identity/      (UAMIs + federated creds + role grants)   — M3
+    │   └── cluster_services/       (cert-manager + ESO via Helm)             — M3
+    └── envs/
+        ├── shared/                 (apply ONCE; creates shared RG + ACR)     — M3
+        ├── dev/                    (M1 + M2 + M3 infra layer)
+        │   └── services/           (M3 cluster-side services; apply AFTER dev/)
+        └── staging/                (M1 + M2 + M3 infra layer; prod-replica)
+            └── services/           (M3 cluster-side services; apply AFTER staging/)
 ```
 
 ## What's deployed
 
 ### M1 — Foundation (shipped)
 
-- Resource Groups: `earlyread-saas-tfstate-rg` (state) + `earlyread-saas-{dev,staging}-rg` (env)
+- Resource Groups: `earlyread-saas-tfstate-rg` (state) + `earlyread-saas-{dev,staging}-rg`
 - Virtual Networks (one per env, separate IP ranges)
 - 4 subnets per VNet: `aks`, `pg` (delegated to PG Flex), `appgw`, `pe`
 - NAT Gateway (one per env, fixed public IP for outbound)
-- Azure DNS zones: `dev.earlyread.ai` and `staging.earlyread.ai` (apex stays on GoDaddy, NS records delegated)
+- Azure DNS zones: `dev.earlyread.ai` and `staging.earlyread.ai`
 - Terraform state backend (Azure Storage with lease lock)
 
-### M2 — Data & secrets layer (this commit)
+### M2 — Data & secrets layer (shipped)
 
-- **PostgreSQL Flexible Server** per env, VNet-injected into the delegated `pg` subnet
-  - Dev: `B_Standard_B1ms` (1vC/2GB Burstable, 32 GB Premium SSD, 7-day backup retention)
-  - Staging: `GP_Standard_D2ds_v5` (2vC/8GB General Purpose, 64 GB, 35-day retention, geo-redundant backup, built-in PgBouncer)
-  - Both: PG 16, TLS required, single zone, public access disabled
-  - Initial DB `posterra_dev` / `posterra_staging` (empty; M5 seeds schema)
-- **Azure Key Vault** per env (`earlyread-saas-dev-kv`, `earlyread-saas-stg-kv`)
-  - RBAC mode, soft-delete + purge-protection enabled, public-with-firewall (allow-list your IP only)
-  - 6 seeded secrets: `pg-admin-password` (auto-gen), `jwt-secret` (auto-gen), `ch-password-prod`, `ai-api-key`, `ai-endpoint`, `ai-model` (last 4 are placeholders / static values; replace via portal before M5)
-  - All secrets use `lifecycle.ignore_changes = [value]` so manual rotations don't get reverted
-- **Azure Files Premium share** per env (100 GB)
-  - Storage accounts `earlyreaddevfseread` / `earlyreadstgfseread`
-  - Share name `odoo-filestore`, mounted at `/var/lib/odoo` in AKS pods in M5
-- **3 Private DNS Zones per env**: `earlyread-<env>.postgres.database.azure.com`, `privatelink.vaultcore.azure.net`, `privatelink.file.core.windows.net`
-- **2 Private Endpoints per env** (KV + Files; PG uses VNet injection not PE)
+- PostgreSQL Flexible Server per env, VNet-injected (dev `B1ms`, staging `D2ds_v5` with PgBouncer)
+- Azure Key Vault per env with 6 seeded secrets, RBAC mode, private endpoint
+- Azure Files Premium share per env (100 GB), private endpoint
+- Private DNS zones: 3 per env (PG + KV + Files)
 
-### Still ahead (M3+)
+### M3 — Runtime layer (this commit)
 
-- AKS cluster + AGIC + cert-manager + ESO (External Secrets Operator) — **M3**
-- TLS certs via cert-manager + Let's Encrypt — M3
-- Odoo image (Docker) + ACR + Helm chart — M4
-- First Odoo deployment + DB schema seed + tenant subdomain works — M5
-- WAF flip + observability + alerts — M6
+**Shared layer** (in new RG `earlyread-saas-shared-rg`):
+- Azure Container Registry `earlyreadsaasacreread` (Standard tier, AAD auth, no admin user)
+
+**Per-env**:
+- AKS cluster `earlyread-saas-{env}-aks` with **K8s 1.34.6**
+  - **Dev**: system pool 2× `D4as_v5` (fixed), user pool 1-2× `D2as_v5`
+  - **Staging**: system pool 2-3× `D4as_v5`, user pool 2-3× `D4as_v5` (prod-replica for 20-30 concurrent)
+  - Azure CNI Overlay, Pod CIDR `100.64.0.0/16`
+  - OIDC issuer + Workload Identity enabled
+  - AGIC add-on (managed identity model)
+  - Local accounts enabled — `az aks get-credentials --admin` works
+- App Gateway v2 + WAF v2 (`Detection` mode initially), autoscale 1-10
+- Wildcard DNS A record (`*.{env}.earlyread.ai` → App Gateway public IP)
+- User-Assigned Managed Identities (no AAD apps):
+  - `earlyread-saas-{env}-eso-id` → Key Vault Secrets User on env KV
+  - `earlyread-saas-{env}-cert-id` → DNS Zone Contributor on env DNS zone
+- Federated credentials linking each UAMI to its K8s ServiceAccount
+- AGIC's managed identity granted Network Contributor on App Gateway + Reader on env RG
+- AKS kubelet identity granted AcrPull on the shared ACR
+
+**Per-env services layer** (deployed by `envs/{env}/services/` after infra layer):
+- cert-manager Helm release with workload-identity wiring
+- Let's Encrypt staging + production ClusterIssuers (DNS-01 via Azure DNS UAMI)
+- External Secrets Operator Helm release with workload-identity wiring
+- ClusterSecretStore pointing at the env's KV (`{env}-kv-store`)
+
+### Still ahead (M4+)
+
+- Odoo container image (`Dockerfile` + NGINX sidecar) → ACR push — M4
+- Helm chart with portal/admin/cron pod roles + Ingress resources — M4
+- First Odoo deployment in `odoo-{env}` namespace; first tenant subdomain works — M5
+- WAF flip to Prevention + observability + alerts — M6
 - pg_dump CronJob → Blob backup — M7
 - k6 baseline against staging (architectural gate) — M9
 - CI/CD (GitHub Actions) — M10
@@ -68,23 +91,23 @@ infra/
 
 | Type | Pattern | Examples |
 |---|---|---|
-| Hyphen-allowed (RGs, VNets, NAT, subnets, KV, PG, PEs, DNS zones) | `earlyread-saas-<env>-<purpose>` | `earlyread-saas-dev-vnet`, `earlyread-saas-dev-pg`, `earlyread-saas-dev-kv` |
-| No-hyphen (Storage accounts — Azure rule) | `earlyread<env>fs<suffix>` for files; `earlyreadtfstate<suffix>` for state | `earlyreaddevfseread`, `earlyreadstgfseread`, `earlyreadtfstateeread` |
-| Public DNS zones (domain names) | `<env>.earlyread.ai` | `dev.earlyread.ai` |
+| Hyphen-allowed | `earlyread-saas-<env>-<purpose>` | `earlyread-saas-dev-aks`, `earlyread-saas-dev-appgw`, `earlyread-saas-dev-kv` |
+| No-hyphen (Storage, ACR) | `earlyread<...>` | `earlyreadtfstateeread`, `earlyreaddevfseread`, `earlyreadsaasacreread` |
+| Public DNS zones | `<env>.earlyread.ai` | `dev.earlyread.ai` |
 | PG private DNS zone | `earlyread-<env>.postgres.database.azure.com` | `earlyread-dev.postgres.database.azure.com` |
-| Privatelink DNS zones (per Azure-mandated suffix) | `privatelink.<service>.<domain>` | `privatelink.vaultcore.azure.net`, `privatelink.file.core.windows.net` |
+| Privatelink DNS zones | `privatelink.<service>.<domain>` | `privatelink.vaultcore.azure.net` |
+| UAMIs (M3) | `earlyread-saas-<env>-<service>-id` | `earlyread-saas-dev-eso-id`, `earlyread-saas-dev-cert-id` |
 
-**Staging gets `stg` as an abbreviation** in places where the full name would exceed Azure's 24-char limit (Key Vault, Storage account). Everywhere else: full `staging`.
+Staging uses `stg` abbreviation in places that hit Azure's 24-char limit (KV, Storage). Everywhere else: full `staging`.
 
 ## Prerequisites
 
-- **Azure CLI** (`az --version` → 2.50+ recommended) — `winget install Microsoft.AzureCLI`
-- **Terraform** (`terraform version` → 1.10+) — `winget install Hashicorp.Terraform`
+- **Azure CLI** ≥ 2.50 — `winget install Microsoft.AzureCLI`
+- **Terraform** ≥ 1.10 — `winget install Hashicorp.Terraform`
 - **Azure subscription** with HIPAA BAA in place
-- **Service Principal** (via `az ad sp create-for-rbac`) with the following roles:
-  - `Contributor` at subscription scope (creates RGs, VNets, PG, KV, Storage, etc.)
-  - `User Access Administrator` at subscription scope (creates the M2 KV role assignment for itself)
-  - `Storage Blob Data Contributor` at the `earlyread-saas-tfstate-rg` storage account (read/write tfstate blobs — optional if Storage Account Key Access is enabled)
+- **Service Principal** with:
+  - `Contributor` at subscription scope
+  - `User Access Administrator` at subscription scope (for role assignments in M2 and M3)
 
 Set these env vars for Terraform:
 ```powershell
@@ -94,100 +117,214 @@ $env:ARM_TENANT_ID       = "<tenant-id>"
 $env:ARM_SUBSCRIPTION_ID = "<subscription-id>"
 ```
 
-## How to apply
+## How to apply (one-time + per-env)
 
-### State backend (one-time)
-
-Already provisioned manually for this deployment:
-- RG: `earlyread-saas-tfstate-rg`
-- Storage Account: `earlyreadtfstateeread`
-- Containers: `dev`, `staging`
-
-The script `bootstrap/bootstrap.sh` is retained as the canonical recipe for future re-provisioning or new environments.
-
-### Apply dev
+### Step 0 — Create the `shared` blob container (one-time)
 
 ```powershell
-cd infra\terraform\envs\dev
-copy terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: fill in subscription_id; update allowed_ips if your IP changes
-
-terraform init -backend-config=backend.hcl
-terraform plan -out dev.tfplan
-terraform apply dev.tfplan
+az storage container create `
+  --name shared `
+  --account-name earlyreadtfstateeread `
+  --auth-mode login
 ```
 
-After M1 apply outputs DNS nameservers, **add 4 NS records on `dev` host at GoDaddy** (see [M1 verification](#m1-validation) below).
-
-### Apply staging
+### Step 1 — Apply the shared layer (one-time, creates ACR)
 
 ```powershell
-cd ..\staging
+cd infra\terraform\envs\shared
 copy terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: same subscription_id, same allowed_ips
+notepad terraform.tfvars      # fill in subscription_id
 
 terraform init -backend-config=backend.hcl
+terraform plan -out shared.tfplan
+terraform apply shared.tfplan
+```
+
+Creates `earlyread-saas-shared-rg` + `earlyreadsaasacreread`. After this, both dev and staging can reference the ACR via data source.
+
+### Step 2 — Apply dev infra layer
+
+```powershell
+cd ..\dev
+copy terraform.tfvars.example terraform.tfvars
+notepad terraform.tfvars      # fill in subscription_id + allowed_ips
+
+terraform init -upgrade -backend-config=backend.hcl
+terraform plan -out dev.tfplan
+terraform apply dev.tfplan    # ~15-20 min (AKS creation is the long pole)
+```
+
+Apply outputs:
+- DNS nameservers — add as NS records on `dev` host at GoDaddy (already done in M1; only needed for fresh deploys)
+- App Gateway public IP — already targeted by the wildcard A record automatically
+- NAT public IP — already known: `20.110.126.251`
+
+### Step 3 — Apply dev services layer (cluster-side: cert-manager + ESO)
+
+```powershell
+cd services
+copy terraform.tfvars.example terraform.tfvars
+notepad terraform.tfvars
+
+terraform init -backend-config=backend.hcl
+terraform plan -out dev-services.tfplan
+terraform apply dev-services.tfplan    # ~3-5 min (Helm releases + K8s manifests)
+```
+
+### Step 4 — Repeat for staging (infra + services)
+
+```powershell
+cd ..\..\staging
+copy terraform.tfvars.example terraform.tfvars
+notepad terraform.tfvars
+
+terraform init -upgrade -backend-config=backend.hcl
 terraform plan -out staging.tfplan
 terraform apply staging.tfplan
+
+cd services
+copy terraform.tfvars.example terraform.tfvars
+notepad terraform.tfvars
+
+terraform init -backend-config=backend.hcl
+terraform plan -out staging-services.tfplan
+terraform apply staging-services.tfplan
 ```
 
-After M1 apply outputs DNS nameservers, **add 4 NS records on `staging` host at GoDaddy**.
+## Validation drills
 
-## M1 Validation
+### M1 + M2 (still apply)
 
 ```powershell
-# DNS delegation propagated (after GoDaddy update)
 nslookup -type=NS dev.earlyread.ai
 nslookup -type=NS staging.earlyread.ai
-
-# All M1 + M2 resource groups present
 az group list --query "[?starts_with(name, 'earlyread-saas-')]" -o table
+az keyvault secret list --vault-name earlyread-saas-dev-kv -o table
 ```
 
-## M2 Validation
+### M3 — AKS reachability + cluster services
 
 ```powershell
-# Key Vault — should show 6 seeded secrets
-az keyvault secret list --vault-name earlyread-saas-dev-kv -o table
-az keyvault secret list --vault-name earlyread-saas-stg-kv -o table
+# Get cluster admin kubeconfig (--admin bypasses Azure RBAC)
+az aks get-credentials --resource-group earlyread-saas-dev-rg `
+                       --name earlyread-saas-dev-aks --admin
 
-# PG server FQDN visible (resolves to private IP only from inside VNet)
-terraform -chdir=infra\terraform\envs\dev output pg_fqdn
-terraform -chdir=infra\terraform\envs\staging output pg_fqdn
+# 4 nodes Ready (2 system + 2 user for staging; 2 system + 1-2 user for dev)
+kubectl get nodes
 
-# Storage accounts + Files share
-az storage share list --account-name earlyreaddevfseread --auth-mode login -o table
-az storage share list --account-name earlyreadstgfseread --auth-mode login -o table
+# Cluster-side services running
+kubectl get pods -n kube-system
+kubectl get pods -n cert-manager
+kubectl get pods -n external-secrets-system
 
-# Private endpoints exist
-az network private-endpoint list -g earlyread-saas-dev-rg -o table
-az network private-endpoint list -g earlyread-saas-staging-rg -o table
+# ClusterIssuers ready
+kubectl get clusterissuer
+# letsencrypt-staging   READY=True
+# letsencrypt-prod      READY=True
+
+# ClusterSecretStore ready
+kubectl get clustersecretstore
+# dev-kv-store          READY=True
+
+# App Gateway visible from outside (returns 404 — no Ingress yet, that's M5)
+$ip = az network public-ip show -g earlyread-saas-dev-rg -n earlyread-saas-dev-appgw-pip --query ipAddress -o tsv
+curl -I http://$ip
+
+# Wildcard DNS resolves
+nslookup posterra.dev.earlyread.ai
+# Should return the App Gateway public IP
+
+# ACR login server resolves
+az acr show -n earlyreadsaasacreread --query loginServer -o tsv
+# earlyreadsaasacreread.azurecr.io
+```
+
+### Smoke test — synthetic ExternalSecret resolves
+
+This confirms ESO + workload identity + KV chain works end-to-end before M5.
+
+```powershell
+# Create a test ExternalSecret that pulls 'jwt-secret' from KV
+kubectl create namespace test
+kubectl apply -f - <<EOF
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: test-jwt-secret
+  namespace: test
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: dev-kv-store
+    kind: ClusterSecretStore
+  target:
+    name: test-jwt-secret
+  data:
+    - secretKey: jwt
+      remoteRef:
+        key: jwt-secret
+EOF
+
+# Wait a moment, then verify
+kubectl get externalsecret -n test test-jwt-secret
+# READY=True; SECRETSTOREREF=dev-kv-store
+
+kubectl get secret -n test test-jwt-secret -o jsonpath='{.data.jwt}' | base64 -d
+# Should print the JWT secret from KV
+
+# Cleanup
+kubectl delete namespace test
 ```
 
 ## Cost estimate
 
-| Item | Dev $/mo | Staging $/mo |
+| Component | Dev $/mo | Staging $/mo |
 |---|---|---|
-| Resource Groups, VNets, Subnets, DNS zones | 0 | 0 |
-| NAT Gateway (compute + ~50 GB egress) | ~50 | ~50 |
-| PG Flexible Server | ~15 | ~130 |
-| Premium Files (100 GB) + Storage account | ~16 | ~16 |
-| Key Vault | <1 | <1 |
-| 2× Private Endpoints | ~15 | ~15 |
-| 3× Private DNS zones | ~1.50 | ~1.50 |
-| Public DNS zone | ~0.50 | ~0.50 |
-| **Per-env subtotal** | **~$100** | **~$215** |
+| M1 — RGs, VNets, NAT, DNS zone | ~50 | ~50 |
+| M2 — PG, KV, Files, PEs | ~50 | ~165 |
+| M3 — AKS system pool (D4as_v5 × 2) | ~140 | ~140-210 |
+| M3 — AKS user pool | ~70 (D2 × 1-2) | ~280-420 (D4 × 2-3) |
+| M3 — App Gateway v2 + WAF v2 | ~255 | ~255 |
+| M3 — Container Insights / Log Analytics | ~15 | ~30 |
+| **Per-env subtotal (M1+M2+M3)** | **~$580** | **~$920-1,130** |
 
-Plus state backend storage (<$1) and provider/data egress (~$5-10) shared.
+Plus shared: ACR Standard ~$20/mo; state backend < $1/mo.
 
-**Combined M1 + M2 total: ~$320/mo** for both envs.
+**Combined running total after M3: ~$1,520-1,730/mo** for both envs.
 
 ## Notes
 
-- **All `.tfvars` files are gitignored.** Only `.tfvars.example` templates are committed. `backend.hcl` is committed (no secrets in it; just storage account name + container).
-- **KV / Storage firewalls allow only your IP** (in `allowed_ips`) plus the `AzureServices` bypass. When your laptop IP changes, update `terraform.tfvars` and re-apply.
-- **AKS pods (M3+) reach KV / Storage via the Private Endpoints**, not subnet service endpoints. This is intentional — service endpoints would require enabling `Microsoft.KeyVault` / `Microsoft.Storage` on the AKS subnet (which M1 didn't do, and PEs are the more secure forward-looking pattern). Resolution is transparent via the private DNS zones linked to each VNet.
-- **`use_azuread_auth = true` in `backend.hcl`** is commented-out — would tighten state backend to RBAC-only (no shared keys). Switch to it once SP has `Storage Blob Data Contributor` on the state storage account.
-- **PG password rotation**: managed via Key Vault. Set new value with `az keyvault secret set --vault-name <kv> --name pg-admin-password --value <new>`. Then `az postgres flexible-server update --resource-group <rg> --name <server> --admin-password <new>`. Terraform `lifecycle.ignore_changes` keeps it from reverting.
-- **Replace placeholders before M5**: `ch-password-prod`, `ai-api-key`. Use portal or `az keyvault secret set`.
-- **NSGs (firewall rules)** are still deferred to M3 — AKS and AppGw need workload-aware rules.
+### M3-specific gotchas
+
+- **AKS system pool minimums** (hard Azure rule): ≥ 2 nodes AND ≥ 4 vCPU SKU. Using D4as_v5 to comply.
+- **AKS uses local accounts** for `--admin` kubectl access. To lock down: set `local_account_disabled = true` in the aks module (post-M9 when prod-ready).
+- **AGIC writes App Gateway routing rules, NOT DNS records**. Our wildcard `*.<env>.earlyread.ai` A record (managed by Terraform) handles DNS for all tenant subdomains uniformly.
+- **Apply order is strict**: shared → env infra → env services. Cannot apply services before AKS exists.
+- **Two-phase apply per env** avoids the chicken-and-egg of helm/kubernetes providers needing a kubeconfig that doesn't exist until AKS is created.
+- **Let's Encrypt staging issuer first** — first cert via `letsencrypt-staging` (rate-limit-friendly); flip to `letsencrypt-prod` in M5 after end-to-end verification.
+- **WAF starts in Detection mode** — logs but doesn't block. Flip to Prevention in M6 after 2 weeks of baseline.
+
+### M3-specific costs
+
+- AKS control plane: free (paid SLA tier exists; not using)
+- AKS nodes: VM compute + Premium SSD OS disks (~$5/disk)
+- Container Insights (Log Analytics): ingest-billed; default 30 days retention
+- ACR Standard: $20/mo, 10 GB storage included
+- ACR Standard limitations: NO private endpoint, NO geo-replication (Premium-only). Acceptable for non-prod; upgrade before prod.
+
+### Operational
+
+- All `.tfvars` files are gitignored. Only `.tfvars.example` templates are committed.
+- `backend.hcl` is committed (no secrets in it; just storage account name + container).
+- KV / Storage firewalls allow only your IP (in `allowed_ips`) plus `AzureServices` bypass.
+- AKS pods (M3+) reach KV / Storage via the Private Endpoints, not subnet service endpoints (we explicitly chose PE path in M2).
+- PG password rotation managed via Key Vault — `lifecycle.ignore_changes` keeps Terraform from reverting manual updates.
+- Replace `REPLACE_ME` placeholders in KV before M5 (`ch-password-prod`, `ai-api-key`).
+- NSGs (firewall rules at subnet level) are deferred to M6 (AKS + AppGw need workload-aware rules; deferred so dev can iterate freely first).
+
+### ACR upgrade trigger
+
+ACR Standard is sufficient for M3-M4 non-prod. Upgrade to Premium before:
+- Prod deployment (requires private endpoint for ACR pulls)
+- Geo-replication (DR posture)
+- Customer-managed encryption keys

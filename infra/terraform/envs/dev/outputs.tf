@@ -12,7 +12,7 @@ output "vnet_name" {
 
 output "subnet_ids" {
   value       = module.network.subnet_ids
-  description = "Map of subnet name → resource ID. Consumed by M2 (PG), M3 (AKS, AppGw, PEs)."
+  description = "Map of subnet name → resource ID."
 }
 
 output "natgw_public_ip" {
@@ -66,7 +66,7 @@ output "kv_uri" {
 
 output "kv_secret_names" {
   value       = module.keyvault.secret_names
-  description = "Secrets seeded in this Key Vault. Replace any 'REPLACE_ME' placeholders before M5."
+  description = "Secrets seeded in this Key Vault."
 }
 
 # ─── M2 — Filestore (Azure Files) ────────────────────────────────────────────
@@ -79,4 +79,41 @@ output "filestore_storage_account_name" {
 output "filestore_share_url" {
   value       = module.filestore.share_url
   description = "Azure Files share URL. Mounted at /var/lib/odoo in M5 AKS pods."
+}
+
+# ─── M3 — AKS + App Gateway + Workload Identity ─────────────────────────────
+
+output "aks_cluster_name" {
+  value       = module.aks.name
+  description = "Dev AKS cluster name. Connect with: az aks get-credentials --resource-group earlyread-saas-dev-rg --name <this> --admin"
+}
+
+output "aks_oidc_issuer_url" {
+  value       = module.aks.oidc_issuer_url
+  description = "AKS cluster OIDC issuer URL. Consumed by workload_identity module + services layer."
+}
+
+output "appgw_name" {
+  value       = module.appgw.name
+  description = "App Gateway name."
+}
+
+output "appgw_public_ip" {
+  value       = module.appgw.public_ip
+  description = "App Gateway public IP. Wildcard *.dev.earlyread.ai DNS record targets this."
+}
+
+output "appgw_public_ip_fqdn" {
+  value       = module.appgw.public_ip_fqdn
+  description = "Azure-assigned cloudapp.azure.com FQDN for the App Gateway public IP."
+}
+
+output "eso_uami_client_id" {
+  value       = module.workload_identity.eso_uami_client_id
+  description = "client_id of the ESO UAMI. Consumed by services layer."
+}
+
+output "cert_manager_uami_client_id" {
+  value       = module.workload_identity.cert_manager_uami_client_id
+  description = "client_id of the cert-manager UAMI. Consumed by services layer."
 }
