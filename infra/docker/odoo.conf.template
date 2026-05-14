@@ -1,0 +1,52 @@
+; ─────────────────────────────────────────────────────────────────────────────
+; Earlyread SaaS — Odoo configuration template
+;
+; Baked into the image at /etc/odoo/odoo.conf.template. The entrypoint renders
+; it to /tmp/odoo.conf at container start via `envsubst`, substituting ONLY the
+; ${VAR} placeholders below. The db_filter regex's trailing `$` is intentionally
+; left literal (envsubst is given an explicit var-list, so it ignores it).
+; ─────────────────────────────────────────────────────────────────────────────
+
+[options]
+
+; ── Database connection ──────────────────────────────────────────────────────
+db_host = ${DB_HOST}
+db_port = ${DB_PORT}
+db_user = ${DB_USER}
+db_password = ${DB_PASSWORD}
+; PG Flexible Server enforces TLS (require_secure_transport = ON, set in M2).
+db_sslmode = require
+; Only databases matching this regex are visible to this Odoo instance.
+; Matches the posterra_dev / posterra_staging DB names created in M2.
+db_filter = ^posterra_(dev|staging|prod)$
+
+; ── Odoo master password ─────────────────────────────────────────────────────
+; Guards the database-management screens. Distinct from the PostgreSQL admin
+; password. Sourced from Key Vault (odoo-admin-password) via ESO.
+admin_passwd = ${ODOO_ADMIN_PASSWORD}
+
+; ── Addons + data ────────────────────────────────────────────────────────────
+; Core Odoo addons are auto-discovered from the installed package; this path
+; adds our two custom addons.
+addons_path = /mnt/extra-addons
+; Filestore root — an Azure Files share is mounted here in M5.
+data_dir = /var/lib/odoo
+
+; ── Process tuning (per-role; values come from Helm chart env vars) ──────────
+; Dev (combined pod):     workers=2, max_cron_threads=2
+; Staging portal/admin:   workers=4/2, max_cron_threads=0
+; Staging cron singleton: workers=0, max_cron_threads=2
+workers = ${ODOO_WORKERS}
+max_cron_threads = ${ODOO_MAX_CRON_THREADS}
+
+; ── Behind App Gateway + NGINX sidecar ───────────────────────────────────────
+; proxy_mode trusts X-Forwarded-* headers from the App Gateway / NGINX sidecar.
+proxy_mode = True
+; list_db = False hides the DB selector/manager UI. Health probes hit
+; /web/login, which returns 200 with this disabled.
+list_db = False
+
+; ── Logging ──────────────────────────────────────────────────────────────────
+; logfile = None → Odoo logs to stdout, picked up by the K8s log pipeline.
+log_level = info
+logfile = None

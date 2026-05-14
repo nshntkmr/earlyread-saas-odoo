@@ -8,3 +8,5 @@
 *.tfvars     text eol=lf
 *.tfvars.example text eol=lf
 *.hcl        text eol=lf
+*.template   text eol=lf
+
