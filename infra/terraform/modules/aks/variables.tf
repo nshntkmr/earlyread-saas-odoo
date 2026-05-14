@@ -47,9 +47,9 @@ variable "acr_id" {
 # ─── System pool — must meet AKS minimums (≥ 4 vCPU + 4 GB RAM, ≥ 2 nodes) ──
 
 variable "system_vm_size" {
-  description = "VM size for the system node pool. Must be ≥ D4as_v5 (4vCPU/16GB) for AKS system pool requirements."
+  description = "VM size for the system node pool. Must be >= 4 vCPU / 4 GB RAM. v4/v5/v6/v7 D-series generations all qualify — pick a family with available quota AND capacity in your region (check with `az vm list-skus`)."
   type        = string
-  default     = "Standard_D4as_v5"
+  default     = "Standard_D4as_v4"
 }
 
 variable "system_min_count" {
@@ -72,7 +72,7 @@ variable "system_max_count" {
 # ─── User pool — workload pods ──────────────────────────────────────────────
 
 variable "user_vm_size" {
-  description = "VM size for the user node pool. Asymmetric: D2as_v5 for dev, D4as_v5 for staging."
+  description = "VM size for the user node pool. Asymmetric: smaller D2-class for dev, D4-class for staging. Pick a family with available quota AND capacity."
   type        = string
 }
 

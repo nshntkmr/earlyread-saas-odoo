@@ -55,8 +55,8 @@ infra/
 
 **Per-env**:
 - AKS cluster `earlyread-saas-{env}-aks` with **K8s 1.34.6**
-  - **Dev**: system pool 2× `D4as_v5` (fixed), user pool 1-2× `D2as_v5`
-  - **Staging**: system pool 2-3× `D4as_v5`, user pool 2-3× `D4as_v5` (prod-replica for 20-30 concurrent)
+  - **Dev**: system pool 2× `D4as_v4` (fixed, DASv4 family), user pool 1-2× `D2s_v4` (DSv4 family)
+  - **Staging**: system pool 2-3× `D4as_v5`, user pool 2-3× `D4as_v5` — ⚠ **SKU still v5 in config; must switch to a v4/v6/v7 family before staging apply** (v5 D-families have 0 quota in eastus2 — see Notes)
   - Azure CNI Overlay, Pod CIDR `100.64.0.0/16`
   - OIDC issuer + Workload Identity enabled
   - AGIC add-on (managed identity model)
@@ -282,7 +282,7 @@ kubectl delete namespace test
 |---|---|---|
 | M1 — RGs, VNets, NAT, DNS zone | ~50 | ~50 |
 | M2 — PG, KV, Files, PEs | ~50 | ~165 |
-| M3 — AKS system pool (D4as_v5 × 2) | ~140 | ~140-210 |
+| M3 — AKS system pool (D4as_v4 × 2 dev; D4-class × 2-3 staging) | ~140 | ~140-210 |
 | M3 — AKS user pool | ~70 (D2 × 1-2) | ~280-420 (D4 × 2-3) |
 | M3 — App Gateway v2 (Standard_v2; WAF deferred) | ~180 | ~180 |
 | M3 — Container Insights / Log Analytics | ~15 | ~30 |
@@ -296,7 +296,8 @@ Plus shared: ACR Standard ~$20/mo; state backend < $1/mo.
 
 ### M3-specific gotchas
 
-- **AKS system pool minimums** (hard Azure rule): ≥ 2 nodes AND ≥ 4 vCPU SKU. Using D4as_v5 to comply.
+- **AKS system pool minimums** (hard Azure rule): ≥ 2 nodes AND ≥ 4 vCPU SKU. Dev uses `D4as_v4` (4 vCPU / 16 GB) to comply.
+- **⚠ v5 D-family quota is 0 in eastus2** — `DASv5`, `DSv5`, `DDSv5`, `Dv5` etc. all have a quota *limit* of 0 (the region is capacity-constrained for v5; Microsoft denied a quota-increase request citing high demand). The v4/v6/v7 D-families have non-zero quota (10 each). **Dev** was switched to `D4as_v4` (DASv4 family) + `D2s_v4` (DSv4 family) — fits existing quota, no increase needed. **Staging** still references v5 in its config and MUST be switched to a v4/v6/v7 family before `terraform apply` on staging. Check available families + capacity with: `az vm list-skus --location eastus2 --resource-type virtualMachines --all` (look for empty `restrictions`). Family quota usage is in the Quotas blade or a `QuotaUsage` CSV export — verify all three gates: system-pool family, user-pool family, and Total Regional vCPUs.
 - **AKS uses local accounts** for `--admin` kubectl access. To lock down: set `local_account_disabled = true` in the aks module (post-M9 when prod-ready).
 - **App Gateway runs Standard_v2 (no WAF)** in both dev and staging. Saves ~$288/mo combined vs WAF_v2. HIPAA does NOT require WAF — only "technical safeguards" which we have (TLS, RBAC, private endpoints, encryption at rest). WAF is a defense-in-depth layer added when handling real PHI in prod.
   - **WAF upgrade trigger**: before serving real customer PHI (prod cutover OR staging onboarding the first paying customer). Switch by setting `appgw_sku = "WAF_v2"` in the env's `terraform.tfvars`. **Important**: SKU change is NOT in-place — Terraform will destroy the App Gateway and re-create it. ~5-10 min downtime for that env. Schedule accordingly.

@@ -40,10 +40,10 @@ allowed_ips = ["YOUR.PUBLIC.IP.HERE/32"]
 # acr_name             = "earlyreadsaasacreread"
 # kubernetes_version   = "1.34.6"
 # pod_cidr             = "100.64.0.0/16"
-# system_vm_size       = "Standard_D4as_v5"   # AKS minimum for system pool
+# system_vm_size       = "Standard_D4as_v4"   # >=4vCPU; DASv4 family (v5 D-families have 0 quota in eastus2)
 # system_min_count     = 2                    # AKS minimum
 # system_max_count     = 2                    # Dev: fixed at 2
-# user_vm_size         = "Standard_D2as_v5"
+# user_vm_size         = "Standard_D2s_v4"    # DSv4 family (separate from system pool's DASv4)
 # user_min_count       = 1
 # user_max_count       = 2
 # admin_group_object_ids = []                 # Azure AD groups for system:masters

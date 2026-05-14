@@ -153,11 +153,14 @@ variable "pod_cidr" {
   default     = "100.64.0.0/16"
 }
 
-# Dev system pool — must be ≥ 4 vCPU SKU AND ≥ 2 nodes (AKS rule)
+# Dev system pool — must be >= 4 vCPU SKU AND >= 2 nodes (AKS rule).
+# D4as_v4 (DASv4 family) chosen over D4as_v5 because every v5 D-family has a
+# quota LIMIT of 0 in eastus2 (capacity-constrained region). v4/v6/v7
+# families have non-zero quota. D4as_v4 = 4 vCPU / 16 GB, DASv4 family.
 variable "system_vm_size" {
-  description = "AKS system pool VM SKU. Must be ≥ Standard_D4as_v5 (4vCPU/16GB) for AKS minimums."
+  description = "AKS system pool VM SKU. Must be >= 4 vCPU / 4 GB RAM. D4as_v4 draws on the DASv4 family quota."
   type        = string
-  default     = "Standard_D4as_v5"
+  default     = "Standard_D4as_v4"
 }
 
 variable "system_min_count" {
@@ -172,11 +175,13 @@ variable "system_max_count" {
   default     = 2
 }
 
-# Dev user pool — cost-optimized
+# Dev user pool — cost-optimized. D2s_v4 draws on the DSv4 family quota —
+# a SEPARATE family from the system pool's DASv4, so neither family's
+# 10-vCPU limit is the bottleneck for dev.
 variable "user_vm_size" {
-  description = "AKS user pool VM SKU. Dev: D2as_v5 (2vCPU/8GB)."
+  description = "AKS user pool VM SKU. Dev: D2s_v4 (2vCPU/8GB, DSv4 family)."
   type        = string
-  default     = "Standard_D2as_v5"
+  default     = "Standard_D2s_v4"
 }
 
 variable "user_min_count" {
