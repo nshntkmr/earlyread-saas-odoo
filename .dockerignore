@@ -1,29 +1,37 @@
 # Build context exclusions for `az acr build` / `docker build`.
 # Keeps the upload small + safe. The image only needs the two addon
 # directories + infra/docker/. Everything else here is noise or sensitive.
+#
+# IMPORTANT: directory patterns have NO trailing slash. .dockerignore's
+# matcher (Go filepath.Match) treats `.claude/` as a literal path ending in
+# `/` — which never exists — so it matches nothing. `.claude` (no slash)
+# correctly excludes the directory and its entire subtree. This differs from
+# .gitignore, where trailing slashes are conventional.
 
 # ── Version control ──────────────────────────────────────────────────────────
-.git/
+.git
 .gitignore
 .gitattributes
 
 # ── Claude / agent worktrees + session data ──────────────────────────────────
 # CRITICAL: .claude/worktrees/ holds ~20 full copies of the repo. Excluding
-# this is the single biggest context-size win.
-.claude/
+# this is the single biggest context-size win — without it the build context
+# is multi-GB and `az acr build` spends ~an hour just packing the tar.
+.claude
 
 # ── Terraform — infra-as-code never belongs in the app image ────────────────
-infra/terraform/
+# Note: infra/docker/ is NOT excluded — the Dockerfile COPYs from it.
+infra/terraform
 
 # ── Python bytecode + virtualenvs ────────────────────────────────────────────
-**/__pycache__/
+**/__pycache__
 **/*.pyc
 **/*.pyo
-**/.venv/
-**/venv/
+**/.venv
+**/venv
 
 # ── Node — node_modules is huge; the committed dist/ is what ships ──────────
-**/node_modules/
+**/node_modules
 
 # ── Logs, plans, local state ─────────────────────────────────────────────────
 **/*.log
@@ -44,8 +52,8 @@ infra/terraform/
 **/*~
 
 # ── Odoo local runtime data (if any exists from local dev) ──────────────────
-**/filestore/
-**/sessions/
+**/filestore
+**/sessions
 
 # ── This file + the Dockerfile itself ────────────────────────────────────────
 .dockerignore
