@@ -1,0 +1,60 @@
+{{- if .Values.cron.enabled }}
+# Cron singleton (staging split mode). Implemented as a Deployment with
+# replicas=1 + Recreate strategy rather than a StatefulSet — both guarantee
+# at-most-one pod, but a Deployment avoids the headless-Service that a
+# StatefulSet's spec.serviceName requires (the cron pod serves no traffic).
+#
+# Only this workload runs cron threads (max_cron_threads > 0); portal/admin
+# run with max_cron_threads=0. No NGINX sidecar / static-copy initContainer —
+# the cron pod has no HTTP surface.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posterra.fullname" . }}-cron
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+    posterra.io/role: cron
+spec:
+  replicas: 1
+  # Recreate — never run two cron pods at once (duplicate cron execution).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "posterra.selectorLabels" . | nindent 6 }}
+      posterra.io/role: cron
+  template:
+    metadata:
+      labels:
+        {{- include "posterra.selectorLabels" . | nindent 8 }}
+        posterra.io/role: cron
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: odoo
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "posterra.commonEnv" . | nindent 12 }}
+            - name: ODOO_WORKERS
+              value: {{ .Values.cron.workers | quote }}
+            - name: ODOO_MAX_CRON_THREADS
+              value: {{ .Values.cron.maxCronThreads | quote }}
+          volumeMounts:
+            - name: filestore
+              mountPath: /var/lib/odoo
+          livenessProbe:
+            httpGet:
+              path: /web/login
+              port: 8069
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.cron.resources | nindent 12 }}
+      volumes:
+        - name: filestore
+          persistentVolumeClaim:
+            claimName: {{ include "posterra.fullname" . }}-filestore
+{{- end }}

@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# posterra Helm chart — default values
+#
+# Common defaults. Per-env values live in values.dev.yaml / values.staging.yaml
+# and are layered on top with `helm install -f values.<env>.yaml`.
+#
+# deploymentMode drives the workload topology:
+#   "combined" — one Deployment running portal+admin+cron in a single pod
+#                (dev: fits cheaply on the small user node pool)
+#   "split"    — separate odoo-portal / odoo-admin Deployments + odoo-cron
+#                StatefulSet (staging: the prod-replica host-based split)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Container image — built + pushed to ACR in M4a.
+image:
+  repository: earlyreadsaasacreread.azurecr.io/odoo
+  tag: "31cc311"
+  pullPolicy: IfNotPresent
+
+# NGINX sidecar — stock alpine image; config comes from a ConfigMap.
+nginx:
+  image: nginx:1.27-alpine
+
+# PostgreSQL connection — only the non-secret bits. db_password comes from
+# Key Vault via the ExternalSecret. Set host/name per-env.
+database:
+  host: ""
+  port: "5432"
+  user: psadmin
+  name: ""
+
+# External Secrets Operator — which ClusterSecretStore (created in M3's
+# services layer) this release pulls KV secrets from. Set per-env.
+externalSecrets:
+  clusterSecretStore: ""
+
+# cert-manager — which ClusterIssuer the Ingress requests its wildcard cert
+# from. Start with letsencrypt-staging; flip to letsencrypt-prod once the
+# DNS-01 flow is verified end-to-end.
+certManager:
+  clusterIssuer: letsencrypt-staging
+
+# Azure Files filestore — the M2-created share, mounted at /var/lib/odoo.
+# storageAccount is set per-env. The account key + name are pulled from KV
+# by the filestore ExternalSecret.
+filestore:
+  storageAccount: ""
+  shareName: odoo-filestore
+  size: 100Gi
+  # uid/gid the share is mounted as — must match the odoo user in the image.
+  uid: "101"
+  gid: "101"
+
+# Ingress / DNS. baseDomain is set per-env (dev.earlyread.ai / staging...).
+ingress:
+  baseDomain: ""
+  # AGIC ingress class annotation value.
+  classAnnotation: azure/application-gateway
+
+# Init Job — runs `odoo -d <db> -i|-u <addons> --stop-after-init` as a Helm
+# pre-install/pre-upgrade hook. mode "install" → -i, "upgrade" → -u.
+init:
+  mode: install
+
+serviceAccount:
+  name: posterra
+
+# Workload topology — overridden per-env.
+deploymentMode: ""
+deployments: {}
+cron:
+  enabled: false

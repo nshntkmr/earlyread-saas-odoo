@@ -1,0 +1,62 @@
+# Ingress — fronted by Azure Application Gateway via AGIC.
+#
+#   combined mode (dev):  one rule — *.<baseDomain> → posterra-combined
+#   split mode (staging): admin.<baseDomain> → posterra-admin  (specific wins)
+#                         *.<baseDomain>     → posterra-portal (all other tenants)
+#
+# TLS: a single wildcard cert (*.<baseDomain>) covers every tenant subdomain
+# AND the admin host — both are single-label children of <baseDomain>.
+# cert-manager's ingress-shim sees the tls block + the cluster-issuer
+# annotation and provisions the cert into the posterra-wildcard-tls secret via
+# DNS-01 (wildcard names cannot use the HTTP-01 challenge).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "posterra.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.classAnnotation }}
+    cert-manager.io/cluster-issuer: {{ .Values.certManager.clusterIssuer }}
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/health-probe-path: /web/login
+spec:
+  tls:
+    - hosts:
+        - "*.{{ .Values.ingress.baseDomain }}"
+      secretName: posterra-wildcard-tls
+  rules:
+    {{- if eq .Values.deploymentMode "combined" }}
+    - host: "*.{{ .Values.ingress.baseDomain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "posterra.fullname" . }}-combined
+                port:
+                  number: 8080
+    {{- else if eq .Values.deploymentMode "split" }}
+    - host: "admin.{{ .Values.ingress.baseDomain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "posterra.fullname" . }}-admin
+                port:
+                  number: 8080
+    - host: "*.{{ .Values.ingress.baseDomain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "posterra.fullname" . }}-portal
+                port:
+                  number: 8080
+    {{- end }}

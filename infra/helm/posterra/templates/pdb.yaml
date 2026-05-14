@@ -1,0 +1,24 @@
+# PodDisruptionBudgets — emitted for any deployment entry with pdb.enabled=true.
+# Split mode (staging) sets one on portal so a node drain / cluster upgrade
+# never takes the last tenant-traffic pod down. Combined mode (dev, replicas=1)
+# has no pdb block, so this file renders empty — a single-replica dev pod is
+# expected to blip on node churn.
+{{- range $name, $cfg := .Values.deployments }}
+{{- if dig "pdb" "enabled" false $cfg }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "posterra.fullname" $ }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" $ | nindent 4 }}
+    posterra.io/role: {{ $name }}
+spec:
+  minAvailable: {{ $cfg.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "posterra.selectorLabels" $ | nindent 6 }}
+      posterra.io/role: {{ $name }}
+{{- end }}
+{{- end }}

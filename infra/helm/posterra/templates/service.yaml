@@ -1,0 +1,28 @@
+# Services — one per HTTP-serving workload. Ranges over .Values.deployments,
+# which holds exactly the roles that serve traffic:
+#   combined mode → { combined }       → posterra-combined
+#   split mode    → { portal, admin }  → posterra-portal, posterra-admin
+# The cron workload (.Values.cron) has no HTTP surface, so it gets no Service.
+# Each Service targets the NGINX sidecar's "web" port (8080) — nginx serves
+# static assets directly and proxies everything else to Odoo (127.0.0.1:8069,
+# and :8072 for longpolling/websocket).
+{{- range $name, $cfg := .Values.deployments }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "posterra.fullname" $ }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" $ | nindent 4 }}
+    posterra.io/role: {{ $name }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "posterra.selectorLabels" $ | nindent 4 }}
+    posterra.io/role: {{ $name }}
+  ports:
+    - name: web
+      port: 8080
+      targetPort: web
+{{- end }}

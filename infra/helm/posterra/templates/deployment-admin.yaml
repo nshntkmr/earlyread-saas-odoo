@@ -1,0 +1,30 @@
+{{- if eq .Values.deploymentMode "split" }}
+# Admin deployment (staging split mode) — admin.<base> + /web/* + designer +
+# builder. workers > 0, max_cron_threads = 0 (cron is the odoo-cron workload).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posterra.fullname" . }}-admin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+    posterra.io/role: admin
+spec:
+  replicas: {{ .Values.deployments.admin.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "posterra.selectorLabels" . | nindent 6 }}
+      posterra.io/role: admin
+  template:
+    metadata:
+      labels:
+        {{- include "posterra.selectorLabels" . | nindent 8 }}
+        posterra.io/role: admin
+    spec:
+      {{- include "posterra.podSpec" (dict "root" . "cfg" .Values.deployments.admin) | nindent 6 }}
+{{- end }}

@@ -1,0 +1,30 @@
+{{- if eq .Values.deploymentMode "split" }}
+# Portal deployment (staging split mode) — tenant traffic + /api/v1/*.
+# workers > 0, max_cron_threads = 0 (cron is the separate odoo-cron workload).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posterra.fullname" . }}-portal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+    posterra.io/role: portal
+spec:
+  replicas: {{ .Values.deployments.portal.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "posterra.selectorLabels" . | nindent 6 }}
+      posterra.io/role: portal
+  template:
+    metadata:
+      labels:
+        {{- include "posterra.selectorLabels" . | nindent 8 }}
+        posterra.io/role: portal
+    spec:
+      {{- include "posterra.podSpec" (dict "root" . "cfg" .Values.deployments.portal) | nindent 6 }}
+{{- end }}

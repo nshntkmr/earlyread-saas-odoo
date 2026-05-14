@@ -1,0 +1,18 @@
+# PVC bound to the static Azure Files PV above. The Odoo containers mount this
+# at /var/lib/odoo (the filestore — logos, favicons, widget previews).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "posterra.fullname" . }}-filestore
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  # Bind explicitly to the static PV (no dynamic provisioning).
+  volumeName: {{ include "posterra.fullname" . }}-filestore-{{ .Release.Namespace }}
+  resources:
+    requests:
+      storage: {{ .Values.filestore.size }}

@@ -78,6 +78,18 @@ resource "random_password" "jwt_secret" {
   special = false
 }
 
+# Odoo master password — database-manager auth + odoo.conf admin_passwd.
+# override_special restricts to "_-" so the value is safe in the INI file
+# (no "#" comment / "%" interpolation chars) and in shell/envsubst rendering.
+resource "random_password" "odoo_admin" {
+  length           = 32
+  special          = true
+  override_special = "_-"
+  min_lower        = 4
+  min_upper        = 4
+  min_numeric      = 4
+}
+
 module "postgresql" {
   source = "../../modules/postgresql"
 
@@ -109,12 +121,15 @@ module "keyvault" {
   allowed_ips         = var.allowed_ips
 
   initial_secrets = {
-    "pg-admin-password" = random_password.pg_admin.result
-    "jwt-secret"        = random_password.jwt_secret.result
-    "ch-password-prod"  = "REPLACE_ME"
-    "ai-api-key"        = "REPLACE_ME"
-    "ai-endpoint"       = "https://api.anthropic.com"
-    "ai-model"          = "claude-opus-4-6"
+    "pg-admin-password"      = random_password.pg_admin.result
+    "jwt-secret"             = random_password.jwt_secret.result
+    "odoo-admin-password"    = random_password.odoo_admin.result
+    "ch-password-prod"       = "REPLACE_ME"
+    "ai-api-key"             = "REPLACE_ME"
+    "ai-endpoint"            = "https://api.anthropic.com"
+    "ai-model"               = "claude-opus-4-6"
+    "filestore-account-name" = var.filestore_storage_name
+    "filestore-account-key"  = "REPLACE_ME"
   }
 
   tags = local.tags

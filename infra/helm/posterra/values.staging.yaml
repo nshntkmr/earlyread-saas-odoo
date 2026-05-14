@@ -1,0 +1,91 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGING environment values
+#
+# Split deployment mode — the prod-replica host-based topology:
+#   odoo-portal  (Deployment + HPA + PDB) — tenant traffic + /api/v1/*
+#   odoo-admin   (Deployment + HPA)       — admin.<base> + /web/* + designer
+#   odoo-cron    (StatefulSet, replicas=1)— cron singleton
+#
+# Apply:
+#   helm install posterra infra/helm/posterra -n odoo-staging --create-namespace \
+#     -f infra/helm/posterra/values.staging.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+deploymentMode: split
+
+database:
+  host: "earlyread-saas-staging-pg.postgres.database.azure.com"
+  # PgBouncer transaction-mode pooler (enabled on staging's GP PG SKU).
+  port: "6432"
+  user: psadmin
+  name: posterra_staging
+
+externalSecrets:
+  clusterSecretStore: staging-kv-store
+
+certManager:
+  clusterIssuer: letsencrypt-staging
+
+filestore:
+  storageAccount: earlyreadstgfseread
+  shareName: odoo-filestore
+  size: 100Gi
+
+ingress:
+  baseDomain: staging.earlyread.ai
+
+init:
+  mode: install
+
+# Portal + admin Deployments. Cron is a separate StatefulSet (see cron: below).
+deployments:
+  portal:
+    role: portal
+    workers: 4
+    maxCronThreads: 0
+    replicas: 2
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    pdb:
+      enabled: true
+      minAvailable: 1
+    resources:
+      requests:
+        cpu: 1500m
+        memory: 3Gi
+      limits:
+        cpu: 3000m
+        memory: 8Gi
+  admin:
+    role: admin
+    workers: 2
+    maxCronThreads: 0
+    replicas: 1
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 2
+      targetCPUUtilizationPercentage: 80
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+# Cron singleton — StatefulSet, replicas=1. Only this pod runs cron threads.
+cron:
+  enabled: true
+  workers: 0
+  maxCronThreads: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi

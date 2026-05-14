@@ -1,0 +1,40 @@
+# Static PersistentVolume for the EXISTING Azure Files share (created in M2 —
+# we are NOT dynamically provisioning a new share). The Azure Files CSI driver
+# mounts it using credentials from the azure-files-secret (ESO-synced from KV).
+#
+# PV is cluster-scoped, so the name carries the namespace to keep dev/staging
+# from colliding on one cluster.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "posterra.fullname" . }}-filestore-{{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.filestore.size }}
+  accessModes:
+    - ReadWriteMany
+  # Static binding — no dynamic provisioning, so no storage class.
+  storageClassName: ""
+  # Keep the share's data if the PV/PVC is deleted.
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - dir_mode=0770
+    - file_mode=0770
+    - uid={{ .Values.filestore.uid }}
+    - gid={{ .Values.filestore.gid }}
+    - mfsymlinks
+    - nobrl
+    - cache=strict
+  csi:
+    driver: file.csi.azure.com
+    # Unique per share. Format: <resourceGroup>#<account>#<share>
+    volumeHandle: "earlyread-saas-{{ .Release.Namespace | replace "odoo-" "" }}-rg#{{ .Values.filestore.storageAccount }}#{{ .Values.filestore.shareName }}"
+    volumeAttributes:
+      resourceGroup: "earlyread-saas-{{ .Release.Namespace | replace "odoo-" "" }}-rg"
+      storageAccount: {{ .Values.filestore.storageAccount }}
+      shareName: {{ .Values.filestore.shareName }}
+    nodeStageSecretRef:
+      name: azure-files-secret
+      namespace: {{ .Release.Namespace }}

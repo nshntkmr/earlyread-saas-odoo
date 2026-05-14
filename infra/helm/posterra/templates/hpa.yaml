@@ -1,0 +1,31 @@
+# HorizontalPodAutoscalers — emitted for any deployment entry with
+# hpa.enabled=true. Split mode (staging) scales portal 2-5 and admin 1-2 on
+# CPU utilization; combined mode (dev) has no hpa block, so this file renders
+# empty.
+{{- range $name, $cfg := .Values.deployments }}
+{{- if dig "hpa" "enabled" false $cfg }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "posterra.fullname" $ }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" $ | nindent 4 }}
+    posterra.io/role: {{ $name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "posterra.fullname" $ }}-{{ $name }}
+  minReplicas: {{ $cfg.hpa.minReplicas }}
+  maxReplicas: {{ $cfg.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $cfg.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}

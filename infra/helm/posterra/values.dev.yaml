@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DEV environment values
+#
+# Combined deployment mode — one pod runs portal + admin + cron. Sized to fit
+# the dev user node pool (1-2x D2s_v4 = 2 vCPU / 8 GB each).
+#
+# Apply:
+#   helm install posterra infra/helm/posterra -n odoo-dev --create-namespace \
+#     -f infra/helm/posterra/values.dev.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+deploymentMode: combined
+
+database:
+  host: "earlyread-saas-dev-pg.postgres.database.azure.com"
+  port: "5432"
+  user: psadmin
+  name: posterra_dev
+
+externalSecrets:
+  clusterSecretStore: dev-kv-store
+
+certManager:
+  clusterIssuer: letsencrypt-staging
+
+filestore:
+  storageAccount: earlyreaddevfseread
+  shareName: odoo-filestore
+  size: 100Gi
+
+ingress:
+  baseDomain: dev.earlyread.ai
+
+init:
+  mode: install
+
+# One combined pod. It owns cron (max_cron_threads=2) since there's no
+# separate cron StatefulSet in combined mode.
+deployments:
+  combined:
+    role: combined
+    workers: 2
+    maxCronThreads: 2
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1500m
+        memory: 3Gi
+
+cron:
+  enabled: false

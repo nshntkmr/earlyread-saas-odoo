@@ -1,0 +1,56 @@
+# Init Job — runs Odoo schema install/upgrade BEFORE the serving pods start.
+#
+# Helm pre-install + pre-upgrade hook, hook-weight 0 so it runs first. The
+# entrypoint waits for PG, renders odoo.conf, then exec's:
+#   odoo -c /tmp/odoo.conf -d <db> -i|-u posterra_portal,dashboard_builder --stop-after-init
+#
+# `-i` (install) on first deploy creates the DB + installs the addons; `-u`
+# (upgrade) on subsequent deploys runs migrations. Controlled by .Values.init.mode.
+#
+# No NGINX sidecar / no static-copy initContainer — this Job just runs Odoo
+# once and exits. backoffLimit 0 surfaces failures instead of silently retrying.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posterra.fullname" . }}-init-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 0
+  # Auto-clean finished init Jobs after 1h.
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "posterra.selectorLabels" . | nindent 8 }}
+        posterra.io/role: init
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      restartPolicy: Never
+      containers:
+        - name: odoo-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "posterra.commonEnv" . | nindent 12 }}
+            - name: ODOO_WORKERS
+              value: "0"
+            - name: ODOO_MAX_CRON_THREADS
+              value: "0"
+            - name: ODOO_EXTRA_ARGS
+              value: >-
+                -d {{ .Values.database.name }}
+                {{ if eq .Values.init.mode "install" }}-i{{ else }}-u{{ end }} posterra_portal,dashboard_builder
+                --stop-after-init
+          volumeMounts:
+            - name: filestore
+              mountPath: /var/lib/odoo
+      volumes:
+        - name: filestore
+          persistentVolumeClaim:
+            claimName: {{ include "posterra.fullname" . }}-filestore

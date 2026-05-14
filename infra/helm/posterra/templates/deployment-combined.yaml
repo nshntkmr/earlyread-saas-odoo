@@ -1,0 +1,28 @@
+{{- if eq .Values.deploymentMode "combined" }}
+# Combined deployment — one pod runs portal + admin + cron (dev). It owns cron
+# (max_cron_threads > 0) because there's no separate cron workload in this mode.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posterra.fullname" . }}-combined
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+    posterra.io/role: combined
+spec:
+  replicas: {{ .Values.deployments.combined.replicas }}
+  # Recreate — never run two combined pods at once (they'd both run cron).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "posterra.selectorLabels" . | nindent 6 }}
+      posterra.io/role: combined
+  template:
+    metadata:
+      labels:
+        {{- include "posterra.selectorLabels" . | nindent 8 }}
+        posterra.io/role: combined
+    spec:
+      {{- include "posterra.podSpec" (dict "root" . "cfg" .Values.deployments.combined) | nindent 6 }}
+{{- end }}
