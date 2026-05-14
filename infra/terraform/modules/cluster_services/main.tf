@@ -48,23 +48,31 @@ resource "helm_release" "cert_manager" {
   version          = var.cert_manager_chart_version
 
   # CRDs installed by the chart so kubectl_manifest resources below find them.
+  # installCRDs is a chart-logic boolean — leave Helm's type inference alone.
   set {
     name  = "installCRDs"
     value = "true"
   }
 
   # Wire workload identity onto the cert-manager ServiceAccount + pod labels.
+  # type = "string" is REQUIRED on every label/annotation value. Without it,
+  # Helm's `set` type-inference turns "true" into a BOOLEAN, and Kubernetes
+  # rejects boolean label/annotation values:
+  #   "cannot unmarshal bool into ... metadata.labels of type string"
   set {
     name  = "serviceAccount.labels.azure\\.workload\\.identity/use"
     value = "true"
+    type  = "string"
   }
   set {
     name  = "serviceAccount.annotations.azure\\.workload\\.identity/client-id"
     value = var.cert_manager_uami_client_id
+    type  = "string"
   }
   set {
     name  = "podLabels.azure\\.workload\\.identity/use"
     value = "true"
+    type  = "string"
   }
 }
 
@@ -150,30 +158,39 @@ resource "helm_release" "external_secrets" {
   create_namespace = true
   version          = var.eso_chart_version
 
+  # installCRDs is a chart-logic boolean — leave Helm's type inference alone.
   set {
     name  = "installCRDs"
     value = "true"
   }
 
+  # type = "string" REQUIRED on all label/annotation values — see the
+  # cert_manager block above for the rationale (Helm bool-inference vs the
+  # K8s requirement that label/annotation values are strings).
   set {
     name  = "serviceAccount.labels.azure\\.workload\\.identity/use"
     value = "true"
+    type  = "string"
   }
   set {
     name  = "serviceAccount.annotations.azure\\.workload\\.identity/client-id"
     value = var.eso_uami_client_id
+    type  = "string"
   }
   set {
     name  = "podLabels.azure\\.workload\\.identity/use"
     value = "true"
+    type  = "string"
   }
   set {
     name  = "webhook.podLabels.azure\\.workload\\.identity/use"
     value = "true"
+    type  = "string"
   }
   set {
     name  = "certController.podLabels.azure\\.workload\\.identity/use"
     value = "true"
+    type  = "string"
   }
 }
 
