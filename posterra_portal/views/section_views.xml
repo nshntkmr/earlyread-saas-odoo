@@ -188,13 +188,4 @@
         </field>
     </record>
 
-    <!-- ================================================================ -->
-    <!-- Menuitem: Configuration → Page Sections                          -->
-    <!-- ================================================================ -->
-    <menuitem id="menu_dashboard_page_sections"
-              name="Page Sections"
-              parent="menu_posterra_config"
-              action="action_dashboard_page_section"
-              sequence="5"/>
-
 </odoo>

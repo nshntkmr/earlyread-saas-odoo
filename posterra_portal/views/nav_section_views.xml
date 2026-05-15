@@ -72,13 +72,4 @@
         </field>
     </record>
 
-    <!-- ================================================================ -->
-    <!-- Menuitem: Configuration → Nav Sections                           -->
-    <!-- ================================================================ -->
-    <menuitem id="menu_dashboard_nav_sections"
-              name="Nav Sections"
-              parent="menu_posterra_config"
-              action="action_dashboard_nav_section"
-              sequence="3"/>
-
 </odoo>

@@ -318,13 +318,4 @@
         </field>
     </record>
 
-    <!-- ================================================================ -->
-    <!-- Menuitem: Configuration → Dashboard Pages                         -->
-    <!-- ================================================================ -->
-    <menuitem id="menu_dashboard_pages"
-              name="Dashboard Pages"
-              parent="menu_posterra_config"
-              action="action_dashboard_page"
-              sequence="5"/>
-
 </odoo>

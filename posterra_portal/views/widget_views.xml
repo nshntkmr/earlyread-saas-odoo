@@ -591,13 +591,4 @@
         </field>
     </record>
 
-    <!-- ================================================================ -->
-    <!-- Menuitem: Configuration → Dashboard Widgets                       -->
-    <!-- ================================================================ -->
-    <menuitem id="menu_dashboard_widgets"
-              name="Dashboard Widgets"
-              parent="menu_posterra_config"
-              action="action_dashboard_widget"
-              sequence="6"/>
-
 </odoo>

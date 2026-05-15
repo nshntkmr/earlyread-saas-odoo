@@ -116,13 +116,4 @@
         </field>
     </record>
 
-    <!-- ================================================================ -->
-    <!-- Menuitem: Configuration → Apps  (sequence=1, first item)         -->
-    <!-- ================================================================ -->
-    <menuitem id="menu_saas_apps"
-              name="Apps"
-              parent="menu_posterra_config"
-              action="action_saas_app"
-              sequence="1"/>
-
 </odoo>

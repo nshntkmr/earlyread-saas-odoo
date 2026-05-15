@@ -42,4 +42,58 @@
               action="action_posterra_create_portal_user"
               sequence="30"/>
 
+    <!-- ================================================================ -->
+    <!-- Dashboard configuration menus.                                   -->
+    <!-- These live HERE (not in their respective views/*_views.xml      -->
+    <!-- files) because they reference menu_posterra_config (defined     -->
+    <!-- above) — and Odoo loads data files in manifest order. Defining  -->
+    <!-- them inside files loaded BEFORE menuitems.xml caused fresh      -->
+    <!-- `odoo -i posterra_portal` to fail with                           -->
+    <!--   ValueError: External ID not found: menu_posterra_config        -->
+    <!-- (M5 first-install bug). Actions referenced below stay in their   -->
+    <!-- original *_views.xml files, which load earlier in the manifest. -->
+    <!-- ================================================================ -->
+
+    <!-- Submenu: Apps -->
+    <menuitem id="menu_saas_apps"
+              name="Apps"
+              parent="menu_posterra_config"
+              action="action_saas_app"
+              sequence="1"/>
+
+    <!-- Submenu: Nav Sections -->
+    <menuitem id="menu_dashboard_nav_sections"
+              name="Nav Sections"
+              parent="menu_posterra_config"
+              action="action_dashboard_nav_section"
+              sequence="3"/>
+
+    <!-- Submenu: Dashboard Pages -->
+    <menuitem id="menu_dashboard_pages"
+              name="Dashboard Pages"
+              parent="menu_posterra_config"
+              action="action_dashboard_page"
+              sequence="5"/>
+
+    <!-- Submenu: Page Sections -->
+    <menuitem id="menu_dashboard_page_sections"
+              name="Page Sections"
+              parent="menu_posterra_config"
+              action="action_dashboard_page_section"
+              sequence="5"/>
+
+    <!-- Submenu: Dashboard Widgets -->
+    <menuitem id="menu_dashboard_widgets"
+              name="Dashboard Widgets"
+              parent="menu_posterra_config"
+              action="action_dashboard_widget"
+              sequence="6"/>
+
+    <!-- Submenu: Page Templates -->
+    <menuitem id="menu_page_templates"
+              name="Page Templates"
+              parent="menu_posterra_config"
+              action="action_page_template"
+              sequence="25"/>
+
 </odoo>
