@@ -1,11 +1,34 @@
-# Init Job — runs Odoo schema install/upgrade BEFORE the serving pods start.
+# Init Job — runs Odoo schema install/upgrade.
 #
-# Helm pre-install + pre-upgrade hook, hook-weight 0 so it runs first. The
-# entrypoint waits for PG, renders odoo.conf, then exec's:
+# Helm hook annotation: post-install,pre-upgrade
+#   - First install: post-install runs AFTER regular resources (SA, ESO-
+#     synced odoo-secrets, azure-files-secret, PVC, Deployments) exist.
+#     Init can't fire pre-install because it depends on those chart-managed
+#     resources, which Helm hasn't created yet at pre-install time.
+#   - Subsequent deploys: pre-upgrade runs BEFORE the new pods roll, so
+#     schema migrations land before any serving pod sees the new image.
+#
+# The entrypoint waits for PG, renders odoo.conf, then exec's:
 #   odoo -c /tmp/odoo.conf -d <db> -i|-u posterra_portal,dashboard_builder --stop-after-init
 #
 # `-i` (install) on first deploy creates the DB + installs the addons; `-u`
 # (upgrade) on subsequent deploys runs migrations. Controlled by .Values.init.mode.
+#
+# Trade-offs to be aware of (handled in the M5 runbook, not the chart):
+#   - First-install crash-loop. Until this Job completes, serving Deployments
+#     restart on missing-schema errors. The livenessProbe's 90s initialDelay
+#     + 5x30s failureThreshold gives ~240s grace per cycle — fits the typical
+#     2-5 min fresh schema install.
+#   - ESO sync race. The Job pod sits in CreateContainerConfigError until
+#     ESO syncs odoo-secrets / azure-files-secret from Key Vault. With a
+#     healthy ClusterSecretStore this is single-digit seconds. Pre-flight
+#     `kubectl get clustersecretstore <name>` and use `helm install
+#     --timeout 10m` so Helm waits long enough.
+#
+# NOTE (Phase 2): consider replacing with a two-step deploy (replicas=0 →
+# init Job → upgrade replicas) OR an initContainer in serving pods that
+# gates on a Job-written `init-complete` ConfigMap. Either eliminates the
+# crash-loop above.
 #
 # No NGINX sidecar / no static-copy initContainer — this Job just runs Odoo
 # once and exits. backoffLimit 0 surfaces failures instead of silently retrying.
@@ -17,7 +40,7 @@ metadata:
   labels:
     {{- include "posterra.labels" . | nindent 4 }}
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook": post-install,pre-upgrade
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
@@ -34,7 +57,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: odoo-init
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "posterra.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             {{- include "posterra.commonEnv" . | nindent 12 }}

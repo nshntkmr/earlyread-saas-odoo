@@ -33,7 +33,7 @@ spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       containers:
         - name: odoo
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "posterra.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             {{- include "posterra.commonEnv" . | nindent 12 }}

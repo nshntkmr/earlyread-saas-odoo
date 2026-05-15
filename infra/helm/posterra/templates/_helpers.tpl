@@ -27,6 +27,14 @@ app.kubernetes.io/name: posterra
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{/* Full container image reference. Uses Helm's `required` so an empty tag
+     fails the render with a clear message — guards against accidentally
+     running `helm install -f values.yaml` (no env file). Tag MUST be set
+     in values.<env>.yaml or via --set image.tag=<sha>. */}}
+{{- define "posterra.image" -}}
+{{ .Values.image.repository }}:{{ required "image.tag must be set (use -f values.<env>.yaml or --set image.tag=<sha>)" .Values.image.tag }}
+{{- end -}}
+
 {{/* Common environment block for Odoo containers. Pass the ROOT context ($).
      ODOO_WORKERS / ODOO_MAX_CRON_THREADS / ODOO_EXTRA_ARGS are appended by
      each caller (they differ per role / per job). */}}
@@ -87,7 +95,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 serviceAccountName: {{ $root.Values.serviceAccount.name }}
 initContainers:
   - name: copy-static
-    image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
+    image: {{ include "posterra.image" $root | quote }}
     imagePullPolicy: {{ $root.Values.image.pullPolicy }}
     command:
       - sh
@@ -102,7 +110,7 @@ initContainers:
         mountPath: /shared
 containers:
   - name: odoo
-    image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
+    image: {{ include "posterra.image" $root | quote }}
     imagePullPolicy: {{ $root.Values.image.pullPolicy }}
     ports:
       - name: http

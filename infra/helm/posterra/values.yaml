@@ -11,10 +11,13 @@
 #                StatefulSet (staging: the prod-replica host-based split)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Container image — built + pushed to ACR in M4a.
+# Container image — repository is fixed; tag MUST be set per-env (use
+# -f values.<env>.yaml or --set image.tag=<sha>). The chart's
+# posterra.image helper enforces this via Helm's `required`, so an empty
+# tag fails fast at render time instead of pulling a stale image.
 image:
   repository: earlyreadsaasacreread.azurecr.io/odoo
-  tag: "31cc311"
+  tag: ""
   pullPolicy: IfNotPresent
 
 # NGINX sidecar — stock alpine image; config comes from a ConfigMap.
@@ -41,10 +44,12 @@ certManager:
   clusterIssuer: letsencrypt-staging
 
 # Azure Files filestore — the M2-created share, mounted at /var/lib/odoo.
-# storageAccount is set per-env. The account key + name are pulled from KV
-# by the filestore ExternalSecret.
+# storageAccount + resourceGroup are set per-env (the CSI driver needs both
+# to address the share). The account key + name are pulled from KV by the
+# filestore ExternalSecret.
 filestore:
   storageAccount: ""
+  resourceGroup: ""
   shareName: odoo-filestore
   size: 100Gi
   # uid/gid the share is mounted as — must match the odoo user in the image.

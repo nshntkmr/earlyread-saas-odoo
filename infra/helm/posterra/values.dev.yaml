@@ -11,6 +11,11 @@
 
 deploymentMode: combined
 
+# Image tag — pin per build (commit SHA from `az acr build`). The
+# posterra.image helper requires this to be set; an empty tag fails render.
+image:
+  tag: "31cc311"
+
 database:
   host: "earlyread-saas-dev-pg.postgres.database.azure.com"
   port: "5432"
@@ -25,6 +30,7 @@ certManager:
 
 filestore:
   storageAccount: earlyreaddevfseread
+  resourceGroup: earlyread-saas-dev-rg
   shareName: odoo-filestore
   size: 100Gi
 

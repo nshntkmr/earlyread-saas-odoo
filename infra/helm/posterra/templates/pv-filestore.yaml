@@ -30,9 +30,9 @@ spec:
   csi:
     driver: file.csi.azure.com
     # Unique per share. Format: <resourceGroup>#<account>#<share>
-    volumeHandle: "earlyread-saas-{{ .Release.Namespace | replace "odoo-" "" }}-rg#{{ .Values.filestore.storageAccount }}#{{ .Values.filestore.shareName }}"
+    volumeHandle: "{{ .Values.filestore.resourceGroup }}#{{ .Values.filestore.storageAccount }}#{{ .Values.filestore.shareName }}"
     volumeAttributes:
-      resourceGroup: "earlyread-saas-{{ .Release.Namespace | replace "odoo-" "" }}-rg"
+      resourceGroup: {{ .Values.filestore.resourceGroup }}
       storageAccount: {{ .Values.filestore.storageAccount }}
       shareName: {{ .Values.filestore.shareName }}
     nodeStageSecretRef:
