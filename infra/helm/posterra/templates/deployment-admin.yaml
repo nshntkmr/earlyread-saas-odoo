@@ -25,6 +25,12 @@ spec:
       labels:
         {{- include "posterra.selectorLabels" . | nindent 8 }}
         posterra.io/role: admin
+      annotations:
+        # Force pod restart when the nginx ConfigMap content changes.
+        # The sidecar mounts nginx.conf via subPath, which is copy-on-mount —
+        # ConfigMap content updates would NEVER reach a running pod without
+        # this checksum forcing a Deployment roll on every ConfigMap change.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-nginx.yaml") . | sha256sum }}
     spec:
       {{- include "posterra.podSpec" (dict "root" . "cfg" .Values.deployments.admin) | nindent 6 }}
 {{- end }}
