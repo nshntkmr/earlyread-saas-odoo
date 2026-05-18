@@ -314,10 +314,21 @@ class ClickHouseExecutor(BaseQueryExecutor):
                 self.connection.name,
             )
 
-        ch_query = translate_params(query, params)
+        # clickhouse-connect renders Python tuples as CH Tuple literals "(a,b)"
+        # and lists as Array literals "[a,b]". Our shared build_sql_params emits
+        # tuples (psycopg2's IN-clause contract on the PG path); coerce to lists
+        # at the CH boundary so {param:Array(T)} placeholders bind. Normalize
+        # BEFORE translate_params so type inference and bound values use the
+        # same object — defends against future changes to _infer_ch_type that
+        # might distinguish tuple vs list.
+        ch_params = {
+            k: list(v) if isinstance(v, tuple) else v
+            for k, v in params.items()
+        }
+        ch_query = translate_params(query, ch_params)
         try:
             result = client.query(
-                ch_query, parameters=params, settings=settings,
+                ch_query, parameters=ch_params, settings=settings,
             )
         except Exception as exc:
             _logger.warning(

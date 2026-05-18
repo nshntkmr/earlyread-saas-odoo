@@ -2,3 +2,4 @@
 
 from . import test_access_helper
 from . import test_route_bypass
+from . import test_clickhouse_executor_params
