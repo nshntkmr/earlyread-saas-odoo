@@ -14,7 +14,7 @@ deploymentMode: combined
 # Image tag — pin per build (commit SHA from `az acr build`). The
 # posterra.image helper requires this to be set; an empty tag fails render.
 image:
-  tag: "31cc311"
+  tag: "81d6752"
 
 database:
   host: "earlyread-saas-dev-pg.postgres.database.azure.com"
@@ -26,7 +26,7 @@ externalSecrets:
   clusterSecretStore: dev-kv-store
 
 certManager:
-  clusterIssuer: letsencrypt-staging
+  clusterIssuer: letsencrypt-prod
 
 filestore:
   storageAccount: earlyreaddevfseread
@@ -38,7 +38,7 @@ ingress:
   baseDomain: dev.earlyread.ai
 
 init:
-  mode: install
+  mode: upgrade
 
 # One combined pod. It owns cron (max_cron_threads=2) since there's no
 # separate cron StatefulSet in combined mode.

@@ -110,7 +110,7 @@ resource "azurerm_postgresql_flexible_server_configuration" "pgbouncer_pool_mode
   depends_on = [azurerm_postgresql_flexible_server_configuration.pgbouncer_enabled]
   name       = "pgbouncer.pool_mode"
   server_id  = azurerm_postgresql_flexible_server.this.id
-  value      = "TRANSACTION"
+  value      = "transaction"
 }
 
 # Force all connections to use TLS

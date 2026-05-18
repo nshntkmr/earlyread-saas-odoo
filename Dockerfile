@@ -32,7 +32,9 @@ USER root
 # --break-system-packages: the odoo:19.0 base is Debian-based; recent Debian
 # marks system Python externally-managed (PEP 668). The flag is a harmless
 # no-op if the environment isn't externally-managed.
-RUN pip3 install --no-cache-dir --break-system-packages \
+RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed \
+        typing-extensions \
+    && pip3 install --no-cache-dir --break-system-packages \
         clickhouse-connect \
         anthropic \
     && rm -rf /root/.cache
