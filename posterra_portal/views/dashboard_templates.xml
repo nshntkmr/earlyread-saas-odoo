@@ -17,7 +17,7 @@
             <t t-set="no_footer" t-value="True"/>
             <t t-set="no_copyright" t-value="True"/>
             <t t-set="title" t-value="page_title or (app and app.name or 'Portal')"/>
-            <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/favicon.png'"/>
+            <t t-set="x_icon" t-value="'/posterra_portal/static/src/img/earlyread_favicon.svg'"/>
             <t t-out="0"/>
         </t>
     </template>

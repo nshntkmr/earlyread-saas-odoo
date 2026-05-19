@@ -3355,11 +3355,11 @@ body.pv-login-page main {
     margin-bottom: 32px;
 }
 
-.pv-login-logo-icon {
-    font-size: 48px;
-    color: var(--pv-primary);
+.pv-login-logo-img {
+    max-width: 200px;
+    max-height: 64px;
+    margin: 0 auto 12px;
     display: block;
-    margin-bottom: 8px;
 }
 
 .pv-login-title {
