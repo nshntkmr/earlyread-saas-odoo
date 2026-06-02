@@ -25,4 +25,16 @@
         </field>
     </record>
 
+    <!-- Add metric_direction to Widget Definition form -->
+    <record id="view_widget_definition_form_metric_direction" model="ir.ui.view">
+        <field name="name">dashboard.widget.definition.form.metric_direction</field>
+        <field name="model">dashboard.widget.definition</field>
+        <field name="inherit_id" ref="dashboard_builder.view_widget_definition_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='is_active']" position="before">
+                <field name="metric_direction"/>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

@@ -27,3 +27,11 @@ class DashboardWidgetDefinitionExt(models.Model):
         'saas.app', 'widget_def_app_rel', 'definition_id', 'app_id',
         string='Available in Apps',
         help='Leave empty for global availability. Set to restrict to specific apps.')
+
+    metric_direction = fields.Selection([
+        ('higher_better', 'Higher is better (rise=green, fall=red)'),
+        ('lower_better',  'Lower is better (invert: rise=red, fall=green)'),
+        ('neutral',       'Neutral (no good/bad direction)'),
+    ], default='higher_better', string='Metric Direction',
+       help='Default metric direction for widgets created from this definition. '
+            'Instance widgets can override this per-placement.')

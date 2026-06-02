@@ -392,14 +392,22 @@ export default function WidgetGrid({ initialWidgets }) {
         >
           {!isCompact && (
             <div className="pv-widget-card-header">
-              {w.icon_name && w.icon_name !== 'none' && w.icon_position === 'title' && (
-                <span
-                  className="pv-widget-title-icon"
-                  style={w.title_icon_color ? { color: w.title_icon_color } : undefined}
-                >
-                  <CategoryIcon name={w.icon_name} />
-                </span>
-              )}
+              {w.icon_name && w.icon_name !== 'none' && w.icon_position === 'title' && (() => {
+                const titleStatusCss = w.title_icon_color_mode === 'status'
+                  ? (w.data?.status_css || '')
+                  : ''
+                const titleStyle = w.title_icon_color && w.title_icon_color_mode !== 'status'
+                  ? { color: w.title_icon_color }
+                  : undefined
+                return (
+                  <span
+                    className={`pv-widget-title-icon${titleStatusCss ? ` ${titleStatusCss}` : ''}`}
+                    style={titleStyle}
+                  >
+                    <CategoryIcon name={w.icon_name} />
+                  </span>
+                )
+              })()}
               <span
                 className="pv-widget-title"
                 style={w.title_text_color

@@ -177,6 +177,8 @@ class DashboardPageTemplate(models.Model):
                 'icon_color': w.icon_color or 'default',
                 'icon_custom_color': w.icon_custom_color or '',
                 'icon_custom_bg': w.icon_custom_bg or '',
+                # Metric direction (controls trend coloring)
+                'metric_direction': w.metric_direction or 'higher_better',
                 # Typography
                 'label_font_weight': w.label_font_weight or 'normal',
                 'value_font_weight': w.value_font_weight or 'bold',
@@ -517,6 +519,7 @@ class DashboardPageTemplate(models.Model):
                 'icon_color': w.get('icon_color', 'default'),
                 'icon_custom_color': w.get('icon_custom_color', ''),
                 'icon_custom_bg': w.get('icon_custom_bg', ''),
+                'metric_direction': w.get('metric_direction', 'higher_better'),
                 'label_font_weight': w.get('label_font_weight', 'normal'),
                 'value_font_weight': w.get('value_font_weight', 'bold'),
                 'label_color': w.get('label_color', 'default'),

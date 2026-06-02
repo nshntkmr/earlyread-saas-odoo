@@ -1757,6 +1757,14 @@
     height: 16px;
     opacity: 0.7;
 }
+.pv-widget-title-icon.status-up      { color: var(--w-status-up); }
+.pv-widget-title-icon.status-down    { color: var(--w-status-down); }
+.pv-widget-title-icon.status-warning { color: var(--w-status-warn); }
+.pv-widget-title-icon.status-neutral { color: var(--w-status-neutral); }
+.pv-widget-title-icon.status-up svg,
+.pv-widget-title-icon.status-down svg,
+.pv-widget-title-icon.status-warning svg,
+.pv-widget-title-icon.status-neutral svg { opacity: 1; }
 
 .pv-widget-error {
     padding: var(--w-space-xl);

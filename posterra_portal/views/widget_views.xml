@@ -95,6 +95,7 @@
                             <field name="icon_custom_bg"
                                    invisible="icon_color != 'custom'"
                                    placeholder="#dbeafe"/>
+                            <field name="metric_direction"/>
                             <field name="col_span"/>
                             <field name="width_pct"
                                    placeholder="0 = use preset"

@@ -59,15 +59,116 @@ const IconClipboard = () => (
   </svg>
 )
 
+const IconUserCheck = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M1.5 13.5c0-2.5 2-4.5 4.5-4.5 1.1 0 2.1.3 2.9.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M10 12l1.7 1.7L15 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const IconUserDisaligned = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M1.5 13.5c0-2.5 2-4.5 4.5-4.5 1.1 0 2.1.3 2.9.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M10 10.5l3.5 3.5M13.5 10.5l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+)
+
+const IconUserGroup = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="5.5" cy="5" r="2.2" stroke="currentColor" strokeWidth="1.4"/>
+    <circle cx="10.5" cy="5" r="2.2" stroke="currentColor" strokeWidth="1.4"/>
+    <path d="M1.5 13.5c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    <path d="M9 9.7c.5-.1 1-.2 1.5-.2 2.2 0 4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+)
+
+const IconRefresh = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M2 8a6 6 0 0110.2-4.2M14 8a6 6 0 01-10.2 4.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M12.2 1.5v3h-3M3.8 14.5v-3h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const IconTrendingUp = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M1.5 12.5L6 8l3 3 5.5-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M10.5 4.5h4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const IconTrendingDown = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M1.5 3.5L6 8l3-3 5.5 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M10.5 11.5h4v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const IconTarget = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="8" cy="8" r="3.8" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="8" cy="8" r="1.2" fill="currentColor"/>
+  </svg>
+)
+
+const IconAward = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M5.5 9.5L4 14.5l4-2 4 2-1.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const IconAlert = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 1.8L14.5 13.5h-13L8 1.8z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 6.5v3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <circle cx="8" cy="11.8" r="0.7" fill="currentColor"/>
+  </svg>
+)
+
+const IconCheckCircle = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M5 8.2l2.2 2.2L11 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const IconClock = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M8 4v4l2.8 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const IconActivity = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M1.5 8h3l2-5 3 10 2-5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 const ICON_MAP = {
-  users:     IconUsers,
-  home:      IconHome,
-  heartbeat: IconHeartbeat,
-  dollar:    IconDollar,
-  star:      IconStar,
-  chart:     IconChart,
-  calendar:  IconCalendar,
-  clipboard: IconClipboard,
+  users:             IconUsers,
+  home:              IconHome,
+  heartbeat:         IconHeartbeat,
+  dollar:            IconDollar,
+  star:              IconStar,
+  chart:             IconChart,
+  calendar:          IconCalendar,
+  clipboard:         IconClipboard,
+  'user-check':      IconUserCheck,
+  'user-disaligned': IconUserDisaligned,
+  'user-group':      IconUserGroup,
+  refresh:           IconRefresh,
+  'trending-up':     IconTrendingUp,
+  'trending-down':   IconTrendingDown,
+  target:            IconTarget,
+  award:             IconAward,
+  alert:             IconAlert,
+  'check-circle':    IconCheckCircle,
+  clock:             IconClock,
+  activity:          IconActivity,
 }
 
 /**

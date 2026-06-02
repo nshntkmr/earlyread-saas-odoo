@@ -250,15 +250,27 @@ class DashboardWidget(models.Model):
        help='Horizontal text alignment for KPI value, label, and trend badge.')
 
     icon_name = fields.Selection([
-        ('none',      'None'),
-        ('users',     'People / Users'),
-        ('home',      'Home / Building'),
-        ('heartbeat', 'Heartbeat / Medical'),
-        ('dollar',    'Dollar / Revenue'),
-        ('star',      'Star / Quality'),
-        ('chart',     'Chart / Trending'),
-        ('calendar',  'Calendar / Date'),
-        ('clipboard', 'Clipboard / Report'),
+        ('none',           'None'),
+        ('users',          'People / Users'),
+        ('home',           'Home / Building'),
+        ('heartbeat',      'Heartbeat / Medical'),
+        ('dollar',         'Dollar / Revenue'),
+        ('star',           'Star / Quality'),
+        ('chart',          'Chart / Trending'),
+        ('calendar',       'Calendar / Date'),
+        ('clipboard',      'Clipboard / Report'),
+        ('user-check',     'Person / Active'),
+        ('user-disaligned','Person / Disaligned'),
+        ('user-group',     'People / Group'),
+        ('refresh',        'Refresh / Cycle'),
+        ('trending-up',    'Trend / Up Arrow'),
+        ('trending-down',  'Trend / Down Arrow'),
+        ('target',         'Target / Goal'),
+        ('award',          'Award / Achievement'),
+        ('alert',          'Alert / Warning'),
+        ('check-circle',   'Check / Success'),
+        ('clock',          'Clock / Time'),
+        ('activity',       'Activity / Pulse'),
     ], default='none', string='Icon',
        help='SVG icon displayed next to the KPI value.')
 
@@ -273,6 +285,7 @@ class DashboardWidget(models.Model):
     # ── Title-position appearance (static, admin-configured) ─────────────────
     title_icon_color = fields.Selection([
         ('default', 'Default (Gray)'),
+        ('status',  'Status-based (Auto: green up / red down)'),
         ('teal',    'Teal'),
         ('blue',    'Blue'),
         ('green',   'Green'),
@@ -282,7 +295,9 @@ class DashboardWidget(models.Model):
         ('black',   'Black'),
         ('custom',  'Custom'),
     ], default='default', string='Title Icon Color',
-       help='Static color for the icon when displayed next to the widget title. '
+       help='Color for the icon when displayed next to the widget title. '
+            'Status-based: green when value rises, red when it falls. '
+            'Inverted for "Lower is better" metrics (see Metric Direction). '
             'Only applies when Icon Position = "Next to Widget Title".')
 
     title_icon_custom_color = fields.Char(
@@ -330,6 +345,19 @@ class DashboardWidget(models.Model):
     icon_custom_bg = fields.Char(
         string='Icon Custom Background (hex)',
         help='Hex background color for the icon badge, e.g. #dbeafe. Only used when Icon Color is "Custom".')
+
+    # ── Metric Direction (controls trend coloring) ────────────────────────────
+    metric_direction = fields.Selection([
+        ('higher_better', 'Higher is better (default: rise=green, fall=red)'),
+        ('lower_better',  'Lower is better (invert: rise=red, fall=green)'),
+        ('neutral',       'Neutral (no good/bad direction)'),
+    ], default='higher_better', string='Metric Direction',
+       help='Determines how trend color is interpreted. '
+            '"Higher is better" — rising values show green (good), falling show red. '
+            '"Lower is better" — INVERTED. Rising values show red (bad), falling show green. '
+            'Use for Attrition Rate, Disalignment, Churn, etc. '
+            '"Neutral" — no auto-color; icon stays default. '
+            'Affects trend badge color, body icon color, and title icon color (when set to Status-based).')
 
     # ── Typography ─────────────────────────────────────────────────────────────
     label_font_weight = fields.Selection([
@@ -663,6 +691,9 @@ class DashboardWidget(models.Model):
         self.kpi_format = defn.kpi_format
         self.kpi_prefix = defn.kpi_prefix
         self.kpi_suffix = defn.kpi_suffix
+        # Metric direction (library default; instance can override)
+        if 'metric_direction' in defn._fields:
+            self.metric_direction = defn.metric_direction or 'higher_better'
         # Gauge options
         self.gauge_min = defn.gauge_min
         self.gauge_max = defn.gauge_max
@@ -3447,22 +3478,34 @@ class DashboardWidget(models.Model):
                 try:
                     current = float(raw_val or 0)
                     prior = float(rows[0][col_idx[y_col_trend]] or 0)
-                    # Check trend_invert from visual_config (lower is better)
-                    _vc_trend = {}
-                    try:
-                        _vc_trend = json.loads(self.visual_config or '{}') or {}
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                    invert = _vc_trend.get('trend_invert', False)
-                    if current > prior:
-                        result['icon_class'] = 'fa-arrow-up'
-                        result['status_css'] = 'status-down' if invert else 'status-up'
-                    elif current < prior:
-                        result['icon_class'] = 'fa-arrow-down'
-                        result['status_css'] = 'status-up' if invert else 'status-down'
-                    else:
-                        result['icon_class'] = 'fa-minus'
+
+                    direction = self.metric_direction
+                    if not direction:
+                        try:
+                            _vc_trend = json.loads(self.visual_config or '{}') or {}
+                            direction = 'lower_better' if _vc_trend.get('trend_invert', False) else 'higher_better'
+                        except (json.JSONDecodeError, TypeError):
+                            direction = 'higher_better'
+
+                    if direction == 'neutral':
+                        if current > prior:
+                            result['icon_class'] = 'fa-arrow-up'
+                        elif current < prior:
+                            result['icon_class'] = 'fa-arrow-down'
+                        else:
+                            result['icon_class'] = 'fa-minus'
                         result['status_css'] = 'status-neutral'
+                    else:
+                        invert = (direction == 'lower_better')
+                        if current > prior:
+                            result['icon_class'] = 'fa-arrow-up'
+                            result['status_css'] = 'status-down' if invert else 'status-up'
+                        elif current < prior:
+                            result['icon_class'] = 'fa-arrow-down'
+                            result['status_css'] = 'status-up' if invert else 'status-down'
+                        else:
+                            result['icon_class'] = 'fa-minus'
+                            result['status_css'] = 'status-neutral'
                 except (TypeError, ValueError):
                     pass
 
@@ -3595,8 +3638,11 @@ class DashboardWidget(models.Model):
                     else:
                         result['progress_annotation'] = f'On {bm_label}'
 
-                # Determine color from thresholds (respects trend_invert)
-                trend_invert = vc.get('trend_invert', False)
+                # Determine color from thresholds (respects metric_direction; falls back to legacy trend_invert)
+                _direction = self.metric_direction
+                if not _direction:
+                    _direction = 'lower_better' if vc.get('trend_invert', False) else 'higher_better'
+                trend_invert = (_direction == 'lower_better')
                 if kpi_style == 'progress':
                     color_mode = vc.get('progress_color_mode', 'traffic_light')
                 else:
@@ -4347,6 +4393,8 @@ class DashboardWidget(models.Model):
         self.ensure_one()
         val = self.title_icon_color or 'default'
         if val == 'default':
+            return ''
+        if val == 'status':
             return ''
         if val == 'custom':
             return self.title_icon_custom_color or ''
