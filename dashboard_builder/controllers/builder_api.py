@@ -291,6 +291,13 @@ class BuilderAPI(http.Controller):
 
         body = _get_body()
         mode = body.get('mode', 'visual')
+        chart_type = body.get('chart_type', 'bar')
+
+        # v1 contract: Sankey is Custom SQL only — reject before any SQL is built
+        if chart_type == 'sankey' and mode != 'custom_sql':
+            return _json_err(400,
+                "Sankey widgets require Custom SQL in v1. Set mode='custom_sql' "
+                "and provide a query returning (source, target, value[, category]) columns.")
 
         try:
             from ..services.query_builder import QueryBuilder
@@ -354,7 +361,13 @@ class BuilderAPI(http.Controller):
             from ..services.preview_formatter import format_preview
             chart_type = body.get('chart_type', 'table')
             widget_config = body.get('widget_config', {})
-            formatted = format_preview(chart_type, columns, rows_list, widget_config)
+            # Extract visual_config separately — format_preview() takes it as
+            # a SEPARATE kwarg (see designer_api preview at line ~660). Without
+            # this, Sankey + other chart_types whose flags live in visual_config
+            # would render with defaults only.
+            visual_config = widget_config.get('visual_config', {})
+            formatted = format_preview(chart_type, columns, rows_list,
+                                       widget_config, visual_config)
 
             return _json_resp({
                 'sql': sql,
@@ -388,6 +401,12 @@ class BuilderAPI(http.Controller):
             chart_type = body.get('chart_type', 'bar')
             page_id = body.get('page_id')
             tab_id = body.get('tab_id')
+
+            # v1 contract: Sankey is Custom SQL only
+            if chart_type == 'sankey' and mode != 'custom_sql':
+                return _json_err(400,
+                    "Sankey widgets require Custom SQL in v1. Set mode='custom_sql' "
+                    "and provide a query returning (source, target, value[, category]) columns.")
 
             # Build widget definition
             def_vals = {
@@ -541,6 +560,23 @@ class BuilderAPI(http.Controller):
             return _json_err(404, 'Widget not found')
 
         body = _get_body()
+
+        # v1 contract: Sankey is Custom SQL only. dashboard.widget does not
+        # have a `data_mode` field (it uses `query_type` for SQL vs ORM);
+        # data_mode lives on dashboard.widget.definition. So compute the
+        # effective mode through a fallback chain.
+        effective_chart_type = body.get('chart_type') or widget.chart_type
+        effective_mode = (
+            body.get('mode')
+            or body.get('data_mode')
+            or (widget.definition_id.data_mode if widget.definition_id else None)
+            or ('visual' if 'config' in body else 'custom_sql')
+        )
+        if effective_chart_type == 'sankey' and effective_mode != 'custom_sql':
+            return _json_err(400,
+                "Sankey widgets require Custom SQL in v1. Set mode='custom_sql' "
+                "and provide a query returning (source, target, value[, category]) columns.")
+
         update_vals = {}
 
         # Direct field updates

@@ -539,6 +539,20 @@ class DesignerAPI(http.Controller):
 
         body = _get_request_json()
         mode = body.get('mode', 'visual')
+        chart_type = body.get('chart_type', 'table')
+
+        # v1 contract: Sankey is Custom SQL only — block before any SQL is built
+        if chart_type == 'sankey' and mode != 'custom_sql':
+            return _json_error(400,
+                "Sankey widgets require Custom SQL in v1. Switch the wizard to "
+                "Custom SQL mode and provide a query returning "
+                "(source, target, value[, category]) columns.")
+        if chart_type == 'sankey_member_flow' and mode != 'custom_sql':
+            return _json_error(400,
+                "Sankey Member Flow widgets require Custom SQL. Switch the "
+                "wizard to Custom SQL mode and provide one monthly row with "
+                "YEAR_MONTH, Date, NEW_ALIGNEMENT, STILL_ACTIVE, RECAPTURED, "
+                "DISALIGNED, and optional 12_month_active columns.")
 
         try:
             from ..services.query_builder import QueryBuilder
@@ -883,6 +897,19 @@ class DesignerAPI(http.Controller):
             mode = body.get('data_mode', 'custom_sql')
             chart_type = body.get('chart_type', 'bar')
 
+            # v1 contract: Sankey is Custom SQL only
+            if chart_type == 'sankey' and mode != 'custom_sql':
+                return _json_error(400,
+                    "Sankey widgets require Custom SQL in v1. Set "
+                    "data_mode='custom_sql' and provide a query returning "
+                    "(source, target, value[, category]) columns.")
+            if chart_type == 'sankey_member_flow' and mode != 'custom_sql':
+                return _json_error(400,
+                    "Sankey Member Flow widgets require Custom SQL. Set "
+                    "data_mode='custom_sql' and provide one monthly row with "
+                    "YEAR_MONTH, Date, NEW_ALIGNEMENT, STILL_ACTIVE, "
+                    "RECAPTURED, DISALIGNED, and optional 12_month_active columns.")
+
             def_vals = {
                 'name': body.get('name', 'New Widget'),
                 'description': body.get('description', ''),
@@ -1076,6 +1103,24 @@ class DesignerAPI(http.Controller):
             return _json_error(404, 'Widget definition not found')
 
         body = _get_request_json()
+
+        # v1 contract: Sankey is Custom SQL only. Compute effective values
+        # from body OR fall back to the existing defn fields (since updates
+        # can omit chart_type / data_mode).
+        effective_chart_type = body.get('chart_type') or defn.chart_type
+        effective_mode = body.get('data_mode') or defn.data_mode
+        if effective_chart_type == 'sankey' and effective_mode != 'custom_sql':
+            return _json_error(400,
+                "Sankey widgets require Custom SQL in v1. Set "
+                "data_mode='custom_sql' and provide a query returning "
+                "(source, target, value[, category]) columns.")
+        if effective_chart_type == 'sankey_member_flow' and effective_mode != 'custom_sql':
+            return _json_error(400,
+                "Sankey Member Flow widgets require Custom SQL. Set "
+                "data_mode='custom_sql' and provide one monthly row with "
+                "YEAR_MONTH, Date, NEW_ALIGNEMENT, STILL_ACTIVE, "
+                "RECAPTURED, DISALIGNED, and optional 12_month_active columns.")
+
         update_vals = {}
 
         field_map = {

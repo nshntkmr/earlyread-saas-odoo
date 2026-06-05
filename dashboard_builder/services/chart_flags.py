@@ -1548,6 +1548,59 @@ COMMON_FLAGS = [
 # Add new chart families here as they are implemented.
 # COMMON_FLAGS are prepended to every chart type's flags.
 
+# ─ Sankey flags ──────────────────────────────────────────────────────────────
+# Sankey diagrams display flows between nodes with colored bands.
+# Column mapping (Sankey v1 is Custom SQL only):
+#   x_column      = source node
+#   series_column = target node
+#   y_columns[0]  = numeric value
+#   y_columns[1]  = optional category column (drives per-link color)
+SANKEY_FLAGS = [
+    {
+        'flag': 'sankey_orient', 'type': 'select', 'default': 'horizontal',
+        'label': 'Flow Direction',
+        'options': [
+            {'value': 'horizontal', 'label': 'Left to right'},
+            {'value': 'vertical',   'label': 'Top to bottom'},
+        ],
+        'help': 'Layout direction for the Sankey flow.',
+    },
+    {
+        'flag': 'sankey_node_align', 'type': 'select', 'default': 'justify',
+        'label': 'Node Alignment',
+        'options': [
+            {'value': 'left',    'label': 'Left'},
+            {'value': 'right',   'label': 'Right'},
+            {'value': 'justify', 'label': 'Justify (default)'},
+        ],
+        'help': 'Where to position node labels along the flow direction.',
+    },
+    {'flag': 'sankey_node_gap',       'type': 'number', 'default': 8,
+     'label': 'Node Gap (px)',
+     'help': 'Vertical spacing between nodes in the same column.'},
+    {'flag': 'sankey_node_width',     'type': 'number', 'default': 20,
+     'label': 'Node Width (px)',
+     'help': 'Width of each node rectangle.'},
+    {'flag': 'sankey_link_opacity',   'type': 'number', 'default': 0.5,
+     'label': 'Link Opacity',
+     'help': '0 (transparent) to 1 (solid). Per-link category colors inherit this.'},
+    {'flag': 'sankey_link_curveness', 'type': 'number', 'default': 0.5,
+     'label': 'Link Curveness',
+     'help': '0 (straight lines) to 1 (curved bands).'},
+    {
+        'flag': 'sankey_label_position', 'type': 'select', 'default': 'right',
+        'label': 'Label Position',
+        'options': [
+            {'value': 'left',   'label': 'Left'},
+            {'value': 'right',  'label': 'Right'},
+            {'value': 'top',    'label': 'Top'},
+            {'value': 'bottom', 'label': 'Bottom'},
+            {'value': 'inside', 'label': 'Inside node'},
+        ],
+        'help': 'Where to render the node label relative to the node rectangle.',
+    },
+]
+
 CHART_FLAGS = {
     'bar': COMMON_FLAGS + BAR_FLAGS,
     'pie': COMMON_FLAGS + PIE_FLAGS,
@@ -1557,6 +1610,8 @@ CHART_FLAGS = {
     'kpi': COMMON_FLAGS + KPI_FLAGS,
     'status_kpi': COMMON_FLAGS + KPI_FLAGS,
     'scatter': COMMON_FLAGS + SCATTER_FLAGS,
+    'sankey': COMMON_FLAGS + SANKEY_FLAGS,
+    'sankey_member_flow': COMMON_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
     'map': MAP_FLAGS,
 }

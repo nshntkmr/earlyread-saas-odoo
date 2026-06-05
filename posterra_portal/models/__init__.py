@@ -8,6 +8,7 @@ from . import dashboard_page_filter
 from . import dashboard_filter_dependency
 from . import dashboard_widget
 from . import dashboard_widget_scope_option
+from . import dashboard_widget_composite_item
 from . import dashboard_page_section
 from . import dashboard_filter_state
 from . import res_config_settings

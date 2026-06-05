@@ -566,6 +566,135 @@
                             </group>
                         </page>
 
+                        <page string="Composite Items" name="composite_items"
+                              invisible="chart_type != 'composite'">
+                            <p class="text-muted">
+                                Define the child blocks rendered inside this composite widget.
+                                Children with <strong>Inherit Parent Query</strong> reuse this
+                                widget's executed SQL rows; children with <strong>Own SQL</strong>
+                                run their own query. Use the 12-column grid layout to position
+                                each child (col_start 1-12, col_span 1-12).
+                            </p>
+                            <field name="composite_item_ids" nolabel="1">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="is_active" widget="boolean_toggle"/>
+                                    <field name="name"/>
+                                    <field name="chart_type"/>
+                                    <field name="data_mode"/>
+                                    <field name="col_start"/>
+                                    <field name="col_span"/>
+                                    <field name="row_start"/>
+                                    <field name="row_span"/>
+                                    <field name="min_height_px"/>
+                                </list>
+                                <form>
+                                    <sheet>
+                                        <group>
+                                            <group string="General">
+                                                <field name="is_active"/>
+                                                <field name="sequence"/>
+                                                <field name="name" placeholder="Block title (optional)"/>
+                                                <field name="chart_type"/>
+                                            </group>
+                                            <group string="Layout (12-col grid)">
+                                                <field name="col_start"/>
+                                                <field name="col_span"/>
+                                                <field name="row_start"
+                                                       help="0 = auto-place on next available row"/>
+                                                <field name="row_span"/>
+                                                <field name="min_height_px"/>
+                                            </group>
+                                        </group>
+
+                                        <group string="Data Source"
+                                               invisible="chart_type == 'text_note'">
+                                            <field name="data_mode"/>
+                                            <field name="schema_source_id"
+                                                   invisible="data_mode != 'own_sql'"/>
+                                            <field name="where_clause_exclude"
+                                                   invisible="data_mode != 'own_sql'"/>
+                                            <field name="query_sql" widget="ace" options="{'mode': 'sql'}"
+                                                   invisible="data_mode != 'own_sql'"
+                                                   placeholder="SELECT ... FROM ... WHERE {where_clause}"
+                                                   required="data_mode == 'own_sql' and chart_type != 'text_note'"/>
+                                        </group>
+
+                                        <group string="Columns" invisible="chart_type == 'text_note'">
+                                            <field name="x_column"
+                                                   help="Label / x-axis column (defaults to first SQL column)"/>
+                                            <field name="y_columns"
+                                                   help="Value column(s), comma-separated. For legend_list, first = value column, optional second = explicit pct column."/>
+                                            <field name="series_column"
+                                                   invisible="chart_type not in ('bar','line','scatter')"/>
+                                            <field name="status_column"
+                                                   invisible="chart_type not in ('kpi','status_kpi','kpi_strip')"/>
+                                        </group>
+
+                                        <group string="KPI Options"
+                                               invisible="chart_type not in ('kpi','status_kpi','kpi_strip')">
+                                            <field name="kpi_format"/>
+                                            <field name="kpi_prefix"/>
+                                            <field name="kpi_suffix"/>
+                                            <field name="kpi_layout"/>
+                                            <field name="display_mode"/>
+                                            <field name="text_align"/>
+                                            <field name="metric_direction"/>
+                                        </group>
+
+                                        <group string="Icon"
+                                               invisible="chart_type not in ('kpi','status_kpi','kpi_strip','text_note')">
+                                            <field name="icon_name"/>
+                                            <field name="icon_position"
+                                                   invisible="chart_type == 'text_note' or icon_name == 'none'"/>
+                                            <field name="title_icon_color"
+                                                   invisible="chart_type == 'text_note' or icon_name == 'none'"/>
+                                        </group>
+
+                                        <group string="Gauge"
+                                               invisible="chart_type not in ('gauge','gauge_kpi')">
+                                            <field name="gauge_min"/>
+                                            <field name="gauge_max"/>
+                                            <field name="gauge_color_mode"/>
+                                            <field name="gauge_warn_threshold"/>
+                                            <field name="gauge_good_threshold"/>
+                                        </group>
+
+                                        <group string="Chart Options"
+                                               invisible="chart_type not in ('bar','line')">
+                                            <field name="bar_stack"/>
+                                        </group>
+
+                                        <group string="Table"
+                                               invisible="chart_type != 'table'">
+                                            <field name="table_column_config" widget="ace"
+                                                   options="{'mode': 'json'}"/>
+                                            <field name="column_link_config" widget="ace"
+                                                   options="{'mode': 'json'}"/>
+                                        </group>
+
+                                        <group string="Text Note Content"
+                                               invisible="chart_type != 'text_note'">
+                                            <field name="text_note_body" nolabel="1"
+                                                   placeholder="Body text shown in the callout. Line breaks preserved."/>
+                                        </group>
+
+                                        <group string="Advanced"
+                                               invisible="chart_type == 'text_note'">
+                                            <field name="visual_config" widget="ace"
+                                                   options="{'mode': 'json'}"/>
+                                            <field name="color_custom_json" widget="ace"
+                                                   options="{'mode': 'json'}"
+                                                   invisible="chart_type not in ('bar','line','pie','donut')"/>
+                                            <field name="echart_override" widget="ace"
+                                                   options="{'mode': 'json'}"
+                                                   invisible="chart_type not in ('bar','line','pie','donut','radar','scatter','heatmap','gauge','gauge_kpi')"/>
+                                        </group>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+
                     </notebook>
                 </sheet>
             </form>

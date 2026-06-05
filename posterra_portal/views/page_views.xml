@@ -160,6 +160,9 @@
                                            string="Template Source"
                                            invisible="not display_template"
                                            optional="show"/>
+                                    <field name="option_sort"
+                                           string="Option Sort"
+                                           optional="hide"/>
                                     <!-- Include "All" option: prepend an "All N items" option
                                          at the top of the dropdown. -->
                                     <field name="include_all_option"

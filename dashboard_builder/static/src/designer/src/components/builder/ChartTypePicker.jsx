@@ -15,6 +15,8 @@ const CHART_TYPES = [
   { key: 'table',         label: 'Data Table',    icon: 'fa-table',           desc: 'Tabular data with sortable cols' },
   { key: 'scatter',       label: 'Scatter',       icon: 'fa-braille',         desc: 'X-Y correlation plot' },
   { key: 'heatmap',       label: 'Heatmap',       icon: 'fa-th',              desc: 'Color-coded matrix grid' },
+  { key: 'sankey',        label: 'Sankey',        icon: 'fa-random',          desc: 'Flow diagram showing how items move between categories or over time' },
+  { key: 'sankey_member_flow', label: 'Sankey Member Flow', icon: 'fa-exchange', desc: 'Monthly member alignment flow with persisting, recaptured, and disaligned lanes' },
   { key: 'battle_card',   label: 'Battle Card',   icon: 'fa-columns',         desc: 'You vs competitor side-by-side' },
   { key: 'insight_panel', label: 'Insight Panel',  icon: 'fa-lightbulb-o',     desc: 'Narrative text with metrics' },
   { key: 'gauge_kpi',     label: 'Gauge + KPI',   icon: 'fa-dashboard',       desc: 'Gauge with sub-KPI breakdown' },

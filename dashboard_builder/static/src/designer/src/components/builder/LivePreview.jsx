@@ -139,6 +139,60 @@ function PercentilePreview({ data, height }) {
   )
 }
 
+function MemberFlowPreviewInline({ data, height }) {
+  const months = Array.isArray(data?.months) ? data.months : []
+  const fmt = (v) => {
+    const n = Number(v || 0)
+    return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n) : '0'
+  }
+  if (!months.length) {
+    return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>No member flow data.</div>
+  }
+  const lanes = [
+    ['new_alignments', 'New Alignments', '#14b8a6', 64],
+    ['still_active', 'Still Active', '#60a5fa', 138],
+    ['recaptured', 'Re-captured', '#8b5cf6', 218],
+    ['disaligned', 'Disaligned', '#ef4444', 264],
+  ]
+  const width = 920
+  const step = months.length > 1 ? 560 / (months.length - 1) : 0
+  const xs = months.map((_, i) => 240 + i * step)
+  const start = data?.start || {}
+  return (
+    <div style={{ height, overflowX: 'auto', background: '#fff' }}>
+      <svg viewBox={`0 0 ${width} 330`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ minWidth: 780 }}>
+        <rect x="22" y="128" width="136" height="76" rx="6" fill="#9ee6d6" />
+        <text x="90" y="152" textAnchor="middle" fontSize="12" fontWeight="700" fill="#0f172a">Starting</text>
+        <text x="90" y="170" textAnchor="middle" fontSize="12" fontWeight="700" fill="#0f172a">Aligned Members</text>
+        <text x="90" y="188" textAnchor="middle" fontSize="12" fill="#0f172a">{start.period || months[0].label}</text>
+        <text x="90" y="202" textAnchor="middle" fontSize="12" fontWeight="700" fill="#0f172a">{fmt(start.value)}</text>
+        {months.map((m, i) => (
+          <g key={m.key || i}>
+            <text x={xs[i]} y="38" textAnchor="middle" fontSize="12" fontWeight="700" fill="#334155">{m.label}</text>
+            {i < months.length - 1 && <text x={xs[i] + step / 2} y="38" textAnchor="middle" fontSize="14" fill="#94a3b8">-&gt;</text>}
+          </g>
+        ))}
+        {lanes.map(([key, label, color, y]) => (
+          <g key={key}>
+            <path d={`M 158 166 C 210 166, 202 ${y}, 230 ${y}`} stroke={color} strokeWidth={key === 'still_active' ? 48 : 18} opacity="0.18" fill="none" strokeLinecap="round" />
+            {months.slice(0, -1).map((m, i) => (
+              <path key={`${key}-${i}`} d={`M ${xs[i] + 36} ${y} C ${xs[i] + step / 2} ${y}, ${xs[i] + step / 2} ${y}, ${xs[i + 1] - 36} ${y}`} stroke={color} strokeWidth={key === 'still_active' ? 48 : 18} opacity="0.18" fill="none" strokeLinecap="round" />
+            ))}
+            <text x="820" y={y + 4} fontSize="12" fontWeight="700" fill={color}>{label}</text>
+            {months.map((m, i) => (
+              <g key={`${key}-${i}-v`}>
+                <rect x={xs[i] - 34} y={y - (key === 'still_active' ? 38 : 13)} width="68" height={key === 'still_active' ? 76 : 26} rx="5" fill={color} opacity={key === 'still_active' ? '0.72' : '0.86'} />
+                <text x={xs[i]} y={y + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill={key === 'still_active' ? '#0f172a' : '#fff'}>{fmt(m[key])}</text>
+              </g>
+            ))}
+          </g>
+        ))}
+        <text x="460" y="315" textAnchor="middle" fontSize="12" fill="#64748b">{data.footer || ''}</text>
+      </svg>
+    </div>
+  )
+}
+
 /**
  * Step 5: Live Preview + Save.
  *
@@ -191,7 +245,7 @@ export default function LivePreview({
     chartRef.current.setOption(previewData.echart_option, { notMerge: true })
   }, [previewData, previewCounter])
 
-  const isChart = ['bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap'].includes(
+  const isChart = ['bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'sankey'].includes(
     builderState.chartType
   )
   // Gauge is a chart only when using ECharts variants (not bullet/RAG/percentile)
@@ -201,6 +255,7 @@ export default function LivePreview({
   const isNonEChartsGauge = builderState.chartType === 'gauge' &&
     ['bullet', 'traffic_light_rag', 'percentile_rank'].includes(gaugeStyle)
   const isTable = builderState.chartType === 'table'
+  const isMemberFlow = builderState.chartType === 'sankey_member_flow'
 
   const runPreview = async () => {
     setLoading(true)
@@ -412,8 +467,15 @@ export default function LivePreview({
         </div>
       )}
 
+      {/* Member Flow preview */}
+      {isMemberFlow && previewData && (
+        <div className="wb-preview-chart" style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff' }}>
+          <MemberFlowPreviewInline data={previewData} height={builderState.appearance?.chartHeight || 420} />
+        </div>
+      )}
+
       {/* KPI / Gauge preview */}
-      {!isChart && !isTable && previewData && (
+      {!isChart && !isTable && !isMemberFlow && previewData && (
         <div className="wb-preview-kpi">
           <div className="wb-kpi-preview-card">
             {previewData.icon_class && (

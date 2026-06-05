@@ -7,9 +7,10 @@ const CHART_ICONS = {
   bar: 'fa-bar-chart', line: 'fa-line-chart', pie: 'fa-pie-chart',
   donut: 'fa-circle-o-notch', gauge: 'fa-tachometer', radar: 'fa-bullseye',
   kpi: 'fa-hashtag', status_kpi: 'fa-arrow-up', table: 'fa-table',
-  scatter: 'fa-braille', heatmap: 'fa-th', battle_card: 'fa-columns',
-  insight_panel: 'fa-lightbulb-o', gauge_kpi: 'fa-dashboard',
-  kpi_strip: 'fa-ellipsis-h',
+  scatter: 'fa-braille', heatmap: 'fa-th', sankey: 'fa-random',
+  sankey_member_flow: 'fa-exchange',
+  battle_card: 'fa-columns', insight_panel: 'fa-lightbulb-o',
+  gauge_kpi: 'fa-dashboard', kpi_strip: 'fa-ellipsis-h',
 }
 
 /**

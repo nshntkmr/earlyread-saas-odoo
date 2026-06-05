@@ -92,6 +92,16 @@ class SqlAssembler:
         dict
             {sql, x_column, y_columns, series_column, explanation, warnings, intent}
         """
+        # v1 contract: Sankey is Custom SQL only. Refusing here ensures the
+        # visual assembler never tries to fit Sankey's (source, target,
+        # value, optional category) shape into a SELECT GROUP BY template.
+        # ValueError because this file is intentionally Odoo-import-free
+        # (controllers convert ValueError → 400 response).
+        if self.chart_type == 'sankey':
+            raise ValueError(
+                "The visual SQL builder does not support Sankey in v1. "
+                "Switch to 'Custom SQL' and provide a query returning "
+                "(source, target, value[, category]) columns.")
         mode = intent.get('mode', 'simple')
 
         # Validate: dimensional charts MUST have at least one dimension

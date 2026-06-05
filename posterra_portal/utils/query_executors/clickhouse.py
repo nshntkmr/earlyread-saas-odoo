@@ -48,6 +48,7 @@ _logger = logging.getLogger(__name__)
 
 # ── Per-worker client cache ─────────────────────────────────────────────────
 _clients = {}
+_client_query_locks = {}
 _clients_lock = threading.Lock()
 
 
@@ -60,6 +61,7 @@ def _invalidate_client(connection_id):
     """
     with _clients_lock:
         client = _clients.pop(connection_id, None)
+        _client_query_locks.pop(connection_id, None)
     if client is not None:
         try:
             client.close()
@@ -158,7 +160,19 @@ def _get_client(env, connection):
                 pass
             return existing
         _clients[connection.id] = client
+        _client_query_locks.setdefault(connection.id, threading.Lock())
     return client
+
+
+def _get_query_lock(connection_id):
+    """Return the lock guarding a cached client's query session.
+
+    clickhouse-connect clients cannot execute concurrent queries on the same
+    session. Portal widget refreshes can run in parallel, so every cached
+    client needs a per-connection query lock.
+    """
+    with _clients_lock:
+        return _client_query_locks.setdefault(connection_id, threading.Lock())
 
 
 # ── Placeholder translation: %(name)s → {name:Type} ─────────────────────────
@@ -327,9 +341,11 @@ class ClickHouseExecutor(BaseQueryExecutor):
         }
         ch_query = translate_params(query, ch_params)
         try:
-            result = client.query(
-                ch_query, parameters=ch_params, settings=settings,
-            )
+            query_lock = _get_query_lock(self.connection.id)
+            with query_lock:
+                result = client.query(
+                    ch_query, parameters=ch_params, settings=settings,
+                )
         except Exception as exc:
             _logger.warning(
                 'ClickHouse query failed (connection=%s): %s',
@@ -349,12 +365,14 @@ class ClickHouseExecutor(BaseQueryExecutor):
         else:
             db = self.connection.database or 'default'
             tbl = table_name
-        result = client.query(
-            "SELECT name, type FROM system.columns "
-            "WHERE database = {db:String} AND table = {tbl:String} "
-            "ORDER BY position",
-            parameters={'db': db, 'tbl': tbl},
-        )
+        query_lock = _get_query_lock(self.connection.id)
+        with query_lock:
+            result = client.query(
+                "SELECT name, type FROM system.columns "
+                "WHERE database = {db:String} AND table = {tbl:String} "
+                "ORDER BY position",
+                parameters={'db': db, 'tbl': tbl},
+            )
         return [(name, type_) for name, type_ in result.result_rows]
 
     def ping(self):

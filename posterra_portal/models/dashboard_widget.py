@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import math
 import logging
 import re
 
@@ -178,6 +179,12 @@ class DashboardWidget(models.Model):
         help='Initial value. Blank = first option or "All" (no filter).')
     scope_option_ids = fields.One2many(
         'dashboard.widget.scope.option', 'widget_id', string='Scope Options')
+    composite_item_ids = fields.One2many(
+        'dashboard.widget.composite.item', 'parent_widget_id',
+        string='Composite Items',
+        help='Child blocks rendered inside this composite widget. Each child '
+             'reuses the existing renderer for its chart_type. Only used when '
+             'chart_type=composite.')
     search_enabled = fields.Boolean(default=False, string='Enable Search',
         help='Show a search bar in widget header. Client-side filtering for tables.')
     search_placeholder = fields.Char(default='Search...', string='Search Placeholder')
@@ -228,6 +235,9 @@ class DashboardWidget(models.Model):
         ('map',          'Map'),
         ('ranked_detail_list', 'Ranked Detail List'),
         ('smart_table',  'Smart Table'),
+        ('sankey',       'Sankey (Flow Diagram)'),
+        ('sankey_member_flow', 'Sankey Member Flow'),
+        ('composite',    'Composite (Multi-section)'),
     ], required=True, default='bar', string='Chart Type')
 
     display_mode = fields.Selection([
@@ -732,6 +742,41 @@ class DashboardWidget(models.Model):
                 raise ValidationError(
                     'A Schema Source is required when using {where_clause} in SQL.')
 
+    @api.constrains('chart_type', 'scope_query_mode')
+    def _check_composite_no_scope_query(self):
+        """v1 limitation: composite widgets cannot use Query scope mode. The
+        existing _format_scope_result helper assembles flat chart payloads
+        from scope-option SQL; it doesn't know how to build the
+        {type:'composite', children:[...]} envelope. Disallow at save time."""
+        for r in self:
+            if r.chart_type == 'composite' and r.scope_query_mode == 'query':
+                raise ValidationError(
+                    "Composite widgets do not support Scope Query mode in v1. "
+                    "Set Toggle Query Mode to 'Same SQL, Different Parameter' "
+                    "(scope_query_mode='parameter') or remove scope options.")
+
+    @api.constrains('chart_type', 'query_type', 'query_sql', 'composite_item_ids')
+    def _check_composite_parent_has_query_if_inherit(self):
+        """If any active non-text_note child uses data_mode='inherit_parent',
+        the parent composite widget MUST have query_type='sql' + a non-empty
+        query_sql. Otherwise inherited children silently render empty."""
+        for r in self:
+            if r.chart_type != 'composite':
+                continue
+            inherit_children = r.composite_item_ids.filtered(
+                lambda c: c.is_active and c.chart_type != 'text_note'
+                          and c.data_mode == 'inherit_parent'
+            )
+            if inherit_children:
+                if r.query_type != 'sql' or not (r.query_sql or '').strip():
+                    names = ', '.join(c.name or '(unnamed)' for c in inherit_children) or '(items)'
+                    raise ValidationError(
+                        "Composite widget '%s' has children with data_mode='Inherit "
+                        "Parent Query' (%s), but the parent has no SQL configured. "
+                        "Either provide a parent query_sql, or switch each child's "
+                        "data_mode to 'Own SQL'."
+                        % (r.name or '(unnamed)', names))
+
     # =========================================================================
     # Widget-Scoped Controls helpers
     # =========================================================================
@@ -818,6 +863,315 @@ class DashboardWidget(models.Model):
     # Public entry point called by controller
     # =========================================================================
 
+    def _resolve_where_clause_params(self, portal_ctx):
+        """Apply DashboardFilterBuilder when {where_clause} is in self.query_sql.
+        Returns the effective params dict to pass to _execute_sql. If the SQL
+        has no {where_clause} placeholder, returns sql_params unchanged.
+
+        Extracted from get_portal_data so composite children with
+        data_mode='own_sql' get the same WHERE-clause treatment as standalone
+        widgets."""
+        self.ensure_one()
+        sql_params = portal_ctx.get('sql_params', {})
+        if '{where_clause}' not in (self.query_sql or ''):
+            return sql_params
+        from ..utils.filter_builder import DashboardFilterBuilder
+        source_columns = {
+            c.column_name for c in self.schema_source_id.column_ids
+        } if self.schema_source_id else None
+        exclude = [
+            p.strip() for p in (self.where_clause_exclude or '').split(',')
+            if p.strip()
+        ] or None
+        builder = DashboardFilterBuilder(
+            user_params=sql_params,
+            filter_defs=portal_ctx.get('_filter_defs', []),
+            source_columns=source_columns,
+            exclude_params=exclude,
+        )
+        where_sql, built_params = builder.build()
+        _logger.debug(
+            'WIDGET %s [%s] WHERE: %s | source_cols=%s | exclude=%s',
+            self.id, self.name, where_sql, source_columns, exclude,
+        )
+        effective_params = dict(sql_params)
+        effective_params.update(built_params)
+        effective_params['_where_sql'] = where_sql
+        return effective_params
+
+    def _dispatch_chart_builder(self, cols, rows, portal_ctx):
+        """Branch on self.chart_type and call the right builder with
+        pre-computed SQL results. Pure extraction of the original inline
+        branching — same logic, same return shape.
+
+        For ECharts types the return dict carries `echart_json` (a JSON
+        string); portal.py top-level normalization converts it to
+        `echart_option`. Composite children normalize per-child in
+        _build_composite_data because portal.py's normalization does not
+        recurse.
+
+        CONTRACT: builders read from `self`. For composite children, `self`
+        is a transient `dashboard.widget.new(...)` record. Builders must
+        NEVER call self.write() or use self.id — those break in-memory
+        records. Today every builder is read-only; preserve that.
+        """
+        ct = self.chart_type
+        if ct in ('kpi', 'status_kpi', 'kpi_strip'):
+            result = self._build_kpi_data(cols, rows, portal_ctx)
+        elif ct == 'table':
+            result = self._build_table_data(cols, rows)
+        elif ct == 'battle_card':
+            result = self._build_battle_data(cols, rows)
+        elif ct == 'insight_panel':
+            result = self._build_insight_data(cols, rows, portal_ctx)
+        elif ct == 'gauge_kpi':
+            result = self._build_gauge_kpi_data(cols, rows)
+        elif ct == 'gauge':
+            # Dispatch gauge variants — non-ECharts styles return plain dicts
+            # Merge visual_config: definition flags first, instance overrides on top.
+            # This ensures new flags added to the definition (like rag_layout)
+            # are picked up even if the instance has an older visual_config.
+            _vc = {}
+            if self.definition_id and self.definition_id.visual_config:
+                try:
+                    _vc = json.loads(self.definition_id.visual_config) or {}
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if self.visual_config:
+                try:
+                    _vc_inst = json.loads(self.visual_config) or {}
+                    _vc.update(_vc_inst)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            _gs = _vc.get('gauge_style', 'standard')
+            _logger.info(
+                'GAUGE DEBUG widget %s: gauge_style=%s, rag_layout=%s, '
+                'def_id=%s, def_vc=%s, inst_vc=%s, merged_vc_keys=%s',
+                self.id, _gs, _vc.get('rag_layout'),
+                self.definition_id.id if self.definition_id else None,
+                (self.definition_id.visual_config or '')[:100] if self.definition_id else 'N/A',
+                (self.visual_config or '')[:100],
+                list(_vc.keys()),
+            )
+            if _gs in ('bullet', 'traffic_light_rag', 'percentile_rank'):
+                result = self._build_gauge_custom(cols, rows, _vc, _gs)
+            else:
+                option = self._build_gauge_option(cols, rows)
+                result = {'echart_json': json.dumps(option, default=str)}
+            # Typography overrides for all gauge variants
+            result.update(self._get_typography_overrides())
+        elif ct == 'map':
+            result = self._build_map_data(cols, rows)
+        elif ct == 'ranked_detail_list':
+            result = self._build_ranked_detail_list_data(cols, rows)
+        elif ct == 'smart_table':
+            result = self._build_smart_table_data(cols, rows)
+        elif ct == 'sankey_member_flow':
+            result = self._build_member_flow_data(cols, rows)
+        else:
+            # Default: ECharts (bar/line/pie/donut/radar/scatter/heatmap)
+            # Run annotation query once and pass to chart builder
+            ann_row = self._get_annotation_row(portal_ctx)
+            option = self._build_echart_option(cols, rows, ann_row=ann_row)
+            result = {'echart_json': json.dumps(option, default=str)}
+        return result
+
+    # =========================================================================
+    # Composite widget builders
+    # =========================================================================
+
+    def _build_composite_data(self, portal_ctx):
+        """Orchestrate child rendering for chart_type='composite'.
+
+        Executes the parent's SQL at most once — only when any active child
+        uses data_mode='inherit_parent' AND is not a text_note. Each child
+        dispatches through _dispatch_chart_builder via a transient widget
+        record (no DB writes; .new() is in-memory). text_note and
+        legend_list are composite-only types not present on the parent
+        chart_type Selection, so they're built directly.
+
+        Returns {type:'composite', children:[{id, chart_type, title,
+        col_start, col_span, row_start, row_span, min_height_px, data},...]}.
+
+        Round-trip invariant: any field copied to the transient `.new()`
+        payload below MUST also be threaded through page-template save +
+        restore in dashboard_page_template.py.
+        """
+        self.ensure_one()
+        items = self.composite_item_ids.filtered('is_active').sorted('sequence')
+        needs_parent = any(
+            c.data_mode == 'inherit_parent' and c.chart_type != 'text_note'
+            for c in items
+        )
+        parent_cols, parent_rows = ([], [])
+        if needs_parent and self.query_sql:
+            effective_params = self._resolve_where_clause_params(portal_ctx)
+            parent_cols, parent_rows = self._execute_sql(effective_params)
+
+        children = []
+        for child in items:
+            # text_note: no SQL — call builder directly with explicit args.
+            if child.chart_type == 'text_note':
+                payload = self._build_text_note_data(
+                    body=child.text_note_body or '',
+                    icon_name=child.icon_name or 'none',
+                )
+            # legend_list: composite-only type not on parent chart_type
+            # Selection. Run SQL via a minimal bearer record (to reuse
+            # _resolve_where_clause_params + _execute_sql), then call the
+            # builder directly on a tmp record that holds x/y/palette config.
+            elif child.chart_type == 'legend_list':
+                if child.data_mode == 'inherit_parent':
+                    cols, rows = parent_cols, parent_rows
+                else:
+                    tmp_sql = self.env['dashboard.widget'].new({
+                        'chart_type': 'bar',  # placeholder — only used for SQL helpers
+                        'query_type': 'sql',
+                        'query_sql': child.query_sql or '',
+                        'schema_source_id': child.schema_source_id.id
+                                            if child.schema_source_id else False,
+                        'where_clause_exclude': child.where_clause_exclude or '',
+                    })
+                    effective_params = tmp_sql._resolve_where_clause_params(portal_ctx)
+                    cols, rows = tmp_sql._execute_sql(effective_params)
+                tmp_cfg = self.env['dashboard.widget'].new({
+                    'chart_type': 'bar',  # placeholder; legend builder reads x/y only
+                    'x_column': child.x_column or '',
+                    'y_columns': child.y_columns or '',
+                    'color_palette': self.color_palette or 'healthcare',
+                })
+                payload = tmp_cfg._build_legend_list_data(cols, rows)
+            else:
+                # Dispatchable types: build full transient widget carrying
+                # the child's chart config and dispatch through the existing
+                # builders. NEVER call methods that write or use self.id on
+                # this record — every existing builder is read-only.
+                tmp = self.env['dashboard.widget'].new({
+                    # Identity
+                    'chart_type':           child.chart_type,
+                    'name':                 child.name or '',
+                    # SQL (composite always uses SQL — no ORM children in v1)
+                    'query_type':           'sql',
+                    'query_sql':            child.query_sql or '',
+                    'schema_source_id':     child.schema_source_id.id
+                                            if child.schema_source_id else False,
+                    'where_clause_exclude': child.where_clause_exclude or '',
+                    # Columns
+                    'x_column':             child.x_column or '',
+                    'y_columns':            child.y_columns or '',
+                    'series_column':        child.series_column or '',
+                    'status_column':        child.status_column or '',
+                    # KPI options
+                    'kpi_format':           child.kpi_format,
+                    'kpi_prefix':           child.kpi_prefix or '',
+                    'kpi_suffix':           child.kpi_suffix or '',
+                    'kpi_layout':           child.kpi_layout or 'vertical',
+                    'display_mode':         child.display_mode or 'standard',
+                    'text_align':           child.text_align or 'center',
+                    # Trend / icons / colors
+                    'metric_direction':     child.metric_direction or 'higher_better',
+                    'icon_name':            child.icon_name or 'none',
+                    'icon_position':        child.icon_position or 'title',
+                    'title_icon_color':     child.title_icon_color or 'default',
+                    'color_palette':        self.color_palette or 'healthcare',
+                    'color_custom_json':    child.color_custom_json or '',
+                    # Chart-specific
+                    'visual_config':        child.visual_config or '{}',
+                    'bar_stack':            child.bar_stack or False,
+                    'echart_override':      child.echart_override or '',
+                    # Gauge
+                    'gauge_min':            child.gauge_min or 0,
+                    'gauge_max':            child.gauge_max or 100,
+                    'gauge_color_mode':     child.gauge_color_mode or 'traffic_light',
+                    'gauge_warn_threshold': child.gauge_warn_threshold or 50,
+                    'gauge_good_threshold': child.gauge_good_threshold or 80,
+                    # Tables / RDL
+                    'table_column_config':  child.table_column_config or '',
+                    'column_link_config':   child.column_link_config or '',
+                    'ranked_master_config': child.ranked_master_config or '',
+                    'ranked_detail_config': child.ranked_detail_config or '',
+                })
+                if child.data_mode == 'inherit_parent':
+                    cols, rows = parent_cols, parent_rows
+                else:
+                    effective_params = tmp._resolve_where_clause_params(portal_ctx)
+                    cols, rows = tmp._execute_sql(effective_params)
+                payload = tmp._dispatch_chart_builder(cols, rows, portal_ctx)
+                # Per-child echart_json → echart_option normalization.
+                # portal.py normalizes the TOP level only; nested children
+                # need this here so the contract is symmetric for both
+                # initial render AND filter refresh.
+                if isinstance(payload, dict) and 'echart_json' in payload:
+                    try:
+                        payload['echart_option'] = json.loads(payload.pop('echart_json'))
+                    except (json.JSONDecodeError, TypeError):
+                        payload.pop('echart_json', None)
+
+            children.append({
+                'id':            child.id,
+                'chart_type':    child.chart_type,
+                'title':         child.name or '',
+                'col_start':     child.col_start,
+                'col_span':      child.col_span,
+                'row_start':     child.row_start or 0,
+                'row_span':      child.row_span or 1,
+                'min_height_px': child.min_height_px or 240,
+                'data':          payload,
+            })
+
+        return {'type': 'composite', 'children': children}
+
+    def _build_legend_list_data(self, cols, rows):
+        """Rows of {label, value, pct} for a colored-dot list.
+
+        Columns:
+          x_column           — label (default: first SQL column)
+          y_columns[0]       — value (default: second column, or first if only one)
+          y_columns[1] (opt) — explicit pct column. If absent, pct auto-computed
+                               as value / sum(value) * 100. Use the explicit
+                               column when SQL already returns rounded
+                               percentages and you want them displayed
+                               verbatim (avoids 41.5% vs 42.5% drift).
+        """
+        if not cols or not rows:
+            return {'type': 'legend_list', 'rows': []}
+        col_idx = {c: i for i, c in enumerate(cols)}
+        x = self.x_column or cols[0]
+        y_parts = [s.strip() for s in (self.y_columns or '').split(',') if s.strip()]
+        y_value = y_parts[0] if y_parts else (cols[1] if len(cols) > 1 else cols[0])
+        y_pct = y_parts[1] if len(y_parts) > 1 else None
+        xi = col_idx.get(x, 0)
+        yi = col_idx.get(y_value, 1 if len(cols) > 1 else 0)
+        pi = col_idx.get(y_pct) if y_pct else None
+
+        total = None
+        if pi is None:
+            total = sum(float(r[yi] or 0) for r in rows) or 1.0
+
+        out_rows = []
+        for r in rows:
+            val = float(r[yi] or 0)
+            if pi is not None:
+                pct = float(r[pi] or 0)
+            else:
+                pct = round(val / total * 100, 1)
+            out_rows.append({'label': str(r[xi]), 'value': val, 'pct': pct})
+
+        return {
+            'type': 'legend_list',
+            'rows': out_rows,
+            'palette': self.color_palette or 'healthcare',
+        }
+
+    def _build_text_note_data(self, body='', icon_name='none'):
+        """Static text callout — no SQL execution.
+
+        Args are passed explicitly by _build_composite_data; this method is
+        never called from _dispatch_chart_builder. Kept on dashboard.widget
+        (rather than on dashboard.widget.composite.item) so the symmetry
+        with other _build_* methods is preserved."""
+        return {'type': 'text_note', 'body': body, 'icon_name': icon_name}
+
     def get_portal_data(self, portal_ctx):
         """Execute this widget's query and return a render-ready dict.
 
@@ -828,92 +1182,20 @@ class DashboardWidget(models.Model):
         """
         self.ensure_one()
         try:
+            if self.chart_type == 'composite':
+                result = self._build_composite_data(portal_ctx)
+                # Composite parent: filter/HHA variables only — no SQL columns.
+                # Each child interpolates its own annotations inside dispatch.
+                result.update(self._interpolate_annotations([], [], portal_ctx))
+                return result
+
             if self.query_type == 'sql':
-                sql_params = portal_ctx.get('sql_params', {})
-                if '{where_clause}' in (self.query_sql or ''):
-                    from ..utils.filter_builder import DashboardFilterBuilder
-                    source_columns = {
-                        c.column_name for c in self.schema_source_id.column_ids
-                    } if self.schema_source_id else None
-                    exclude = [
-                        p.strip() for p in (self.where_clause_exclude or '').split(',')
-                        if p.strip()
-                    ] or None
-                    builder = DashboardFilterBuilder(
-                        user_params=sql_params,
-                        filter_defs=portal_ctx.get('_filter_defs', []),
-                        source_columns=source_columns,
-                        exclude_params=exclude,
-                    )
-                    where_sql, built_params = builder.build()
-                    _logger.debug(
-                        'WIDGET %s [%s] WHERE: %s | source_cols=%s | exclude=%s',
-                        self.id, self.name, where_sql, source_columns, exclude,
-                    )
-                    effective_params = dict(sql_params)
-                    effective_params.update(built_params)
-                    effective_params['_where_sql'] = where_sql
-                    cols, rows = self._execute_sql(effective_params)
-                else:
-                    cols, rows = self._execute_sql(sql_params)
+                effective_params = self._resolve_where_clause_params(portal_ctx)
+                cols, rows = self._execute_sql(effective_params)
             else:
                 cols, rows = self._execute_orm()
 
-            if self.chart_type in ('kpi', 'status_kpi', 'kpi_strip'):
-                result = self._build_kpi_data(cols, rows, portal_ctx)
-            elif self.chart_type == 'table':
-                result = self._build_table_data(cols, rows)
-            elif self.chart_type == 'battle_card':
-                result = self._build_battle_data(cols, rows)
-            elif self.chart_type == 'insight_panel':
-                result = self._build_insight_data(cols, rows, portal_ctx)
-            elif self.chart_type == 'gauge_kpi':
-                result = self._build_gauge_kpi_data(cols, rows)
-            elif self.chart_type == 'gauge':
-                # Dispatch gauge variants — non-ECharts styles return plain dicts
-                # Merge visual_config: definition flags first, instance overrides on top.
-                # This ensures new flags added to the definition (like rag_layout)
-                # are picked up even if the instance has an older visual_config.
-                _vc = {}
-                if self.definition_id and self.definition_id.visual_config:
-                    try:
-                        _vc = json.loads(self.definition_id.visual_config) or {}
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                if self.visual_config:
-                    try:
-                        _vc_inst = json.loads(self.visual_config) or {}
-                        _vc.update(_vc_inst)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                _gs = _vc.get('gauge_style', 'standard')
-                _logger.info(
-                    'GAUGE DEBUG widget %s: gauge_style=%s, rag_layout=%s, '
-                    'def_id=%s, def_vc=%s, inst_vc=%s, merged_vc_keys=%s',
-                    self.id, _gs, _vc.get('rag_layout'),
-                    self.definition_id.id if self.definition_id else None,
-                    (self.definition_id.visual_config or '')[:100] if self.definition_id else 'N/A',
-                    (self.visual_config or '')[:100],
-                    list(_vc.keys()),
-                )
-                if _gs in ('bullet', 'traffic_light_rag', 'percentile_rank'):
-                    result = self._build_gauge_custom(cols, rows, _vc, _gs)
-                else:
-                    option = self._build_gauge_option(cols, rows)
-                    result = {'echart_json': json.dumps(option, default=str)}
-                # Typography overrides for all gauge variants
-                result.update(self._get_typography_overrides())
-            elif self.chart_type == 'map':
-                result = self._build_map_data(cols, rows)
-            elif self.chart_type == 'ranked_detail_list':
-                result = self._build_ranked_detail_list_data(cols, rows)
-            elif self.chart_type == 'smart_table':
-                result = self._build_smart_table_data(cols, rows)
-            else:
-                # Run annotation query once and pass to both chart builder and interpolation
-                ann_row = self._get_annotation_row(portal_ctx)
-                option = self._build_echart_option(cols, rows, ann_row=ann_row)
-                result = {'echart_json': json.dumps(option, default=str)}
+            result = self._dispatch_chart_builder(cols, rows, portal_ctx)
 
             # Interpolate annotation text fields from SQL first row + filter context
             result.update(self._interpolate_annotations(cols, rows, portal_ctx))
@@ -2131,6 +2413,136 @@ class DashboardWidget(models.Model):
             }
             option['series'] = [{'type': 'heatmap', 'data': heat_data,
                                   'label': {'show': True}}]
+
+        elif ct == 'sankey':
+            # Sankey requires (source, target, value[, category]) rows.
+            # Column roles:
+            #   x_column      = source node column
+            #   series_column = target node column
+            #   y_columns[0]  = value column (numeric, finite, positive)
+            #   y_columns[1]  = optional category column for per-link color
+            #
+            # Strip Cartesian defaults + set item tooltip IMMEDIATELY, so even
+            # the empty/invalid-data path returns a Sankey-shaped option (with
+            # the right tooltip mode) and falls through to the shared
+            # post-processing — same as every other branch.
+            option.pop('xAxis', None)
+            option.pop('yAxis', None)
+            option.pop('grid', None)
+            option['tooltip'] = {'trigger': 'item'}
+
+            src_col = (self.x_column or '').strip()
+            tgt_col = (self.series_column or '').strip()
+            y_parts = [s.strip() for s in (self.y_columns or '').split(',') if s.strip()]
+            val_col = y_parts[0] if y_parts else ''
+            cat_col = y_parts[1] if len(y_parts) > 1 else ''
+
+            si = col_idx.get(src_col) if src_col else None
+            ti = col_idx.get(tgt_col) if tgt_col else None
+            vi = col_idx.get(val_col) if val_col else None
+            ci = col_idx.get(cat_col) if cat_col else None
+
+            if not cols or not rows or si is None or ti is None or vi is None:
+                # Missing data or required columns — emit empty series so the
+                # widget shows "No data" rather than a malformed option.
+                option['series'] = []
+            else:
+                # Defensive row-length guard — one malformed short row should
+                # not break the whole widget.
+                max_idx = max(i for i in (si, ti, vi, ci) if i is not None)
+
+                link_acc = {}
+                node_order, seen_nodes = [], set()
+                categories, seen_cats = [], set()
+                for r in rows:
+                    if r is None or len(r) <= max_idx:
+                        continue
+                    if r[si] is None or r[ti] is None:
+                        continue
+                    src = str(r[si]).strip()
+                    tgt = str(r[ti]).strip()
+                    if not src or not tgt:
+                        continue
+                    # Safe numeric parse. Sankey values must be finite + positive
+                    # (NaN/Inf/negative/zero produce malformed or invisible bands).
+                    try:
+                        val = float(r[vi] or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if not math.isfinite(val) or val <= 0:
+                        continue
+                    cat = ''
+                    if ci is not None and r[ci] is not None:
+                        cat = str(r[ci]).strip()
+                    for n in (src, tgt):
+                        if n not in seen_nodes:
+                            seen_nodes.add(n); node_order.append(n)
+                    if cat and cat not in seen_cats:
+                        seen_cats.add(cat); categories.append(cat)
+                    key = (src, tgt, cat)
+                    link_acc[key] = link_acc.get(key, 0.0) + val
+
+                # Parse Sankey-specific visual config BEFORE the per-link color
+                # block — per-link lineStyle needs opacity + curveness too.
+                vc = {}
+                try:
+                    vc = json.loads(self.visual_config or '{}') or {}
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                orient         = vc.get('sankey_orient', 'horizontal')
+                node_align     = vc.get('sankey_node_align', 'justify')
+                node_gap       = vc.get('sankey_node_gap', 8)
+                node_width     = vc.get('sankey_node_width', 20)
+                link_opacity   = vc.get('sankey_link_opacity', 0.5)
+                link_curveness = vc.get('sankey_link_curveness', 0.5)
+                label_position = vc.get('sankey_label_position', 'right')
+
+                # Build the links list
+                links = []
+                for (src, tgt, cat), val in link_acc.items():
+                    link = {'source': src, 'target': tgt, 'value': val}
+                    if cat:
+                        link['_category'] = cat
+                    links.append(link)
+
+                # Per-link color by category. _get_palette_colors() can return
+                # an empty list for unknown palettes (causing ZeroDivisionError);
+                # fall back to ECharts' default 9-color palette.
+                if categories:
+                    palette = self._get_palette_colors() or [
+                        '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
+                        '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc',
+                    ]
+                    cat_to_color = {
+                        c: palette[i % len(palette)] for i, c in enumerate(categories)
+                    }
+                    for link in links:
+                        cat = link.pop('_category', None)
+                        if cat:
+                            # Per-link lineStyle overrides series-level, so
+                            # carry opacity + curveness through too.
+                            link['lineStyle'] = {
+                                'color':     cat_to_color[cat],
+                                'opacity':   link_opacity,
+                                'curveness': link_curveness,
+                            }
+                else:
+                    for link in links:
+                        link.pop('_category', None)
+
+                option['series'] = [{
+                    'type':       'sankey',
+                    'orient':     orient,
+                    'nodeAlign':  node_align,
+                    'nodeGap':    node_gap,
+                    'nodeWidth':  node_width,
+                    'data':       [{'name': n} for n in node_order],
+                    'links':      links,
+                    'lineStyle':  {'opacity': link_opacity,
+                                   'curveness': link_curveness},
+                    'label':      {'show': True, 'position': label_position},
+                    'emphasis':   {'focus': 'adjacency'},
+                }]
 
         # ── Annotation injection (SQL-interpolated) ──────────────────────────
         # Build a template_vars dict from chart first row + annotation query row
@@ -3444,6 +3856,96 @@ class DashboardWidget(models.Model):
     # =========================================================================
     # Non-chart render builders
     # =========================================================================
+
+    def _build_member_flow_data(self, cols, rows):
+        """Build render data for chart_type='sankey_member_flow'.
+
+        Expected SQL shape is one row per month. Column names are tolerant so
+        admins can use either source table names or friendlier aliases:
+        Date/month_label, YEAR_MONTH/month_key, NEW_ALIGNEMENT/new_alignments,
+        STILL_ACTIVE/still_active, RECAPTURED/recaptured, DISALIGNED/disaligned,
+        and optional 12_month_active/active_12_month/start_value.
+        """
+        lower_idx = {str(c).lower(): i for i, c in enumerate(cols or [])}
+
+        def cell(row, *names, default=None):
+            for name in names:
+                idx = lower_idx.get(str(name).lower())
+                if idx is not None and idx < len(row):
+                    val = row[idx]
+                    if val is not None:
+                        return val
+            return default
+
+        def num(val):
+            try:
+                return float(val or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        def text(val):
+            return str(val or '').strip()
+
+        months = []
+        for row in rows or []:
+            label = text(cell(row, 'Date', 'month_label', 'month', 'label'))
+            key = cell(row, 'YEAR_MONTH', 'month_key', 'year_month', default=label)
+            if not label:
+                label = text(key)
+            if not label:
+                continue
+            months.append({
+                'key': text(key),
+                'label': label,
+                'new_alignments': num(cell(
+                    row, 'NEW_ALIGNEMENT', 'NEW_ALIGNMENT',
+                    'new_alignments', 'new_alignment')),
+                'still_active': num(cell(
+                    row, 'STILL_ACTIVE', 'still_active', 'persisting',
+                    'active_aligned')),
+                'recaptured': num(cell(
+                    row, 'RECAPTURED', 'recaptured', 're_captured')),
+                'disaligned': num(cell(
+                    row, 'DISALIGNED', 'disaligned')),
+                'active_12_month': num(cell(
+                    row, '12_month_active', 'active_12_month',
+                    'twelve_month_active', 'start_value')),
+            })
+
+        # Keep SQL order. If the query returns YEAR_MONTH, use it only as a
+        # secondary guard for accidental unordered result sets.
+        def sort_key(item):
+            key = item.get('key') or ''
+            return int(key) if str(key).isdigit() else 0
+
+        if months and all(str(m.get('key') or '').isdigit() for m in months):
+            months = sorted(months, key=sort_key)
+
+        start_value = 0.0
+        start_label = 'Starting Aligned Members'
+        start_period = ''
+        if months:
+            start_value = months[0].get('active_12_month') or months[0].get('still_active') or 0
+            start_period = start_period or months[0].get('label', '')
+        if rows:
+            first = rows[0]
+            explicit_start = num(cell(
+                first, 'start_value', 'starting_aligned_members'))
+            if explicit_start:
+                start_value = explicit_start
+            start_label = text(cell(first, 'start_label', default=start_label)) or start_label
+            start_period = text(cell(first, 'start_period', default=start_period)) or start_period
+
+        return {
+            'type': 'sankey_member_flow',
+            'months': months,
+            'start': {
+                'label': start_label,
+                'period': start_period,
+                'value': start_value,
+            },
+            'footer': 'Members must have a qualifying claim in the past 12 months to remain aligned.',
+        }
 
     def _build_kpi_data(self, cols, rows, portal_ctx):
         """Build dict for kpi / status_kpi cards."""

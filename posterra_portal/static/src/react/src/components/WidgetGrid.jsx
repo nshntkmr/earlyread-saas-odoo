@@ -4,20 +4,18 @@ import { apiFetch } from '../api/client'
 import { widgetDataUrl } from '../api/endpoints'
 
 // ── Widget components ─────────────────────────────────────────────────────────
-import EChartWidget from './widgets/EChartWidget'
-import GaugeKPI     from './widgets/GaugeKPI'
 import KPICard      from './widgets/KPICard'
-import StatusKPI    from './widgets/StatusKPI'
-import DataTable    from './widgets/DataTable'
 import BattleCard   from './widgets/BattleCard'
 import InsightPanel from './widgets/InsightPanel'
-import KPIStrip    from './widgets/KPIStrip'
-import GaugeRouter from './widgets/GaugeRouter'
-import KpiRouter   from './widgets/KpiRouter'
 import RankedDetailList from './widgets/RankedDetailList'
+import MemberFlowTimeline from './widgets/MemberFlowTimeline'
 // SmartTable lives in the shared @posterra/grid-utils package so the
 // designer's preview pane and the portal both render via the same code.
 import { SmartTable }  from '@posterra/grid-utils'
+// Composite widget — renders 1..N children inside one card
+import CompositeWidget from './widgets/CompositeWidget'
+// Shared child registry — handles bar/line/pie/donut/kpi/table/gauge/etc.
+import { resolveChildWidget } from './widgets/childRegistry'
 
 // Lazy-load MapWidget to avoid 600KB+ MapLibre bundle on non-map pages
 const MapWidget = React.lazy(() => import('./widgets/MapWidget'))
@@ -31,25 +29,36 @@ import WidgetControls from './WidgetControls'
 // ── Drill-down ──────────────────────────────────────────────────────────────
 import DrillDownModal from './builder/DrillDownModal'
 
-// Chart types handled by the generic EChartWidget
-const ECHART_TYPES = new Set(['bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap'])
+// Module-scope sets so they're constructed once, not per render.
+// ECHART_TYPES — widgets whose payload is an ECharts option (rendered by EChartWidget).
+// SCALABLE_TYPES — widgets that fill the card's vertical space; the rest render
+// at natural height and top-align.
+const ECHART_TYPES = new Set([
+  'bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap',
+  'sankey',
+])
+
+const SCALABLE_TYPES = new Set([
+  ...ECHART_TYPES,
+  'table', 'gauge_kpi', 'map', 'ranked_detail_list', 'sankey_member_flow',
+])
 
 function resolveWidget(chartType) {
-  if (ECHART_TYPES.has(chartType)) return EChartWidget
+  // Top-level-only types (NOT in childRegistry — not safe as v1 composite children).
   switch (chartType) {
-    case 'gauge':        return GaugeRouter
-    case 'gauge_kpi':    return GaugeKPI
-    case 'kpi':          return KpiRouter
-    case 'status_kpi':   return KpiRouter
-    case 'table':        return DataTable
-    case 'battle_card':  return BattleCard
-    case 'insight_panel':return InsightPanel
-    case 'kpi_strip':   return KpiRouter
-    case 'map':          return MapWidget
-    case 'ranked_detail_list': return RankedDetailList
-    case 'smart_table':  return SmartTable
-    default:             return KPICard   // safe fallback
+    case 'composite':          return CompositeWidget
+    case 'map':                return MapWidget         // lazy — Suspense boundary preserved
+    case 'ranked_detail_list': return RankedDetailList  // needs widgetId for /detail
+    case 'smart_table':        return SmartTable        // no v1 demand as child
+    case 'battle_card':        return BattleCard        // complex per-widget config
+    case 'insight_panel':      return InsightPanel      // complex per-widget config
+    case 'sankey_member_flow': return MemberFlowTimeline
   }
+  // Everything else (bar/line/pie/donut/radar/scatter/heatmap/sankey/gauge/
+  // gauge_kpi/kpi/status_kpi/kpi_strip/table/legend_list/text_note) resolves
+  // via the child registry — same component is used in standalone + composite.
+  const Resolved = resolveChildWidget(chartType)
+  return Resolved || KPICard  // KPICard fallback preserves prior behavior for unknown types
 }
 
 /**
@@ -310,11 +319,9 @@ export default function WidgetGrid({ initialWidgets }) {
     return Math.max(1, Math.round((p / 100) * 24))
   }
 
-  // Widget types that scale their content to fill available height (ECharts canvas,
-  // tables with more rows, gauge_kpi composite). Non-scalable widgets (traffic light,
-  // bullet, percentile, KPI, battle card, insight) render at their natural height
-  // and top-align within the card — they don't benefit from extra vertical space.
-  const SCALABLE_TYPES = new Set([...ECHART_TYPES, 'table', 'gauge_kpi', 'map', 'ranked_detail_list'])
+  // (ECHART_TYPES and SCALABLE_TYPES are declared at module scope above so
+  // they're not reconstructed on every render. ECHART_TYPES had been
+  // referenced here without being declared — fixed.)
 
   const renderWidget = (w) => {
     const WidgetComponent = resolveWidget(w.chart_type)

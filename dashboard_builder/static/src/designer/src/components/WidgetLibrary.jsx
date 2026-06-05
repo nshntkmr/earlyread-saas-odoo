@@ -6,8 +6,10 @@ const CHART_ICONS = {
   bar: 'fa-bar-chart', line: 'fa-line-chart', pie: 'fa-pie-chart',
   donut: 'fa-circle-o-notch', gauge: 'fa-tachometer', radar: 'fa-bullseye',
   kpi: 'fa-hashtag', status_kpi: 'fa-arrow-up', table: 'fa-table',
-  scatter: 'fa-braille', heatmap: 'fa-th', battle_card: 'fa-columns',
-  insight_panel: 'fa-lightbulb-o', gauge_kpi: 'fa-dashboard',
+  scatter: 'fa-braille', heatmap: 'fa-th', sankey: 'fa-random',
+  sankey_member_flow: 'fa-exchange',
+  battle_card: 'fa-columns', insight_panel: 'fa-lightbulb-o',
+  gauge_kpi: 'fa-dashboard',
 }
 
 const CHART_TYPES = [
@@ -22,6 +24,8 @@ const CHART_TYPES = [
   { key: 'table',         label: 'Table',         icon: 'fa-table' },
   { key: 'scatter',       label: 'Scatter',       icon: 'fa-braille' },
   { key: 'heatmap',       label: 'Heatmap',       icon: 'fa-th' },
+  { key: 'sankey',        label: 'Sankey',        icon: 'fa-random' },
+  { key: 'sankey_member_flow', label: 'Member Flow', icon: 'fa-exchange' },
   { key: 'battle_card',   label: 'Battle Card',   icon: 'fa-columns' },
   { key: 'insight_panel', label: 'Insight',        icon: 'fa-lightbulb-o' },
   { key: 'gauge_kpi',     label: 'Gauge+KPI',     icon: 'fa-dashboard' },

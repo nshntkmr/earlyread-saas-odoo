@@ -22,6 +22,14 @@ const SQL_COLUMN_HELP = {
   radar:         { cols: 'indicator, score1 [, score2, ...]', example: 'SELECT metric_name, your_score, benchmark FROM mv_compare' },
   scatter:       { cols: 'x_value, y_value', example: 'SELECT latitude, longitude FROM mv_locations' },
   heatmap:       { cols: 'x_category, y_category, intensity', example: 'SELECT day_of_week, hour, visit_count FROM mv_traffic GROUP BY 1, 2' },
+  sankey:        {
+    cols: 'source, target, value [, category]',
+    example: "SELECT from_month || ' — ' || flow_type AS source, to_month || ' — ' || flow_type AS target, member_count AS value, flow_type AS category FROM mv_member_flow ORDER BY from_month, flow_type",
+  },
+  sankey_member_flow: {
+    cols: 'YEAR_MONTH, Date, NEW_ALIGNEMENT, STILL_ACTIVE, RECAPTURED, DISALIGNED [, 12_month_active]',
+    example: 'SELECT YEAR_MONTH, Date, SUM(NEW_ALIGNEMENT) AS NEW_ALIGNEMENT, SUM(STILL_ACTIVE) AS STILL_ACTIVE, SUM(RECAPTURED) AS RECAPTURED, SUM(DISALIGNED) AS DISALIGNED, SUM(`12_month_active`) AS `12_month_active` FROM shared.UL_HUMANA_KPI_Member_FLOW GROUP BY YEAR_MONTH, Date ORDER BY YEAR_MONTH',
+  },
   kpi:           { cols: 'value [, prior_value]', example: 'SELECT SUM(revenue) AS revenue FROM mv_financial' },
   status_kpi:    { cols: 'value, status_text', example: 'SELECT total_patients, trend_label FROM mv_kpi' },
   table:         { cols: 'col1, col2, col3, ...', example: 'SELECT patient_id, name, status, score FROM mv_patients' },

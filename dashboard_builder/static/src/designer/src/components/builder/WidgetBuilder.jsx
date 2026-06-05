@@ -263,6 +263,24 @@ function reducer(state, action) {
     // Per-option config actions — routed via _routeToOption
     case 'SET_DATA_MODE':
       return _routeToOption(state, { dataMode: action.value })
+    case 'COERCE_SANKEY_DATA_MODES': {
+      // v1 contract: Sankey is Custom SQL only. Atomically coerce BOTH the
+      // top-level state.dataMode AND every state.optionConfigs[].dataMode
+      // from visual / visual_builder / ai → custom_sql in a single state
+      // transition. Avoids race between top-level and option-config writes
+      // when the user picks Sankey in the chart-type step.
+      const BAD = ['visual', 'visual_builder', 'ai']
+      const next = { ...state }
+      if (BAD.includes(state.dataMode)) {
+        next.dataMode = 'custom_sql'
+      }
+      if (Array.isArray(state.optionConfigs)) {
+        next.optionConfigs = state.optionConfigs.map(oc =>
+          BAD.includes(oc.dataMode) ? { ...oc, dataMode: 'custom_sql' } : oc
+        )
+      }
+      return next
+    }
     case 'SET_CONNECTION_ID':
       // Switching connection invalidates picked sources + joins (table
       // names live in a different database). Custom SQL text is kept —
@@ -598,6 +616,16 @@ export default function WidgetBuilder({
       .finally(() => setLoadingEdit(false))
   }, [editId, isOpen, apiBase])
 
+  // v1 contract: Sankey is Custom SQL only. When chartType becomes 'sankey',
+  // atomically coerce top-level state.dataMode + every state.optionConfigs[].dataMode
+  // from visual / visual_builder / ai → custom_sql so admins never reach
+  // a broken Preview/Save state with a Visual or AI config.
+  useEffect(() => {
+    if (state.chartType === 'sankey') {
+      dispatch({ type: 'COERCE_SANKEY_DATA_MODES' })
+    }
+  }, [state.chartType])
+
   // Auto-fetch column metadata for sources restored from builder_config.
   // builder_config stores only {id, alias} — no columns array.
   // ColumnMapper needs the full column list to render dropdown options.
@@ -797,6 +825,8 @@ export default function WidgetBuilder({
                     type="button"
                     className={`wb-btn ${(ac.dataMode === 'visual' || ac.dataMode === 'visual_builder') ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'visual' })}
+                    disabled={state.chartType === 'sankey'}
+                    title={state.chartType === 'sankey' ? 'Sankey requires Custom SQL in v1' : undefined}
                   >
                     <i className="fa fa-mouse-pointer me-1" /> Visual Builder
                   </button>
@@ -812,10 +842,17 @@ export default function WidgetBuilder({
                     className={`wb-btn ${ac.dataMode === 'ai' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'ai' })}
                     style={ac.dataMode === 'ai' ? { background: '#7c3aed', borderColor: '#7c3aed' } : {}}
+                    disabled={state.chartType === 'sankey'}
+                    title={state.chartType === 'sankey' ? 'Sankey requires Custom SQL in v1' : undefined}
                   >
                     <i className="fa fa-magic me-1" /> AI Assistant
                   </button>
                 </div>
+                {state.chartType === 'sankey' && (
+                  <div className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                    Sankey v1 is Custom SQL only. Return rows as <code>(source, target, value [, category])</code>. See SQL help below for an example.
+                  </div>
+                )}
               </div>
 
               {ac.dataMode === 'ai' ? (

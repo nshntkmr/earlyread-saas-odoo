@@ -334,6 +334,20 @@ class DashboardPageFilter(models.Model):
              '"Table" uses ORM search_read on the Table/Column model.\n'
              '"Schema Source" uses SQL on the schema source table.',
     )
+    option_sort = fields.Selection(
+        [
+            ('label', 'Label (A-Z)'),
+            ('value', 'Value / source order'),
+        ],
+        string='Option Sort',
+        default='label',
+        required=True,
+        help='How dropdown options are ordered.\n'
+             '"Label" preserves the existing behavior and sorts by the text shown to users.\n'
+             '"Value / source order" preserves the query order, useful when the value '
+             'is sortable but the display label is formatted text, e.g. YEAR_MONTH '
+             'shown as "Apr 2026".',
+    )
 
     # ── "All" option ─────────────────────────────────────────────────────────
     # When ON, the dropdown prepends an "All" option (value='') at the top.
@@ -961,7 +975,8 @@ class DashboardPageFilter(models.Model):
             if value and label:
                 options.append({'value': value, 'label': label})
 
-        options = sorted(options, key=lambda o: o['label'].lower())
+        if self.option_sort != 'value':
+            options = sorted(options, key=lambda o: o['label'].lower())
         return self._prepend_all_option(options)
 
     # ── Template-based options ───────────────────────────────────────────────

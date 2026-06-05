@@ -29,8 +29,11 @@ _CHART_TYPES = [
     ('bar', 'Bar'), ('line', 'Line'), ('pie', 'Pie'), ('donut', 'Donut'),
     ('gauge', 'Gauge / Meter'), ('radar', 'Radar / Spider'),
     ('kpi', 'KPI Card'), ('status_kpi', 'KPI Card — Dynamic Icon'),
-    ('table', 'Data Table'), ('scatter', 'Scatter'),
-    ('heatmap', 'Heatmap'), ('battle_card', 'Battle Card'),
+    ('table', 'Data Table'), ('smart_table', 'Smart Table'),
+    ('scatter', 'Scatter'),
+    ('heatmap', 'Heatmap'), ('sankey', 'Sankey (Flow Diagram)'),
+    ('sankey_member_flow', 'Sankey Member Flow'),
+    ('battle_card', 'Battle Card'),
     ('insight_panel', 'Insight Panel'), ('gauge_kpi', 'Gauge + KPI'),
     ('kpi_strip', 'KPI Strip'),
 ]

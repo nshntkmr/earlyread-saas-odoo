@@ -563,6 +563,17 @@ class AiSqlGenerator:
 
         Returns a dict ready to be serialized into the Claude prompt.
         """
+        # v1 contract: Sankey is Custom SQL only. The AI generator doesn't
+        # understand Sankey's (source, target, value, optional category)
+        # column shape — refusing here surfaces a clear error in the wizard.
+        # Use ValueError (not UserError) since this file is intentionally
+        # Odoo-import-free; controllers convert ValueError → 400 response.
+        if chart_type == 'sankey':
+            raise ValueError(
+                "AI SQL generation does not support Sankey in v1. "
+                "Switch to 'Custom SQL' and provide a query returning "
+                "(source, target, value[, category]) columns. See the SQL "
+                "editor's Sankey help text for an example.")
         context = {
             'chart_type': chart_type,
             'gauge_style': gauge_style,

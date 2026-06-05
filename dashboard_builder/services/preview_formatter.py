@@ -8,6 +8,7 @@ Supports: KPI, charts (bar/line/pie/donut/radar/scatter/heatmap/gauge), tables.
 
 import json
 import logging
+import math
 
 _logger = logging.getLogger(__name__)
 
@@ -57,11 +58,82 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
     if chart_type in ('bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'gauge'):
         return _build_echart_preview(chart_type, columns, rows, config, visual_config)
 
+    if chart_type == 'sankey':
+        return _build_sankey_preview(columns, rows, config, visual_config)
+
+    if chart_type == 'sankey_member_flow':
+        return _build_member_flow_preview(columns, rows)
+
     # Fallback — return raw data as-is
     return {}
 
 
 # ── KPI Formatting ────────────────────────────────────────────────────────────
+
+def _build_member_flow_preview(columns, rows):
+    lower_idx = {str(c).lower(): i for i, c in enumerate(columns or [])}
+
+    def cell(row, *names, default=None):
+        for name in names:
+            idx = lower_idx.get(str(name).lower())
+            if idx is not None and idx < len(row):
+                val = row[idx]
+                if val is not None:
+                    return val
+        return default
+
+    def num(val):
+        try:
+            return float(val or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def text(val):
+        return str(val or '').strip()
+
+    months = []
+    for row in rows or []:
+        label = text(cell(row, 'Date', 'month_label', 'month', 'label'))
+        key = cell(row, 'YEAR_MONTH', 'month_key', 'year_month', default=label)
+        if not label:
+            label = text(key)
+        if not label:
+            continue
+        months.append({
+            'key': text(key),
+            'label': label,
+            'new_alignments': num(cell(row, 'NEW_ALIGNEMENT', 'NEW_ALIGNMENT', 'new_alignments', 'new_alignment')),
+            'still_active': num(cell(row, 'STILL_ACTIVE', 'still_active', 'persisting', 'active_aligned')),
+            'recaptured': num(cell(row, 'RECAPTURED', 'recaptured', 're_captured')),
+            'disaligned': num(cell(row, 'DISALIGNED', 'disaligned')),
+            'active_12_month': num(cell(row, '12_month_active', 'active_12_month', 'twelve_month_active', 'start_value')),
+        })
+
+    if months and all(str(m.get('key') or '').isdigit() for m in months):
+        months = sorted(months, key=lambda m: int(m.get('key') or 0))
+
+    start_value = 0.0
+    start_period = ''
+    if months:
+        start_value = months[0].get('active_12_month') or months[0].get('still_active') or 0
+        start_period = months[0].get('label', '')
+    if rows:
+        explicit_start = num(cell(rows[0], 'start_value', 'starting_aligned_members'))
+        if explicit_start:
+            start_value = explicit_start
+        start_period = text(cell(rows[0], 'start_period', default=start_period)) or start_period
+
+    return {
+        'type': 'sankey_member_flow',
+        'months': months,
+        'start': {
+            'label': 'Starting Aligned Members',
+            'period': start_period,
+            'value': start_value,
+        },
+        'footer': 'Members must have a qualifying claim in the past 12 months to remain aligned.',
+    }
+
 
 def _format_value(raw, fmt='number', prefix='', suffix=''):
     """Format a raw numeric value for KPI display."""
@@ -163,6 +235,119 @@ def _get_palette_colors(palette, custom_json=None):
         except (json.JSONDecodeError, TypeError):
             pass
     return _PALETTES.get(palette, _PALETTES['default'])
+
+
+def _build_sankey_preview(columns, rows, config, visual_config):
+    """Build a Sankey ECharts option for the wizard's live preview.
+
+    Mirrors dashboard.widget._build_echart_option sankey branch — same
+    null/empty/NaN/Inf/negative/zero skipping, same defensive row-length
+    guard, same (src,tgt,cat) aggregation, same per-link category coloring
+    with opacity + curveness preserved.
+
+    Sankey v1 is Custom SQL only; the wizard's Visual/AI paths are blocked
+    upstream. SQL must return columns aligned with widget config:
+      x_column      = source node
+      series_column = target node
+      y_columns[0]  = value (numeric, finite, positive)
+      y_columns[1]  = optional category column (drives color)
+    """
+    src_col = (config.get('x_column') or '').strip()
+    tgt_col = (config.get('series_column') or '').strip()
+    y_parts = [s.strip() for s in (config.get('y_columns') or '').split(',') if s.strip()]
+    val_col = y_parts[0] if y_parts else ''
+    cat_col = y_parts[1] if len(y_parts) > 1 else ''
+
+    empty = {'echart_option': {'series': [], 'tooltip': {'trigger': 'item'}}}
+    if not columns or not rows or not src_col or not tgt_col or not val_col:
+        return empty
+
+    col_idx = {c: i for i, c in enumerate(columns)}
+    si = col_idx.get(src_col)
+    ti = col_idx.get(tgt_col)
+    vi = col_idx.get(val_col)
+    ci = col_idx.get(cat_col) if cat_col else None
+    if si is None or ti is None or vi is None:
+        return empty
+
+    # Defensive row-length guard
+    max_idx = max(i for i in (si, ti, vi, ci) if i is not None)
+
+    link_acc = {}
+    node_order, seen_nodes = [], set()
+    categories, seen_cats = [], set()
+    for r in rows:
+        if r is None or len(r) <= max_idx:
+            continue
+        if r[si] is None or r[ti] is None:
+            continue
+        src = str(r[si]).strip()
+        tgt = str(r[ti]).strip()
+        if not src or not tgt:
+            continue
+        try:
+            val = float(r[vi] or 0)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(val) or val <= 0:
+            continue
+        cat = ''
+        if ci is not None and r[ci] is not None:
+            cat = str(r[ci]).strip()
+        for n in (src, tgt):
+            if n not in seen_nodes:
+                seen_nodes.add(n); node_order.append(n)
+        if cat and cat not in seen_cats:
+            seen_cats.add(cat); categories.append(cat)
+        link_acc[(src, tgt, cat)] = link_acc.get((src, tgt, cat), 0.0) + val
+
+    # Sankey visual flags live in visual_config (NOT config)
+    vc = visual_config or {}
+    orient         = vc.get('sankey_orient', 'horizontal')
+    node_align     = vc.get('sankey_node_align', 'justify')
+    node_gap       = vc.get('sankey_node_gap', 8)
+    node_width     = vc.get('sankey_node_width', 20)
+    link_opacity   = vc.get('sankey_link_opacity', 0.5)
+    link_curveness = vc.get('sankey_link_curveness', 0.5)
+    label_position = vc.get('sankey_label_position', 'right')
+
+    # Use existing palette helper. Fall back to _PALETTES['default'] if it
+    # somehow returns empty so the modulo operation never divides by zero.
+    palette = _get_palette_colors(
+        config.get('color_palette', 'default'),
+        config.get('color_custom_json'),
+    ) or _PALETTES['default']
+
+    cat_to_color = {c: palette[i % len(palette)] for i, c in enumerate(categories)} if categories else {}
+
+    links = []
+    for (src, tgt, cat), val in link_acc.items():
+        link = {'source': src, 'target': tgt, 'value': val}
+        if cat and cat in cat_to_color:
+            # Per-link lineStyle overrides series-level; carry opacity + curveness
+            link['lineStyle'] = {
+                'color':     cat_to_color[cat],
+                'opacity':   link_opacity,
+                'curveness': link_curveness,
+            }
+        links.append(link)
+
+    option = {
+        'tooltip': {'trigger': 'item'},
+        'series': [{
+            'type':       'sankey',
+            'orient':     orient,
+            'nodeAlign':  node_align,
+            'nodeGap':    node_gap,
+            'nodeWidth':  node_width,
+            'data':       [{'name': n} for n in node_order],
+            'links':      links,
+            'lineStyle':  {'opacity': link_opacity, 'curveness': link_curveness},
+            'label':      {'show': True, 'position': label_position},
+            'emphasis':   {'focus': 'adjacency'},
+        }],
+    }
+    return {'echart_option': option}
 
 
 def _build_echart_preview(chart_type, columns, rows, config, visual_config=None):

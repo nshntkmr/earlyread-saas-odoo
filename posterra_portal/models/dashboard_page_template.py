@@ -292,6 +292,57 @@ class DashboardPageTemplate(models.Model):
             if scope_opts:
                 wdata['scope_options'] = scope_opts
 
+            # ── Composite items ────────────────────────────────────────
+            # Round-trip invariant: any field copied to the transient
+            # .new() payload in dashboard_widget._build_composite_data MUST
+            # be threaded here too. Otherwise template export/import
+            # silently drops it.
+            if w.chart_type == 'composite':
+                wdata['composite_items'] = [{
+                    'sequence':             c.sequence,
+                    'is_active':            c.is_active,
+                    'name':                 c.name or '',
+                    'chart_type':           c.chart_type,
+                    'data_mode':            c.data_mode,
+                    'query_sql':            c.query_sql or '',
+                    'where_clause_exclude': c.where_clause_exclude or '',
+                    'schema_source_table':  c.schema_source_id.table_name
+                                            if c.schema_source_id else '',
+                    'x_column':             c.x_column or '',
+                    'y_columns':            c.y_columns or '',
+                    'series_column':        c.series_column or '',
+                    'status_column':        c.status_column or '',
+                    'kpi_format':           c.kpi_format,
+                    'kpi_prefix':           c.kpi_prefix or '',
+                    'kpi_suffix':           c.kpi_suffix or '',
+                    'kpi_layout':           c.kpi_layout or 'vertical',
+                    'display_mode':         c.display_mode or 'standard',
+                    'text_align':           c.text_align or 'center',
+                    'metric_direction':     c.metric_direction or 'higher_better',
+                    'icon_name':            c.icon_name or 'none',
+                    'icon_position':        c.icon_position or 'title',
+                    'title_icon_color':     c.title_icon_color or 'default',
+                    'color_custom_json':    c.color_custom_json or '',
+                    'visual_config':        c.visual_config or '{}',
+                    'bar_stack':            c.bar_stack or False,
+                    'echart_override':      c.echart_override or '',
+                    'gauge_min':            c.gauge_min or 0,
+                    'gauge_max':            c.gauge_max or 100,
+                    'gauge_color_mode':     c.gauge_color_mode or 'traffic_light',
+                    'gauge_warn_threshold': c.gauge_warn_threshold or 50,
+                    'gauge_good_threshold': c.gauge_good_threshold or 80,
+                    'table_column_config':  c.table_column_config or '',
+                    'column_link_config':   c.column_link_config or '',
+                    'ranked_master_config': c.ranked_master_config or '',
+                    'ranked_detail_config': c.ranked_detail_config or '',
+                    'text_note_body':       c.text_note_body or '',
+                    'col_start':            c.col_start,
+                    'col_span':             c.col_span,
+                    'row_start':            c.row_start,
+                    'row_span':             c.row_span,
+                    'min_height_px':        c.min_height_px or 240,
+                } for c in w.composite_item_ids]
+
             widgets.append(wdata)
 
         # ── Sections ───────────────────────────────────────────────
@@ -629,6 +680,60 @@ class DashboardPageTemplate(models.Model):
                     if opt_src:
                         opt_vals['schema_source_id'] = opt_src.id
                 ScopeOption.create(opt_vals)
+
+            # Create composite items (child records for chart_type='composite')
+            if w.get('chart_type') == 'composite' and w.get('composite_items'):
+                CompositeItem = self.env['dashboard.widget.composite.item']
+                for ci in w['composite_items']:
+                    ci_vals = {
+                        'parent_widget_id':     new_widget.id,
+                        'sequence':             ci.get('sequence', 10),
+                        'is_active':            ci.get('is_active', True),
+                        'name':                 ci.get('name', ''),
+                        'chart_type':           ci.get('chart_type', 'kpi'),
+                        'data_mode':            ci.get('data_mode', 'inherit_parent'),
+                        'query_sql':            ci.get('query_sql', ''),
+                        'where_clause_exclude': ci.get('where_clause_exclude', ''),
+                        'x_column':             ci.get('x_column', ''),
+                        'y_columns':            ci.get('y_columns', ''),
+                        'series_column':        ci.get('series_column', ''),
+                        'status_column':        ci.get('status_column', ''),
+                        'kpi_format':           ci.get('kpi_format', 'number'),
+                        'kpi_prefix':           ci.get('kpi_prefix', ''),
+                        'kpi_suffix':           ci.get('kpi_suffix', ''),
+                        'kpi_layout':           ci.get('kpi_layout', 'vertical'),
+                        'display_mode':         ci.get('display_mode', 'standard'),
+                        'text_align':           ci.get('text_align', 'center'),
+                        'metric_direction':     ci.get('metric_direction', 'higher_better'),
+                        'icon_name':            ci.get('icon_name', 'none'),
+                        'icon_position':        ci.get('icon_position', 'title'),
+                        'title_icon_color':     ci.get('title_icon_color', 'default'),
+                        'color_custom_json':    ci.get('color_custom_json', ''),
+                        'visual_config':        ci.get('visual_config', '{}'),
+                        'bar_stack':            ci.get('bar_stack', False),
+                        'echart_override':      ci.get('echart_override', ''),
+                        'gauge_min':            ci.get('gauge_min', 0),
+                        'gauge_max':            ci.get('gauge_max', 100),
+                        'gauge_color_mode':     ci.get('gauge_color_mode', 'traffic_light'),
+                        'gauge_warn_threshold': ci.get('gauge_warn_threshold', 50),
+                        'gauge_good_threshold': ci.get('gauge_good_threshold', 80),
+                        'table_column_config':  ci.get('table_column_config', ''),
+                        'column_link_config':   ci.get('column_link_config', ''),
+                        'ranked_master_config': ci.get('ranked_master_config', ''),
+                        'ranked_detail_config': ci.get('ranked_detail_config', ''),
+                        'text_note_body':       ci.get('text_note_body', ''),
+                        'col_start':            ci.get('col_start', 1),
+                        'col_span':             ci.get('col_span', 12),
+                        'row_start':            ci.get('row_start', 0),
+                        'row_span':             ci.get('row_span', 1),
+                        'min_height_px':        ci.get('min_height_px', 240),
+                    }
+                    ci_table = ci.get('schema_source_table', '')
+                    if ci_table:
+                        ci_src = Source.search([('table_name', '=', ci_table)], limit=1)
+                        if ci_src:
+                            ci_vals['schema_source_id'] = ci_src.id
+                    CompositeItem.create(ci_vals)
 
         # ── Create sections ────────────────────────────────────────
         Section = self.env.get('dashboard.page.section')
