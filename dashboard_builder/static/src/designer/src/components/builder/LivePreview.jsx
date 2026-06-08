@@ -141,6 +141,7 @@ function PercentilePreview({ data, height }) {
 
 function MemberFlowPreviewInline({ data, height }) {
   const months = Array.isArray(data?.months) ? data.months : []
+  const labels = data?.labels || {}
   const fmt = (v) => {
     const n = Number(v || 0)
     return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n) : '0'
@@ -149,10 +150,10 @@ function MemberFlowPreviewInline({ data, height }) {
     return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>No member flow data.</div>
   }
   const lanes = [
-    ['new_alignments', 'New Alignments', '#14b8a6', 64],
-    ['still_active', 'Still Active', '#60a5fa', 138],
-    ['recaptured', 'Re-captured', '#8b5cf6', 218],
-    ['disaligned', 'Disaligned', '#ef4444', 264],
+    ['new_alignments', labels.new_alignments || 'New Alignments', '#14b8a6', 64],
+    ['still_active', labels.still_active || 'Still Active', '#60a5fa', 138],
+    ['recaptured', labels.recaptured || 'Re-captured', '#8b5cf6', 218],
+    ['disaligned', labels.disaligned || 'Disaligned', '#ef4444', 264],
   ]
   const width = 920
   const step = months.length > 1 ? 560 / (months.length - 1) : 0

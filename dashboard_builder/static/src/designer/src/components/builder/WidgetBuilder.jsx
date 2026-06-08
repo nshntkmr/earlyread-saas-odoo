@@ -98,6 +98,55 @@ function getRankedActiveConfig(state) {
 
 // ── State ────────────────────────────────────────────────────────────────────
 
+const MEMBER_FLOW_LABEL_DEFAULTS = {
+  new_alignments: 'New Alignments',
+  still_active: 'Still Active',
+  recaptured: 'Re-captured',
+  disaligned: 'Disaligned',
+}
+
+function MemberFlowLabelConfig({ visualFlags = {}, onChange }) {
+  const labels = visualFlags.member_flow_labels || {}
+
+  const updateLabel = (key, value) => {
+    const nextLabels = { ...labels }
+    const trimmed = value.trim()
+    if (trimmed) {
+      nextLabels[key] = trimmed
+    } else {
+      delete nextLabels[key]
+    }
+
+    const nextFlags = { ...visualFlags }
+    if (Object.keys(nextLabels).length) {
+      nextFlags.member_flow_labels = nextLabels
+    } else {
+      delete nextFlags.member_flow_labels
+    }
+    onChange(nextFlags)
+  }
+
+  return (
+    <div className="wb-field-group">
+      <label className="wb-label">Member Flow Labels</label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+        {Object.entries(MEMBER_FLOW_LABEL_DEFAULTS).map(([key, fallback]) => (
+          <div key={key}>
+            <label className="wb-label" style={{ fontSize: '0.8rem' }}>{fallback}</label>
+            <input
+              type="text"
+              className="wb-input"
+              value={labels[key] || ''}
+              onChange={e => updateLabel(key, e.target.value)}
+              placeholder={fallback}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const initialState = {
   step: 0,
 
@@ -264,11 +313,11 @@ function reducer(state, action) {
     case 'SET_DATA_MODE':
       return _routeToOption(state, { dataMode: action.value })
     case 'COERCE_SANKEY_DATA_MODES': {
-      // v1 contract: Sankey is Custom SQL only. Atomically coerce BOTH the
+      // v1 contract: Sankey variants are Custom SQL only. Atomically coerce BOTH the
       // top-level state.dataMode AND every state.optionConfigs[].dataMode
       // from visual / visual_builder / ai → custom_sql in a single state
       // transition. Avoids race between top-level and option-config writes
-      // when the user picks Sankey in the chart-type step.
+      // when the user picks a Sankey chart in the chart-type step.
       const BAD = ['visual', 'visual_builder', 'ai']
       const next = { ...state }
       if (BAD.includes(state.dataMode)) {
@@ -616,12 +665,13 @@ export default function WidgetBuilder({
       .finally(() => setLoadingEdit(false))
   }, [editId, isOpen, apiBase])
 
-  // v1 contract: Sankey is Custom SQL only. When chartType becomes 'sankey',
+  // v1 contract: Sankey variants are Custom SQL only. When chartType becomes
+  // 'sankey' or 'sankey_member_flow',
   // atomically coerce top-level state.dataMode + every state.optionConfigs[].dataMode
   // from visual / visual_builder / ai → custom_sql so admins never reach
   // a broken Preview/Save state with a Visual or AI config.
   useEffect(() => {
-    if (state.chartType === 'sankey') {
+    if (['sankey', 'sankey_member_flow'].includes(state.chartType)) {
       dispatch({ type: 'COERCE_SANKEY_DATA_MODES' })
     }
   }, [state.chartType])
@@ -825,8 +875,8 @@ export default function WidgetBuilder({
                     type="button"
                     className={`wb-btn ${(ac.dataMode === 'visual' || ac.dataMode === 'visual_builder') ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'visual' })}
-                    disabled={state.chartType === 'sankey'}
-                    title={state.chartType === 'sankey' ? 'Sankey requires Custom SQL in v1' : undefined}
+                    disabled={['sankey', 'sankey_member_flow'].includes(state.chartType)}
+                    title={['sankey', 'sankey_member_flow'].includes(state.chartType) ? 'This chart type requires Custom SQL' : undefined}
                   >
                     <i className="fa fa-mouse-pointer me-1" /> Visual Builder
                   </button>
@@ -842,8 +892,8 @@ export default function WidgetBuilder({
                     className={`wb-btn ${ac.dataMode === 'ai' ? 'wb-btn--primary' : 'wb-btn--outline'}`}
                     onClick={() => dispatch({ type: 'SET_DATA_MODE', value: 'ai' })}
                     style={ac.dataMode === 'ai' ? { background: '#7c3aed', borderColor: '#7c3aed' } : {}}
-                    disabled={state.chartType === 'sankey'}
-                    title={state.chartType === 'sankey' ? 'Sankey requires Custom SQL in v1' : undefined}
+                    disabled={['sankey', 'sankey_member_flow'].includes(state.chartType)}
+                    title={['sankey', 'sankey_member_flow'].includes(state.chartType) ? 'This chart type requires Custom SQL' : undefined}
                   >
                     <i className="fa fa-magic me-1" /> AI Assistant
                   </button>
@@ -889,23 +939,31 @@ export default function WidgetBuilder({
                   apiBase={apiBase}
                 />
               ) : (
-                <CustomSqlEditor
-                  sql={(ac.customSql || {}).sql || ''}
-                  xColumn={(ac.customSql || {}).xColumn || ''}
-                  yColumns={(ac.customSql || {}).yColumns || ''}
-                  seriesColumn={(ac.customSql || {}).seriesColumn || ''}
-                  schemaSourceId={(ac.customSql || {}).schemaSourceId || null}
-                  testResult={(ac.customSql || {}).testResult}
-                  testParams={(ac.customSql || {}).testParams || {}}
-                  onUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
-                  apiBase={apiBase}
-                  appContext={appContext}
-                  connectionId={ac.connectionId || 'local_pg'}
-                  chartType={state.chartType}
-                  donutStyle={state.visualFlags?.donut_style || 'standard'}
-                  lineStyle={state.visualFlags?.line_style || 'basic'}
-                  gaugeStyle={state.visualFlags?.gauge_style || 'standard'}
-                />
+                <>
+                  <CustomSqlEditor
+                    sql={(ac.customSql || {}).sql || ''}
+                    xColumn={(ac.customSql || {}).xColumn || ''}
+                    yColumns={(ac.customSql || {}).yColumns || ''}
+                    seriesColumn={(ac.customSql || {}).seriesColumn || ''}
+                    schemaSourceId={(ac.customSql || {}).schemaSourceId || null}
+                    testResult={(ac.customSql || {}).testResult}
+                    testParams={(ac.customSql || {}).testParams || {}}
+                    onUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
+                    apiBase={apiBase}
+                    appContext={appContext}
+                    connectionId={ac.connectionId || 'local_pg'}
+                    chartType={state.chartType}
+                    donutStyle={state.visualFlags?.donut_style || 'standard'}
+                    lineStyle={state.visualFlags?.line_style || 'basic'}
+                    gaugeStyle={state.visualFlags?.gauge_style || 'standard'}
+                  />
+                  {state.chartType === 'sankey_member_flow' && (
+                    <MemberFlowLabelConfig
+                      visualFlags={state.visualFlags || {}}
+                      onChange={value => dispatch({ type: 'SET_VISUAL_FLAGS', value })}
+                    />
+                  )}
+                </>
               )}
             </div>
           )}

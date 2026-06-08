@@ -1,6 +1,6 @@
 import React from 'react'
 
-const LANES = [
+const DEFAULT_LANES = [
   { key: 'new_alignments', label: 'New Alignments', color: '#14b8a6', y: 92, width: 26, badgeW: 70, badgeH: 30 },
   { key: 'still_active', label: 'Still Active', color: '#60a5fa', y: 198, width: 70, badgeW: 78, badgeH: 104 },
   { key: 'recaptured', label: 'Re-captured', color: '#8b5cf6', y: 302, width: 18, badgeW: 62, badgeH: 28 },
@@ -25,6 +25,11 @@ const normalizeMonths = (data) => {
 
 export default function MemberFlowTimeline({ data, height = 520 }) {
   const months = normalizeMonths(data)
+  const labels = data?.labels || {}
+  const lanes = DEFAULT_LANES.map(lane => ({
+    ...lane,
+    label: labels[lane.key] || lane.label,
+  }))
   const chartHeight = Math.max(Number(height) || 520, 420)
 
   if (!months.length) {
@@ -84,7 +89,7 @@ export default function MemberFlowTimeline({ data, height = 520 }) {
         </defs>
 
         <g transform="translate(230 24)">
-          {LANES.map((lane, idx) => (
+          {lanes.map((lane, idx) => (
             <g key={lane.key} transform={`translate(${idx * 210} 0)`}>
               <rect x="0" y="0" width="18" height="18" rx="3" fill={lane.color} opacity="0.9" />
               <text x="28" y="14" fill="#1f2937" fontSize="14" fontWeight="600">{lane.label}</text>
@@ -126,7 +131,7 @@ export default function MemberFlowTimeline({ data, height = 520 }) {
           {formatNumber(start.value)}
         </text>
 
-        {LANES.map((lane) => (
+        {lanes.map((lane) => (
           <g key={`ribbons-${lane.key}`}>
             <path
               d={pathBetween(startX + startW, startY + startH / 2, columnXs[0] - lane.badgeW / 2, lane.y)}
@@ -154,7 +159,7 @@ export default function MemberFlowTimeline({ data, height = 520 }) {
           const x = columnXs[idx]
           return (
             <g key={`month-values-${month.key}`}>
-              {LANES.map((lane) => {
+              {lanes.map((lane) => {
                 const isStill = lane.key === 'still_active'
                 const y = lane.y
                 return (
@@ -187,7 +192,7 @@ export default function MemberFlowTimeline({ data, height = 520 }) {
         })}
 
         <g transform={`translate(${lastX + 78} 0)`}>
-          {LANES.map(lane => (
+          {lanes.map(lane => (
             <g key={`right-${lane.key}`}>
               <path d={`M 0 ${lane.y} L 24 ${lane.y}`} stroke={lane.color} strokeWidth="3" strokeLinecap="round" />
               <text x="32" y={lane.y + 5} fill={lane.color} fontSize="15" fontWeight="700">{lane.label}</text>

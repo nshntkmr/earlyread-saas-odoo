@@ -50,7 +50,7 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
     visual_config = visual_config or {}
 
     if chart_type in ('kpi', 'status_kpi', 'kpi_strip'):
-        return _format_kpi_preview(chart_type, columns, rows, config)
+        return _format_kpi_preview(chart_type, columns, rows, config, visual_config)
 
     if chart_type == 'table':
         return {}  # tables already work with raw columns/rows
@@ -62,7 +62,7 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
         return _build_sankey_preview(columns, rows, config, visual_config)
 
     if chart_type == 'sankey_member_flow':
-        return _build_member_flow_preview(columns, rows)
+        return _build_member_flow_preview(columns, rows, visual_config)
 
     # Fallback — return raw data as-is
     return {}
@@ -70,7 +70,20 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
 
 # ── KPI Formatting ────────────────────────────────────────────────────────────
 
-def _build_member_flow_preview(columns, rows):
+def _build_member_flow_preview(columns, rows, visual_config=None):
+    labels = {
+        'new_alignments': 'New Alignments',
+        'still_active': 'Still Active',
+        'recaptured': 'Re-captured',
+        'disaligned': 'Disaligned',
+    }
+    configured = (visual_config or {}).get('member_flow_labels') or {}
+    if isinstance(configured, dict):
+        for key in labels:
+            value = str(configured.get(key) or '').strip()
+            if value:
+                labels[key] = value
+
     lower_idx = {str(c).lower(): i for i, c in enumerate(columns or [])}
 
     def cell(row, *names, default=None):
@@ -125,6 +138,7 @@ def _build_member_flow_preview(columns, rows):
 
     return {
         'type': 'sankey_member_flow',
+        'labels': labels,
         'months': months,
         'start': {
             'label': 'Starting Aligned Members',
@@ -156,8 +170,9 @@ def _format_value(raw, fmt='number', prefix='', suffix=''):
     return f'{prefix}{formatted}{suffix}'
 
 
-def _format_kpi_preview(chart_type, columns, rows, config):
+def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
     """Build KPI preview data from raw SQL results."""
+    visual_config = visual_config or {}
     x_col = (config.get('x_column') or '').strip()
     col_idx = {c: i for i, c in enumerate(columns)}
 
@@ -178,13 +193,39 @@ def _format_kpi_preview(chart_type, columns, rows, config):
         'label': config.get('title') or x_col or 'KPI',
     }
 
-    # Secondary value from y_columns (first entry)
+    # Secondary value — match the portal trend badge: "±N% vs <comparison_label>".
+    # Comparison label: SQL column 'comparison_label' (trimmed, non-blank)
+    #   > visual_config.comparison_label (trimmed) > default 'vs Prior'.
     y_cols_raw = (config.get('y_columns') or '').strip()
     if y_cols_raw:
         y_col = y_cols_raw.split(',')[0].strip()
         if y_col in col_idx and rows:
-            sec_val = rows[0][col_idx[y_col]]
-            result['secondary'] = f'{y_col}: {_format_value(sec_val, config.get("kpi_format", "number"))}'
+            comp_label = ''
+            if 'comparison_label' in col_idx:
+                raw_label = rows[0][col_idx['comparison_label']]
+                comp_label = str(raw_label).strip() if raw_label is not None else ''
+            if not comp_label:
+                comp_label = (visual_config.get('comparison_label') or '').strip()
+            if not comp_label:
+                comp_label = 'vs Prior'
+            noun = comp_label[3:].strip() if comp_label.lower().startswith('vs ') else comp_label
+
+            prior_raw = rows[0][col_idx[y_col]]
+            if prior_raw is None:
+                # No prior period exists (SQL returned NULL) — distinct from a real 0.
+                result['secondary'] = f'No {noun}'
+            else:
+                try:
+                    current = float(raw_val or 0)
+                    prior = float(prior_raw or 0)
+                    if prior:
+                        pct = ((current - prior) / abs(prior)) * 100
+                        sign = '+' if pct > 0 else ''
+                        result['secondary'] = f'{sign}{pct:.0f}% {comp_label}'
+                    else:
+                        result['secondary'] = f'{noun}: {prior_raw}'
+                except (TypeError, ValueError):
+                    result['secondary'] = str(prior_raw)
 
     # Status KPI — icon/css. Diagnostics held at DEBUG: ``raw_val`` and
     # other row data may be PHI-adjacent and must not retain in long-

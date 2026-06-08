@@ -347,6 +347,24 @@ export default function KpiStylePicker({
                  title="Invert trend colors: decrease = green (improving), increase = red (worsening). Use for metrics like hospitalization rate, mortality rate, rehospitalization rate." />
             </label>
           </div>
+
+          {/* Comparison label — stat_card + sparkline only (variants that show the trend badge) */}
+          {(ks === 'stat_card' || isSparkline) && (
+            <div className="wb-field-row" style={{ marginTop: 8 }}>
+              <label className="wb-field-label">
+                Comparison Label (optional)
+                <i className="fa fa-info-circle wb-flag-info"
+                   title="Text after the % change in the trend badge (e.g. 'vs Prior Month', 'vs Last Year'). If your SQL returns a non-blank 'comparison_label' column, that takes priority (dynamic). Leave empty for default 'vs Prior'." />
+              </label>
+              <input
+                type="text"
+                className="wb-input wb-input--sm"
+                placeholder="e.g. vs Prior Month, vs Last Year"
+                value={cfgVal(visualConfig, 'comparison_label', '')}
+                onChange={e => handleCfg('comparison_label', e.target.value)}
+              />
+            </div>
+          )}
         </>
       )}
 

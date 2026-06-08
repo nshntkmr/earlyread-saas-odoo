@@ -3915,6 +3915,23 @@ class DashboardWidget(models.Model):
         STILL_ACTIVE/still_active, RECAPTURED/recaptured, DISALIGNED/disaligned,
         and optional 12_month_active/active_12_month/start_value.
         """
+        labels = {
+            'new_alignments': 'New Alignments',
+            'still_active': 'Still Active',
+            'recaptured': 'Re-captured',
+            'disaligned': 'Disaligned',
+        }
+        try:
+            vc = json.loads(self.visual_config or '{}') or {}
+            configured = vc.get('member_flow_labels') or {}
+            if isinstance(configured, dict):
+                for key in labels:
+                    value = str(configured.get(key) or '').strip()
+                    if value:
+                        labels[key] = value
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
         lower_idx = {str(c).lower(): i for i, c in enumerate(cols or [])}
 
         def cell(row, *names, default=None):
@@ -3987,6 +4004,7 @@ class DashboardWidget(models.Model):
 
         return {
             'type': 'sankey_member_flow',
+            'labels': labels,
             'months': months,
             'start': {
                 'label': start_label,
@@ -4003,6 +4021,14 @@ class DashboardWidget(models.Model):
 
         raw_val = rows[0][col_idx[x_col]] if (rows and x_col in col_idx) else None
         formatted = self._format_kpi(raw_val)
+
+        # Parse visual_config once — reused by the trend, comparison-label, and
+        # variant-enrichment logic below (avoids redundant json.loads calls).
+        vc = {}
+        try:
+            vc = json.loads(self.visual_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            pass
 
         result = {
             'type': self.chart_type,
@@ -4032,11 +4058,7 @@ class DashboardWidget(models.Model):
 
                     direction = self.metric_direction
                     if not direction:
-                        try:
-                            _vc_trend = json.loads(self.visual_config or '{}') or {}
-                            direction = 'lower_better' if _vc_trend.get('trend_invert', False) else 'higher_better'
-                        except (json.JSONDecodeError, TypeError):
-                            direction = 'higher_better'
+                        direction = 'lower_better' if vc.get('trend_invert', False) else 'higher_better'
 
                     if direction == 'neutral':
                         if current > prior:
@@ -4060,30 +4082,46 @@ class DashboardWidget(models.Model):
                 except (TypeError, ValueError):
                     pass
 
-        # Secondary value — show percentage change vs prior
+        # Secondary value — show percentage change vs prior.
+        # Comparison label: SQL column 'comparison_label' (trimmed, non-blank)
+        #   > visual_config.comparison_label (trimmed) > default 'vs Prior'.
+        comp_label = ''
+        if 'comparison_label' in col_idx and rows:
+            raw_label = rows[0][col_idx['comparison_label']]
+            # blank / whitespace-only SQL values must not override the configured label
+            comp_label = str(raw_label).strip() if raw_label is not None else ''
+        if not comp_label:
+            comp_label = (vc.get('comparison_label') or '').strip()
+        if not comp_label:
+            comp_label = 'vs Prior'
+
+        # Noun without the leading "vs " for the no-prior / zero-prior phrasings.
+        noun = comp_label[3:].strip() if comp_label.lower().startswith('vs ') else comp_label
+
         y_col = (self.y_columns or '').split(',')[0].strip()
         if y_col and y_col in col_idx and rows:
             prior_raw = rows[0][col_idx[y_col]]
-            try:
-                current = float(raw_val or 0)
-                prior = float(prior_raw or 0)
-                if prior:
-                    pct = ((current - prior) / abs(prior)) * 100
-                    sign = '+' if pct > 0 else ''
-                    result['secondary'] = f'{sign}{pct:.0f}% vs Prior'
-                else:
-                    result['secondary'] = f'Prior: {prior_raw}'
-            except (TypeError, ValueError):
-                result['secondary'] = str(prior_raw)
+            if prior_raw is None:
+                # No prior period exists (SQL returned NULL) — distinct from a real 0.
+                result['secondary'] = f'No {noun}'                   # e.g. "No Prior Month"
+            else:
+                try:
+                    current = float(raw_val or 0)
+                    prior = float(prior_raw or 0)
+                    if prior:
+                        pct = ((current - prior) / abs(prior)) * 100
+                        sign = '+' if pct > 0 else ''
+                        result['secondary'] = f'{sign}{pct:.0f}% {comp_label}'
+                    else:
+                        # Real zero prior — % is undefined, show the value.
+                        result['secondary'] = f'{noun}: {prior_raw}'  # e.g. "Prior Month: 0"
+                except (TypeError, ValueError):
+                    result['secondary'] = str(prior_raw)
 
         result.update(self._get_typography_overrides())
 
         # ── KPI variant enrichment (dashboard builder variants) ──────
-        vc = {}
-        try:
-            vc = json.loads(self.visual_config or '{}') or {}
-        except (json.JSONDecodeError, TypeError):
-            pass
+        # vc already parsed once at the top of this method.
         kpi_style = vc.get('kpi_style', '')
         if kpi_style:
             result['kpi_variant'] = kpi_style
