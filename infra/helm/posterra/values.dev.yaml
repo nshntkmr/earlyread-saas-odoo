@@ -14,7 +14,7 @@ deploymentMode: combined
 # Image tag — pin per build (commit SHA from `az acr build`). The
 # posterra.image helper requires this to be set; an empty tag fails render.
 image:
-  tag: "c5d73a8"
+  tag: "b9e2152"
 
 database:
   host: "earlyread-saas-dev-pg.postgres.database.azure.com"
