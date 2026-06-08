@@ -1415,6 +1415,13 @@ class DashboardWidget(models.Model):
             target_label   = vc.get('target_label', '')
             color_mode     = vc.get('color_mode', 'by_series')
             number_format  = vc.get('number_format', 'auto')
+            point_label_col = (
+                vc.get('point_label_column')
+                or vc.get('data_label_column')
+                or vc.get('label_column')
+                or vc.get('label_field')
+                or ''
+            ).strip()
 
             option['tooltip']['trigger'] = 'axis'
             option['legend'] = {}
@@ -1600,6 +1607,48 @@ class DashboardWidget(models.Model):
                         s['data'] = new_data
 
             # ── Color by category ─────────────────────────────────────
+            # Custom per-point labels for line charts. This is opt-in via
+            # visual_config so existing widgets keep the default labels.
+            if ct == 'line' and point_label_col and point_label_col in col_idx:
+                point_label_position = label_position or 'top'
+                label_by_x = {}
+                label_by_series_x = {}
+                if series_col and series_col in col_idx:
+                    for r in rows:
+                        sv = str(col_val(r, series_col) or 'Other')
+                        xv = str(col_val(r, x_col) or '')
+                        label_by_series_x[(sv, xv)] = col_val(r, point_label_col)
+                else:
+                    for r in rows:
+                        xv = str(col_val(r, x_col) or '')
+                        label_by_x[xv] = col_val(r, point_label_col)
+
+                x_values = option.get('xAxis', {}).get('data', [])
+                for s in option.get('series', []):
+                    s.setdefault('label', {
+                        'show': True,
+                        'position': point_label_position,
+                    })
+                    labelled_data = []
+                    for idx, item in enumerate(s.get('data', [])):
+                        xv = x_values[idx] if idx < len(x_values) else ''
+                        label_text = (
+                            label_by_series_x.get((s.get('name'), xv))
+                            if label_by_series_x
+                            else label_by_x.get(xv)
+                        )
+                        if label_text in (None, ''):
+                            labelled_data.append(item)
+                            continue
+                        point = dict(item) if isinstance(item, dict) else {'value': item}
+                        point['label'] = {
+                            'show': True,
+                            'position': point_label_position,
+                            'formatter': str(label_text),
+                        }
+                        labelled_data.append(point)
+                    s['data'] = labelled_data
+
             if ct == 'bar' and color_mode == 'by_category':
                 # Assign a different color to each bar within a series
                 palette = self._get_palette_colors()

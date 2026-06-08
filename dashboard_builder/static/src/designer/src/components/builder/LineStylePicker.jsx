@@ -492,6 +492,35 @@ export default function LineStylePicker({
             </div>
           )}
 
+          <div className="wb-toggle-group">
+            <label className="wb-toggle-label">
+              <input
+                type="checkbox"
+                checked={cfgVal(visualConfig, 'show_custom_point_labels', false)}
+                onChange={e => {
+                  handleCfg('show_custom_point_labels', e.target.checked)
+                  if (!e.target.checked) handleCfg('point_label_column', '')
+                }}
+              />
+              Show Custom Point Labels
+            </label>
+            <span className="wb-flag-help">Use a query column as the label text for each point.</span>
+          </div>
+
+          {cfgVal(visualConfig, 'show_custom_point_labels', false) && (
+            <div className="wb-field-row">
+              <label className="wb-field-label">Point Label Column</label>
+              <input
+                type="text"
+                className="wb-input wb-input--sm"
+                placeholder="e.g. retention_label"
+                value={cfgVal(visualConfig, 'point_label_column', '')}
+                onChange={e => handleCfg('point_label_column', e.target.value)}
+              />
+              <span className="wb-flag-help">Column must be returned by the widget SQL. Example value: 80, 100%</span>
+            </div>
+          )}
+
           <div className="wb-field-row">
             <label className="wb-field-label">Line Width (px)</label>
             <input
