@@ -64,8 +64,71 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
     if chart_type == 'sankey_member_flow':
         return _build_member_flow_preview(columns, rows, visual_config)
 
+    # Composite-only child types
+    if chart_type == 'legend_list':
+        return _build_legend_list_preview(columns, rows, config)
+    if chart_type == 'text_note':
+        return {'type': 'text_note',
+                'body': (config or {}).get('text_note_body', ''),
+                'icon_name': 'none'}
+
     # Fallback — return raw data as-is
     return {}
+
+
+def _build_legend_list_preview(columns, rows, config=None):
+    """Mirror of dashboard.widget._build_legend_list_data for the preview.
+
+    Rows of {label, value, pct} for a colored-dot list:
+      x_column      — label (default: first column)
+      y_columns[0]  — value (default: second column, or first if only one)
+      y_columns[1]  — optional explicit pct column (verbatim display)
+    Optional `colors` list parsed from config.color_custom_json — same JSON
+    an adjacent donut child uses, so legend dots match slice colors exactly.
+    """
+    config = config or {}
+    if not columns or not rows:
+        return {'type': 'legend_list', 'rows': []}
+    col_idx = {c: i for i, c in enumerate(columns)}
+    x = (config.get('x_column') or '').strip() or columns[0]
+    y_parts = [s.strip() for s in (config.get('y_columns') or '').split(',') if s.strip()]
+    y_value = y_parts[0] if y_parts else (columns[1] if len(columns) > 1 else columns[0])
+    y_pct = y_parts[1] if len(y_parts) > 1 else None
+    xi = col_idx.get(x, 0)
+    yi = col_idx.get(y_value, 1 if len(columns) > 1 else 0)
+    pi = col_idx.get(y_pct) if y_pct else None
+
+    def num(val):
+        try:
+            return float(val or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    total = None
+    if pi is None:
+        total = sum(num(r[yi]) for r in rows) or 1.0
+
+    out_rows = []
+    for r in rows:
+        val = num(r[yi])
+        pct = num(r[pi]) if pi is not None else round(val / total * 100, 1)
+        out_rows.append({'label': str(r[xi]), 'value': val, 'pct': pct})
+
+    result = {
+        'type': 'legend_list',
+        'rows': out_rows,
+        'palette': config.get('color_palette') or 'healthcare',
+    }
+    # Optional explicit colors — exact donut↔legend sync
+    raw_colors = config.get('color_custom_json') or ''
+    if raw_colors:
+        try:
+            colors = json.loads(raw_colors)
+            if isinstance(colors, list) and all(isinstance(c, str) for c in colors):
+                result['colors'] = colors
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return result
 
 
 # ── KPI Formatting ────────────────────────────────────────────────────────────

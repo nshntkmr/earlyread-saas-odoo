@@ -49,7 +49,7 @@ function resolveWidget(chartType) {
     case 'composite':          return CompositeWidget
     case 'map':                return MapWidget         // lazy — Suspense boundary preserved
     case 'ranked_detail_list': return RankedDetailList  // needs widgetId for /detail
-    case 'smart_table':        return SmartTable        // no v1 demand as child
+    case 'smart_table':        return SmartTable        // also in childRegistry (composite-child-safe)
     case 'battle_card':        return BattleCard        // complex per-widget config
     case 'insight_panel':      return InsightPanel      // complex per-widget config
     case 'sankey_member_flow': return MemberFlowTimeline

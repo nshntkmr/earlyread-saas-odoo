@@ -17,6 +17,13 @@ import WidgetControlsStep from './WidgetControlsStep'
 import OptionTabBar        from './OptionTabBar'
 import MasterRowLayoutStep from './MasterRowLayoutStep'
 import DetailConfigStep    from './DetailConfigStep'
+import CompositeDataSource from './CompositeDataSource'
+import CompositeLayoutChildren from './CompositeLayoutChildren'
+import {
+  serializeCompositeChildren,
+  hydrateCompositeChildren,
+  deriveStrategy,
+} from './compositeUtils'
 
 function getSteps(chartType, scopeMode, masterRowConfig = null) {
   const steps = [
@@ -36,6 +43,16 @@ function getSteps(chartType, scopeMode, masterRowConfig = null) {
     if (expandEnabled) {
       steps.push({ key: 'detail_config', label: 'Detail Config' })
     }
+    steps.push({ key: 'preview', label: 'Preview & Save' })
+    return steps
+  }
+
+  // Composite keeps the 6-step shell — the 'columns' step key is reused
+  // with a composite-specific body (layout grid + child configuration),
+  // same body-swap pattern as table's 'configure' step.
+  if (chartType === 'composite') {
+    steps.push({ key: 'columns', label: 'Composite Layout & Children' })
+    steps.push({ key: 'filters', label: 'Filters & Actions' })
     steps.push({ key: 'preview', label: 'Preview & Save' })
     return steps
   }
@@ -278,6 +295,13 @@ const initialState = {
     explanation: '',
     warnings: [],
   },
+
+  // Composite (chart_type='composite') — child blocks + data strategy.
+  // compositeChildren entries are builder-shaped (visual_config as object,
+  // _uid/_testResult builder-only) — serializeCompositeChildren() is the
+  // single converter to the wire shape for BOTH save and preview.
+  compositeChildren: [],
+  compositeDataStrategy: 'shared',   // 'shared' | 'own' — default for new children
 }
 
 // Helper: route a state update to optionConfigs[activeScopeIdx] when scope is active
@@ -330,17 +354,41 @@ function reducer(state, action) {
       }
       return next
     }
-    case 'SET_CONNECTION_ID':
+    case 'SET_COMPOSITE_STRATEGY': {
+      // Strategy sets the DEFAULT data_mode; children explicitly overridden
+      // (dataModeOverridden) keep their choice — only non-overridden children
+      // re-default when the strategy switches.
+      const defMode = action.value === 'own' ? 'own_sql' : 'inherit_parent'
+      return {
+        ...state,
+        compositeDataStrategy: action.value,
+        compositeChildren: (state.compositeChildren || []).map(c =>
+          c.dataModeOverridden ? c : { ...c, data_mode: defMode }
+        ),
+      }
+    }
+    case 'SET_COMPOSITE_CHILDREN':
+      return { ...state, compositeChildren: action.value }
+    case 'SET_CONNECTION_ID': {
       // Switching connection invalidates picked sources + joins (table
       // names live in a different database). Custom SQL text is kept —
       // the admin may legitimately want to migrate the same SQL across
       // engines. Clearing customSql.testResult prevents stale preview.
-      return _routeToOption(state, {
+      const next = _routeToOption(state, {
         connectionId: action.value,
         sources: [],
         joins: [],
         customSql: { ...(getActiveConfig(state).customSql || {}), schemaSourceId: null, testResult: null },
       })
+      // Composite: children share the parent's connection (v1 rule) —
+      // their schema sources + stale test results are invalid on switch.
+      if (state.chartType === 'composite' && state.compositeChildren?.length) {
+        next.compositeChildren = state.compositeChildren.map(c => ({
+          ...c, schema_source_id: null, _testResult: null,
+        }))
+      }
+      return next
+    }
     case 'SET_SOURCES':
       return _routeToOption(state, { sources: action.value })
     case 'SET_JOINS':
@@ -555,6 +603,13 @@ function reducer(state, action) {
             }
           } catch { return initialState.smartTableConfig }
         })(),
+        // Composite children — library_detail returns `composite_children`
+        // via the stash-first fallback chain (stash → instance records → []).
+        compositeDataStrategy: deriveStrategy(d.composite_children),
+        compositeChildren: hydrateCompositeChildren(
+          d.composite_children,
+          deriveStrategy(d.composite_children),
+        ),
         // Widget-Scoped Controls
         scopeMode: d.scope_mode || 'none',
         scopeUi: d.scope_ui || 'toggle',
@@ -665,13 +720,13 @@ export default function WidgetBuilder({
       .finally(() => setLoadingEdit(false))
   }, [editId, isOpen, apiBase])
 
-  // v1 contract: Sankey variants are Custom SQL only. When chartType becomes
-  // 'sankey' or 'sankey_member_flow',
-  // atomically coerce top-level state.dataMode + every state.optionConfigs[].dataMode
-  // from visual / visual_builder / ai → custom_sql so admins never reach
-  // a broken Preview/Save state with a Visual or AI config.
+  // v1 contract: Sankey variants AND Composite are Custom SQL only. When
+  // chartType becomes one of them, atomically coerce top-level state.dataMode
+  // + every state.optionConfigs[].dataMode from visual / visual_builder / ai
+  // → custom_sql so admins never reach a broken Preview/Save state with a
+  // Visual or AI config.
   useEffect(() => {
-    if (['sankey', 'sankey_member_flow'].includes(state.chartType)) {
+    if (['sankey', 'sankey_member_flow', 'composite'].includes(state.chartType)) {
       dispatch({ type: 'COERCE_SANKEY_DATA_MODES' })
     }
   }, [state.chartType])
@@ -794,8 +849,12 @@ export default function WidgetBuilder({
         <div className="dd-wizard-instruction">
           {currentStepKey === 'chart_type' && 'Choose how this widget displays data.'}
           {currentStepKey === 'controls' && 'Add toggle buttons, dropdown filters, or search bar (optional).'}
-          {currentStepKey === 'data_source' && 'Select your data source — visual table builder or custom SQL.'}
-          {currentStepKey === 'columns' && 'Map columns to axes and configure aggregation.'}
+          {currentStepKey === 'data_source' && (state.chartType === 'composite'
+            ? 'Pick the connection, choose the data strategy, and write the parent SQL.'
+            : 'Select your data source — visual table builder or custom SQL.')}
+          {currentStepKey === 'columns' && (state.chartType === 'composite'
+            ? 'Add child blocks, arrange the 12-column layout, and configure each block.'
+            : 'Map columns to axes and configure aggregation.')}
           {currentStepKey === 'filters' && 'Add WHERE filters and configure click actions.'}
           {currentStepKey === 'configure' && 'Configure table columns and preview with real data.'}
           {currentStepKey === 'master_row_layout' && 'Pick which elements appear on each ranked row.'}
@@ -835,6 +894,7 @@ export default function WidgetBuilder({
           {/* Step 1: Widget Controls */}
           {currentStepKey === 'controls' && (
             <WidgetControlsStep
+              chartType={state.chartType}
               scopeMode={state.scopeMode}
               scopeUi={state.scopeUi}
               scopeQueryMode={state.scopeQueryMode}
@@ -848,8 +908,23 @@ export default function WidgetBuilder({
             />
           )}
 
+          {/* Step 2: Data Source — composite body (connection + strategy + parent SQL) */}
+          {currentStepKey === 'data_source' && state.chartType === 'composite' && (
+            <CompositeDataSource
+              connectionId={ac.connectionId || 'local_pg'}
+              strategy={state.compositeDataStrategy}
+              customSql={ac.customSql || {}}
+              compositeChildren={state.compositeChildren}
+              onConnectionChange={newId => dispatch({ type: 'SET_CONNECTION_ID', value: newId })}
+              onStrategyChange={v => dispatch({ type: 'SET_COMPOSITE_STRATEGY', value: v })}
+              onCustomSqlUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
+              apiBase={apiBase}
+              appContext={appContext}
+            />
+          )}
+
           {/* Step 2: Data Source */}
-          {currentStepKey === 'data_source' && (
+          {currentStepKey === 'data_source' && state.chartType !== 'composite' && (
             <div>
               {hasScope && (
                 <OptionTabBar
@@ -968,8 +1043,21 @@ export default function WidgetBuilder({
             </div>
           )}
 
+          {/* Columns step — composite body (layout grid + child configuration) */}
+          {currentStepKey === 'columns' && state.chartType === 'composite' && (
+            <CompositeLayoutChildren
+              items={state.compositeChildren}
+              strategy={state.compositeDataStrategy}
+              connectionId={ac.connectionId || 'local_pg'}
+              parentColumns={(ac.customSql || {}).testResult?.columns || []}
+              onUpdate={next => dispatch({ type: 'SET_COMPOSITE_CHILDREN', value: next })}
+              apiBase={apiBase}
+              appContext={appContext}
+            />
+          )}
+
           {/* Columns step (chart types — visual mode) */}
-          {currentStepKey === 'columns' && (
+          {currentStepKey === 'columns' && state.chartType !== 'composite' && (
             <>
               {hasScope && (
                 <OptionTabBar
@@ -1314,16 +1402,24 @@ function buildCreatePayload(state) {
         ? JSON.stringify(_cleanSmartTableConfig(state.smartTableConfig))
         : '',
     } : {}),
+    // Composite children — serializeCompositeChildren is the ONE wire shape
+    // shared with the preview payload (no preview-only fork).
+    ...(state.chartType === 'composite' ? {
+      composite_children: serializeCompositeChildren(state.compositeChildren),
+    } : {}),
     // Widget-Scoped Controls (only include if configured)
     ...(state.scopeMode !== 'none' ? {
       scope_mode: state.scopeMode,
       scope_ui: state.scopeUi,
-      scope_query_mode: (state.optionConfigs || []).some(cfg => {
-        const sql = cfg.dataMode === 'ai'
-          ? cfg.aiState?.generatedSql
-          : cfg.customSql?.sql
-        return sql && sql.trim()
-      }) ? 'query' : (state.scopeQueryMode || 'parameter'),
+      // Composite: the model bans scope_query_mode='query'
+      // (_check_composite_no_scope_query) — always parameter mode.
+      scope_query_mode: state.chartType === 'composite' ? 'parameter'
+        : (state.optionConfigs || []).some(cfg => {
+            const sql = cfg.dataMode === 'ai'
+              ? cfg.aiState?.generatedSql
+              : cfg.customSql?.sql
+            return sql && sql.trim()
+          }) ? 'query' : (state.scopeQueryMode || 'parameter'),
       scope_param_name: state.scopeParamName || '',
       scope_label: state.scopeLabel || '',
       scope_default_value: state.scopeDefaultValue || '',

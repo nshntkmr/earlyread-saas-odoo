@@ -49,6 +49,7 @@ class DashboardWidgetDefinition(models.Model):
         ('gauge_kpi',     'Gauge + KPI'),
         ('map',           'Map'),
         ('ranked_detail_list', 'Ranked Detail List'),
+        ('composite',     'Composite (Multi-section)'),
     ], required=True, default='bar')
     chart_height      = fields.Integer(default=350, string='Default Height (px)')
     color_palette     = fields.Selection([

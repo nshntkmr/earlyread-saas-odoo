@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import * as echarts from 'echarts'
+// Same SmartTable the portal renders — composite smart_table children preview
+// through the identical component (no preview-only fork).
+import { SmartTable } from '@posterra/grid-utils'
 import { designerFetch } from '../../api/client'
 import { previewUrl, libraryPlaceUrl } from '../../api/endpoints'
 import PageFilterPanel from './PageFilterPanel'
+import { serializeCompositeChildren } from './compositeUtils'
 
 /* ── Lightweight gauge preview renderers (inline, no external deps) ─── */
 
@@ -194,6 +198,172 @@ function MemberFlowPreviewInline({ data, height }) {
   )
 }
 
+/* ── Composite preview (12-col grid mirroring portal CompositeWidget) ── */
+
+const LEGEND_PALETTES = {
+  healthcare: ['#0d9488', '#14b8a6', '#2dd4bf', '#6ee7b7', '#34d399', '#059669'],
+  ocean:      ['#1d4ed8', '#3b82f6', '#60a5fa', '#93c5fd', '#0ea5e9', '#38bdf8'],
+  warm:       ['#ea580c', '#f97316', '#fb923c', '#fbbf24', '#f59e0b', '#d97706'],
+  mono:       ['#374151', '#6b7280', '#9ca3af', '#d1d5db', '#e5e7eb', '#f3f4f6'],
+  default:    ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#fc8452'],
+}
+
+function ChildEChart({ option, height }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!ref.current || !option) return undefined
+    const chart = echarts.init(ref.current)
+    chart.setOption(option, { notMerge: true })
+    const onResize = () => chart.resize()
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      chart.dispose()
+    }
+  }, [option])
+  return <div ref={ref} style={{ width: '100%', height }} />
+}
+
+function CompositeChildPreview({ child }) {
+  const d = child.data || {}
+  const h = Math.max(80, child.min_height_px || 240)
+
+  if (d.echart_option) {
+    return <ChildEChart option={d.echart_option} height={h} />
+  }
+  if (d.type === 'legend_list') {
+    const colors = Array.isArray(d.colors) && d.colors.length
+      ? d.colors
+      : (LEGEND_PALETTES[d.palette] || LEGEND_PALETTES.healthcare)
+    const fmt = v => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(v || 0))
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: 6, padding: '4px 2px' }}>
+        {(d.rows || []).map((r, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: colors[i % colors.length], flexShrink: 0 }} />
+            <span style={{ flex: 1, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+            <strong style={{ color: '#0f172a' }}>{fmt(r.value)}</strong>
+            <span style={{ color: '#64748b', minWidth: 42, textAlign: 'right' }}>{Number(r.pct).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (d.type === 'text_note') {
+    return (
+      <div style={{ fontSize: 12, color: '#64748b', background: '#f8fafc', borderRadius: 6, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
+        {d.body || ''}
+      </div>
+    )
+  }
+  if (d.type === 'smart_table') {
+    // Portal-shape payload → identical component the dashboard uses
+    return (
+      <div style={{ overflow: 'auto', maxHeight: h }}>
+        <SmartTable data={d} height={h} />
+      </div>
+    )
+  }
+  if (Array.isArray(d.columns) && Array.isArray(d.rows)) {
+    return (
+      <div style={{ overflow: 'auto', maxHeight: h }}>
+        <table className="wb-preview-table" style={{ width: '100%', fontSize: 12 }}>
+          <thead>
+            <tr>{d.columns.map(col => <th key={col} style={{ textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid #e5e7eb', color: '#475569' }}>{col}</th>)}</tr>
+          </thead>
+          <tbody>
+            {d.rows.slice(0, 15).map((row, ri) => (
+              <tr key={ri}>{row.map((cell, ci) => <td key={ci} style={{ padding: '3px 6px', borderBottom: '1px solid #f1f5f9' }}>{cell == null ? '' : String(cell)}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+  if (d.formatted_value !== undefined) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        {d.icon_class && <i className={`fa ${d.icon_class} wb-kpi-icon ${d.status_css || ''}`} />}
+        <span style={{ fontSize: 26, fontWeight: 700, color: '#0f172a' }}>{d.formatted_value || '—'}</span>
+        {d.label && <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.label}</span>}
+        {d.secondary && <span className={`wb-kpi-secondary ${d.status_css || ''}`} style={{ fontSize: 12 }}>{d.secondary}</span>}
+      </div>
+    )
+  }
+  return <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center' }}>No preview for this block.</div>
+}
+
+function CompositePreviewInline({ data }) {
+  const children = Array.isArray(data?.children) ? data.children : []
+  if (!children.length) {
+    return <div style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>No child blocks to preview.</div>
+  }
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(12, 1fr)',
+      gap: 12,
+      padding: 12,
+      background: '#fff',
+      border: '1px solid #e5e7eb',
+      borderRadius: 8,
+    }}>
+      {children.map(child => {
+        // Content alignment — mirrors CompositeWidget.jsx exactly. Missing or
+        // unrecognized values normalize to 'stretch' (today's behavior: no
+        // styles emitted, no extra DOM node).
+        const vAlign = ['top', 'center', 'bottom'].includes(child.content_vertical_align)
+          ? child.content_vertical_align : 'stretch'
+        const hAlign = ['left', 'center', 'right'].includes(child.content_horizontal_align)
+          ? child.content_horizontal_align : 'stretch'
+        const hasAlignment = vAlign !== 'stretch' || hAlign !== 'stretch'
+        const bodyStyle = { flex: 1, minHeight: 0 }
+        if (hasAlignment) {
+          // column-direction flex → vertical = main axis (justifyContent),
+          // horizontal = cross axis (alignItems)
+          bodyStyle.display = 'flex'
+          bodyStyle.flexDirection = 'column'
+          if (vAlign !== 'stretch') bodyStyle.justifyContent =
+            { top: 'flex-start', center: 'center', bottom: 'flex-end' }[vAlign]
+          if (hAlign !== 'stretch') bodyStyle.alignItems =
+            { left: 'flex-start', center: 'center', right: 'flex-end' }[hAlign]
+        }
+        return (
+          <div
+            key={child.id}
+            style={{
+              gridColumn: `${child.col_start} / span ${child.col_span}`,
+              ...(Number(child.row_start) > 0
+                ? { gridRow: `${child.row_start} / span ${child.row_span}` }
+                : { gridRow: `span ${child.row_span}` }),
+              minHeight: child.min_height_px || 240,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {child.title && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>{child.title}</div>
+            )}
+            <div style={bodyStyle}>
+              {hasAlignment ? (
+                // Auto-sized wrapper lets content shrink to natural size so the
+                // alignment is visible (a child's height:100% resolves to auto
+                // against this auto-height parent).
+                <div style={{ flex: '0 0 auto', maxWidth: '100%' }}>
+                  <CompositeChildPreview child={child} />
+                </div>
+              ) : (
+                <CompositeChildPreview child={child} />
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /**
  * Step 5: Live Preview + Save.
  *
@@ -257,6 +427,7 @@ export default function LivePreview({
     ['bullet', 'traffic_light_rag', 'percentile_rank'].includes(gaugeStyle)
   const isTable = builderState.chartType === 'table'
   const isMemberFlow = builderState.chartType === 'sankey_member_flow'
+  const isComposite = builderState.chartType === 'composite'
 
   const runPreview = async () => {
     setLoading(true)
@@ -475,8 +646,13 @@ export default function LivePreview({
         </div>
       )}
 
+      {/* Composite preview — exact 12-col card layout */}
+      {isComposite && previewData && (
+        <CompositePreviewInline data={previewData} />
+      )}
+
       {/* KPI / Gauge preview */}
-      {!isChart && !isTable && !isMemberFlow && previewData && (
+      {!isChart && !isTable && !isMemberFlow && !isComposite && previewData && (
         <div className="wb-preview-kpi">
           <div className="wb-kpi-preview-card">
             {previewData.icon_class && (
@@ -612,12 +788,23 @@ export function buildPreviewPayload(state, pageFilterValues) {
 
     // Use page filter values if available, otherwise fall back to manual test params
     const params = {}
-    for (const m of sql.matchAll(/%\((\w+)\)s/g)) {
-      const paramName = m[1]
-      if (pageFilterValues && paramName in pageFilterValues) {
-        params[paramName] = pageFilterValues[paramName]
-      } else {
-        params[paramName] = testParams[paramName] || ''
+    const collectParams = (sqlText) => {
+      for (const m of (sqlText || '').matchAll(/%\((\w+)\)s/g)) {
+        const paramName = m[1]
+        if (paramName in params) continue
+        if (pageFilterValues && paramName in pageFilterValues) {
+          params[paramName] = pageFilterValues[paramName]
+        } else {
+          params[paramName] = testParams[paramName] || ''
+        }
+      }
+    }
+    collectParams(sql)
+    // Composite: own-SQL children carry their own %(param)s placeholders —
+    // the preview executes them with the same param dict as the parent.
+    if (state.chartType === 'composite') {
+      for (const ch of (state.compositeChildren || [])) {
+        if (ch.data_mode === 'own_sql') collectParams(ch.query_sql)
       }
     }
     return {
@@ -626,6 +813,10 @@ export function buildPreviewPayload(state, pageFilterValues) {
       params,
       chart_type: state.chartType,
       widget_config: widgetConfig,
+      // ONE serialization — same shape as the save payload
+      ...(state.chartType === 'composite' ? {
+        composite_children: serializeCompositeChildren(state.compositeChildren),
+      } : {}),
       // Phase 3 Path B fix-up: the wizard's final preview path goes
       // through here (separate from CustomSqlEditor's inline Test Query).
       // Without this, CH-backed Custom SQL widgets fail final preview

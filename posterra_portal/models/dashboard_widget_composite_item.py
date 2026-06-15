@@ -39,6 +39,7 @@ _CHILD_CHART_TYPES = [
     ('gauge', 'Gauge'),
     ('gauge_kpi', 'Gauge KPI'),
     ('sankey', 'Sankey'),
+    ('smart_table', 'Smart Table'),
     ('legend_list', 'Legend List'),  # composite-only
     ('text_note', 'Text Note'),      # composite-only
 ]
@@ -66,9 +67,9 @@ class DashboardWidgetCompositeItem(models.Model):
         _CHILD_CHART_TYPES,
         required=True,
         default='kpi',
-        help='Chart type for this child block. v1 child set excludes '
-             'ranked_detail_list, map, smart_table, battle_card, and '
-             'insight_panel — those remain available as top-level widgets.',
+        help='Chart type for this child block. Child set excludes '
+             'ranked_detail_list, map, battle_card, and insight_panel — '
+             'those remain available as top-level widgets.',
     )
 
     # ── Data sourcing — v1 supports inherit_parent + own_sql only ────────
@@ -180,6 +181,11 @@ class DashboardWidgetCompositeItem(models.Model):
     column_link_config = fields.Text()
     ranked_master_config = fields.Text()
     ranked_detail_config = fields.Text()
+    smart_table_config = fields.Text(
+        help='Smart Table schema JSON ({"columns": [...], "table": {...}}) '
+             'for chart_type=smart_table children. Same shape as the parent '
+             'widget field — rendered by dashboard.widget._build_smart_table_data.',
+    )
 
     # ── Layout — 12-col grid inside the composite card ───────────────────
     col_start = fields.Integer(
@@ -203,6 +209,32 @@ class DashboardWidgetCompositeItem(models.Model):
         help='Minimum render height in pixels for this child block. ECharts '
              'and gauges need an explicit height; KPI cards ignore this and '
              'size naturally. Default 240; raise for chart-heavy children.',
+    )
+    content_vertical_align = fields.Selection(
+        [
+            ('stretch', 'Stretch'),
+            ('top', 'Top'),
+            ('center', 'Center'),
+            ('bottom', 'Bottom'),
+        ],
+        default='stretch',
+        help='Vertical alignment of the rendered content inside this child '
+             'block. Stretch (default) preserves the original fill behavior; '
+             'Top/Center/Bottom let content size naturally and align within '
+             'the block (e.g. a Legend List vertically centered beside a '
+             'taller Donut).',
+    )
+    content_horizontal_align = fields.Selection(
+        [
+            ('stretch', 'Stretch'),
+            ('left', 'Left'),
+            ('center', 'Center'),
+            ('right', 'Right'),
+        ],
+        default='stretch',
+        help='Horizontal alignment of the rendered content inside this child '
+             'block. Stretch (default) preserves the original full-width '
+             'behavior — best for tables.',
     )
 
     # =========================================================================

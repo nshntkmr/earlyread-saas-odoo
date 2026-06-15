@@ -48,11 +48,17 @@ function createDefaultOptionConfig() {
 }
 
 export default function WidgetControlsStep({
+  chartType,
   scopeMode, scopeUi, scopeQueryMode, scopeParamName, scopeLabel,
   searchEnabled, searchPlaceholder,
   scopeOptions, optionConfigs,
   onUpdate,
 }) {
+  // Composite widgets only support parameter-mode scope — the model bans
+  // scope_query_mode='query' (_check_composite_no_scope_query). Hide the
+  // query-mode choice and pin the value.
+  const isComposite = chartType === 'composite'
+  const effectiveQueryMode = isComposite ? 'parameter' : (scopeQueryMode || 'query')
   const addOption = () => {
     const newOpt = { label: '', value: '', icon: '' }
     const newConfig = createDefaultOptionConfig()
@@ -154,26 +160,36 @@ export default function WidgetControlsStep({
               </select>
             </div>
 
-            {/* Toggle Query Mode */}
-            <div className="wb-field-group" style={{ marginTop: 8 }}>
-              <label className="wb-label">Toggle Query Mode</label>
-              <select
-                className="wb-select"
-                value={scopeQueryMode || 'query'}
-                onChange={e => onUpdate({ scopeQueryMode: e.target.value })}
-              >
-                <option value="query">Different SQL Per Option</option>
-                <option value="parameter">Same SQL, Different Parameter</option>
-              </select>
-              <p className="wb-hint" style={{ marginTop: 4, fontSize: 12, color: '#6c757d' }}>
-                {(scopeQueryMode || 'query') === 'parameter'
-                  ? 'One shared SQL query with a %(param)s placeholder that changes per option.'
-                  : 'Each option has its own SQL query (configured in the Data Source step).'}
+            {/* Toggle Query Mode — composite is parameter-only (model constraint) */}
+            {isComposite ? (
+              <p className="wb-hint" style={{ marginTop: 8, fontSize: 12, color: '#6c757d' }}>
+                Composite widgets use <strong>Same SQL, Different Parameter</strong> mode:
+                one scope param (e.g. <code>{'%(plan)s'}</code>) feeds the parent SQL and
+                every child query. Prefer the optional-clause pattern
+                {' '}<code>{'WHERE 1=1 [[AND plan = %(plan)s]]'}</code> — a blank/"all"
+                option omits the clause.
               </p>
-            </div>
+            ) : (
+              <div className="wb-field-group" style={{ marginTop: 8 }}>
+                <label className="wb-label">Toggle Query Mode</label>
+                <select
+                  className="wb-select"
+                  value={scopeQueryMode || 'query'}
+                  onChange={e => onUpdate({ scopeQueryMode: e.target.value })}
+                >
+                  <option value="query">Different SQL Per Option</option>
+                  <option value="parameter">Same SQL, Different Parameter</option>
+                </select>
+                <p className="wb-hint" style={{ marginTop: 4, fontSize: 12, color: '#6c757d' }}>
+                  {(scopeQueryMode || 'query') === 'parameter'
+                    ? 'One shared SQL query with a %(param)s placeholder that changes per option.'
+                    : 'Each option has its own SQL query (configured in the Data Source step).'}
+                </p>
+              </div>
+            )}
 
             {/* Scope SQL Param (parameter mode only) */}
-            {(scopeQueryMode || 'query') === 'parameter' && (
+            {effectiveQueryMode === 'parameter' && (
               <div className="wb-field-group" style={{ marginTop: 8 }}>
                 <label className="wb-label">Scope SQL Param</label>
                 <input

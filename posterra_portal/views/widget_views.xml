@@ -604,6 +604,8 @@
                                                        help="0 = auto-place on next available row"/>
                                                 <field name="row_span"/>
                                                 <field name="min_height_px"/>
+                                                <field name="content_vertical_align"/>
+                                                <field name="content_horizontal_align"/>
                                             </group>
                                         </group>
 

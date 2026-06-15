@@ -15,12 +15,18 @@ const PALETTES = {
  *   {
  *     type: 'legend_list',
  *     palette: 'healthcare',
+ *     colors: ['#1a7f37', ...],   // optional — explicit dot colors
+ *                                 // (color_custom_json; matches a donut's
+ *                                 // custom slice colors exactly)
  *     rows: [{ label, value, pct }, ...]
  *   }
  */
 export default function LegendList({ data }) {
   const rows = data?.rows || []
-  const palette = PALETTES[data?.palette] || PALETTES.healthcare
+  // Explicit colors win (donut↔legend sync); else named palette as before.
+  const palette = (Array.isArray(data?.colors) && data.colors.length)
+    ? data.colors
+    : (PALETTES[data?.palette] || PALETTES.healthcare)
   if (!rows.length) {
     return <div className="pv-legend-empty">No data</div>
   }

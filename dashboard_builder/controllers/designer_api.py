@@ -88,6 +88,205 @@ def _require_admin():
     return user
 
 
+# ── Composite helpers ────────────────────────────────────────────────────────
+
+# Keep aligned with posterra_portal _CHILD_CHART_TYPES + compositeUtils.js.
+_COMPOSITE_CHILD_TYPES = {
+    'bar', 'line', 'pie', 'donut', 'kpi', 'status_kpi', 'kpi_strip',
+    'table', 'gauge', 'gauge_kpi', 'sankey', 'smart_table',
+    'legend_list', 'text_note',
+}
+
+
+def _validate_composite_children(env, body):
+    """Validate + clamp a ``composite_children`` payload.
+
+    Returns ``(error_message, cleaned_children)`` — exactly one is None.
+    Server-side guardrails (never trust UI steppers):
+      * at least one child; child types restricted to the backend child set
+      * data_mode in (inherit_parent, own_sql); own-SQL active children need SQL
+      * parent SQL required iff any active non-text child inherits
+      * layout clamp: col_start>=1, col_span>=1, col_start+col_span-1<=12,
+        row_start>=0, row_span>=1, min_height_px in [80, 2000]
+      * all schema sources (parent + children) must resolve to ONE connection
+        (None = local PG) — no cross-engine composites in v1
+    """
+    raw = body.get('composite_children')
+    if not isinstance(raw, list) or not raw:
+        return 'Composite widgets need at least one child block.', None
+
+    Source = env['dashboard.schema.source'].sudo()
+    connections = set()
+    parent_sid = body.get('schema_source_id')
+    if parent_sid:
+        src = Source.browse(int(parent_sid)).exists()
+        if src:
+            connections.add(src.connection_id.id or None)
+
+    cleaned = []
+    any_inherit = False
+    for ch in raw:
+        if not isinstance(ch, dict):
+            return 'Invalid composite child entry.', None
+        ctype = ch.get('chart_type')
+        if ctype not in _COMPOSITE_CHILD_TYPES:
+            return f'Unsupported composite child type: {ctype!r}.', None
+        dm = ch.get('data_mode') or 'inherit_parent'
+        if dm not in ('inherit_parent', 'own_sql'):
+            return f'Invalid composite child data_mode: {dm!r}.', None
+        active = ch.get('is_active', True)
+        if ctype != 'text_note' and active:
+            if dm == 'inherit_parent':
+                any_inherit = True
+            elif not (ch.get('query_sql') or '').strip():
+                return ('Child "%s" uses Own SQL but has no query.'
+                        % (ch.get('name') or ctype)), None
+        sid = ch.get('schema_source_id')
+        if sid:
+            src = Source.browse(int(sid)).exists()
+            if not src:
+                return f'Composite child schema source {sid} not found.', None
+            connections.add(src.connection_id.id or None)
+
+        try:
+            col_span = max(1, min(12, int(ch.get('col_span') or 6)))
+            col_start = max(1, min(12, int(ch.get('col_start') or 1)))
+            if col_start + col_span - 1 > 12:
+                col_start = 13 - col_span
+            row_start = max(0, int(ch.get('row_start') or 0))
+            row_span = max(1, int(ch.get('row_span') or 1))
+            min_h = max(80, min(2000, int(ch.get('min_height_px') or 240)))
+        except (TypeError, ValueError):
+            return 'Composite child layout values must be integers.', None
+        # Content alignment — missing/invalid values clamp to 'stretch'
+        # (the backward-compatible default; never trust UI dropdowns).
+        v_align = ch.get('content_vertical_align')
+        if v_align not in ('stretch', 'top', 'center', 'bottom'):
+            v_align = 'stretch'
+        h_align = ch.get('content_horizontal_align')
+        if h_align not in ('stretch', 'left', 'center', 'right'):
+            h_align = 'stretch'
+        cleaned.append({
+            **ch,
+            'col_start': col_start, 'col_span': col_span,
+            'row_start': row_start, 'row_span': row_span,
+            'min_height_px': min_h,
+            'content_vertical_align': v_align,
+            'content_horizontal_align': h_align,
+        })
+
+    if len(connections) > 1:
+        return ('Composite children must all use the same connection — '
+                'cross-engine composites are not supported in v1.'), None
+    if any_inherit and not (body.get('query_sql') or '').strip():
+        return ('Parent SQL is required when any child inherits the parent '
+                'query. Write it in the Data Source step, or switch every '
+                'child to Own SQL.'), None
+    return None, cleaned
+
+
+def _sync_composite_items(env, widgets, children):
+    """Recreate dashboard.widget.composite.item records on each instance.
+
+    Children arrive pre-validated/clamped and ordered; records are created
+    in that order with their explicit ``sequence`` so edit/reopen never
+    reorders blocks (sequence stability guardrail).
+    """
+    try:
+        Item = env['dashboard.widget.composite.item'].sudo()
+    except KeyError:
+        _logger.warning('composite item sync skipped: model not installed')
+        return
+    for w in widgets:
+        w.composite_item_ids.unlink()
+        for ch in children:
+            vals = {
+                'parent_widget_id': w.id,
+                'sequence': ch.get('sequence', 10),
+                'name': ch.get('name', ''),
+                'chart_type': ch.get('chart_type'),
+                'is_active': ch.get('is_active', True),
+                'data_mode': ch.get('data_mode', 'inherit_parent'),
+                'query_sql': ch.get('query_sql', ''),
+                'where_clause_exclude': ch.get('where_clause_exclude', ''),
+                'x_column': ch.get('x_column', ''),
+                'y_columns': ch.get('y_columns', ''),
+                'series_column': ch.get('series_column', ''),
+                'status_column': ch.get('status_column', ''),
+                'col_start': ch.get('col_start', 1),
+                'col_span': ch.get('col_span', 6),
+                'row_start': ch.get('row_start', 0),
+                'row_span': ch.get('row_span', 1),
+                'min_height_px': ch.get('min_height_px', 240),
+                'visual_config': ch.get('visual_config') or '{}',
+                'table_column_config': ch.get('table_column_config', ''),
+                'color_custom_json': ch.get('color_custom_json', ''),
+                'text_note_body': ch.get('text_note_body', ''),
+                'kpi_format': ch.get('kpi_format') or 'number',
+                'kpi_prefix': ch.get('kpi_prefix', ''),
+                'kpi_suffix': ch.get('kpi_suffix', ''),
+                'metric_direction': ch.get('metric_direction') or 'higher_better',
+                'bar_stack': bool(ch.get('bar_stack')),
+            }
+            sid = ch.get('schema_source_id')
+            if sid:
+                vals['schema_source_id'] = int(sid)
+            # Field added with smart_table-as-child support; guard for
+            # installs where posterra_portal predates it.
+            if 'smart_table_config' in Item._fields:
+                vals['smart_table_config'] = ch.get('smart_table_config', '')
+            # Content alignment fields — same older-install guard.
+            if 'content_vertical_align' in Item._fields:
+                vals['content_vertical_align'] = (
+                    ch.get('content_vertical_align') or 'stretch')
+                vals['content_horizontal_align'] = (
+                    ch.get('content_horizontal_align') or 'stretch')
+            Item.create(vals)
+
+
+def _serialize_composite_items(items):
+    """dashboard.widget.composite.item records → composite_children payload
+    shape (the same shape the builder sends). Used by the library_detail
+    fallback when a definition has no stash (Odoo-form-built composites)."""
+    out = []
+    for it in items.sorted(key=lambda r: (r.sequence, r.id)):
+        out.append({
+            'sequence': it.sequence,
+            'name': it.name or '',
+            'chart_type': it.chart_type,
+            'is_active': it.is_active,
+            'data_mode': it.data_mode,
+            'query_sql': it.query_sql or '',
+            'schema_source_id': it.schema_source_id.id if it.schema_source_id else None,
+            'where_clause_exclude': it.where_clause_exclude or '',
+            'x_column': it.x_column or '',
+            'y_columns': it.y_columns or '',
+            'series_column': it.series_column or '',
+            'status_column': it.status_column or '',
+            'col_start': it.col_start,
+            'col_span': it.col_span,
+            'row_start': it.row_start,
+            'row_span': it.row_span,
+            'min_height_px': it.min_height_px,
+            # getattr: form-built/pre-feature rows may predate the fields
+            'content_vertical_align':
+                getattr(it, 'content_vertical_align', '') or 'stretch',
+            'content_horizontal_align':
+                getattr(it, 'content_horizontal_align', '') or 'stretch',
+            'visual_config': it.visual_config or '',
+            'table_column_config': it.table_column_config or '',
+            'smart_table_config': getattr(it, 'smart_table_config', '') or '',
+            'color_custom_json': it.color_custom_json or '',
+            'text_note_body': it.text_note_body or '',
+            'kpi_format': it.kpi_format or 'number',
+            'kpi_prefix': it.kpi_prefix or '',
+            'kpi_suffix': it.kpi_suffix or '',
+            'metric_direction': it.metric_direction or '',
+            'bar_stack': it.bar_stack,
+        })
+    return out
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DESIGNER API CONTROLLER
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -644,6 +843,12 @@ class DesignerAPI(http.Controller):
                         )
                     schema_source = sources[:1]
 
+            # ── Composite: parent SQL once + per-child execution ──────────
+            # Returns the SAME payload shape the portal's
+            # _build_composite_data produces — no designer-only format.
+            if body.get('chart_type') == 'composite':
+                return self._preview_composite(qb, body, params, schema_source)
+
             if mode == 'custom_sql':
                 sql = body.get('sql', '')
                 is_valid, err = qb.validate_query(sql)
@@ -685,6 +890,137 @@ class DesignerAPI(http.Controller):
         except Exception as e:
             _logger.exception("Designer preview error")
             return _json_error(500, f'Preview failed: {e}')
+
+    def _preview_composite(self, qb, body, params, parent_schema_source):
+        """Composite preview — portal-shape payload, per-type formatters.
+
+        Executes the parent SQL once (when provided), shares its rows with
+        inherit children, executes own-SQL children individually (dispatched
+        through each child's schema source), formats every child via the
+        existing ``format_preview`` per-type formatters, and assembles:
+
+            {type: 'composite',
+             children: [{id, chart_type, title, col_start, col_span,
+                         row_start, row_span, min_height_px, data}]}
+
+        — identical to ``dashboard.widget._build_composite_data`` so the
+        builder preview can never drift from the portal render.
+        """
+        from ..services.preview_formatter import format_preview
+
+        # Preview payloads carry the parent SQL as 'sql' (save uses
+        # 'query_sql') — map it so the parent-SQL-required rule sees it.
+        comp_body = dict(body)
+        comp_body['query_sql'] = body.get('sql', '')
+        comp_err, children = _validate_composite_children(request.env, comp_body)
+        if comp_err:
+            return _json_error(400, comp_err)
+
+        SchemaSource = request.env['dashboard.schema.source'].sudo()
+
+        # Parent SQL — once, shared by inherit children
+        parent_sql = (body.get('sql') or '').strip()
+        parent_cols, parent_rows = [], []
+        if parent_sql:
+            is_valid, err = qb.validate_query(parent_sql)
+            if not is_valid:
+                return _json_error(400, f'Invalid parent SQL: {err}')
+            parent_cols, parent_rows = qb.execute_preview(
+                parent_sql, params, schema_source=parent_schema_source)
+            parent_rows = [list(r) for r in parent_rows]
+
+        out_children = []
+        for idx, ch in enumerate(children):
+            if not ch.get('is_active', True):
+                continue
+            ctype = ch.get('chart_type')
+            child_vc = {}
+            try:
+                raw_vc = ch.get('visual_config')
+                if raw_vc:
+                    child_vc = json.loads(raw_vc) if isinstance(raw_vc, str) else raw_vc
+            except (json.JSONDecodeError, TypeError):
+                child_vc = {}
+
+            if ctype == 'text_note':
+                data = {'type': 'text_note',
+                        'body': ch.get('text_note_body', ''),
+                        'icon_name': 'none'}
+            else:
+                if (ch.get('data_mode') or 'inherit_parent') == 'own_sql':
+                    child_sql = (ch.get('query_sql') or '').strip()
+                    is_valid, err = qb.validate_query(child_sql)
+                    if not is_valid:
+                        return _json_error(400,
+                            f'Invalid SQL on child "{ch.get("name") or ctype}": {err}')
+                    child_source = None
+                    if ch.get('schema_source_id'):
+                        child_source = SchemaSource.browse(
+                            int(ch['schema_source_id'])).exists()
+                    cols, rows = qb.execute_preview(
+                        child_sql, params, schema_source=child_source)
+                    rows = [list(r) for r in rows]
+                else:
+                    cols, rows = parent_cols, parent_rows
+
+                child_cfg = {
+                    'x_column': ch.get('x_column', ''),
+                    'y_columns': ch.get('y_columns', ''),
+                    'series_column': ch.get('series_column', ''),
+                    'status_column': ch.get('status_column', ''),
+                    'kpi_format': ch.get('kpi_format') or 'number',
+                    'kpi_prefix': ch.get('kpi_prefix', ''),
+                    'kpi_suffix': ch.get('kpi_suffix', ''),
+                    'title': ch.get('name', ''),
+                    'color_custom_json': ch.get('color_custom_json', ''),
+                }
+                data = format_preview(ctype, cols, rows, child_cfg, child_vc)
+                if ctype == 'table':
+                    # Raw grid for the inline preview table
+                    data = {
+                        'columns': cols,
+                        'rows': rows[:50],
+                        'table_column_config': ch.get('table_column_config', ''),
+                    }
+                elif ctype == 'smart_table':
+                    # Reuse the portal renderer via a transient widget so the
+                    # preview payload is byte-identical to the portal's
+                    # _build_smart_table_data output (no drift, no fork).
+                    try:
+                        tmp = request.env['dashboard.widget'].new({
+                            'chart_type': 'smart_table',
+                            'smart_table_config':
+                                ch.get('smart_table_config') or '',
+                        })
+                        data = tmp._build_smart_table_data(cols, rows[:50])
+                    except KeyError:
+                        # posterra_portal not installed (standalone builder)
+                        data = {'type': 'smart_table', 'rowData': [],
+                                'columns': [], 'table': {}, 'row_count': 0,
+                                'error': 'Smart Table preview requires the '
+                                         'posterra_portal module.'}
+
+            out_children.append({
+                'id': idx,
+                'chart_type': ctype,
+                'title': ch.get('name', ''),
+                'col_start': ch.get('col_start', 1),
+                'col_span': ch.get('col_span', 6),
+                'row_start': ch.get('row_start', 0),
+                'row_span': ch.get('row_span', 1),
+                'min_height_px': ch.get('min_height_px', 240),
+                'content_vertical_align':
+                    ch.get('content_vertical_align') or 'stretch',
+                'content_horizontal_align':
+                    ch.get('content_horizontal_align') or 'stretch',
+                'data': data,
+            })
+
+        return _json_response({
+            'sql': parent_sql,
+            'type': 'composite',
+            'children': out_children,
+        })
 
     # =========================================================================
     # WIDGET LIBRARY ENDPOINTS
@@ -811,6 +1147,40 @@ class DesignerAPI(http.Controller):
             pass
         return []
 
+    def _get_composite_children_for_definition(self, defn):
+        """Resolve composite children for library edit — STASH-FIRST chain.
+
+        For LIBRARY edits the definition-level stash is the source of truth
+        (a definition can be placed many times; instances can drift):
+          1. ``builder_config._composite_children_stash``
+          2. else the first placed instance's ``composite_item_ids`` records
+             (covers Odoo-form-built and pre-stash composites, which never
+             had a stash)
+          3. else []
+        NOTE: order is intentionally the OPPOSITE of scope options —
+        per review, instance records are only the no-stash fallback here.
+        """
+        if defn.chart_type != 'composite':
+            return []
+        try:
+            bc_raw = defn.builder_config or ''
+            if bc_raw:
+                bc = json.loads(bc_raw)
+                if isinstance(bc, dict):
+                    stash = bc.get('_composite_children_stash') or []
+                    if isinstance(stash, list) and stash:
+                        return stash
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+        try:
+            Widget = request.env['dashboard.widget'].sudo()
+            inst = Widget.search([('definition_id', '=', defn.id)], limit=1)
+            if inst and inst.composite_item_ids:
+                return _serialize_composite_items(inst.composite_item_ids)
+        except (KeyError, Exception):
+            pass
+        return []
+
     @http.route(
         '/dashboard/designer/api/library/<int:def_id>',
         type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
@@ -878,6 +1248,8 @@ class DesignerAPI(http.Controller):
             'smart_table_config': defn.smart_table_config or '',
             # Scope options from first widget instance
             'scope_options': self._get_scope_options_for_definition(defn),
+            # Composite children — stash-first fallback chain
+            'composite_children': self._get_composite_children_for_definition(defn),
         })
 
     @http.route(
@@ -909,6 +1281,22 @@ class DesignerAPI(http.Controller):
                     "data_mode='custom_sql' and provide one monthly row with "
                     "YEAR_MONTH, Date, NEW_ALIGNEMENT, STILL_ACTIVE, "
                     "RECAPTURED, DISALIGNED, and optional 12_month_active columns.")
+            # v1 contract: Composite is Custom SQL only + parameter-mode scope
+            if chart_type == 'composite':
+                if mode != 'custom_sql':
+                    return _json_error(400,
+                        "Composite widgets are Custom SQL only in v1. Set "
+                        "data_mode='custom_sql'; children inherit the parent "
+                        "query or define their own SQL.")
+                if body.get('scope_query_mode') == 'query':
+                    return _json_error(400,
+                        "Composite widgets only support parameter-mode scope "
+                        "(one %(param)s shared by parent and children).")
+                comp_err, comp_children = _validate_composite_children(
+                    request.env, body)
+                if comp_err:
+                    return _json_error(400, comp_err)
+                body['composite_children'] = comp_children
 
             def_vals = {
                 'name': body.get('name', 'New Widget'),
@@ -1075,6 +1463,20 @@ class DesignerAPI(http.Controller):
                 bc['_scope_options_stash'] = body['scope_options']
                 def_vals['builder_config'] = json.dumps(bc)
 
+            # Stash composite children — the definition-level source of truth
+            # for library edits (stash-first fallback chain in library_detail).
+            # Same precedent as _scope_options_stash.
+            if chart_type == 'composite' and body.get('composite_children'):
+                try:
+                    bc_raw = def_vals.get('builder_config', '')
+                    bc = json.loads(bc_raw) if bc_raw else {}
+                except (json.JSONDecodeError, TypeError):
+                    bc = {}
+                if not isinstance(bc, dict):
+                    bc = {}
+                bc['_composite_children_stash'] = body['composite_children']
+                def_vals['builder_config'] = json.dumps(bc)
+
             definition = request.env['dashboard.widget.definition'].sudo().create(def_vals)
 
             return _json_response({
@@ -1120,6 +1522,31 @@ class DesignerAPI(http.Controller):
                 "data_mode='custom_sql' and provide one monthly row with "
                 "YEAR_MONTH, Date, NEW_ALIGNEMENT, STILL_ACTIVE, "
                 "RECAPTURED, DISALIGNED, and optional 12_month_active columns.")
+        # v1 contract: Composite is Custom SQL only + parameter-mode scope.
+        # Children are validated/clamped only when the payload carries them —
+        # form-built composites updated without composite_children are
+        # untouched (no accidental child wipe).
+        if effective_chart_type == 'composite':
+            if effective_mode != 'custom_sql':
+                return _json_error(400,
+                    "Composite widgets are Custom SQL only in v1. Set "
+                    "data_mode='custom_sql'; children inherit the parent "
+                    "query or define their own SQL.")
+            if body.get('scope_query_mode') == 'query':
+                return _json_error(400,
+                    "Composite widgets only support parameter-mode scope "
+                    "(one %(param)s shared by parent and children).")
+            if 'composite_children' in body:
+                comp_body = dict(body)
+                if not (comp_body.get('query_sql') or '').strip():
+                    comp_body['query_sql'] = defn.query_sql or ''
+                if not comp_body.get('schema_source_id') and defn.schema_source_id:
+                    comp_body['schema_source_id'] = defn.schema_source_id.id
+                comp_err, comp_children = _validate_composite_children(
+                    request.env, comp_body)
+                if comp_err:
+                    return _json_error(400, comp_err)
+                body['composite_children'] = comp_children
 
         update_vals = {}
 
@@ -1240,6 +1667,19 @@ class DesignerAPI(http.Controller):
             bc['_scope_options_stash'] = body.get('scope_options') or []
             update_vals['builder_config'] = json.dumps(bc)
 
+        # Stash composite children — definition-level source of truth for
+        # library edits (stash-first fallback chain in library_detail).
+        if effective_chart_type == 'composite' and 'composite_children' in body:
+            try:
+                bc_raw = update_vals.get('builder_config', defn.builder_config or '')
+                bc = json.loads(bc_raw) if bc_raw else {}
+            except (json.JSONDecodeError, TypeError):
+                bc = {}
+            if not isinstance(bc, dict):
+                bc = {}
+            bc['_composite_children_stash'] = body.get('composite_children') or []
+            update_vals['builder_config'] = json.dumps(bc)
+
         try:
             defn.write(update_vals)
 
@@ -1298,6 +1738,21 @@ class DesignerAPI(http.Controller):
                         'Synced definition %s (%s) → %d instance(s)',
                         defn.id, defn.name, len(instances),
                     )
+                    # Recreate composite child records on instances — ONLY
+                    # when the payload carries composite_children, so
+                    # Odoo-form-built composites updated without them are
+                    # left untouched.
+                    if (defn.chart_type == 'composite'
+                            and 'composite_children' in body):
+                        _sync_composite_items(
+                            request.env, instances,
+                            body.get('composite_children') or [])
+                        _logger.info(
+                            'Synced %d composite children → %d instance(s) '
+                            'for definition %s',
+                            len(body.get('composite_children') or []),
+                            len(instances), defn.id,
+                        )
                     # Recreate scope_option child records on instances
                     if 'scope_options' in body:
                         ScopeOption = request.env['dashboard.widget.scope.option']
@@ -1673,6 +2128,10 @@ class DesignerAPI(http.Controller):
             ], limit=1)
             if existing:
                 existing.write(vals)
+                if defn.chart_type == 'composite':
+                    comp_children = self._get_composite_children_for_definition(defn)
+                    if comp_children:
+                        _sync_composite_items(request.env, existing, comp_children)
                 _logger.info(
                     'Place dedup: updated existing instance %s for definition %s on page %s',
                     existing.id, defn.id, page_id,
@@ -1680,6 +2139,16 @@ class DesignerAPI(http.Controller):
                 return _json_response({'widget_id': existing.id, 'name': existing.name, 'updated': True})
 
             widget = Widget.create(vals)
+
+            # Composite: materialize child records from the definition's
+            # stash (Save & Place saves the stash first, then places).
+            if defn.chart_type == 'composite':
+                comp_children = self._get_composite_children_for_definition(defn)
+                if comp_children:
+                    _sync_composite_items(request.env, widget, comp_children)
+                    _logger.info(
+                        'library_place: created %d composite children for widget %s',
+                        len(comp_children), widget.id)
 
             # Create scope_option child records (forwarded from React)
             scope_options = body.get('scope_options', [])

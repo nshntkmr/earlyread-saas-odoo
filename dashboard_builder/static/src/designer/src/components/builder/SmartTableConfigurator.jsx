@@ -67,7 +67,8 @@ const OPS = [
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function emptyColumn(field = '') {
+// Exported for reuse by the composite child editor (CompositeLayoutChildren)
+export function emptyColumn(field = '') {
   return {
     field,
     label: field,
@@ -430,8 +431,9 @@ export default function SmartTableConfigurator({
 }
 
 // ── Per-column card ─────────────────────────────────────────────────
-
-function ColumnCard({
+// Exported for reuse by the composite child editor (CompositeLayoutChildren)
+// — same card, same recipes, no forked Smart Table implementation.
+export function ColumnCard({
   idx, col, availableColumns, isFirst, isLast,
   onChangeColumn, onChangeCell, onReplaceCell, onMove, onDuplicate, onRemove,
 }) {

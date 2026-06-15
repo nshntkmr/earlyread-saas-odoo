@@ -1039,6 +1039,9 @@ class DashboardWidget(models.Model):
                     'x_column': child.x_column or '',
                     'y_columns': child.y_columns or '',
                     'color_palette': self.color_palette or 'healthcare',
+                    # Child-level custom colors — same JSON as an adjacent
+                    # donut child so legend dots match slice colors exactly.
+                    'color_custom_json': child.color_custom_json or '',
                 })
                 payload = tmp_cfg._build_legend_list_data(cols, rows)
             else:
@@ -1090,6 +1093,7 @@ class DashboardWidget(models.Model):
                     'column_link_config':   child.column_link_config or '',
                     'ranked_master_config': child.ranked_master_config or '',
                     'ranked_detail_config': child.ranked_detail_config or '',
+                    'smart_table_config':   child.smart_table_config or '',
                 })
                 if child.data_mode == 'inherit_parent':
                     cols, rows = parent_cols, parent_rows
@@ -1116,6 +1120,9 @@ class DashboardWidget(models.Model):
                 'row_start':     child.row_start or 0,
                 'row_span':      child.row_span or 1,
                 'min_height_px': child.min_height_px or 240,
+                # NULL on pre-feature rows (Odoo doesn't backfill) → stretch
+                'content_vertical_align':   child.content_vertical_align or 'stretch',
+                'content_horizontal_align': child.content_horizontal_align or 'stretch',
                 'data':          payload,
             })
 
@@ -1157,11 +1164,23 @@ class DashboardWidget(models.Model):
                 pct = round(val / total * 100, 1)
             out_rows.append({'label': str(r[xi]), 'value': val, 'pct': pct})
 
-        return {
+        result = {
             'type': 'legend_list',
             'rows': out_rows,
             'palette': self.color_palette or 'healthcare',
         }
+        # Optional explicit colors (color_custom_json) — lets a legend list
+        # share the exact color list of an adjacent donut child. Absent or
+        # malformed → existing palette behavior, byte-for-byte.
+        if self.color_custom_json:
+            try:
+                colors = json.loads(self.color_custom_json)
+                if (isinstance(colors, list) and colors
+                        and all(isinstance(c, str) for c in colors)):
+                    result['colors'] = colors
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return result
 
     def _build_text_note_data(self, body='', icon_name='none'):
         """Static text callout — no SQL execution.
