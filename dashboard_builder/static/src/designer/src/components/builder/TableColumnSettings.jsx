@@ -278,6 +278,104 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
           </div>
         )}
 
+        {/* Sparkline renderer params */}
+        {column.cellRenderer === 'sparkline' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Variant</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.variant ?? 'line'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    variant: e.target.value,
+                  })}
+                >
+                  <option value="line">Line</option>
+                  <option value="area">Area</option>
+                  <option value="bar">Bar</option>
+                  <option value="winloss">Win/Loss</option>
+                  <option value="bullet">Bullet</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Width</label>
+                <input type="number" min={40} max={400} className="tcs-input tcs-input--narrow"
+                  placeholder="60"
+                  value={column.cellRendererParams?.width ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      width: raw === '' ? null : Math.max(40, Math.min(400, Number(raw))),
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Height</label>
+                <input type="number" min={12} max={60} className="tcs-input tcs-input--narrow"
+                  placeholder="20"
+                  value={column.cellRendererParams?.height ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      height: raw === '' ? null : Math.max(12, Math.min(60, Number(raw))),
+                    })
+                  }}
+                />
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Color (auto or hex)</label>
+                <input type="text" className="tcs-input"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.color ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    color: e.target.value || null,
+                  })}
+                />
+              </div>
+              {column.cellRendererParams?.variant === 'bullet' && (
+                <>
+                  <div>
+                    <label className="tcs-label">Target Color</label>
+                    <input type="text" className="tcs-input"
+                      placeholder="#0f172a"
+                      value={column.cellRendererParams?.targetColor ?? ''}
+                      onChange={e => set('cellRendererParams', {
+                        ...column.cellRendererParams,
+                        targetColor: e.target.value || null,
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="tcs-label">Track Color</label>
+                    <input type="text" className="tcs-input"
+                      placeholder="#e2e8f0"
+                      value={column.cellRendererParams?.trackColor ?? ''}
+                      onChange={e => set('cellRendererParams', {
+                        ...column.cellRendererParams,
+                        trackColor: e.target.value || null,
+                      })}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="tcs-help-text">
+              {column.cellRendererParams?.variant === 'bullet'
+                ? 'Bullet input: {"value":26.3,"target":90,"max":100} (object or JSON string). Color = value bar; "auto"/empty = green when value ≥ target, amber below.'
+                : column.cellRendererParams?.variant === 'winloss'
+                ? 'Win/Loss input: JSON array or comma-separated numbers. Colors are automatic — green for positive, red for negative.'
+                : 'Input: JSON array [10,14,12] or comma-separated numbers. Color "auto"/empty = green when trending up, red when down.'}
+            </div>
+          </div>
+        )}
+
         {/* Composite renderer params — line config */}
         {column.cellRenderer === 'composite' && (
           <CompositeParamsEditor

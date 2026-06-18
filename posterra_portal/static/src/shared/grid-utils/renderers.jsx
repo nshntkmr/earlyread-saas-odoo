@@ -110,8 +110,11 @@ function BadgeRenderer(params) {
 // Input: JSON array, comma-separated numbers, or (bullet) an object.
 // Params:
 //   variant:   'line' | 'bar' | 'area' | 'winloss' | 'bullet'  (default 'line')
-//   color:     fixed hex, or 'auto' (green if trending up, red if down)
+//   color:     fixed hex, or 'auto' (line/area/bar: green up / red down;
+//              bullet: green if value >= target, else amber)
 //   width, height: SVG size (default 60x20)
+//   targetColor: (bullet only) target line color   (default '#0f172a')
+//   trackColor:  (bullet only) background track color (default '#e2e8f0')
 function SparklineRenderer(params) {
   const p = params.colDef?.cellRendererParams || {}
   const variant = p.variant || 'line'
@@ -127,14 +130,28 @@ function SparklineRenderer(params) {
       try { bulletData = JSON.parse(bulletData) } catch { return <span>{String(raw)}</span> }
     }
     const { value = 0, target = 0, max = 100 } = bulletData || {}
-    const barColor = p.color || (value >= target ? '#10b981' : '#f59e0b')
-    const valW = Math.max(0, Math.min(1, Number(value) / max)) * w
-    const tgtX = Math.max(0, Math.min(1, Number(target) / max)) * w
+    const valueNum = Number(value)
+    const targetNum = Number(target)
+    const maxNum = Number(max)
+    // Guard against non-numeric / zero-max input (valid JSON, bad values) that would
+    // otherwise yield NaN/Infinity SVG dimensions. Numeric strings stay supported.
+    if (!Number.isFinite(valueNum) || !Number.isFinite(targetNum) ||
+        !Number.isFinite(maxNum) || maxNum <= 0) {
+      return null
+    }
+    // color 'auto' (or empty) → automatic green/amber; otherwise literal SVG color.
+    const barColor = (p.color && p.color !== 'auto')
+      ? p.color
+      : (valueNum >= targetNum ? '#10b981' : '#f59e0b')
+    const targetColor = p.targetColor || '#0f172a'
+    const trackColor = p.trackColor || '#e2e8f0'
+    const valW = Math.max(0, Math.min(1, valueNum / maxNum)) * w
+    const tgtX = Math.max(0, Math.min(1, targetNum / maxNum)) * w
     return (
       <svg width={w} height={h} style={{ verticalAlign: 'middle' }}>
-        <rect x={0} y={h / 2 - 3} width={w} height={6} fill="#e2e8f0" />
+        <rect x={0} y={h / 2 - 3} width={w} height={6} fill={trackColor} />
         <rect x={0} y={h / 2 - 3} width={valW} height={6} fill={barColor} />
-        <line x1={tgtX} y1={1} x2={tgtX} y2={h - 1} stroke="#0f172a" strokeWidth={1.5} />
+        <line x1={tgtX} y1={1} x2={tgtX} y2={h - 1} stroke={targetColor} strokeWidth={1.5} />
       </svg>
     )
   }
