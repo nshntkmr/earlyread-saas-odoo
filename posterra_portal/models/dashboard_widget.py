@@ -419,6 +419,19 @@ class DashboardWidget(models.Model):
     ], default='default', string='Value Color',
        help='Color for value text.')
 
+    # ── Card label badge (opt-in) ──────────────────────────────────────────────
+    card_label_style = fields.Selection([
+        ('plain', 'Plain'),
+        ('badge', 'Badge'),
+    ], default='plain', string='Card Label Style',
+       help='Plain text (default) or a colored badge/chip for the in-card label.')
+    card_label_badge_bg = fields.Char(
+        string='Badge Background Color',
+        help='Badge background color (hex, e.g. #ccfbf1). Used when Card Label Style = Badge.')
+    card_label_badge_text = fields.Char(
+        string='Badge Text Color',
+        help='Badge text color (hex, e.g. #0d9488). Used when Card Label Style = Badge.')
+
     # ── Color palette ─────────────────────────────────────────────────────────
     color_palette = fields.Selection([
         ('default',    'Default (ECharts)'),
@@ -5172,6 +5185,12 @@ class DashboardWidget(models.Model):
             overrides['label_color'] = _LABEL_COLOR_MAP[self.label_color]
         if self.value_color and self.value_color != 'default':
             overrides['value_color'] = _VALUE_COLOR_MAP[self.value_color]
+        if self.card_label_style and self.card_label_style != 'plain':
+            overrides['card_label_style'] = self.card_label_style
+            if self.card_label_badge_bg:
+                overrides['card_label_badge_bg'] = self.card_label_badge_bg
+            if self.card_label_badge_text:
+                overrides['card_label_badge_text'] = self.card_label_badge_text
         if self.icon_color and self.icon_color != 'default':
             if self.icon_color == 'custom':
                 overrides['icon_color'] = self.icon_custom_color or '#2563eb'

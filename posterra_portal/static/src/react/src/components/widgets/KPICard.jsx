@@ -44,8 +44,14 @@ export default function KPICard({ data = {}, name }) {
   // vertical renders the label BELOW the value, inline renders it ABOVE (in the
   // header row). Both preserved when kpi_label_position is unset/'default'.
   const showLabel = data.kpi_label_position !== 'hidden'
+  const isLabelBadge = data.card_label_style === 'badge'
+  const labelBadgeStyle = isLabelBadge ? {
+    ...(data.card_label_badge_bg && { background: data.card_label_badge_bg }),
+    ...(data.card_label_badge_text && { color: data.card_label_badge_text }),
+  } : undefined
   const labelEl = (label && showLabel)
-    ? <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>
+    ? <div className={`pv-widget-kpi-label${isLabelBadge ? ' pv-widget-kpi-label--badge' : ''}`}
+           style={{ ...labelStyle, ...labelBadgeStyle }}>{label}</div>
     : null
 
   if (kpi_layout === 'inline') {

@@ -1929,6 +1929,28 @@
     letter-spacing: var(--w-label-spacing);
 }
 
+/* Opt-in Card Label rendered as a badge/chip (admin sets Card Label Style = Badge).
+   Reuses the trend-badge metrics; bg/text colors come from inline style (admin-chosen)
+   with a neutral fallback. No icon. Below-value badges also inherit min-height from the
+   footer-normalization rule (.pv-widget-kpi-value + .pv-widget-kpi-label) → aligns with
+   a trend-badge sibling. */
+.pv-widget-kpi-label--badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    padding: 3px 10px;                            /* match .pv-trend-badge */
+    border-radius: var(--w-badge-radius);        /* match .pv-trend-badge */
+    font-size: clamp(0.55rem, 3.5cqw, 0.7rem);   /* match .pv-trend-badge */
+    font-weight: var(--w-weight-semi);
+    line-height: 1;
+    box-sizing: border-box;
+    text-transform: none;                        /* a label badge reads as plain text, not a heading */
+    letter-spacing: normal;
+    background: var(--w-status-neutral-bg);       /* fallback if no badge bg configured */
+    color: var(--w-status-neutral);              /* fallback if no badge text configured */
+}
+
 .pv-widget-kpi-secondary {
     font-size: var(--w-font-base);
     font-size: clamp(0.6rem, 4cqw, 0.8rem);
@@ -1953,7 +1975,13 @@
 }
 .pv-widget-kpi:not(.pv-kpi-strip--header-inline) .pv-widget-kpi-secondary,
 .pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) .pv-widget-kpi-secondary,
-.pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) .pv-trend-badge {
+.pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) .pv-trend-badge,
+/* Below-value Card Label (kpi_label_position="below_value") renders as
+   value + label adjacent siblings — reserve the same footer row as a badge/secondary
+   so its primary value aligns with badge cards. Above-value labels precede the value,
+   so this adjacent-sibling selector never matches them. */
+.pv-widget-kpi:not(.pv-kpi-strip--header-inline) .pv-widget-kpi-value + .pv-widget-kpi-label,
+.pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) .pv-widget-kpi-value + .pv-widget-kpi-label {
     margin-top: var(--kpi-footer-gap);
     min-height: var(--kpi-footer-h);
     display: inline-flex;
@@ -1984,7 +2012,8 @@
         white-space: nowrap;
         max-width: 100%;
     }
-    .pv-trend-badge {
+    .pv-trend-badge,
+    .pv-widget-kpi-label--badge {
         padding: 2px 6px;
     }
 }
@@ -2660,7 +2689,8 @@
 .pv-widget-card--compact-density .pv-widget-kpi-label {
     margin-top: var(--w-space-xs);
 }
-.pv-widget-card--compact-density .pv-trend-badge {
+.pv-widget-card--compact-density .pv-trend-badge,
+.pv-widget-card--compact-density .pv-widget-kpi-label--badge {
     margin-top: var(--w-space-xs);
     padding: 2px 6px;
 }
@@ -2703,7 +2733,8 @@
     font-size: clamp(0.45rem, 3cqw, 0.6rem);
     margin-top: 1px;
 }
-.pv-widget-card--dense .pv-trend-badge {
+.pv-widget-card--dense .pv-trend-badge,
+.pv-widget-card--dense .pv-widget-kpi-label--badge {
     margin-top: 2px;
     padding: 1px 4px;
     font-size: clamp(0.45rem, 3cqw, 0.55rem);

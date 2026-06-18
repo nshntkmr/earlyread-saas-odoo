@@ -116,6 +116,11 @@
                             <field name="label_color"/>
                             <field name="value_font_weight"/>
                             <field name="value_color"/>
+                            <field name="card_label_style"/>
+                            <field name="card_label_badge_bg" widget="color"
+                                   invisible="card_label_style != 'badge'"/>
+                            <field name="card_label_badge_text" widget="color"
+                                   invisible="card_label_style != 'badge'"/>
                         </group>
                     </group>
 
