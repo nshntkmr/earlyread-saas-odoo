@@ -150,8 +150,8 @@
                                 <field name="y_columns"
                                        placeholder="e.g. cnt  (comma-separated for multi-series)"/>
                                 <field name="series_column"
-                                       placeholder="e.g. payer_type  (optional split into series)"
-                                       invisible="chart_type not in ('bar','line','radar','donut')"/>
+                                       placeholder="e.g. payer_type  (optional split into series; severity column for key_takeaways)"
+                                       invisible="chart_type not in ('bar','line','radar','donut','key_takeaways')"/>
                             </group>
 
                             <!-- ORM sub-section -->
@@ -388,7 +388,7 @@
 
                         <!-- ───────────────────── Patterns / Hatching tab ──── -->
                         <page string="Patterns" name="patterns"
-                              invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel','kpi_strip')">
+                              invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel','kpi_strip','key_takeaways')">
                             <group string="Patterns / Hatching">
                                 <field name="pattern_style"/>
                                 <field name="pattern_column"
@@ -403,7 +403,7 @@
                         <page string="Advanced" name="advanced">
                             <group>
                                 <field name="echart_override" widget="text"
-                                       invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel')"
+                                       invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel','key_takeaways')"
                                        placeholder='{"title":{"text":"My Chart"},"yAxis":{"name":"Count"}}'
                                        style="font-family: monospace; min-height: 80px;"
                                        nolabel="1" colspan="2"/>

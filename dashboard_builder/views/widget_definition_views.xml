@@ -163,7 +163,7 @@
                         <page string="Advanced" name="advanced">
                             <group>
                                 <field name="echart_override" widget="text"
-                                       invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel')"
+                                       invisible="chart_type in ('kpi','status_kpi','table','battle_card','insight_panel','key_takeaways')"
                                        placeholder='{"title":{"text":"My Chart"}}'
                                        style="font-family: monospace; min-height: 80px;"
                                        nolabel="1" colspan="2"/>

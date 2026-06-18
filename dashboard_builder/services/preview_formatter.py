@@ -32,6 +32,17 @@ _STATUS_MAP = {
     'stable':      ('fa-minus',                'status-neutral'),
 }
 
+# key_takeaways severity → (full fa icon class, status CSS). Identical to the
+# portal's dashboard_widget._TAKEAWAY_SEVERITY_MAP so designer preview and portal
+# payloads are byte-for-byte identical. Note the full 'fa fa-...' icon class.
+_TAKEAWAY_SEVERITY_MAP = {
+    'critical': ('fa fa-exclamation-triangle', 'status-critical'),
+    'warning':  ('fa fa-exclamation-circle',   'status-warning'),
+    'positive': ('fa fa-check-circle',         'status-positive'),
+    'info':     ('fa fa-info-circle',          'status-info'),
+    'neutral':  ('fa fa-circle-o',             'status-neutral'),
+}
+
 
 def format_preview(chart_type, columns, rows, config=None, visual_config=None):
     """Dispatch to the right formatter based on chart_type.
@@ -64,6 +75,9 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
     if chart_type == 'sankey_member_flow':
         return _build_member_flow_preview(columns, rows, visual_config)
 
+    if chart_type == 'key_takeaways':
+        return _format_key_takeaways_preview(columns, rows, config, visual_config)
+
     # Composite-only child types
     if chart_type == 'legend_list':
         return _build_legend_list_preview(columns, rows, config)
@@ -74,6 +88,62 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
 
     # Fallback — return raw data as-is
     return {}
+
+
+def _format_key_takeaways_preview(columns, rows, config=None, visual_config=None):
+    """Mirror of dashboard.widget._build_key_takeaways_data for the preview.
+
+    Must produce a payload byte-for-byte identical to the portal formatter so
+    designer preview and portal render the same:
+      x_column      → takeaway text (required; falls back to first column)
+      series_column → severity (optional; missing/unknown → 'neutral')
+      visual_config.max_items → row cap (default 4, clamped 1–10)
+    Returns ``{'type': 'key_takeaways', 'items': [...]}``.
+    """
+    config = config or {}
+    visual_config = visual_config or {}
+    col_idx = {c: i for i, c in enumerate(columns)}
+
+    # Defensive index resolution — a configured column name may be absent from
+    # the SQL result (stale mapping). Fall back to the first column for text;
+    # bail out safely if there are no columns at all.
+    text_idx = col_idx.get((config.get('x_column') or '').strip() or None)
+    if text_idx is None and columns:
+        text_idx = 0
+    if text_idx is None:
+        return {'type': 'key_takeaways', 'items': []}
+    severity_idx = col_idx.get((config.get('series_column') or '').strip() or None)
+
+    try:
+        max_items = int(visual_config.get('max_items', 4))
+    except (TypeError, ValueError):
+        max_items = 4
+    max_items = max(1, min(10, max_items))
+
+    items = []
+    for row in rows:
+        # Two-statement coalescing — never the single-expression form, which
+        # would stringify an in-range None to "None".
+        raw_text = row[text_idx] if text_idx < len(row) else None
+        text = str(raw_text or '').strip()
+        if not text:
+            continue
+        if severity_idx is not None and severity_idx < len(row):
+            sev = str(row[severity_idx] or '').strip().lower()
+        else:
+            sev = ''
+        normalized_severity = sev if sev in _TAKEAWAY_SEVERITY_MAP else 'neutral'
+        icon, css = _TAKEAWAY_SEVERITY_MAP[normalized_severity]
+        items.append({
+            'text':       text,
+            'severity':   normalized_severity,
+            'icon_class': icon,
+            'status_css': css,
+        })
+        if len(items) == max_items:
+            break
+
+    return {'type': 'key_takeaways', 'items': items}
 
 
 def _build_legend_list_preview(columns, rows, config=None):

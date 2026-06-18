@@ -7,6 +7,7 @@ import { widgetDataUrl } from '../api/endpoints'
 import KPICard      from './widgets/KPICard'
 import BattleCard   from './widgets/BattleCard'
 import InsightPanel from './widgets/InsightPanel'
+import KeyTakeaways from './widgets/KeyTakeaways'
 import RankedDetailList from './widgets/RankedDetailList'
 import MemberFlowTimeline from './widgets/MemberFlowTimeline'
 // SmartTable lives in the shared @posterra/grid-utils package so the
@@ -41,6 +42,9 @@ const ECHART_TYPES = new Set([
 const SCALABLE_TYPES = new Set([
   ...ECHART_TYPES,
   'table', 'gauge_kpi', 'map', 'ranked_detail_list', 'sankey_member_flow',
+  // key_takeaways fills its equal-height row (no alignSelf:start) and scrolls
+  // its list internally — see isExactHeightType below.
+  'key_takeaways',
 ])
 
 function resolveWidget(chartType) {
@@ -52,6 +56,7 @@ function resolveWidget(chartType) {
     case 'smart_table':        return SmartTable        // also in childRegistry (composite-child-safe)
     case 'battle_card':        return BattleCard        // complex per-widget config
     case 'insight_panel':      return InsightPanel      // complex per-widget config
+    case 'key_takeaways':      return KeyTakeaways      // multi-row narrative list
     case 'sankey_member_flow': return MemberFlowTimeline
   }
   // Everything else (bar/line/pie/donut/radar/scatter/heatmap/sankey/gauge/
@@ -345,7 +350,10 @@ export default function WidgetGrid({ initialWidgets }) {
     // Charts and the AG Grid table honor an admin Height as an EXACT card height (vs
     // minimum): the chart fills its body and the table scrolls internally, so the card
     // is truly that tall. (smart_table is excluded — it manages its own scroll height.)
-    const isExactHeightType = isEChart || isTable
+    // key_takeaways is exact-height too: when an admin sets a Height the card is
+    // exactly that tall and the list scrolls internally (never expands past the
+    // configured equal-height row beside e.g. MER Sensitivity).
+    const isExactHeightType = isEChart || isTable || w.chart_type === 'key_takeaways'
     const componentHeight = w.height || undefined
 
     // Extra props for interactive widgets

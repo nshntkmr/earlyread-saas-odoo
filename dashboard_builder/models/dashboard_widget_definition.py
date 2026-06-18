@@ -46,6 +46,7 @@ class DashboardWidgetDefinition(models.Model):
         ('sankey_member_flow', 'Sankey Member Flow'),
         ('battle_card',   'Battle Card'),
         ('insight_panel', 'Insight Panel'),
+        ('key_takeaways', 'Key Takeaways'),
         ('gauge_kpi',     'Gauge + KPI'),
         ('map',           'Map'),
         ('ranked_detail_list', 'Ranked Detail List'),

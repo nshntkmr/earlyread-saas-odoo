@@ -30,6 +30,18 @@ _STATUS_MAP = {
     'stable':      ('fa fa-minus',               'status-neutral', 'Stable'),
 }
 
+# ── key_takeaways severity → (fa icon class, status CSS modifier) ────────────
+# Standalone map for the multi-row Key Takeaways widget. Kept separate from
+# _STATUS_MAP (insight_panel) so the two widgets evolve independently. Matching
+# is case-insensitive; unknown/missing values fall back to 'neutral'.
+_TAKEAWAY_SEVERITY_MAP = {
+    'critical': ('fa fa-exclamation-triangle', 'status-critical'),
+    'warning':  ('fa fa-exclamation-circle',   'status-warning'),
+    'positive': ('fa fa-check-circle',         'status-positive'),
+    'info':     ('fa fa-info-circle',          'status-info'),
+    'neutral':  ('fa fa-circle-o',             'status-neutral'),
+}
+
 # ── Typography mapping dicts ─────────────────────────────────────────────────
 _WEIGHT_MAP = {
     'light': '300', 'normal': '400', 'medium': '500',
@@ -230,6 +242,7 @@ class DashboardWidget(models.Model):
         ('heatmap',      'Heatmap'),
         ('battle_card',  'Battle Card (You vs Them)'),
         ('insight_panel','Insight Panel'),
+        ('key_takeaways','Key Takeaways'),
         ('gauge_kpi',    'Gauge + KPI Breakdown'),
         ('kpi_strip',    'KPI Strip — Compact'),
         ('map',          'Map'),
@@ -924,6 +937,8 @@ class DashboardWidget(models.Model):
             result = self._build_battle_data(cols, rows)
         elif ct == 'insight_panel':
             result = self._build_insight_data(cols, rows, portal_ctx)
+        elif ct == 'key_takeaways':
+            result = self._build_key_takeaways_data(cols, rows)
         elif ct == 'gauge_kpi':
             result = self._build_gauge_kpi_data(cols, rows)
         elif ct == 'gauge':
@@ -4906,6 +4921,80 @@ class DashboardWidget(models.Model):
         }
         result.update(self._get_typography_overrides())
         return result
+
+    def _build_key_takeaways_data(self, cols, rows):
+        """Build dict for key_takeaways widgets — a multi-row narrative list.
+
+        SQL contract (all narrative comes from the admin's query, nothing is
+        hardcoded here):
+          - x_column      → takeaway text (required; falls back to first column)
+          - series_column → severity (optional; missing/unknown → 'neutral')
+        SQL row order is preserved (it is the display order). visual_config
+        'max_items' caps the rendered rows (default 4, clamped 1–10).
+
+        Returns ``{'type': 'key_takeaways', 'items': [...]}`` where each item is
+        ``{'text', 'severity', 'icon_class', 'status_css'}``. Text stays plain
+        text — never trusted HTML. Returns an empty ``items`` list safely when
+        no usable rows exist.
+        """
+        col_idx = {c: i for i, c in enumerate(cols)}
+
+        # Resolve column indices defensively: a configured column name may be
+        # absent from the actual SQL result (e.g. a stale x_column after the
+        # admin edits the query). Fall back to the first column for text; bail
+        # out safely when there is no usable text column at all.
+        text_idx = col_idx.get(self.x_column)
+        if text_idx is None and cols:
+            text_idx = 0
+        if text_idx is None:
+            return {'type': 'key_takeaways', 'items': []}
+        severity_idx = col_idx.get(self.series_column)
+
+        # max_items: merge definition flags first, instance overrides on top
+        # (same pattern as the gauge branch). Parse defensively so malformed
+        # config never throws, then clamp to 1–10 (default 4).
+        _vc = {}
+        if self.definition_id and self.definition_id.visual_config:
+            try:
+                _vc = json.loads(self.definition_id.visual_config) or {}
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if self.visual_config:
+            try:
+                _vc.update(json.loads(self.visual_config) or {})
+            except (json.JSONDecodeError, TypeError):
+                pass
+        try:
+            max_items = int(_vc.get('max_items', 4))
+        except (TypeError, ValueError):
+            max_items = 4
+        max_items = max(1, min(10, max_items))
+
+        items = []
+        for row in rows:
+            # Read cells only when in range (rows may be shorter than cols),
+            # then coalesce None→'' in a separate statement to avoid the
+            # precedence trap that would stringify an in-range None to "None".
+            raw_text = row[text_idx] if text_idx < len(row) else None
+            text = str(raw_text or '').strip()
+            if not text:
+                continue
+            if severity_idx is not None and severity_idx < len(row):
+                sev = str(row[severity_idx] or '').strip().lower()
+            else:
+                sev = ''
+            normalized_severity = sev if sev in _TAKEAWAY_SEVERITY_MAP else 'neutral'
+            icon, css = _TAKEAWAY_SEVERITY_MAP[normalized_severity]
+            items.append({
+                'text':       text,
+                'severity':   normalized_severity,
+                'icon_class': icon,
+                'status_css': css,
+            })
+            if len(items) == max_items:
+                break
+
+        return {'type': 'key_takeaways', 'items': items}
 
     # =========================================================================
     # Narrative template injection

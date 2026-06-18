@@ -35,6 +35,7 @@ _CHART_TYPES = [
     ('sankey_member_flow', 'Sankey Member Flow'),
     ('battle_card', 'Battle Card'),
     ('insight_panel', 'Insight Panel'), ('gauge_kpi', 'Gauge + KPI'),
+    ('key_takeaways', 'Key Takeaways'),
     ('kpi_strip', 'KPI Strip'),
 ]
 

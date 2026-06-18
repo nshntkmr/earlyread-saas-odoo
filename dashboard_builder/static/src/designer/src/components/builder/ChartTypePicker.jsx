@@ -19,6 +19,7 @@ const CHART_TYPES = [
   { key: 'sankey_member_flow', label: 'Sankey Member Flow', icon: 'fa-exchange', desc: 'Monthly member alignment flow with persisting, recaptured, and disaligned lanes' },
   { key: 'battle_card',   label: 'Battle Card',   icon: 'fa-columns',         desc: 'You vs competitor side-by-side' },
   { key: 'insight_panel', label: 'Insight Panel',  icon: 'fa-lightbulb-o',     desc: 'Narrative text with metrics' },
+  { key: 'key_takeaways', label: 'Key Takeaways', icon: 'fa-lightbulb-o',     desc: 'Multi-row SQL-driven takeaways with severity icons' },
   { key: 'gauge_kpi',     label: 'Gauge + KPI',   icon: 'fa-dashboard',       desc: 'Gauge with sub-KPI breakdown' },
   { key: 'map',           label: 'Map',           icon: 'fa-map-marker',      desc: 'Geographic point/area visualization' },
   { key: 'ranked_detail_list', label: 'Ranked List', icon: 'fa-list-ol',   desc: 'Expandable ranked list with detail charts' },

@@ -10,6 +10,7 @@ const CHART_ICONS = {
   scatter: 'fa-braille', heatmap: 'fa-th', sankey: 'fa-random',
   sankey_member_flow: 'fa-exchange',
   battle_card: 'fa-columns', insight_panel: 'fa-lightbulb-o',
+  key_takeaways: 'fa-lightbulb-o',
   gauge_kpi: 'fa-dashboard', kpi_strip: 'fa-ellipsis-h',
 }
 

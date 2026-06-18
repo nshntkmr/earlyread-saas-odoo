@@ -165,6 +165,7 @@ class DashboardPageTemplate(models.Model):
                 'is_active': w.is_active,
                 # Display
                 'col_span': w.col_span,
+                'row_span': w.row_span,
                 'width_pct': w.width_pct,
                 'max_width_pct': w.max_width_pct,
                 'chart_height': w.chart_height,
@@ -560,6 +561,7 @@ class DashboardPageTemplate(models.Model):
                 'sequence': w.get('sequence', 10),
                 'is_active': w.get('is_active', True),
                 'col_span': w.get('col_span', '6'),
+                'row_span': w.get('row_span', 1),
                 'width_pct': w.get('width_pct', 0),
                 'max_width_pct': w.get('max_width_pct', 0),
                 'chart_height': w.get('chart_height', 350),

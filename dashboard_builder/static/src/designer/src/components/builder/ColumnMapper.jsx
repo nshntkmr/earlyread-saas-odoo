@@ -128,6 +128,15 @@ export default function ColumnMapper({
             <strong>Multi-ring:</strong> X = metric name (one row per ring), Y1 = metric value
           </div>
         )}
+        {chartType === 'key_takeaways' && (
+          <div style={{ fontSize: 11, color: '#6b7280', background: '#fefce8', border: '1px solid #fde68a',
+                        borderRadius: 4, padding: '6px 10px', marginBottom: 8 }}>
+            <i className="fa fa-lightbulb-o" style={{ marginRight: 6, color: '#d97706' }} />
+            <strong>Key Takeaways:</strong> X / Label = takeaway text · Group By / Series = severity
+            (critical / warning / positive / info / neutral) · SQL row order = display order ·
+            recommended query limit 4. No value (Y) column is required.
+          </div>
+        )}
         {(columns.y || []).map((yCol, idx) => (
           <div key={idx} className="wb-y-row">
             <span className="wb-y-num">#{idx + 1}</span>

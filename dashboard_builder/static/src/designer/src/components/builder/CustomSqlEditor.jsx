@@ -33,6 +33,10 @@ const SQL_COLUMN_HELP = {
   kpi:           { cols: 'value [, prior_value]', example: 'SELECT SUM(revenue) AS revenue FROM mv_financial' },
   status_kpi:    { cols: 'value, status_text', example: 'SELECT total_patients, trend_label FROM mv_kpi' },
   table:         { cols: 'col1, col2, col3, ...', example: 'SELECT patient_id, name, status, score FROM mv_patients' },
+  key_takeaways: {
+    cols: 'takeaway_text, severity   (severity ∈ critical / warning / positive / info / neutral; SQL row order = display order)',
+    example: "SELECT finding AS takeaway_text, risk_level AS severity FROM mv_findings WHERE hha_ccn = %(hha_ccn)s ORDER BY priority LIMIT 4",
+  },
 }
 
 function getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle) {

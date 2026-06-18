@@ -1601,6 +1601,20 @@ SANKEY_FLAGS = [
     },
 ]
 
+# ─ Key Takeaways flags ───────────────────────────────────────────────────────
+# Multi-row narrative list. Column mapping: x_column = takeaway text,
+# series_column = severity. SQL row order is the display order.
+KEY_TAKEAWAYS_FLAGS = [
+    {
+        'flag': 'max_items',
+        'type': 'number',
+        'default': 4,
+        'label': 'Max Items',
+        'help': 'Maximum number of takeaway rows to display. '
+                'Allowed range is 1–10 (default 4). SQL row order is preserved.',
+    },
+]
+
 CHART_FLAGS = {
     'bar': COMMON_FLAGS + BAR_FLAGS,
     'pie': COMMON_FLAGS + PIE_FLAGS,
@@ -1612,6 +1626,7 @@ CHART_FLAGS = {
     'scatter': COMMON_FLAGS + SCATTER_FLAGS,
     'sankey': COMMON_FLAGS + SANKEY_FLAGS,
     'sankey_member_flow': COMMON_FLAGS,
+    'key_takeaways': COMMON_FLAGS + KEY_TAKEAWAYS_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
     'map': MAP_FLAGS,
 }

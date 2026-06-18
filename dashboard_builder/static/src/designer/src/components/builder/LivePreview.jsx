@@ -364,6 +364,55 @@ function CompositePreviewInline({ data }) {
   )
 }
 
+// Severity → inline color, mirroring the portal posterra.css vars exactly
+// (positive = --w-status-up #16a34a, NOT the teal). posterra.css is not loaded
+// in the designer bundle, so the preview styles itself inline.
+const _TAKEAWAY_PREVIEW_COLOR = {
+  'status-critical': '#e11d48',
+  'status-warning':  '#d97706',
+  'status-positive': '#16a34a',
+  'status-info':     '#2563eb',
+  'status-neutral':  '#6b7280',
+}
+
+/**
+ * KeyTakeawaysPreviewInline — renders the real multi-row takeaways layout in
+ * the designer preview so it matches the portal (icon badge + wrapped text +
+ * empty state). Reads the same {type, items:[{text, severity, icon_class,
+ * status_css}]} payload the portal formatter produces.
+ */
+function KeyTakeawaysPreviewInline({ data }) {
+  const items = Array.isArray(data?.items) ? data.items : []
+  if (!items.length) {
+    return (
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff',
+                    padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+        No takeaways available.
+      </div>
+    )
+  }
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', padding: 16 }}>
+      <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, listStyle: 'none', margin: 0, padding: 0 }}>
+        {items.map((it, i) => {
+          const color = _TAKEAWAY_PREVIEW_COLOR[it.status_css] || _TAKEAWAY_PREVIEW_COLOR['status-neutral']
+          return (
+            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, color }}>
+              <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                             width: 28, height: 28, borderRadius: '50%', border: `1.5px solid ${color}`, fontSize: 13 }}>
+                <i className={it.icon_class || 'fa fa-circle-o'} aria-hidden="true" />
+              </span>
+              <span style={{ flex: 1, minWidth: 0, color: '#4b5563', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                {it.text}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 /**
  * Step 5: Live Preview + Save.
  *
@@ -428,6 +477,7 @@ export default function LivePreview({
   const isTable = builderState.chartType === 'table'
   const isMemberFlow = builderState.chartType === 'sankey_member_flow'
   const isComposite = builderState.chartType === 'composite'
+  const isKeyTakeaways = builderState.chartType === 'key_takeaways'
   // KPI label placement (opt-in) — read from live config so the preview reflects
   // above/below/hidden without a backend round-trip. Default keeps current order.
   const kpiLabelPos = builderState.visualFlags?.kpi_label_position || 'default'
@@ -656,8 +706,15 @@ export default function LivePreview({
         <CompositePreviewInline data={previewData} />
       )}
 
+      {/* Key Takeaways preview — real multi-row layout, matches the portal.
+          Styled inline because the portal's posterra.css is NOT in the designer
+          bundle. Severity hexes mirror the portal CSS vars exactly. */}
+      {isKeyTakeaways && previewData && (
+        <KeyTakeawaysPreviewInline data={previewData} />
+      )}
+
       {/* KPI / Gauge preview */}
-      {!isChart && !isTable && !isMemberFlow && !isComposite && previewData && (
+      {!isChart && !isTable && !isMemberFlow && !isComposite && !isKeyTakeaways && previewData && (
         <div className="wb-preview-kpi">
           <div className="wb-kpi-preview-card">
             {previewData.icon_class && (
