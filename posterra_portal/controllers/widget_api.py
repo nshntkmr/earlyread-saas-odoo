@@ -434,6 +434,7 @@ class PosterraWidgetAPI(http.Controller):
                 'is_searchable':         f.is_searchable,
                 'is_visible':            f.is_visible,
                 'include_all_option':    f.include_all_option,
+                'hide_all_option':       f.hide_all_option,
             })
 
         # ── Widgets (metadata only) ───────────────────────────────────────

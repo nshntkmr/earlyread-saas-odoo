@@ -1892,6 +1892,13 @@
     flex: 1;
     min-height: 200px;
 }
+/* Fill mode: standalone chart fills its flex card body exactly. min-height:0 (vs the
+   base 200px) so a short exact-height card never clips/overflows. EChartWidget applies
+   this (fill=true) for top-level charts; composite children keep the fixed-px path. */
+.pv-widget-echart--fill {
+    flex: 1;
+    min-height: 0;
+}
 
 /* ── KPI Card ───────────────────────────────────────────────────────── */
 .pv-widget-kpi {
@@ -1910,6 +1917,7 @@
     font-weight: var(--w-weight-bold);
     color: var(--w-value-primary);
     line-height: 1.1;
+    font-variant-numeric: tabular-nums;             /* aligned digit columns across a rail */
 }
 
 .pv-widget-kpi-label {
@@ -1926,6 +1934,41 @@
     font-size: clamp(0.6rem, 4cqw, 0.8rem);
     color: var(--w-value-muted);
     margin-top: var(--w-space-sm);
+}
+
+/* ── Standard vertical KPI footer normalization ─────────────────────────
+   In the standard (non-inline) vertical layout the body is justify-content:center,
+   so a card whose footer is a tall trend pill centres its value differently than a
+   card whose footer is short plain text → values drift in a rail. Reserve ONE
+   footer height + gap for both footer kinds so the content blocks match and the
+   values line up. Sizes are CSS vars so density variants stay tight (the dense /
+   compact-density blocks below override the vars; this rule's higher specificity
+   means the flat margins in those blocks don't fight it). Scoped to the vertical
+   standard layout only — inline standard KPIs and the compact .pv-kpi-strip path
+   are excluded via :not(.pv-kpi-strip--header-inline). */
+.pv-widget-kpi:not(.pv-kpi-strip--header-inline),
+.pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) {
+    --kpi-footer-gap: var(--w-space-md);
+    --kpi-footer-h: 24px;
+}
+.pv-widget-kpi:not(.pv-kpi-strip--header-inline) .pv-widget-kpi-secondary,
+.pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) .pv-widget-kpi-secondary,
+.pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) .pv-trend-badge {
+    margin-top: var(--kpi-footer-gap);
+    min-height: var(--kpi-footer-h);
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+.pv-widget-card--compact-density .pv-widget-kpi:not(.pv-kpi-strip--header-inline),
+.pv-widget-card--compact-density .pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) {
+    --kpi-footer-gap: var(--w-space-xs);
+    --kpi-footer-h: 18px;
+}
+.pv-widget-card--dense .pv-widget-kpi:not(.pv-kpi-strip--header-inline),
+.pv-widget-card--dense .pv-widget-status-kpi:not(.pv-kpi-strip--header-inline) {
+    --kpi-footer-gap: 2px;
+    --kpi-footer-h: 14px;
 }
 
 /* ── KPI responsive scaling via container queries ──────────────────── */
@@ -1980,21 +2023,29 @@
     text-align: center;
 }
 .pv-kpi-header-row {
+    grid-row: 1;                   /* header row in the grid strip (ignored by flex KPIs) */
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: center;
     gap: 6px;
     width: 100%;
+    min-width: 0;                  /* allow the label to shrink/clamp */
 }
+/* Compact icon sizing — applies to both the inline header-row and the default
+   strip header so the icon fits the fixed-height header without clipping. */
 .pv-kpi-header-row .pv-category-icon,
-.pv-kpi-header-row .pv-kpi-strip-icon {
+.pv-kpi-header-row .pv-kpi-strip-icon,
+.pv-kpi-strip-header .pv-category-icon,
+.pv-kpi-strip-header .pv-kpi-strip-icon {
     margin-bottom: 0;
     width: 20px;
     height: 20px;
 }
 .pv-kpi-header-row .pv-category-icon svg,
-.pv-kpi-header-row .pv-kpi-strip-icon svg {
+.pv-kpi-header-row .pv-kpi-strip-icon svg,
+.pv-kpi-strip-header .pv-category-icon svg,
+.pv-kpi-strip-header .pv-kpi-strip-icon svg {
     width: 12px;
     height: 12px;
 }
@@ -2031,14 +2082,40 @@
 .pv-trend-badge.status-warning { color: var(--w-status-warn);    background: var(--w-status-warn-bg); }
 .pv-trend-badge.status-neutral { color: var(--w-status-neutral); background: var(--w-status-neutral-bg); }
 
-/* ── KPI Strip (compact vertical) ──────────────────────────────────── */
+/* ── KPI Strip (compact) ───────────────────────────────────────────── */
+/* Stable 3-row structure so every compact KPI in a rail shares a clean
+   baseline: header (icon + label) / value / footer (trend badge | plain
+   secondary). Header & footer have FIXED heights, so the value row starts at
+   the same offset on every card — values & badges align even when some cards
+   lack an icon/badge or have a 2-line label. Heights are CSS vars so density
+   variants can tune them. */
 .pv-kpi-strip {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    display: grid;
+    grid-template-rows: var(--kpi-strip-header-h, 30px)
+                        minmax(0, 1fr)
+                        var(--kpi-strip-footer-h, 18px);
+    justify-items: start;          /* default rail = left aligned */
     gap: var(--w-space-xs);
     padding: var(--w-space-md);
     height: 100%;
+    min-height: 72px;              /* fallback so the 1fr value row never collapses */
+}
+/* Header: icon beside label; label may wrap to 2 lines. min-width:0 lets the
+   label shrink/clamp instead of overflowing a narrow card. */
+.pv-kpi-strip-header {
+    grid-row: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+/* Inline layout centers items (scoped to the grid strip only — the shared
+   .pv-kpi-strip--header-inline rule below still drives the flex standard KPIs). */
+.pv-kpi-strip.pv-kpi-strip--header-inline {
+    justify-items: center;
 }
 .pv-kpi-strip-icon {
     width: 32px;                                     /* fallback */
@@ -2059,12 +2136,18 @@
 .pv-kpi-strip-icon.status-neutral { background: var(--w-status-neutral-bg); color: var(--w-status-neutral); }
 
 .pv-kpi-strip-value {
+    grid-row: 2;
+    align-self: center;                              /* vertically centered in the 1fr row */
+    justify-self: stretch;                          /* full-width cell so text_align applies */
     font-size: var(--w-font-xl);                     /* fallback */
     font-size: clamp(0.75rem, 15cqw, 1.5rem);       /* fluid: aggressive scaling for compact */
     font-weight: var(--w-weight-bold);
     color: var(--w-value-primary);
     line-height: 1;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;             /* aligned digit columns */
+    overflow: hidden;
+    text-overflow: ellipsis;                        /* guard against blowout on narrow cards */
 }
 .pv-kpi-strip-label {
     font-size: var(--w-font-sm);                     /* fallback */
@@ -2073,15 +2156,35 @@
     text-transform: var(--w-label-transform);
     letter-spacing: var(--w-label-spacing);
     line-height: 1.2;
-    white-space: nowrap;
+    min-width: 0;                                    /* allow clamp to shrink, not overflow */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;                           /* up to 2 lines, then ellipsis */
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+/* Footer (row 3): trend pill and plain secondary share the same bottom baseline. */
+.pv-kpi-strip .pv-trend-badge,
+.pv-kpi-strip .pv-kpi-strip-secondary {
+    grid-row: 3;
+    align-self: end;
 }
 .pv-kpi-strip .pv-trend-badge {
     margin-top: 0;
     font-size: var(--w-font-xs);                     /* fallback */
     font-size: clamp(0.5rem, 4cqw, 0.65rem);        /* fluid */
     padding: 1px 4px;
+}
+/* Plain (non-trend) secondary text — no pill background, reads as muted caption. */
+.pv-kpi-strip-secondary {
+    font-size: var(--w-font-xs);                     /* fallback */
+    font-size: clamp(0.5rem, 4cqw, 0.65rem);        /* fluid */
+    color: var(--w-value-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 /* ── Data Table ─────────────────────────────────────────────────────── */
@@ -2091,6 +2194,20 @@
        The old 380px cap clipped multi-line composite cells. */
     flex: 1;
     overflow: visible;
+}
+/* Fill mode (widget has an exact Height): make the wrap a flex column so the AG Grid
+   container fills the card body and scrolls internally, with the "Showing N of M" meta
+   footer beneath it. min-height:0 on both flex children defeats the default
+   min-height:auto so the grid can shrink and scroll instead of overflowing the card. */
+.pv-widget-table-wrap--fill {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.pv-widget-table-wrap--fill .pv-ag-grid-container {
+    flex: 1;
+    min-height: 0;            /* flex-computed definite height → AG Grid scrolls (no height:100% to avoid flex conflict) */
 }
 
 /* ── AG Grid container ──────────────────────────────────────────────────── */
@@ -2535,6 +2652,9 @@
 }
 .pv-widget-card--dense .pv-kpi-strip {
     padding: var(--w-space-sm);
+    --kpi-strip-header-h: 26px;    /* tighter rows for competitor-style dense rail */
+    --kpi-strip-footer-h: 16px;
+    min-height: 60px;
 }
 .pv-widget-card--dense .pv-kpi-strip-value {
     font-size: clamp(0.65rem, 12cqw, 1.25rem);

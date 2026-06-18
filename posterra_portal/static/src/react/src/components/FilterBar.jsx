@@ -352,7 +352,14 @@ export default function FilterBar() {
       .filter(f => f.is_visible !== false)
       .forEach(f => {
         const key = f.param_name || f.field_name
-        if (key) setPendingFilter(key, '')
+        if (!key) return
+        // hide_all single-select filters have no empty "All" choice — reset to
+        // the server default (e.g. latest month) instead of leaving them blank.
+        if (f.hide_all_option && !f.is_multiselect && f.default_value) {
+          setPendingFilter(key, f.default_value)
+        } else {
+          setPendingFilter(key, '')
+        }
       })
     // Reset dynamic options so dropdowns fall back to the original
     // unfiltered server options (filter.options from page load).
@@ -369,6 +376,9 @@ export default function FilterBar() {
         const options = dynamicOptions[filter.id] ?? filter.options ?? []
         const paramKey = filter.param_name || filter.field_name
         const currentValue = pendingValues[paramKey] || ''
+        // hide_all_option suppresses the synthetic "All"/empty choice — single-select
+        // only (mirrors the backend _prepend_all_option gate).
+        const hideAll = filter.hide_all_option && !filter.is_multiselect
 
         return (
           <div key={filter.id} className="pv-ctx-filter-group">
@@ -406,7 +416,7 @@ export default function FilterBar() {
                 value={currentValue}
                 onChange={(val) => handleFilterChange(filter, val)}
                 placeholder={filter.placeholder || 'All'}
-                includeAllOption={!filter.include_all_option}
+                includeAllOption={!filter.include_all_option && !hideAll}
               />
             ) : (
               <select
@@ -417,7 +427,7 @@ export default function FilterBar() {
                 value={currentValue}
                 onChange={e => handleFilterChange(filter, e.target.value)}
               >
-                {!filter.include_all_option && (
+                {!filter.include_all_option && !hideAll && (
                   <option value="">All</option>
                 )}
                 {options.map(opt => (

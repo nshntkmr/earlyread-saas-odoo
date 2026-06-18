@@ -2,6 +2,7 @@ import React from 'react'
 import EChartWidget from './EChartWidget'
 import { TrendIcon } from './TrendIcons'
 import CategoryIcon from './CategoryIcons'
+import { resolveLabelPlacement } from './kpiLabelPosition'
 
 /**
  * KpiCardGeneric — One generic KPI card, 3 layouts, ECharts for data-viz.
@@ -32,6 +33,15 @@ export default function KpiCardGeneric({ data = {}, name }) {
     ? { ...(icon_color && { color: icon_color }), ...(icon_bg && { background: icon_bg }) }
     : undefined
 
+  // Label placement (opt-in). Default for the standard variant is ABOVE the
+  // value; mini_gauge/comparison have no single value to anchor against, so
+  // they honor `hidden` only and keep the label where it is.
+  const { show: showLabel, above: labelAbove, below: labelBelow } =
+    resolveLabelPlacement(data.kpi_label_position, true)
+  const labelEl = (label && showLabel)
+    ? <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>
+    : null
+
   // ── Layout: Split (mini_gauge) ────────────────────────────────────────
   if (kpi_variant === 'mini_gauge') {
     const chartSize = data.mini_gauge_size || 64
@@ -44,7 +54,7 @@ export default function KpiCardGeneric({ data = {}, name }) {
           </div>
         )}
         <div className="pv-kpi-card-text">
-          {label && <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>}
+          {labelEl}
           {data.gauge_status_text && (
             <div className="pv-widget-kpi-secondary">{data.gauge_status_text}</div>
           )}
@@ -65,7 +75,7 @@ export default function KpiCardGeneric({ data = {}, name }) {
     return (
       <div className="pv-kpi-card-dual">
         <div className="pv-kpi-card-dual-header">
-          {label && <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>}
+          {labelEl}
         </div>
         <div className="pv-kpi-card-dual-columns">
           <div className="pv-kpi-card-dual-col">
@@ -117,7 +127,7 @@ export default function KpiCardGeneric({ data = {}, name }) {
             <CategoryIcon name={icon_name} />
           </div>
         )}
-        {label && <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>}
+        {labelAbove && labelEl}
 
         {isProgress && data.target_formatted && (
           <div className="pv-kpi-target-label">TARGET: {data.target_formatted}</div>
@@ -129,6 +139,8 @@ export default function KpiCardGeneric({ data = {}, name }) {
         }}>
           {formatted_value ?? '—'}
         </div>
+
+        {labelBelow && labelEl}
 
         {secondary && !isProgress && !isRag && (
           <div className={`pv-trend-badge ${status_css || ''}`}>

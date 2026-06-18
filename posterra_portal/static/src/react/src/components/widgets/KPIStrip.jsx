@@ -45,10 +45,14 @@ export default function KPIStrip({ data = {}, name }) {
         </div>
         <div className="pv-kpi-strip-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
         {secondary && (
-          <div className={`pv-trend-badge ${status_css || ''}`} style={alignStyle && { justifyContent: text_align }}>
-            <TrendIcon statusCss={status_css} />
-            <span>{secondary}</span>
-          </div>
+          status_css ? (
+            <div className={`pv-trend-badge ${status_css}`} style={alignStyle && { justifyContent: text_align }}>
+              <TrendIcon statusCss={status_css} />
+              <span>{secondary}</span>
+            </div>
+          ) : (
+            <div className="pv-kpi-strip-secondary" style={alignStyle}>{secondary}</div>
+          )
         )}
       </div>
     )
@@ -56,18 +60,24 @@ export default function KPIStrip({ data = {}, name }) {
 
   return (
     <div className="pv-kpi-strip" style={alignStyle}>
-      {showIcon && (
-        <div className={`pv-kpi-strip-icon ${status_css || ''}`}>
-          <CategoryIcon name={icon_name} />
-        </div>
-      )}
-      <div className="pv-kpi-strip-label" style={labelStyle}>{label || name}</div>
+      <div className="pv-kpi-strip-header">
+        {showIcon && (
+          <div className={`pv-kpi-strip-icon ${iconStyle ? '' : (status_css || '')}`} style={iconStyle}>
+            <CategoryIcon name={icon_name} />
+          </div>
+        )}
+        <div className="pv-kpi-strip-label" style={labelStyle}>{label || name}</div>
+      </div>
       <div className="pv-kpi-strip-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
       {secondary && (
-        <div className={`pv-trend-badge ${status_css || ''}`} style={alignStyle && { justifyContent: text_align }}>
-          <TrendIcon statusCss={status_css} />
-          <span>{secondary}</span>
-        </div>
+        status_css ? (
+          <div className={`pv-trend-badge ${status_css}`} style={alignStyle && { justifyContent: text_align }}>
+            <TrendIcon statusCss={status_css} />
+            <span>{secondary}</span>
+          </div>
+        ) : (
+          <div className="pv-kpi-strip-secondary" style={alignStyle}>{secondary}</div>
+        )
       )}
     </div>
   )

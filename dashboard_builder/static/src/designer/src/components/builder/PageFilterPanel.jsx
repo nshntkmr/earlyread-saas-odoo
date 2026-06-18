@@ -80,7 +80,11 @@ export default function PageFilterPanel({ pageId, apiBase, values = {}, onChange
         Page Filters (from {visibleFilters.length} filter{visibleFilters.length !== 1 ? 's' : ''})
       </label>
       <div className="wb-filter-grid">
-        {visibleFilters.map(f => (
+        {visibleFilters.map(f => {
+          // hide_all_option suppresses the synthetic empty option, but only for
+          // single-select filters (mirrors the portal + backend gate).
+          const hideAll = f.hide_all_option && !f.is_multiselect
+          return (
           <div key={f.id} className="wb-filter-item">
             <label className="wb-label-sm">
               {f.label || f.param_name}
@@ -98,8 +102,8 @@ export default function PageFilterPanel({ pageId, apiBase, values = {}, onChange
                 value={values[f.param_name] || ''}
                 onChange={e => handleChange(f.param_name, e.target.value)}
               >
-                {f.include_all_option && <option value="">All</option>}
-                {!f.include_all_option && <option value="">-- select --</option>}
+                {f.include_all_option && !hideAll && <option value="">All</option>}
+                {!f.include_all_option && !hideAll && <option value="">-- select --</option>}
                 {(f.options || []).map(o => (
                   <option key={o.value} value={o.value}>
                     {o.label || o.value}
@@ -108,7 +112,8 @@ export default function PageFilterPanel({ pageId, apiBase, values = {}, onChange
               </select>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

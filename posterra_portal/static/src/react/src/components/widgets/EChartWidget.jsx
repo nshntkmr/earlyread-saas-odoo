@@ -22,7 +22,7 @@ import * as echarts from 'echarts'
  * drilldown key (e.g. an HHA's CCN) so go_to_page navigation can pass
  * a usable filter value instead of the multi-line tooltip text.
  */
-export default function EChartWidget({ data, height = 350, clickAction, onChartClick }) {
+export default function EChartWidget({ data, height = 350, clickAction, onChartClick, fill = false }) {
   const containerRef = useRef(null)
   const chartRef     = useRef(null)
 
@@ -46,12 +46,20 @@ export default function EChartWidget({ data, height = 350, clickAction, onChartC
     if (!containerRef.current) return
     chartRef.current = echarts.init(containerRef.current, null, { renderer: 'canvas' })
 
-    // Responsive resize
+    // Responsive resize — window for viewport changes, ResizeObserver for the
+    // container itself (needed in fill mode: the flex height resolves after the
+    // initial layout, and the card can change size, e.g. filter-panel toggle).
     const onResize = () => chartRef.current?.resize()
     window.addEventListener('resize', onResize)
+    let ro = null
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => chartRef.current?.resize())
+      ro.observe(containerRef.current)
+    }
 
     return () => {
       window.removeEventListener('resize', onResize)
+      ro?.disconnect()
       chartRef.current?.dispose()
       chartRef.current = null
     }
@@ -74,11 +82,15 @@ export default function EChartWidget({ data, height = 350, clickAction, onChartC
     chartRef.current.setOption(option, { notMerge: true, lazyUpdate: false })
   }, [data])
 
+  // fill mode (standalone in a flex card) → fill the card body via the
+  // .pv-widget-echart--fill class (flex:1; min-height:0). Composite/other callers
+  // (fill omitted) keep the fixed-pixel height so the alignment wrapper still works.
   return (
     <div
       ref={containerRef}
+      className={fill ? 'pv-widget-echart pv-widget-echart--fill' : undefined}
       style={{
-        height: `${height}px`,
+        ...(fill ? {} : { height: `${height}px` }),
         width: '100%',
         cursor: (clickAction && clickAction !== 'none') ? 'pointer' : 'default',
       }}

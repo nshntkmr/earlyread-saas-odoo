@@ -428,6 +428,11 @@ export default function LivePreview({
   const isTable = builderState.chartType === 'table'
   const isMemberFlow = builderState.chartType === 'sankey_member_flow'
   const isComposite = builderState.chartType === 'composite'
+  // KPI label placement (opt-in) — read from live config so the preview reflects
+  // above/below/hidden without a backend round-trip. Default keeps current order.
+  const kpiLabelPos = builderState.visualFlags?.kpi_label_position || 'default'
+  const kpiShowLabel = kpiLabelPos !== 'hidden'
+  const kpiLabelAbove = kpiLabelPos === 'above_value'
 
   const runPreview = async () => {
     setLoading(true)
@@ -658,12 +663,19 @@ export default function LivePreview({
             {previewData.icon_class && (
               <i className={`fa ${previewData.icon_class} wb-kpi-icon ${previewData.status_css || ''}`} />
             )}
+            {kpiShowLabel && kpiLabelAbove && (
+              <span className="wb-kpi-label">
+                {previewData.label || builderState.appearance?.title || 'KPI'}
+              </span>
+            )}
             <span className="wb-kpi-value">
               {previewData.formatted_value || '—'}
             </span>
-            <span className="wb-kpi-label">
-              {previewData.label || builderState.appearance?.title || 'KPI'}
-            </span>
+            {kpiShowLabel && !kpiLabelAbove && (
+              <span className="wb-kpi-label">
+                {previewData.label || builderState.appearance?.title || 'KPI'}
+              </span>
+            )}
             {previewData.secondary && (
               <span className="wb-kpi-secondary">{previewData.secondary}</span>
             )}

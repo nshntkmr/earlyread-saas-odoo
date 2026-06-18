@@ -282,6 +282,23 @@ export default function KpiStylePicker({
       </div>
       <div className="wb-field-row">
         <label className="wb-field-label">
+          Card Label Position
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Where the card label sits relative to the value. Default: each card's current placement. Above/Below: force the label above or below the value. Hidden: don't show the label in the card body." />
+        </label>
+        <select
+          className="wb-select"
+          value={cfgVal(visualConfig, 'kpi_label_position', 'default')}
+          onChange={e => handleCfg('kpi_label_position', e.target.value)}
+        >
+          <option value="default">Default</option>
+          <option value="above_value">Above value</option>
+          <option value="below_value">Below value</option>
+          <option value="hidden">Hidden</option>
+        </select>
+      </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
           Value Format
           <i className="fa fa-info-circle wb-flag-info"
              title="How the primary value is formatted. Number: 1,234. Currency: $1,234. Percent: 68.5%. Decimal: 2.36." />
@@ -295,6 +312,23 @@ export default function KpiStylePicker({
           <option value="currency">Currency ($1,234)</option>
           <option value="percent">Percent (68.5%)</option>
           <option value="decimal">Decimal (2.36)</option>
+        </select>
+      </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
+          Value Unit
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Compact display unit. Thousands → K, Millions → M, Billions → B (2 decimals, e.g. $104.08M). Percent format ignores this." />
+        </label>
+        <select
+          className="wb-select"
+          value={cfgVal(visualConfig, 'kpi_value_unit', 'none')}
+          onChange={e => handleCfg('kpi_value_unit', e.target.value)}
+        >
+          <option value="none">None</option>
+          <option value="thousands">Thousands (K)</option>
+          <option value="millions">Millions (M)</option>
+          <option value="billions">Billions (B)</option>
         </select>
       </div>
       <div className="wb-field-row">

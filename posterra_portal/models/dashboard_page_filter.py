@@ -360,6 +360,13 @@ class DashboardPageFilter(models.Model):
              'The label is "All" followed by the option count (e.g. "All 63 HHAs").\n'
              'Use for the Provider filter or any filter where "no selection" = "all".',
     )
+    hide_all_option = fields.Boolean(
+        string='Hide "All" Option',
+        default=False,
+        help='When ON, the synthetic "All" / empty option is never shown for this filter, '
+             'even if Include "All" is enabled. Use for Month/YTD snapshot filters where '
+             '"All" is misleading. Single-select only; multi-select is unaffected.',
+    )
 
     # ── Computed display label (used directly in portal QWeb template) ──────────
     @api.depends('label', 'field_id', 'schema_column_id')
@@ -1051,8 +1058,14 @@ class DashboardPageFilter(models.Model):
         return self.default_value or ''
 
     def _prepend_all_option(self, options):
-        """Prepend an "All N <label>" option when include_all_option is ON."""
-        if self.include_all_option and options:
+        """Prepend an "All N <label>" option when include_all_option is ON.
+
+        hide_all_option suppresses the "All" row, but only for single-select
+        filters — this method is shared with multi-select filters, whose "All"
+        semantics are unchanged in this pass.
+        """
+        hide_all_active = self.hide_all_option and not self.is_multiselect
+        if self.include_all_option and not hide_all_active and options:
             all_label = f'All {len(options)} {self.label or "items"}'
             options.insert(0, {'value': '', 'label': all_label})
         return options

@@ -12,11 +12,13 @@ void CELL_RENDERERS
 ModuleRegistry.registerModules([AllCommunityModule])
 
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
-function AGGridTable({ data, onCellClick, searchText }) {
+function AGGridTable({ data, onCellClick, searchText, fillHeight = false }) {
   const { columnDefs, rowData = [], row_count, visual_config: vc = {} } = data
   const gridRef = useRef(null)
 
-  // Table display mode from admin config (visual_config)
+  // Table display mode from admin config (visual_config).
+  // fillHeight (widget has an exact Height) overrides autoHeight so the grid fills
+  // the fixed card body and scrolls internally instead of expanding the card.
   const displayMode = vc.tableDisplayMode || 'autoHeight'
   const pageSize = vc.paginationPageSize || 50
   const tableHeight = vc.tableHeight || 400
@@ -104,13 +106,16 @@ function AGGridTable({ data, onCellClick, searchText }) {
     }
   }, [onCellClick])
 
-  // Container style: fixed height for pagination/scroll, auto for autoHeight
-  const containerStyle = displayMode !== 'autoHeight'
-    ? { height: tableHeight, width: '100%' }
-    : undefined
+  // Container style: fillHeight (exact widget height) → no inline height; the
+  // .pv-widget-table-wrap--fill CSS (flex:1; min-height:0) gives the grid a
+  // flex-computed height so AG Grid scrolls inside the fixed card. Else fixed height
+  // for pagination/scroll, auto for autoHeight.
+  const containerStyle = fillHeight
+    ? undefined
+    : (displayMode !== 'autoHeight' ? { height: tableHeight, width: '100%' } : undefined)
 
   return (
-    <div className="pv-widget-table-wrap">
+    <div className={`pv-widget-table-wrap${fillHeight ? ' pv-widget-table-wrap--fill' : ''}`}>
       <div className="pv-ag-grid-container" style={containerStyle}>
         <AgGridReact
           ref={gridRef}
@@ -119,7 +124,7 @@ function AGGridTable({ data, onCellClick, searchText }) {
           rowData={rowData}
           defaultColDef={defaultColDef}
           columnTypes={CUSTOM_COLUMN_TYPES}
-          domLayout={displayMode === 'autoHeight' ? 'autoHeight' : 'normal'}
+          domLayout={(fillHeight || displayMode !== 'autoHeight') ? 'normal' : 'autoHeight'}
           pagination={displayMode === 'pagination'}
           paginationPageSize={pageSize}
           paginationPageSizeSelector={[20, 50, 100, 200]}
@@ -229,10 +234,10 @@ function LegacyTable({ data, columnLinkConfig, onCellClick }) {
  *   columnLinkConfig — legacy column link map (only used in legacy mode)
  *   onCellClick     — ({ column, value, row, linkConfig }) => void
  */
-export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText }) {
+export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText, fillHeight }) {
   // AG Grid mode: has columnDefs from table_column_config
   if (data.columnDefs) {
-    return <AGGridTable data={data} onCellClick={onCellClick} searchText={searchText} />
+    return <AGGridTable data={data} onCellClick={onCellClick} searchText={searchText} fillHeight={fillHeight} />
   }
 
   // Legacy mode: plain cols/rows (backward compat for existing widgets)

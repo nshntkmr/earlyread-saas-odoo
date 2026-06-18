@@ -1966,6 +1966,15 @@ class DesignerAPI(http.Controller):
                     options = f.get_options()
                 except Exception:
                     options = []
+                opt_list = options if isinstance(options, list) else []
+
+                # Resolve the default the same way the portal does, so non-static
+                # strategies (e.g. default_strategy=latest for a Month filter)
+                # preselect a real value in the builder preview instead of blank.
+                try:
+                    resolved_default = f.compute_default_value(opt_list)
+                except Exception:
+                    resolved_default = f.default_value or ''
 
                 result.append({
                     'id': f.id,
@@ -1975,8 +1984,9 @@ class DesignerAPI(http.Controller):
                     'is_visible': f.is_visible,
                     'is_multiselect': f.is_multiselect,
                     'include_all_option': f.include_all_option,
-                    'default_value': f.default_value or '',
-                    'options': options if isinstance(options, list) else [],
+                    'hide_all_option': f.hide_all_option,
+                    'default_value': resolved_default,
+                    'options': opt_list,
                 })
             return _json_response(result)
         except KeyError:

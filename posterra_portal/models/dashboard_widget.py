@@ -2752,6 +2752,16 @@ class DashboardWidget(models.Model):
                     series.setdefault('itemStyle', {})['decal'] = {
                         **decal_cfg, 'color': 'rgba(0,0,0,0.2)'}
 
+        # Per-series styling (visual_config.series_styles) — generic across chart
+        # types; runs before echart_override so the raw override still wins last.
+        # vc is parsed locally here because it is only bound inside the bar/line
+        # branch above, while this section runs for every chart type.
+        try:
+            _vc_styles = json.loads(self.visual_config or '{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            _vc_styles = {}
+        self._apply_series_styles(option, _vc_styles)
+
         # Deep-merge echart_override JSON if provided
         if self.echart_override:
             try:
@@ -2761,6 +2771,40 @@ class DashboardWidget(models.Model):
                 _logger.warning('widget %s echart_override JSON error: %s', self.id, e)
 
         return option
+
+    def _apply_series_styles(self, option, vc):
+        """Apply visual_config.series_styles to generated ECharts series.
+
+        Matches each series by its ECharts ``name`` (works for both y_columns and
+        series_column generation). '*' is a wildcard applied to every series first;
+        an exact-name entry is applied after so it wins. Style dicts are deep-merged;
+        structural keys (data/name/type/encode/dimensions/datasetIndex/datasetId/id/
+        seriesLayoutBy) are stripped so only styling changes and SQL data is never
+        touched. No series_styles → no-op.
+        """
+        styles = vc.get('series_styles') if isinstance(vc, dict) else None
+        if not isinstance(styles, dict) or not styles:
+            return
+        series_list = option.get('series')
+        if not isinstance(series_list, list):
+            return
+        wildcard = styles.get('*')
+        wildcard = wildcard if isinstance(wildcard, dict) else None
+        for i, series in enumerate(series_list):
+            if not isinstance(series, dict):
+                continue
+            name = series.get('name')
+            exact = styles.get(name) if name is not None else None
+            merged = series
+            for style in (wildcard, exact):
+                if not isinstance(style, dict):
+                    continue
+                clean = {k: v for k, v in style.items()
+                         if k not in _SERIES_STYLE_PROTECTED_KEYS}
+                if clean:
+                    merged = _deep_merge(merged, clean)
+            if merged is not series:
+                series_list[i] = merged
 
     # =========================================================================
     # Line variant builder
@@ -4203,7 +4247,7 @@ class DashboardWidget(models.Model):
                 if target_val:
                     pct = round(current_val / target_val * 100, 1)
                 result['target_value'] = target_val
-                result['target_formatted'] = self._format_kpi(target_val)
+                result['target_formatted'] = self._format_kpi_with_unit(target_val, vc)
                 result['progress_pct'] = pct
 
                 # Resolve benchmark label: SQL column > visual_config > default
@@ -4352,7 +4396,7 @@ class DashboardWidget(models.Model):
                     try:
                         cur = float(raw_val or 0)
                         pri = float(rows[0][col_idx[y_comp]] or 0)
-                        result['prior_formatted'] = self._format_kpi(rows[0][col_idx[y_comp]])
+                        result['prior_formatted'] = self._format_kpi_with_unit(rows[0][col_idx[y_comp]], vc)
                         abs_diff = cur - pri
                         pct_diff = round(((cur - pri) / abs(pri) * 100) if pri else 0, 1)
                         result['absolute_diff'] = abs_diff
@@ -4406,14 +4450,24 @@ class DashboardWidget(models.Model):
             # Override inner label: empty = no duplication with card header,
             # custom text = shows different text inside the KPI body
             result['label'] = vc.get('kpi_label', '')
+            # Where the inner label sits relative to the value (renderer-driven).
+            # '' / 'default' = each renderer's current placement (no regression);
+            # 'above_value' | 'below_value' | 'hidden' = explicit override.
+            result['kpi_label_position'] = vc.get('kpi_label_position', '')
 
             # Override value format from visual_config (builder-created widgets)
+            # and apply the optional compact unit (K/M/B). The unit applies even
+            # when Value Format was left at its default, hence the widened guard.
             vc_format = vc.get('kpi_format', '')
-            if vc_format:
+            vc_unit = vc.get('kpi_value_unit', '')
+            has_unit = bool(vc_unit) and vc_unit != 'none'
+            if vc_format or has_unit:
                 orig_fmt = self.kpi_format
                 try:
-                    self.kpi_format = vc_format
-                    result['formatted_value'] = self._format_kpi(raw_val)
+                    if vc_format:
+                        self.kpi_format = vc_format
+                    result['formatted_value'] = self._format_kpi(
+                        raw_val, vc_unit if has_unit else None)
                 finally:
                     self.kpi_format = orig_fmt
 
@@ -5042,8 +5096,17 @@ class DashboardWidget(models.Model):
     # KPI formatting helper
     # =========================================================================
 
-    def _format_kpi(self, raw):
-        """Format a raw numeric value according to kpi_format setting."""
+    # Compact-display unit scale map for kpi_value_unit (divisor, suffix letter).
+    _KPI_UNIT_SCALE = {'thousands': (1e3, 'K'), 'millions': (1e6, 'M'), 'billions': (1e9, 'B')}
+
+    def _format_kpi(self, raw, unit=None):
+        """Format a raw numeric value according to kpi_format setting.
+
+        unit: optional compact-display unit ('thousands'|'millions'|'billions').
+        When set (and the format is not percent), the value is scaled and a
+        K/M/B suffix is appended (2 decimals, e.g. "$104.08M"). None/''/'none'
+        or percent format => existing behavior unchanged.
+        """
         if raw is None:
             return '--'
         try:
@@ -5055,6 +5118,14 @@ class DashboardWidget(models.Model):
         prefix = self.kpi_prefix or ''
         suffix = self.kpi_suffix or ''
 
+        scale = self._KPI_UNIT_SCALE.get(unit) if unit else None
+        if scale and fmt != 'percent':
+            divisor, letter = scale
+            val = val / divisor
+            formatted = (f'${val:,.2f}{letter}' if fmt == 'currency'
+                         else f'{val:,.2f}{letter}')
+            return f'{prefix}{formatted}{suffix}'
+
         if fmt == 'currency':
             formatted = f'${val:,.0f}'
         elif fmt == 'percent':
@@ -5065,6 +5136,27 @@ class DashboardWidget(models.Model):
             formatted = f'{val:,.0f}'
 
         return f'{prefix}{formatted}{suffix}'
+
+    def _format_kpi_with_unit(self, raw, vc=None):
+        """Format a secondary KPI value (target / prior) honoring kpi_value_unit.
+
+        With no unit set this is identical to ``_format_kpi(raw)`` (no regression
+        for existing cards). When a unit IS set, it also honors visual_config's
+        kpi_format so the currency symbol matches the primary value.
+        """
+        vc = vc or {}
+        unit = vc.get('kpi_value_unit', '')
+        if not unit or unit == 'none':
+            return self._format_kpi(raw)
+        vc_format = vc.get('kpi_format', '')
+        if vc_format and vc_format != (self.kpi_format or 'number'):
+            orig = self.kpi_format
+            try:
+                self.kpi_format = vc_format
+                return self._format_kpi(raw, unit)
+            finally:
+                self.kpi_format = orig
+        return self._format_kpi(raw, unit)
 
 
     # =========================================================================
@@ -5636,3 +5728,12 @@ def _deep_merge(base, override):
         else:
             result[key] = val
     return result
+
+
+# Structural keys an admin must never override via visual_config.series_styles —
+# stripped before merging so series_styles is styling-only and never rebuilds a
+# series or replaces its SQL-generated data / dataset binding.
+_SERIES_STYLE_PROTECTED_KEYS = frozenset({
+    'data', 'name', 'type', 'encode', 'dimensions',
+    'datasetIndex', 'datasetId', 'id', 'seriesLayoutBy',
+})

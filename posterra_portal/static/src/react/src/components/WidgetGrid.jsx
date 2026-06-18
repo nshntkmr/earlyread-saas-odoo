@@ -338,6 +338,14 @@ export default function WidgetGrid({ initialWidgets }) {
     // but still receive height prop so admin can constrain them for compact layouts.
     const isGaugeNonEchart = w.chart_type === 'gauge' && w.data?.gauge_variant
     const isScalable = SCALABLE_TYPES.has(w.chart_type) && !isGaugeNonEchart
+    // KPI cards are non-scalable but should still honor an admin-set Height (px) so a rail
+    // of KPIs can be equalized. Scoped to kpi/status_kpi only — other non-scalable types
+    // (battle_card, insight_panel, text_note, gauge-non-echart) keep ignoring Height.
+    const isKpiCard = w.chart_type === 'kpi' || w.chart_type === 'status_kpi'
+    // Charts and the AG Grid table honor an admin Height as an EXACT card height (vs
+    // minimum): the chart fills its body and the table scrolls internally, so the card
+    // is truly that tall. (smart_table is excluded — it manages its own scroll height.)
+    const isExactHeightType = isEChart || isTable
     const componentHeight = w.height || undefined
 
     // Extra props for interactive widgets
@@ -345,6 +353,8 @@ export default function WidgetGrid({ initialWidgets }) {
     if (isEChart) {
       extraProps.clickAction = w.click_action
       extraProps.onChartClick = (clickData) => handleWidgetClick(w, clickData)
+      // Fill the card body (flex) instead of a fixed-px canvas → no white band.
+      extraProps.fill = true
     }
     if (isTable) {
       // Pass search text for AG Grid quickFilterText
@@ -361,6 +371,11 @@ export default function WidgetGrid({ initialWidgets }) {
         name: clickData.column,
         value: clickData.value,
       })
+      // Exact height set → table fills the card and scrolls internally (overrides
+      // the autoHeight default which would expand the card past the configured height).
+      if (!isCompact && w.height) {
+        extraProps.fillHeight = true
+      }
     }
     if (w.chart_type === 'ranked_detail_list') {
       extraProps.widgetId = w.id
@@ -393,8 +408,12 @@ export default function WidgetGrid({ initialWidgets }) {
               ? ` pv-widget-card--pad-${w.card_padding}` : ''
           }`}
           style={{
-            ...(!isCompact && w.height && isScalable ? { minHeight: w.height } : {}),
-            ...(!isScalable && !isCompact ? { height: 'auto' } : {}),
+            // Charts/tables with a Height set → EXACT height (content fills/scrolls inside).
+            ...(!isCompact && w.height && isExactHeightType ? { height: w.height } : {}),
+            // KPI cards + other scalable types → Height is a minimum (grow-only).
+            ...(!isCompact && w.height && !isExactHeightType && (isScalable || isKpiCard) ? { minHeight: w.height } : {}),
+            // Non-scalable widgets with no exact height → natural height.
+            ...(!isScalable && !isCompact && !(w.height && isExactHeightType) ? { height: 'auto' } : {}),
           }}
         >
           {!isCompact && (

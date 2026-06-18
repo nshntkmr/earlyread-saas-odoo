@@ -169,6 +169,13 @@
                                            string='Include "All"'
                                            optional="hide"
                                            widget="boolean_toggle"/>
+                                    <!-- Hide "All" option: suppress the synthetic
+                                         "All"/empty choice (single-select only).
+                                         Use for Month/YTD snapshot filters. -->
+                                    <field name="hide_all_option"
+                                           string='Hide "All"'
+                                           optional="hide"
+                                           widget="boolean_toggle"/>
                                     <field name="is_multiselect"
                                            string="Multi-select"
                                            optional="show"

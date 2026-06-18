@@ -212,14 +212,32 @@ def _build_member_flow_preview(columns, rows, visual_config=None):
     }
 
 
-def _format_value(raw, fmt='number', prefix='', suffix=''):
-    """Format a raw numeric value for KPI display."""
+# Compact-display unit scale map for kpi_value_unit (divisor, suffix letter).
+# Mirrors dashboard_widget._KPI_UNIT_SCALE for designer-preview parity.
+_KPI_UNIT_SCALE = {'thousands': (1e3, 'K'), 'millions': (1e6, 'M'), 'billions': (1e9, 'B')}
+
+
+def _format_value(raw, fmt='number', prefix='', suffix='', unit=None):
+    """Format a raw numeric value for KPI display.
+
+    unit: optional compact-display unit ('thousands'|'millions'|'billions').
+    When set (and format is not percent) the value is scaled and a K/M/B suffix
+    is appended (2 decimals). None/''/'none' or percent => unchanged behavior.
+    """
     if raw is None:
         return '--'
     try:
         val = float(raw)
     except (TypeError, ValueError):
         return str(raw)
+
+    scale = _KPI_UNIT_SCALE.get(unit) if unit else None
+    if scale and fmt != 'percent':
+        divisor, letter = scale
+        val = val / divisor
+        formatted = (f'${val:,.2f}{letter}' if fmt == 'currency'
+                     else f'{val:,.2f}{letter}')
+        return f'{prefix}{formatted}{suffix}'
 
     if fmt == 'currency':
         formatted = f'${val:,.0f}'
@@ -244,11 +262,13 @@ def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
         x_col = columns[0]
 
     raw_val = rows[0][col_idx[x_col]] if (rows and x_col in col_idx) else None
+    kpi_unit = visual_config.get('kpi_value_unit', '')
     formatted = _format_value(
         raw_val,
         config.get('kpi_format', 'number'),
         config.get('kpi_prefix', ''),
         config.get('kpi_suffix', ''),
+        kpi_unit,
     )
 
     result = {
@@ -452,6 +472,59 @@ def _build_sankey_preview(columns, rows, config, visual_config):
         }],
     }
     return {'echart_option': option}
+
+
+# ── Per-series styling (visual_config.series_styles) ──────────────────────────
+# Mirror of dashboard_widget._apply_series_styles so the designer preview matches
+# the portal exactly. Styling-only: structural keys are stripped before merge so
+# series data is never replaced.
+_SERIES_STYLE_PROTECTED_KEYS = frozenset({
+    'data', 'name', 'type', 'encode', 'dimensions',
+    'datasetIndex', 'datasetId', 'id', 'seriesLayoutBy',
+})
+
+
+def _deep_merge(base, override):
+    """Recursively merge override dict into base dict; returns new dict."""
+    result = dict(base)
+    for key, val in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(val, dict):
+            result[key] = _deep_merge(result[key], val)
+        else:
+            result[key] = val
+    return result
+
+
+def _apply_series_styles(option, vc):
+    """Apply visual_config.series_styles to generated ECharts series (preview).
+
+    Matches each series by its ECharts ``name`` ('*' wildcard first, exact-name
+    after so it wins). Structural keys are stripped so only styling changes and
+    series data is never touched. No series_styles → no-op.
+    """
+    styles = vc.get('series_styles') if isinstance(vc, dict) else None
+    if not isinstance(styles, dict) or not styles:
+        return
+    series_list = option.get('series')
+    if not isinstance(series_list, list):
+        return
+    wildcard = styles.get('*')
+    wildcard = wildcard if isinstance(wildcard, dict) else None
+    for i, series in enumerate(series_list):
+        if not isinstance(series, dict):
+            continue
+        name = series.get('name')
+        exact = styles.get(name) if name is not None else None
+        merged = series
+        for style in (wildcard, exact):
+            if not isinstance(style, dict):
+                continue
+            clean = {k: v for k, v in style.items()
+                     if k not in _SERIES_STYLE_PROTECTED_KEYS}
+            if clean:
+                merged = _deep_merge(merged, clean)
+        if merged is not series:
+            series_list[i] = merged
 
 
 def _build_echart_preview(chart_type, columns, rows, config, visual_config=None):
@@ -1292,6 +1365,10 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
     elif chart_type == 'line' and vc:
         _apply_line_variant_flags(option, vc, colors, col_idx, col_val,
                                   rows, x_col, y_col_list, series_col)
+
+    # Per-series styling (visual_config.series_styles) — last, after all normal
+    # generation, so exact-name styles override global show_labels / line flags.
+    _apply_series_styles(option, vc)
 
     return {'echart_option': option}
 

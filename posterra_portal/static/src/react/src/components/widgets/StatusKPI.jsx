@@ -2,6 +2,7 @@ import React from 'react'
 import { TrendIcon } from './TrendIcons'
 import CategoryIcon from './CategoryIcons'
 import KPIStrip from './KPIStrip'
+import { resolveLabelPlacement } from './kpiLabelPosition'
 
 /**
  * StatusKPI — chart_type: "status_kpi"
@@ -40,18 +41,29 @@ export default function StatusKPI({ data = {}, name }) {
     : undefined
   const alignStyle = text_align ? { textAlign: text_align } : undefined
 
+  // Label placement (opt-in). Default for StatusKPI is ABOVE the value in both
+  // layouts — preserved when kpi_label_position is unset/'default'.
+  const { show: showLabel, above: labelAbove, below: labelBelow } =
+    resolveLabelPlacement(data.kpi_label_position, true)
+  const labelEl = (label && showLabel)
+    ? <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>
+    : null
+
   if (kpi_layout === 'inline') {
     return (
       <div className="pv-widget-status-kpi pv-kpi-strip--header-inline" style={alignStyle}>
-        <div className="pv-kpi-header-row" style={alignStyle && { justifyContent: text_align }}>
-          {showIcon && (
-            <div className={`pv-category-icon ${iconStyle ? '' : (status_css || '')}`} style={iconStyle}>
-              <CategoryIcon name={icon_name} />
-            </div>
-          )}
-          {label && <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>}
-        </div>
+        {(showIcon || labelAbove) && (
+          <div className="pv-kpi-header-row" style={alignStyle && { justifyContent: text_align }}>
+            {showIcon && (
+              <div className={`pv-category-icon ${iconStyle ? '' : (status_css || '')}`} style={iconStyle}>
+                <CategoryIcon name={icon_name} />
+              </div>
+            )}
+            {labelAbove && labelEl}
+          </div>
+        )}
         <div className="pv-widget-kpi-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
+        {labelBelow && labelEl}
         {secondary && (
           <div className={`pv-trend-badge ${status_css || ''}`} style={alignStyle && { justifyContent: text_align }}>
             <TrendIcon statusCss={status_css} />
@@ -69,8 +81,9 @@ export default function StatusKPI({ data = {}, name }) {
           <CategoryIcon name={icon_name} />
         </div>
       )}
-      {label && <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>}
+      {labelAbove && labelEl}
       <div className="pv-widget-kpi-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
+      {labelBelow && labelEl}
       {secondary && (
         <div className={`pv-trend-badge ${status_css || ''}`} style={alignStyle && { justifyContent: text_align }}>
           <TrendIcon statusCss={status_css} />

@@ -1,6 +1,7 @@
 import React from 'react'
 import CategoryIcon from './CategoryIcons'
 import KPIStrip from './KPIStrip'
+import { resolveLabelPlacement } from './kpiLabelPosition'
 
 /**
  * KPICard — chart_type: "kpi"
@@ -39,23 +40,36 @@ export default function KPICard({ data = {}, name }) {
     : undefined
   const alignStyle = text_align ? { textAlign: text_align } : undefined
 
+  // Label placement (opt-in). KPICard's current default differs by layout:
+  // vertical renders the label BELOW the value, inline renders it ABOVE (in the
+  // header row). Both preserved when kpi_label_position is unset/'default'.
+  const showLabel = data.kpi_label_position !== 'hidden'
+  const labelEl = (label && showLabel)
+    ? <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>
+    : null
+
   if (kpi_layout === 'inline') {
+    const { above: labelAbove, below: labelBelow } = resolveLabelPlacement(data.kpi_label_position, true)
     return (
       <div className="pv-widget-kpi pv-kpi-strip--header-inline" style={alignStyle}>
-        <div className="pv-kpi-header-row" style={alignStyle && { justifyContent: text_align }}>
-          {showIcon && (
-            <div className="pv-category-icon" style={iconStyle}>
-              <CategoryIcon name={icon_name} />
-            </div>
-          )}
-          {label && <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>}
-        </div>
+        {(showIcon || labelAbove) && (
+          <div className="pv-kpi-header-row" style={alignStyle && { justifyContent: text_align }}>
+            {showIcon && (
+              <div className="pv-category-icon" style={iconStyle}>
+                <CategoryIcon name={icon_name} />
+              </div>
+            )}
+            {labelAbove && labelEl}
+          </div>
+        )}
         <div className="pv-widget-kpi-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
+        {labelBelow && labelEl}
         {secondary && <div className="pv-widget-kpi-secondary" style={alignStyle}>{secondary}</div>}
       </div>
     )
   }
 
+  const { above: labelAbove, below: labelBelow } = resolveLabelPlacement(data.kpi_label_position, false)
   return (
     <div className="pv-widget-kpi" style={alignStyle}>
       {showIcon && (
@@ -63,8 +77,9 @@ export default function KPICard({ data = {}, name }) {
           <CategoryIcon name={icon_name} />
         </div>
       )}
+      {labelAbove && labelEl}
       <div className="pv-widget-kpi-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
-      {label     && <div className="pv-widget-kpi-label" style={labelStyle}>{label}</div>}
+      {labelBelow && labelEl}
       {secondary && <div className="pv-widget-kpi-secondary" style={alignStyle}>{secondary}</div>}
     </div>
   )
