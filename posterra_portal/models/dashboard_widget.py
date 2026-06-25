@@ -292,6 +292,7 @@ class DashboardWidget(models.Model):
         ('award',          'Award / Achievement'),
         ('alert',          'Alert / Warning'),
         ('check-circle',   'Check / Success'),
+        ('shield-check',   'Shield / Compliance'),
         ('clock',          'Clock / Time'),
         ('activity',       'Activity / Pulse'),
     ], default='none', string='Icon',
@@ -4194,18 +4195,17 @@ class DashboardWidget(models.Model):
             prior_raw = rows[0][col_idx[y_col]]
             if prior_raw is None:
                 # No prior period exists (SQL returned NULL) — distinct from a real 0.
-                result['secondary'] = f'No {noun}'                   # e.g. "No Prior Month"
+                if (vc.get('trend_mode') or 'relative_percent') != 'absolute_delta':
+                    result['secondary'] = f'No {noun}'                   # e.g. "No Prior Month"
             else:
                 try:
-                    current = float(raw_val or 0)
-                    prior = float(prior_raw or 0)
-                    if prior:
-                        pct = ((current - prior) / abs(prior)) * 100
-                        sign = '+' if pct > 0 else ''
-                        result['secondary'] = f'{sign}{pct:.0f}% {comp_label}'
+                    secondary = self._format_kpi_trend_secondary(
+                        raw_val, prior_raw, comp_label, noun, vc)
+                    if secondary:
+                        result['secondary'] = secondary
                     else:
+                        pass
                         # Real zero prior — % is undefined, show the value.
-                        result['secondary'] = f'{noun}: {prior_raw}'  # e.g. "Prior Month: 0"
                 except (TypeError, ValueError):
                     result['secondary'] = str(prior_raw)
 
@@ -5206,6 +5206,41 @@ class DashboardWidget(models.Model):
 
     # Compact-display unit scale map for kpi_value_unit (divisor, suffix letter).
     _KPI_UNIT_SCALE = {'thousands': (1e3, 'K'), 'millions': (1e6, 'M'), 'billions': (1e9, 'B')}
+
+    def _trend_decimals(self, visual_config, default=1):
+        try:
+            decimals = int(visual_config.get('trend_decimals', default))
+        except (TypeError, ValueError):
+            decimals = default
+        return max(0, min(decimals, 6))
+
+    def _format_kpi_trend_secondary(self, current_raw, prior_raw, comp_label, noun, visual_config):
+        """Format KPI secondary trend text.
+
+        Default mode intentionally matches the existing relative-percent behavior.
+        """
+        if prior_raw == '':
+            return ''
+
+        mode = (visual_config.get('trend_mode') or 'relative_percent').strip()
+        current = float(current_raw or 0)
+        prior = float(prior_raw or 0)
+
+        if mode == 'absolute_delta':
+            decimals = self._trend_decimals(visual_config, 1)
+            suffix = (visual_config.get('trend_suffix') or '').strip()
+            delta = abs(current - prior)
+            value = f'{delta:,.{decimals}f}'
+            if suffix:
+                value = f'{value} {suffix}'
+            return f'{value} {comp_label}'
+
+        if prior:
+            pct = ((current - prior) / abs(prior)) * 100
+            sign = '+' if pct > 0 else ''
+            return f'{sign}{pct:.0f}% {comp_label}'
+
+        return f'{noun}: {prior_raw}'
 
     def _format_kpi(self, raw, unit=None):
         """Format a raw numeric value according to kpi_format setting.

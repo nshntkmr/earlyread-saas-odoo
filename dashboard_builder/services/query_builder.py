@@ -423,6 +423,17 @@ class QueryBuilder:
         if params is None:
             params = {}
 
+        # PHI gate: live designer/builder preview returns raw rows to the
+        # builder-admin. Disable it for ANY PHI-classified source (masked MBI +
+        # names/DOB is still PHI). Use a synthetic / non-PHI preview source for
+        # PHI widgets.
+        if schema_source and getattr(
+                schema_source, 'data_classification', 'non_phi') in (
+                'phi_masked', 'phi_direct'):
+            raise ValueError(
+                "Live preview is disabled for PHI-classified sources. Build "
+                "and validate the widget against a non-PHI preview source.")
+
         is_valid, err = self.validate_query(sql)
         if not is_valid:
             raise ValueError(f"Query validation failed: {err}")

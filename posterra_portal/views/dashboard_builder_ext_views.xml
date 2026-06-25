@@ -37,4 +37,77 @@
         </field>
     </record>
 
+    <!-- Hospital-PHI app scope on the Connection form (posterra_portal fields:
+         tenant_scope_app_id is a saas.app M2o, which dashboard_builder cannot
+         reference at its own load time — added here via inheritance). -->
+    <record id="view_dashboard_connection_form_phi" model="ir.ui.view">
+        <field name="name">dashboard.connection.form.phi</field>
+        <field name="model">dashboard.connection</field>
+        <field name="inherit_id" ref="dashboard_builder.view_dashboard_connection_form"/>
+        <field name="arch" type="xml">
+            <!-- Anchor on ``engine`` (an original base-view field) rather than
+                 ``security_profile`` (added by the dashboard_builder base view
+                 in the same change) so this inherited view does not fail to
+                 locate its xpath when the two modules are upgraded out of
+                 lockstep. Gate on engine for the same reason. -->
+            <xpath expr="//header" position="inside">
+                <button name="action_activate_phi_connection"
+                        string="Activate PHI Connection"
+                        type="object" class="btn-secondary" icon="fa-check"
+                        invisible="engine != 'snowflake'"
+                        help="Re-activate a Hospital-PHI connection after
+                              re-validation. Requires the connection to be
+                              configuration-verified and at least one verified
+                              PHI source."/>
+            </xpath>
+            <xpath expr="//field[@name='engine']" position="after">
+                <field name="tenant_scope_app_id"
+                       invisible="engine != 'snowflake'"
+                       options="{'no_create': True}"/>
+                <field name="org_id" readonly="1"
+                       invisible="engine != 'snowflake'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Hospital Org ID + Single Organization on the saas.app form -->
+    <record id="view_saas_app_form_org" model="ir.ui.view">
+        <field name="name">saas.app.form.org</field>
+        <field name="model">saas.app</field>
+        <field name="inherit_id" ref="posterra_portal.view_saas_app_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='app_key']" position="after">
+                <field name="org_id"
+                       placeholder="immutable hospital/org identity (write-once)"/>
+                <field name="single_organization"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- PHI classification + verification on the Schema Source form -->
+    <record id="view_schema_source_form_phi" model="ir.ui.view">
+        <field name="name">dashboard.schema.source.form.phi</field>
+        <field name="model">dashboard.schema.source</field>
+        <field name="inherit_id" ref="dashboard_builder.view_schema_source_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='is_active']" position="before">
+                <field name="data_classification"/>
+                <field name="phi_approval_ref"
+                       invisible="data_classification == 'non_phi'"
+                       placeholder="approved-view contract ref / attestation"/>
+                <field name="source_verified" readonly="1"
+                       invisible="data_classification == 'non_phi'"/>
+                <field name="source_verified_at" readonly="1"
+                       invisible="data_classification == 'non_phi'"/>
+                <button name="action_validate_phi_source"
+                        string="Validate PHI Source"
+                        type="object" class="btn-secondary" icon="fa-shield"
+                        invisible="data_classification == 'non_phi'"
+                        help="System-Admin: verify the role can SELECT the
+                              approved view (no rows) and the app/contract
+                              match, then mark the source verified."/>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

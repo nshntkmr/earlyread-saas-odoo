@@ -22,3 +22,5 @@
 "access_dashboard_widget_composite_item_admin","dashboard.widget.composite.item admin","model_dashboard_widget_composite_item","posterra_portal.group_posterra_admin",1,1,1,1
 "access_geo_zip_centroid_portal","geo.zip.centroid portal","model_geo_zip_centroid","posterra_portal.group_posterra_user",1,0,0,0
 "access_geo_zip_centroid_admin","geo.zip.centroid admin","model_geo_zip_centroid","posterra_portal.group_posterra_admin",1,1,1,1
+"access_portal_audit_log_admin","portal.audit.log admin read","model_portal_audit_log","posterra_portal.group_posterra_admin",1,0,0,0
+"access_portal_audit_log_system","portal.audit.log system read","model_portal_audit_log","base.group_system",1,0,0,0

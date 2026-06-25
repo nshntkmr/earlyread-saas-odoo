@@ -61,6 +61,28 @@ def get_current_tenant_id(env, request=None):
     return accessible.app_key
 
 
+def get_current_org_id(env, request=None):
+    """Resolve the immutable hospital ``org_id`` for the current request.
+
+    This is SEPARATE from ``get_current_tenant_id`` (which returns the
+    mutable ``app_key`` that ClickHouse row policies depend on, and MUST stay
+    unchanged). The Snowflake PHI executor binds isolation to this immutable
+    org identity, not to the subdomain slug.
+
+    Resolves the request's ``saas.app`` (via the same path as the tenant
+    contract) and returns its ``org_id``. Returns None if the resolved app
+    has no ``org_id`` — the executor's four-condition guard then fails closed.
+
+    Raises ValueError if no app can be resolved (mirrors
+    ``get_current_tenant_id``); the PHI guard treats that as a hard failure.
+    """
+    app_key = get_current_tenant_id(env, request)
+    app = env['saas.app'].sudo().search([('app_key', '=', app_key)], limit=1)
+    if not app:
+        return None
+    return app.org_id or None
+
+
 def _user_has_access(user, app):
     """Mirror of ``posterra_portal.utils.access.user_can_access_app``.
 

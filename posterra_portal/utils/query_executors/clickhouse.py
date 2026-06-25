@@ -295,7 +295,7 @@ class ClickHouseExecutor(BaseQueryExecutor):
     it per query — see Phase 4 DDL in the ClickHouse plan.
     """
 
-    def execute(self, query, params):
+    def execute(self, query, params, execution_context=None):
         _validate_select_only(query)
         client = _get_client(self.env, self.connection)
 

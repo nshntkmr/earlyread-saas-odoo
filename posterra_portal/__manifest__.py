@@ -82,6 +82,18 @@
         # an admin creates a ClickHouse-backed dashboard.connection;
         # listing it here makes a missing install fail fast at module
         # load with a clear message rather than at first-query time.
+        #
+        # NOTE: ``snowflake-connector-python`` is deliberately NOT declared
+        # here. Declaring it would block the WHOLE module from
+        # loading/upgrading on any host that hasn't installed the Snowflake
+        # driver — a regression for PG/CH-only deployments. Instead the
+        # Snowflake executor imports ``snowflake.connector`` lazily (inside
+        # ``_connect``) and raises a clear "pip install
+        # snowflake-connector-python" RuntimeError only when an admin
+        # actually runs a Snowflake query. Production images that use the
+        # Snowflake connector should still pin an explicit tested version of
+        # ``snowflake-connector-python`` (it pulls in ``cryptography`` for
+        # key-pair auth) in their requirements.
         'python': ['clickhouse_connect'],
     },
     'installable': True,

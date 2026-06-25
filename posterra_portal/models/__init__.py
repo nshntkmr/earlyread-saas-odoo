@@ -16,3 +16,4 @@ from . import dashboard_builder_ext
 from . import dashboard_page_badge
 from . import dashboard_page_template
 from . import geo_zip_centroid
+from . import portal_audit_log

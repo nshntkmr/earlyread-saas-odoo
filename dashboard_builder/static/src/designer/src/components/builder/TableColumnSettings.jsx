@@ -272,8 +272,93 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
                 />
               </div>
             </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Label Format</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.format || 'number'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    format: e.target.value,
+                  })}
+                >
+                  <option value="number">Number</option>
+                  <option value="percent">Percent (%)</option>
+                  <option value="currency">Currency ($)</option>
+                  <option value="pp">Percentage Points (pp)</option>
+                  <option value="raw">Raw</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Scale</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.scale || 'none'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    scale: e.target.value,
+                  })}
+                >
+                  <option value="none">None</option>
+                  <option value="thousands">Thousands (K)</option>
+                  <option value="millions">Millions (M)</option>
+                  <option value="billions">Billions (B)</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Decimals</label>
+                <input type="number" min={0} max={6} className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.decimals ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      decimals: raw === '' ? null : Number(raw),
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Label Position</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.valuePosition || 'right'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    valuePosition: e.target.value,
+                  })}
+                >
+                  <option value="right">Right of bar</option>
+                  <option value="left">Left of bar</option>
+                  <option value="hidden">Hidden</option>
+                </select>
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Prefix Override</label>
+                <input type="text" className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.prefix ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    prefix: e.target.value || null,
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Suffix Override</label>
+                <input type="text" className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.suffix ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    suffix: e.target.value || null,
+                  })}
+                />
+              </div>
+            </div>
             <div className="tcs-help-text">
-              Value / Max = bar fill percentage. Leave Max empty to use 100 (values are already percentages) or set the column's expected maximum (e.g. 250000 for visit counts).
+              Value / Max = bar fill percentage. Use Percent for 86.1%, Currency + Millions for $1.2M, or Percentage Points for +3.4 pp.
             </div>
           </div>
         )}

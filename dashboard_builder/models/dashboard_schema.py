@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import re
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -270,7 +271,7 @@ class DashboardSchemaSource(models.Model):
             # mapping table covers Postgres tokens; ClickHouse types like
             # ``LowCardinality(String)`` or ``Nullable(Int64)`` are
             # normalised below.
-            data_type = _normalise_type(native_type)
+            data_type = _normalise_type(native_type, self.engine)
 
             # Auto-generate display name: hha_state → Hha State
             display_name = col_name.replace('_', ' ').title()
@@ -404,45 +405,72 @@ _CH_TYPE_MAP = {
 
 _CH_WRAPPER_RE = None
 
+# ── Snowflake native types → simplified type ────────────────────────────────
+# NUMBER/DECIMAL/NUMERIC are handled by the scale rule in code (scale 0 →
+# integer, scale > 0 → float), NOT via this map. Note Snowflake's
+# INFORMATION_SCHEMA reports VARCHAR columns as DATA_TYPE='TEXT'.
+_SF_TYPE_MAP = {
+    'text': 'text', 'varchar': 'text', 'char': 'text', 'character': 'text',
+    'string': 'text', 'variant': 'text', 'object': 'text', 'array': 'text',
+    'binary': 'text', 'varbinary': 'text', 'geography': 'text', 'geometry': 'text',
+    'float': 'float', 'float4': 'float', 'float8': 'float', 'double': 'float',
+    'double precision': 'float', 'real': 'float',
+    'int': 'integer', 'integer': 'integer', 'bigint': 'integer',
+    'smallint': 'integer', 'tinyint': 'integer', 'byteint': 'integer',
+    'boolean': 'boolean', 'bool': 'boolean',
+    'date': 'date', 'time': 'date', 'datetime': 'date',
+    'timestamp': 'date', 'timestamp_ntz': 'date', 'timestamp_ltz': 'date',
+    'timestamp_tz': 'date', 'timestampntz': 'date', 'timestampltz': 'date',
+    'timestamptz': 'date',
+}
 
-def _normalise_type(native_type):
+_SF_NUMERIC_SCALE_RE = re.compile(r'\(\s*\d+\s*,\s*(\d+)\s*\)')
+
+
+def _normalise_type(native_type, engine='postgres_local'):
     """Map a native column type to one of (text, integer, float, date, boolean).
 
-    Tries the Postgres mapping first (covers all existing schema sources),
-    then falls back to the ClickHouse mapping after unwrapping
-    ``LowCardinality(...)`` / ``Nullable(...)`` / ``Array(...)`` wrappers.
-    Unknown types default to 'text' — admins can override in the column
-    form if a guess is wrong.
+    Engine-aware: each backend uses ONLY its own type map so behaviour is
+    isolated — a Snowflake ``NUMBER(10,0)`` resolves to integer without being
+    intercepted by Postgres's ``decimal → float`` mapping, and Postgres
+    ``time`` keeps falling through to text rather than Snowflake's ``date``.
+    Unknown types default to 'text' — admins can override in the column form.
     """
     if not native_type:
         return 'text'
     lower = native_type.lower()
+    base = lower.split('(')[0].strip()
 
-    # Postgres path — try exact match, then strip length spec.
+    if engine == 'clickhouse':
+        # Unwrap LowCardinality(...) / Nullable(...) / Array(...) then map.
+        inner = lower
+        for _ in range(4):
+            for wrapper in ('lowcardinality', 'nullable', 'array'):
+                prefix = wrapper + '('
+                if inner.startswith(prefix) and inner.endswith(')'):
+                    inner = inner[len(prefix):-1].strip()
+                    break
+            else:
+                break
+        inner_base = inner.split('(')[0].strip()
+        return _CH_TYPE_MAP.get(inner_base, 'text')
+
+    if engine == 'snowflake':
+        if base in ('number', 'decimal', 'numeric'):
+            # NUMBER(p,s): scale 0 → integer, scale > 0 → float.
+            m = _SF_NUMERIC_SCALE_RE.search(lower)
+            scale = int(m.group(1)) if m else 0
+            return 'integer' if scale == 0 else 'float'
+        sf = _SF_TYPE_MAP.get(lower)
+        if sf is not None:
+            return sf
+        return _SF_TYPE_MAP.get(base, 'text')
+
+    # Postgres (default) — exact match, then strip length spec.
     pg = _PG_TYPE_MAP.get(lower)
     if pg is not None:
         return pg
-    base = lower.split('(')[0].strip()
-    pg = _PG_TYPE_MAP.get(base)
-    if pg is not None:
-        return pg
-
-    # ClickHouse path — unwrap nested wrappers, then look up.
-    inner = lower
-    for _ in range(4):  # unwrap up to 4 levels deep
-        for wrapper in ('lowcardinality', 'nullable', 'array'):
-            prefix = wrapper + '('
-            if inner.startswith(prefix) and inner.endswith(')'):
-                inner = inner[len(prefix):-1].strip()
-                break
-        else:
-            break
-    inner_base = inner.split('(')[0].strip()
-    ch = _CH_TYPE_MAP.get(inner_base)
-    if ch is not None:
-        return ch
-
-    return 'text'
+    return _PG_TYPE_MAP.get(base, 'text')
 
 
 class DashboardSchemaColumn(models.Model):

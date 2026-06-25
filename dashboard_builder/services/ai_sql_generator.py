@@ -124,6 +124,23 @@ DIALECT — CLICKHOUSE:
   + arrayJoin tricks or pre-computed rollups when possible.
 """
 
+# ── Snowflake-specific dialect tail ────────────────────────────────────────
+
+_PROMPT_SNOWFLAKE = """
+DIALECT — SNOWFLAKE:
+- Date functions: DATE_TRUNC('month', dt), DATEADD(month, -N, dt), TO_CHAR(dt, 'YYYY-MM'),
+  TO_DATE(dt). DO NOT use INTERVAL arithmetic; use DATEADD/DATEDIFF.
+- String functions: || or CONCAT(a, b) for concat, ILIKE for case-insensitive match.
+- NULL handling: COALESCE(col, 0), NULLIF(num, 0) work as expected.
+- Type casts: ::integer, ::text, ::date, or CAST(col AS NUMBER/VARCHAR/DATE).
+- Numeric types: NUMBER(p,s) (NUMBER(38,0) is an integer; NUMBER(10,2) a decimal), FLOAT,
+  plus VARCHAR/TEXT, BOOLEAN, DATE, TIMESTAMP_NTZ/LTZ/TZ.
+- Tables are schema-qualified secure views (e.g. DB.SCHEMA.VW_...). Always FROM the approved view.
+- Isolation is enforced by the dedicated hospital role — DO NOT add tenant_id / org_id predicates.
+- This is an MBI-masked secure view: SELECT only the columns the view exposes; never attempt to
+  select raw MBI or unmasked patient identifiers.
+"""
+
 # Backwards-compatible alias — every existing call site that imports
 # SYSTEM_PROMPT (e.g. tests, dialect-blind generators) keeps working.
 SYSTEM_PROMPT = _PROMPT_BASE + _PROMPT_POSTGRES
@@ -135,12 +152,15 @@ def build_system_prompt(engine='postgres_local'):
     ``engine`` mirrors ``dashboard.connection.engine`` values:
         - ``'postgres_local'`` → PG dialect (default; existing behaviour)
         - ``'clickhouse'``     → CH dialect (Phase 3 Path C)
+        - ``'snowflake'``      → Snowflake dialect
 
     Unknown engines fall back to PostgreSQL with a logged warning so a
     misconfigured connection never silently produces broken SQL.
     """
     if engine == 'clickhouse':
         return _PROMPT_BASE + _PROMPT_CLICKHOUSE
+    if engine == 'snowflake':
+        return _PROMPT_BASE + _PROMPT_SNOWFLAKE
     if engine and engine != 'postgres_local':
         _logger.warning(
             "build_system_prompt: unknown engine %r; falling back to PostgreSQL", engine)
@@ -587,6 +607,17 @@ class AiSqlGenerator:
             Source = self.env['dashboard.schema.source'].sudo()
             source = Source.browse(int(source_id))
             if source.exists():
+                # PHI guard: AI generate/correct/refine send SQL + driver
+                # errors to an external provider (a BA disclosure). For v1,
+                # AI is disabled on PHI-classified sources. Schema-metadata-
+                # only AI would be an explicit, BAA-contingent decision.
+                if getattr(source, 'data_classification', 'non_phi') in (
+                        'phi_masked', 'phi_direct'):
+                    from odoo.exceptions import UserError
+                    raise UserError(
+                        "AI SQL assistance is disabled for PHI-classified "
+                        "sources. Author the SQL manually for this hospital "
+                        "PHI view.")
                 # Engine drives the dialect prompt — Phase 3 Path C.
                 # Defaults to 'postgres_local' for sources without a
                 # connection (every existing PG-backed widget).

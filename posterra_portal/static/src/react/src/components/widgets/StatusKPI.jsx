@@ -83,7 +83,7 @@ export default function StatusKPI({ data = {}, name }) {
   return (
     <div className="pv-widget-status-kpi" style={alignStyle}>
       {showIcon && (
-        <div className={`pv-category-icon ${status_css || ''}`}>
+        <div className={`pv-category-icon ${iconStyle ? '' : (status_css || '')}`} style={iconStyle}>
           <CategoryIcon name={icon_name} />
         </div>
       )}

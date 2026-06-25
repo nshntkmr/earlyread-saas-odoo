@@ -19,7 +19,7 @@ class PostgresLocalExecutor(BaseQueryExecutor):
     """Routes queries through ``self.env.cr`` — the same cursor that
     Odoo's ORM uses, sharing the request's transaction."""
 
-    def execute(self, query, params):
+    def execute(self, query, params, execution_context=None):
         cr = self.env.cr
         with cr.savepoint():
             cr.execute(query, params)

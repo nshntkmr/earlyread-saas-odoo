@@ -232,7 +232,44 @@ function SparklineRenderer(params) {
 
 // ── 5. Inline Bar ───────────────────────────────────────────────────────────
 // Horizontal bar proportional to value, with value label.
-// Params: max (100), color, multiply (false)
+// Params: max (100), color, multiply (false), format, scale, decimals,
+// prefix, suffix, valuePosition ('right'|'left'|'hidden')
+const BAR_INLINE_SCALES = {
+  none: ['', 1],
+  thousands: ['K', 1e3],
+  millions: ['M', 1e6],
+  billions: ['B', 1e9],
+}
+
+function formatBarInlineValue(value, params) {
+  const p = params || {}
+  const format = p.format || 'number'
+  if (format === 'raw') return String(value)
+
+  const [scaleSuffix, divisor] = BAR_INLINE_SCALES[p.scale || 'none'] || BAR_INLINE_SCALES.none
+  const scaled = value / divisor
+  const explicitDecimals = p.decimals !== null && p.decimals !== undefined && p.decimals !== ''
+  const decimals = explicitDecimals
+    ? Math.max(0, Math.min(6, Number(p.decimals) || 0))
+    : (
+        format === 'percent' || format === 'pp' ? 1
+        : format === 'currency' && scaleSuffix ? 1
+        : Number.isInteger(scaled) ? 0 : 1
+      )
+  const sign = (p.showSign === true || format === 'pp') && scaled > 0 ? '+' : ''
+  const prefix = p.prefix !== null && p.prefix !== undefined
+    ? p.prefix
+    : (format === 'currency' ? '$' : '')
+  const suffix = p.suffix !== null && p.suffix !== undefined
+    ? p.suffix
+    : (format === 'percent' ? '%' : (format === 'pp' ? ' pp' : ''))
+  const body = Number(scaled).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+  return `${sign}${prefix}${body}${scaleSuffix}${suffix}`
+}
+
 function BarInlineRenderer(params) {
   const v = Number(params.value)
   if (isNaN(v)) return <span>{params.value}</span>
@@ -242,8 +279,16 @@ function BarInlineRenderer(params) {
   const val = multiply ? v * 100 : v
   const pct = Math.min(Math.max((val / max) * 100, 0), 100)
   const color = p.color || '#3b82f6'
+  const valuePosition = p.valuePosition || 'right'
+  const label = valuePosition === 'hidden' ? null : formatBarInlineValue(val, p)
+  const labelEl = label !== null && (
+    <span style={{ fontSize: '0.8em', minWidth: p.labelMinWidth || 30, textAlign: 'right' }}>
+      {label}
+    </span>
+  )
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+      {valuePosition === 'left' && labelEl}
       <div style={{
         flex: 1, height: 8, backgroundColor: '#e5e7eb',
         borderRadius: 4, overflow: 'hidden',
@@ -253,9 +298,7 @@ function BarInlineRenderer(params) {
           backgroundColor: color, borderRadius: 4,
         }} />
       </div>
-      <span style={{ fontSize: '0.8em', minWidth: 30, textAlign: 'right' }}>
-        {val % 1 === 0 ? val : val.toFixed(1)}
-      </span>
+      {valuePosition !== 'left' && labelEl}
     </div>
   )
 }

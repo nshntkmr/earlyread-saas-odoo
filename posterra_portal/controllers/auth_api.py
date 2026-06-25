@@ -116,19 +116,38 @@ def _verify_token(token: str) -> dict:
 
 # ── HTTP response helpers (also imported by widget_api.py) ───────────────────
 
-def _json_response(data, status=200):
-    """Return a JSON HTTP response with CORS headers."""
-    body = json.dumps(data, default=str)
-    return request.make_response(
-        body,
-        headers=[
-            ('Content-Type', 'application/json; charset=utf-8'),
+def _json_response(data, status=200, sensitive=False):
+    """Return a JSON HTTP response with CORS headers.
+
+    ``sensitive=True`` (opt-in at the call site — a generic helper cannot infer
+    PHI classification) adds no-store / no-cache / nosniff headers AND drops the
+    wildcard CORS origin (inappropriate for authenticated PHI APIs) in favour of
+    the approved hospital origin from ``posterra.phi.allowed_origin`` (or no CORS
+    if unset). Default False keeps every existing non-PHI response unchanged.
+    """
+    headers = [
+        ('Content-Type', 'application/json; charset=utf-8'),
+    ]
+    if sensitive:
+        allowed = request.env['ir.config_parameter'].sudo().get_param(
+            'posterra.phi.allowed_origin', '')
+        if allowed:
+            headers.append(('Access-Control-Allow-Origin', allowed))
+        headers += [
+            ('Cache-Control', 'private, no-store, no-cache, must-revalidate'),
+            ('Pragma', 'no-cache'),
+            ('X-Content-Type-Options', 'nosniff'),
+            ('Access-Control-Allow-Headers', 'Authorization, Content-Type'),
+            ('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'),
+        ]
+    else:
+        headers += [
             ('Access-Control-Allow-Origin', '*'),
             ('Access-Control-Allow-Headers', 'Authorization, Content-Type'),
             ('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'),
-        ],
-        status=status,
-    )
+        ]
+    body = json.dumps(data, default=str)
+    return request.make_response(body, headers=headers, status=status)
 
 
 def _json_error(status, message):

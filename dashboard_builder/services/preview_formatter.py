@@ -321,6 +321,43 @@ def _format_value(raw, fmt='number', prefix='', suffix='', unit=None):
     return f'{prefix}{formatted}{suffix}'
 
 
+def _trend_decimals(visual_config, default=1):
+    try:
+        decimals = int(visual_config.get('trend_decimals', default))
+    except (TypeError, ValueError):
+        decimals = default
+    return max(0, min(decimals, 6))
+
+
+def _format_trend_secondary(current_raw, prior_raw, comp_label, noun, visual_config):
+    """Format KPI secondary trend text.
+
+    Default mode intentionally matches the existing relative-percent behavior.
+    """
+    if prior_raw == '':
+        return ''
+
+    mode = (visual_config.get('trend_mode') or 'relative_percent').strip()
+    current = float(current_raw or 0)
+    prior = float(prior_raw or 0)
+
+    if mode == 'absolute_delta':
+        decimals = _trend_decimals(visual_config, 1)
+        suffix = (visual_config.get('trend_suffix') or '').strip()
+        delta = abs(current - prior)
+        value = f'{delta:,.{decimals}f}'
+        if suffix:
+            value = f'{value} {suffix}'
+        return f'{value} {comp_label}'
+
+    if prior:
+        pct = ((current - prior) / abs(prior)) * 100
+        sign = '+' if pct > 0 else ''
+        return f'{sign}{pct:.0f}% {comp_label}'
+
+    return f'{noun}: {prior_raw}'
+
+
 def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
     """Build KPI preview data from raw SQL results."""
     visual_config = visual_config or {}
@@ -366,17 +403,14 @@ def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
             prior_raw = rows[0][col_idx[y_col]]
             if prior_raw is None:
                 # No prior period exists (SQL returned NULL) — distinct from a real 0.
-                result['secondary'] = f'No {noun}'
+                if (visual_config.get('trend_mode') or 'relative_percent') != 'absolute_delta':
+                    result['secondary'] = f'No {noun}'
             else:
                 try:
-                    current = float(raw_val or 0)
-                    prior = float(prior_raw or 0)
-                    if prior:
-                        pct = ((current - prior) / abs(prior)) * 100
-                        sign = '+' if pct > 0 else ''
-                        result['secondary'] = f'{sign}{pct:.0f}% {comp_label}'
-                    else:
-                        result['secondary'] = f'{noun}: {prior_raw}'
+                    secondary = _format_trend_secondary(
+                        raw_val, prior_raw, comp_label, noun, visual_config)
+                    if secondary:
+                        result['secondary'] = secondary
                 except (TypeError, ValueError):
                     result['secondary'] = str(prior_raw)
 

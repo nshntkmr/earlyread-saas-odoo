@@ -18,18 +18,27 @@ class BaseQueryExecutor(object):
              and the local cursor in PostgresLocalExecutor).
         connection: a ``dashboard.connection`` record, or None when running
              against the local Postgres (``connection_id IS NULL``).
+        schema_source: the ``dashboard.schema.source`` record this executor
+             is running for, or None. PHI-aware executors (Snowflake) read
+             ``data_classification`` / ``source_verified`` from it to enforce
+             the fail-closed guard; the Postgres/ClickHouse executors ignore
+             it (kept for a uniform, additive constructor signature).
     """
 
-    def __init__(self, env, connection=None):
+    def __init__(self, env, connection=None, schema_source=None):
         self.env = env
         self.connection = connection
+        self.schema_source = schema_source
 
-    def execute(self, query, params):
+    def execute(self, query, params, execution_context=None):
         """Execute a SELECT/WITH query and return ``(col_names, rows)``.
 
         ``params`` is a dict keyed by ``%(name)s`` placeholder names.
-        Rows MUST be returned as a list of tuples so renderers behave
-        identically across backends.
+        ``execution_context`` is an optional dict describing the query
+        origin (``origin_model``/``origin_id``/``page_id``/``app_id``); it is
+        ignored by non-PHI backends and required by the Snowflake executor for
+        PHI audit. Rows MUST be returned as a list of tuples so renderers
+        behave identically across backends.
         """
         raise NotImplementedError
 

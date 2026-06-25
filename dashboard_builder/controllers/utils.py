@@ -12,14 +12,23 @@ from odoo.http import request, Response
 _logger = logging.getLogger(__name__)
 
 
-def _json_response(data, status=200):
-    """Return a JSON HTTP response."""
+def _json_response(data, status=200, sensitive=False):
+    """Return a JSON HTTP response.
+
+    ``sensitive=True`` (opt-in at the call site — a generic helper cannot infer
+    PHI classification) adds no-store / no-cache / nosniff headers so a PHI
+    payload is never cached by browsers or intermediaries. Default False keeps
+    every existing non-PHI response byte-identical.
+    """
+    headers = [('Content-Type', 'application/json')]
+    if sensitive:
+        headers += [
+            ('Cache-Control', 'private, no-store, no-cache, must-revalidate'),
+            ('Pragma', 'no-cache'),
+            ('X-Content-Type-Options', 'nosniff'),
+        ]
     body = json.dumps(data, default=str)
-    return Response(
-        body,
-        status=status,
-        content_type='application/json',
-    )
+    return Response(body, status=status, headers=headers)
 
 
 def _json_error(status, message):

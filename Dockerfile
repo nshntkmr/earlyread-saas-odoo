@@ -2,8 +2,12 @@
 # Earlyread SaaS — Odoo 19 application image
 #
 # Layers on the official odoo:19.0 base:
-#   • clickhouse-connect + anthropic — the two external_dependencies the addon
+#   • clickhouse-connect + anthropic — external_dependencies the addon
 #     manifests declare (PyPI names use hyphens; Python imports use underscores)
+#   • snowflake-connector-python (pinned) — the Snowflake PHI connector. NOT a
+#     declared manifest external_dependency (declaring it would block module
+#     load on any host without it); the executor imports it lazily. Pinned here
+#     so production pods always have it. Pulls in cryptography for key-pair auth.
 #   • gettext-base (envsubst) + postgresql-client (pg_isready) for the entrypoint
 #   • posterra_portal + dashboard_builder addons → /mnt/extra-addons
 #   • odoo.conf.template baked in; entrypoint renders it from env at start
@@ -37,6 +41,7 @@ RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed \
     && pip3 install --no-cache-dir --break-system-packages \
         clickhouse-connect \
         anthropic \
+        snowflake-connector-python==4.6.0 \
     && rm -rf /root/.cache
 
 # gettext-base → envsubst (entrypoint renders odoo.conf)

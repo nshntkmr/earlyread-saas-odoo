@@ -79,7 +79,7 @@ export default function KPICard({ data = {}, name }) {
   return (
     <div className="pv-widget-kpi" style={alignStyle}>
       {showIcon && (
-        <div className="pv-category-icon">
+        <div className="pv-category-icon" style={iconStyle}>
           <CategoryIcon name={icon_name} />
         </div>
       )}

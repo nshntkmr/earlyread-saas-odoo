@@ -135,6 +135,13 @@ const IconCheckCircle = () => (
   </svg>
 )
 
+const IconShieldCheck = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 1.5l5 2v4c0 3.4-2.3 5.6-5 6.5-2.7-.9-5-3.1-5-6.5v-4l5-2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+    <path d="M5.6 8l1.7 1.7L10.6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 const IconClock = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -167,6 +174,7 @@ const ICON_MAP = {
   award:             IconAward,
   alert:             IconAlert,
   'check-circle':    IconCheckCircle,
+  'shield-check':    IconShieldCheck,
   clock:             IconClock,
   activity:          IconActivity,
 }

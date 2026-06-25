@@ -384,20 +384,72 @@ export default function KpiStylePicker({
 
           {/* Comparison label — stat_card + sparkline only (variants that show the trend badge) */}
           {(ks === 'stat_card' || isSparkline) && (
-            <div className="wb-field-row" style={{ marginTop: 8 }}>
-              <label className="wb-field-label">
-                Comparison Label (optional)
-                <i className="fa fa-info-circle wb-flag-info"
-                   title="Text after the % change in the trend badge (e.g. 'vs Prior Month', 'vs Last Year'). If your SQL returns a non-blank 'comparison_label' column, that takes priority (dynamic). Leave empty for default 'vs Prior'." />
-              </label>
-              <input
-                type="text"
-                className="wb-input wb-input--sm"
-                placeholder="e.g. vs Prior Month, vs Last Year"
-                value={cfgVal(visualConfig, 'comparison_label', '')}
-                onChange={e => handleCfg('comparison_label', e.target.value)}
-              />
-            </div>
+            <>
+              <div className="wb-field-row" style={{ marginTop: 8 }}>
+                <label className="wb-field-label">
+                  Trend Value Format
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="Relative % change keeps the current behavior. Absolute delta shows the point/value difference, e.g. 2.6 pp or 0.14." />
+                </label>
+                <select
+                  className="wb-select"
+                  value={cfgVal(visualConfig, 'trend_mode', 'relative_percent')}
+                  onChange={e => handleCfg('trend_mode', e.target.value)}
+                >
+                  <option value="relative_percent">Relative % change</option>
+                  <option value="absolute_delta">Absolute delta</option>
+                </select>
+              </div>
+
+              {cfgVal(visualConfig, 'trend_mode', 'relative_percent') === 'absolute_delta' && (
+                <>
+                  <div className="wb-field-row">
+                    <label className="wb-field-label">
+                      Trend Decimals
+                      <i className="fa fa-info-circle wb-flag-info"
+                         title="Decimal places for the absolute delta. Use 1 for percentage points, 2 for star rating deltas." />
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="6"
+                      className="wb-input wb-input--sm"
+                      value={cfgVal(visualConfig, 'trend_decimals', 1)}
+                      onChange={e => handleCfg('trend_decimals', e.target.value === '' ? '' : Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="wb-field-row">
+                    <label className="wb-field-label">
+                      Trend Suffix
+                      <i className="fa fa-info-circle wb-flag-info"
+                         title="Optional suffix after the delta value, such as pp for percentage points." />
+                    </label>
+                    <input
+                      type="text"
+                      className="wb-input wb-input--sm"
+                      placeholder="e.g. pp"
+                      value={cfgVal(visualConfig, 'trend_suffix', '')}
+                      onChange={e => handleCfg('trend_suffix', e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="wb-field-row" style={{ marginTop: 8 }}>
+                <label className="wb-field-label">
+                  Comparison Label (optional)
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="Text after the trend value (e.g. 'vs Prior Month', 'vs Last Year'). If your SQL returns a non-blank 'comparison_label' column, that takes priority (dynamic). Leave empty for default 'vs Prior'." />
+                </label>
+                <input
+                  type="text"
+                  className="wb-input wb-input--sm"
+                  placeholder="e.g. vs Prior Month, vs Last Year"
+                  value={cfgVal(visualConfig, 'comparison_label', '')}
+                  onChange={e => handleCfg('comparison_label', e.target.value)}
+                />
+              </div>
+            </>
           )}
         </>
       )}

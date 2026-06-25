@@ -51,8 +51,11 @@
                     <group>
                         <group string="General">
                             <field name="engine"/>
+                            <field name="security_profile"
+                                   invisible="engine != 'snowflake'"/>
                             <field name="is_active"/>
-                            <field name="requires_tenant_filter"/>
+                            <field name="requires_tenant_filter"
+                                   invisible="engine == 'snowflake'"/>
                             <!-- ``options`` to suppress the locale
                                  thousands separator on integer fields
                                  doesn't behave consistently across
@@ -63,7 +66,7 @@
                                  (formatting kicks in at 4+ digits). -->
                             <field name="query_timeout_seconds"/>
                         </group>
-                        <group string="Endpoint">
+                        <group string="Endpoint" invisible="engine == 'snowflake'">
                             <field name="host"
                                    placeholder="e.g. ch-prod.example.azure.com"/>
                             <field name="port"/>
@@ -71,8 +74,18 @@
                                    placeholder="e.g. posterra_analytics"/>
                             <field name="use_tls"/>
                         </group>
+                        <group string="Snowflake" invisible="engine != 'snowflake'">
+                            <field name="sf_account"
+                                   placeholder="e.g. xy12345.us-east-1"/>
+                            <field name="sf_warehouse"/>
+                            <field name="database"
+                                   placeholder="Snowflake database"/>
+                            <field name="sf_db_schema"/>
+                            <field name="sf_role"/>
+                            <field name="auth_method"/>
+                        </group>
                     </group>
-                    <group string="Authentication">
+                    <group string="Authentication" invisible="engine == 'snowflake'">
                         <field name="username"
                                placeholder="e.g. app_user"/>
                         <field name="password"
@@ -93,9 +106,40 @@
                             password wins.
                         </p>
                     </group>
+                    <group string="Snowflake Authentication"
+                           invisible="engine != 'snowflake'">
+                        <field name="username" placeholder="Snowflake user"/>
+                        <field name="sf_password" password="True"
+                               invisible="auth_method != 'password'"
+                               placeholder="dev only — prefer the Config Key in prod"/>
+                        <field name="sf_password_param_key"
+                               invisible="auth_method != 'password'"
+                               placeholder="env / Key-Vault name holding the password"/>
+                        <field name="sf_private_key"
+                               invisible="auth_method != 'key_pair'"
+                               placeholder="dev only — paste PEM; prefer the Config Key in prod"/>
+                        <field name="sf_private_key_passphrase" password="True"
+                               invisible="auth_method != 'key_pair'"/>
+                        <field name="sf_private_key_param_key"
+                               invisible="auth_method != 'key_pair'"
+                               placeholder="env / Key-Vault name holding the PEM key"/>
+                        <field name="sf_passphrase_param_key"
+                               invisible="auth_method != 'key_pair'"
+                               placeholder="env / Key-Vault name holding the passphrase"/>
+                        <p class="text-muted" colspan="2">
+                            Production: leave the direct key/password blank and
+                            set the corresponding <strong>Config Key</strong>
+                            (resolved env-first from Key Vault). The secret
+                            fields are restricted to System Administrators.
+                        </p>
+                    </group>
                     <group string="Last Test">
                         <field name="last_test_result" readonly="1"/>
                         <field name="last_test_at" readonly="1"/>
+                        <field name="configuration_verified" readonly="1"
+                               invisible="engine != 'snowflake'"/>
+                        <field name="configuration_verified_at" readonly="1"
+                               invisible="engine != 'snowflake'"/>
                     </group>
                 </sheet>
             </form>
