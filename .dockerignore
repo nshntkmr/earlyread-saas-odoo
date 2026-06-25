@@ -55,6 +55,26 @@ infra/terraform
 **/filestore
 **/sessions
 
+# ── Local-only scratch / output dirs ────────────────────────────────────────
+# `outputs/` and `work/` are local-dev scratch folders (PowerPoint exports,
+# notebook outputs, etc.). They never belong in the image AND PowerPoint's
+# exclusive lock on its `~$*` temp files causes `az acr build` to fail with
+# Permission denied while tarring the build context.
+outputs
+work
+
+# ── Office / Word / Excel / PowerPoint lock + author files ──────────────────
+# Office apps create `~$<filename>.docx` etc. while a doc is open, with an
+# exclusive lock that `az acr build` cannot read. `.pptx`/`.docx`/`.xlsx`
+# files at the repo root are documentation, not app artifacts.
+**/~$*
+**/*.pptx
+**/*.docx
+**/*.xlsx
+
+# ── pnpm content-addressed store (Windows) ──────────────────────────────────
+.pnpm-store
+
 # ── This file + the Dockerfile itself ────────────────────────────────────────
 .dockerignore
 Dockerfile
