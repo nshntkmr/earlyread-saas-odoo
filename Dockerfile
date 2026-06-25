@@ -38,11 +38,15 @@ USER root
 # no-op if the environment isn't externally-managed.
 RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed \
         typing-extensions \
-    && pip3 install --no-cache-dir --break-system-packages \
+    && pip3 install --no-cache-dir --break-system-packages --ignore-installed \
         clickhouse-connect \
         anthropic \
         snowflake-connector-python==4.6.0 \
     && rm -rf /root/.cache
+# --ignore-installed on BOTH pip steps: snowflake-connector-python depends
+# on a newer `idna` than the Debian-installed one, and pip fails to
+# uninstall the Debian package ("RECORD file not found"). --ignore-installed
+# tells pip to side-install the new version without touching the old one.
 
 # gettext-base → envsubst (entrypoint renders odoo.conf)
 # postgresql-client → pg_isready (entrypoint waits for PG)
