@@ -28,6 +28,7 @@ const RENDERER_OPTIONS = [
   { value: 'barInline',  label: 'Inline Bar' },
   { value: 'composite',  label: 'Composite (multi-field)' },
   { value: 'dualValue',  label: 'Dual Value (value + %)' },
+  { value: 'complianceStrip', label: 'Compliance Dot Strip' },
 ]
 
 const FILTER_OPTIONS = [
@@ -57,10 +58,11 @@ const CSS_CLASS_OPTIONS = [
 ]
 
 const CLICK_OPTIONS = [
-  { value: 'none',        label: 'No action' },
-  { value: 'go_to_page',  label: 'Go to page' },
-  { value: 'filter_page', label: 'Filter this page' },
-  { value: 'open_url',    label: 'Open URL' },
+  { value: 'none',         label: 'No action' },
+  { value: 'go_to_page',   label: 'Go to page' },
+  { value: 'filter_page',  label: 'Filter this page' },
+  { value: 'open_url',     label: 'Open URL' },
+  { value: 'open_detail_drawer', label: 'Open detail drawer' },
 ]
 
 // ── Type → auto-fill mapping ────────────────────────────────────────────────
@@ -457,6 +459,114 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
                 : column.cellRendererParams?.variant === 'winloss'
                 ? 'Win/Loss input: JSON array or comma-separated numbers. Colors are automatic — green for positive, red for negative.'
                 : 'Input: JSON array [10,14,12] or comma-separated numbers. Color "auto"/empty = green when trending up, red when down.'}
+            </div>
+          </div>
+        )}
+
+        {/* Compliance Dot Strip renderer params */}
+        {column.cellRenderer === 'complianceStrip' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row">
+              <label className="tcs-label">Items Source Column</label>
+              <select className="tcs-select"
+                value={column.cellRendererParams?.itemsField || ''}
+                onChange={e => set('cellRendererParams', {
+                  ...column.cellRendererParams,
+                  itemsField: e.target.value || null,
+                })}
+              >
+                <option value="">(use this cell's value)</option>
+                {allColumns.map(c => (
+                  <option key={c.column_name} value={c.column_name}>
+                    {c.display_name || c.column_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Compliant Color</label>
+                <input type="text" className="tcs-input" placeholder="#16a34a"
+                  value={column.cellRendererParams?.colors?.compliant ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    colors: { ...(column.cellRendererParams?.colors || {}), compliant: e.target.value || undefined },
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Non-Compliant Color</label>
+                <input type="text" className="tcs-input" placeholder="#dc2626"
+                  value={column.cellRendererParams?.colors?.nonCompliant ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    colors: { ...(column.cellRendererParams?.colors || {}), nonCompliant: e.target.value || undefined },
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">N/A Color</label>
+                <input type="text" className="tcs-input" placeholder="#e5e7eb"
+                  value={column.cellRendererParams?.colors?.na ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    colors: { ...(column.cellRendererParams?.colors || {}), na: e.target.value || undefined },
+                  })}
+                />
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Dot Size</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={typeof column.cellRendererParams?.size === 'number' ? 'custom' : (column.cellRendererParams?.size || 'sm')}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    size: e.target.value === 'custom' ? 16 : e.target.value,
+                  })}
+                >
+                  <option value="sm">Small</option>
+                  <option value="md">Medium</option>
+                  <option value="lg">Large (labels)</option>
+                  <option value="custom">Custom (px)…</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Show Labels</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.showLabels ? 'yes' : 'no'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    showLabels: e.target.value === 'yes',
+                  })}
+                >
+                  <option value="no">No (dots)</option>
+                  <option value="yes">Yes (pills)</option>
+                </select>
+              </div>
+            </div>
+            {typeof column.cellRendererParams?.size === 'number' && (
+              <div className="tcs-row-inline">
+                <div>
+                  <label className="tcs-label">Custom Size (px)</label>
+                  <input type="number" min={8} max={48} className="tcs-input tcs-input--narrow"
+                    value={column.cellRendererParams?.size ?? ''}
+                    onChange={e => {
+                      const raw = e.target.value
+                      set('cellRendererParams', {
+                        ...column.cellRendererParams,
+                        size: raw === '' ? 'sm' : Math.max(8, Math.min(48, Number(raw))),
+                      })
+                    }}
+                  />
+                </div>
+                <div className="tcs-help-text" style={{ alignSelf: 'flex-end' }}>
+                  Sets dot px (dots) or pill font size (labels); padding auto-scales.
+                </div>
+              </div>
+            )}
+            <div className="tcs-help-text">
+              {'Items source must be a JSON array column like [{"label":"Jan","status":"compliant"}]. status = compliant | nonCompliant | na. Null / empty / malformed values render an empty placeholder.'}
             </div>
           </div>
         )}

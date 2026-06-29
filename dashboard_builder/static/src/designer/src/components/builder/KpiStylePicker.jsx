@@ -299,6 +299,57 @@ export default function KpiStylePicker({
       </div>
       <div className="wb-field-row">
         <label className="wb-field-label">
+          Card Label Font Size
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Optional font size for the card label. Leave blank to use the dashboard default." />
+        </label>
+        <input
+          type="number"
+          min="8"
+          max="48"
+          className="wb-input wb-input--sm"
+          placeholder="Default"
+          value={cfgVal(visualConfig, 'kpi_label_font_size', '')}
+          onChange={e => handleCfg('kpi_label_font_size', e.target.value === '' ? '' : Number(e.target.value))}
+        />
+      </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
+          Card Label Font Color
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Optional CSS color for the card label, such as #6b7280, rgb(75,85,99), or a named color." />
+        </label>
+        <input
+          type="text"
+          className="wb-input wb-input--sm"
+          placeholder="Default"
+          value={cfgVal(visualConfig, 'kpi_label_color', '')}
+          onChange={e => handleCfg('kpi_label_color', e.target.value)}
+        />
+      </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">Card Label Text Style</label>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={!!cfgVal(visualConfig, 'kpi_label_bold', false)}
+              onChange={e => handleCfg('kpi_label_bold', e.target.checked)}
+            />
+            Bold
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={!!cfgVal(visualConfig, 'kpi_label_italic', false)}
+              onChange={e => handleCfg('kpi_label_italic', e.target.checked)}
+            />
+            Italic
+          </label>
+        </div>
+      </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
           Value Format
           <i className="fa fa-info-circle wb-flag-info"
              title="How the primary value is formatted. Number: 1,234. Currency: $1,234. Percent: 68.5%. Decimal: 2.36." />

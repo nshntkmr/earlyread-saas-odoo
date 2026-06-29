@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useFilters } from '../state/FilterContext'
 import { apiFetch } from '../api/client'
-import { widgetDataUrl } from '../api/endpoints'
+import { widgetDataUrl, widgetDetailUrl } from '../api/endpoints'
 
 // ── Widget components ─────────────────────────────────────────────────────────
 import KPICard      from './widgets/KPICard'
@@ -383,6 +383,19 @@ export default function WidgetGrid({ initialWidgets }) {
       // the autoHeight default which would expand the card past the configured height).
       if (!isCompact && w.height) {
         extraProps.fillHeight = true
+      }
+      // Detail Drawer: thread widgetId (every render path) + a fetch helper that
+      // reuses the SAME api client / auth as widget data, plus current filters,
+      // so drawer SQL resolves %(param)s/{where_clause}/%(row_key)s identically.
+      extraProps.widgetId = w.id
+      extraProps.fetchDrawerDetail = (rowKey) => {
+        const params = { ...filterValues, detail_type: 'drawer' }
+        const sv = scopeValues[w.id]
+        if (sv != null && sv !== '') params._scope_value = sv
+        return apiFetch(
+          widgetDetailUrl(apiBase, w.id, rowKey, params),
+          accessToken, {}, refreshToken,
+        )
       }
     }
     if (w.chart_type === 'ranked_detail_list') {

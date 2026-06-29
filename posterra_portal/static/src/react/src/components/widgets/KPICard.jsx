@@ -2,6 +2,7 @@ import React from 'react'
 import CategoryIcon from './CategoryIcons'
 import KPIStrip from './KPIStrip'
 import { resolveLabelPlacement } from './kpiLabelPosition'
+import { buildKpiLabelStyle } from './kpiLabelStyle'
 
 /**
  * KPICard — chart_type: "kpi"
@@ -38,6 +39,7 @@ export default function KPICard({ data = {}, name }) {
   const labelStyle = (label_font_weight || label_color)
     ? { ...(label_font_weight && { fontWeight: label_font_weight }), ...(label_color && { color: label_color }) }
     : undefined
+  const kpiLabelStyle = buildKpiLabelStyle(data, labelStyle)
   const alignStyle = text_align ? { textAlign: text_align } : undefined
 
   // Label placement (opt-in). KPICard's current default differs by layout:
@@ -51,7 +53,7 @@ export default function KPICard({ data = {}, name }) {
   } : undefined
   const labelEl = (label && showLabel)
     ? <div className={`pv-widget-kpi-label${isLabelBadge ? ' pv-widget-kpi-label--badge' : ''}`}
-           style={{ ...labelStyle, ...labelBadgeStyle }}>{label}</div>
+           style={{ ...kpiLabelStyle, ...labelBadgeStyle }}>{label}</div>
     : null
 
   if (kpi_layout === 'inline') {

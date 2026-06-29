@@ -3,6 +3,7 @@ import EChartWidget from './EChartWidget'
 import { TrendIcon } from './TrendIcons'
 import CategoryIcon from './CategoryIcons'
 import { resolveLabelPlacement } from './kpiLabelPosition'
+import { buildKpiLabelStyle } from './kpiLabelStyle'
 
 /**
  * KpiCardGeneric — One generic KPI card, 3 layouts, ECharts for data-viz.
@@ -29,6 +30,7 @@ export default function KpiCardGeneric({ data = {}, name }) {
   const labelStyle = (label_font_weight || label_color)
     ? { ...(label_font_weight && { fontWeight: label_font_weight }), ...(label_color && { color: label_color }) }
     : undefined
+  const kpiLabelStyle = buildKpiLabelStyle(data, labelStyle)
   const iconStyle = (icon_color || icon_bg)
     ? { ...(icon_color && { color: icon_color }), ...(icon_bg && { background: icon_bg }) }
     : undefined
@@ -45,7 +47,7 @@ export default function KpiCardGeneric({ data = {}, name }) {
   } : undefined
   const labelEl = (label && showLabel)
     ? <div className={`pv-widget-kpi-label${isLabelBadge ? ' pv-widget-kpi-label--badge' : ''}`}
-           style={{ ...labelStyle, ...labelBadgeStyle }}>{label}</div>
+           style={{ ...kpiLabelStyle, ...labelBadgeStyle }}>{label}</div>
     : null
 
   // ── Layout: Split (mini_gauge) ────────────────────────────────────────

@@ -5,6 +5,7 @@ import { cascadeMultiUrl, cascadeUrl, filtersResolveUrl } from '../api/endpoints
 import MultiSelectDropdown from './MultiSelectDropdown'
 import SearchableSelect from './SearchableSelect'
 import HHAComparisonPicker from './HHAComparisonPicker'
+import PillTabs from './PillTabs'
 
 /**
  * FilterBar
@@ -395,7 +396,16 @@ export default function FilterBar() {
               so all current pages render exactly as before unless an admin
               explicitly opts a filter into the picker.
             */}
-            {filter.ui_type === 'hha_comparison' ? (
+            {filter.ui_type === 'pills' || filter.ui_type === 'segmented' ? (
+              <PillTabs
+                options={options}
+                value={currentValue}
+                onChange={(val) => handleFilterChange(filter, val)}
+                isMultiselect={filter.is_multiselect}
+                includeAllOption={!filter.include_all_option && !hideAll}
+                segmented={filter.ui_type === 'segmented'}
+              />
+            ) : filter.ui_type === 'hha_comparison' ? (
               <HHAComparisonPicker
                 options={options}
                 value={currentValue}

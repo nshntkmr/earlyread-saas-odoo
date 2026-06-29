@@ -1,6 +1,7 @@
 import React from 'react'
 import { TrendIcon } from './TrendIcons'
 import CategoryIcon from './CategoryIcons'
+import { buildKpiLabelStyle } from './kpiLabelStyle'
 
 /**
  * KPIStrip — compact horizontal KPI row.
@@ -30,6 +31,7 @@ export default function KPIStrip({ data = {}, name }) {
   const labelStyle = (label_font_weight || label_color)
     ? { ...(label_font_weight && { fontWeight: label_font_weight }), ...(label_color && { color: label_color }) }
     : undefined
+  const kpiLabelStyle = buildKpiLabelStyle(data, labelStyle)
   const alignStyle = text_align ? { textAlign: text_align } : undefined
 
   if (kpi_layout === 'inline') {
@@ -41,7 +43,7 @@ export default function KPIStrip({ data = {}, name }) {
               <CategoryIcon name={icon_name} />
             </div>
           )}
-          <div className="pv-kpi-strip-label" style={labelStyle}>{label || name}</div>
+          <div className="pv-kpi-strip-label" style={kpiLabelStyle}>{label || name}</div>
         </div>
         <div className="pv-kpi-strip-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
         {secondary && (
@@ -66,7 +68,7 @@ export default function KPIStrip({ data = {}, name }) {
             <CategoryIcon name={icon_name} />
           </div>
         )}
-        <div className="pv-kpi-strip-label" style={labelStyle}>{label || name}</div>
+        <div className="pv-kpi-strip-label" style={kpiLabelStyle}>{label || name}</div>
       </div>
       <div className="pv-kpi-strip-value" style={{ ...valueStyle, ...alignStyle }}>{formatted_value ?? '—'}</div>
       {secondary && (

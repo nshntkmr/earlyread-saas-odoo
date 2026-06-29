@@ -650,13 +650,19 @@ class PosterraWidgetAPI(http.Controller):
 
         _scope_option_id = kw.pop('_scope_option_id', None)
         row_key = kw.pop('row_key', '')
+        # detail_type='drawer' → generic Detail Drawer for table widgets;
+        # otherwise the legacy ranked_detail_list path.
+        detail_type = kw.pop('detail_type', '')
 
         widget = request.env['dashboard.widget'].sudo().browse(widget_id)
         if not widget.exists() or not widget.is_active:
             return _json_error(404, f'Widget {widget_id} not found')
         if widget.page_id.app_id.id != app.id:
             return _json_error(403, 'Widget does not belong to your app')
-        if widget.chart_type != 'ranked_detail_list':
+        if detail_type == 'drawer':
+            if not widget._get_detail_drawer_config().get('enabled'):
+                return _json_error(400, 'Widget has no enabled Detail Drawer')
+        elif widget.chart_type != 'ranked_detail_list':
             return _json_error(400, 'Widget is not a ranked_detail_list')
 
         if not row_key:
@@ -669,6 +675,18 @@ class PosterraWidgetAPI(http.Controller):
             return _json_error(403, str(exc))
         except Exception as exc:
             return _json_error(500, f'Context build error: {exc}')
+
+        # Detail Drawer: resolve all sql-backed sections in one request and
+        # return section-keyed named-row-object results (portal context already
+        # rebuilt above, so %(param)s / {where_clause} / %(row_key)s resolve
+        # exactly like ranked-detail SQL, and tenant scoping holds).
+        if detail_type == 'drawer':
+            drawer_data = widget._execute_drawer_detail(row_key, portal_ctx)
+            return _json_response({
+                'widget_id': widget.id,
+                'row_key': row_key,
+                **drawer_data,
+            })
 
         # Mode B: use option's detail_config instead of widget's
         override_config = None

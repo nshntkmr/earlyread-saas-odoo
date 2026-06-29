@@ -1227,6 +1227,7 @@ class DesignerAPI(http.Controller):
             'echart_override': defn.echart_override or '',
             'visual_config': defn.visual_config or '',
             'table_column_config': defn.table_column_config or '',
+            'detail_drawer_config': defn.detail_drawer_config or '',
             'instance_count': defn.instance_count,
             # Widget-Scoped Controls
             'scope_mode': defn.scope_mode or 'none',
@@ -1409,6 +1410,9 @@ class DesignerAPI(http.Controller):
             if 'table_column_config' in body:
                 tcc = body['table_column_config']
                 def_vals['table_column_config'] = tcc if isinstance(tcc, str) else json.dumps(tcc) if tcc else ''
+            if 'detail_drawer_config' in body:
+                ddc = body['detail_drawer_config']
+                def_vals['detail_drawer_config'] = ddc if isinstance(ddc, str) else json.dumps(ddc) if ddc else ''
 
             # Ranked Detail List v2 JSON configs (stored on the mixin —
             # available on both definition and instance models).
@@ -1620,6 +1624,9 @@ class DesignerAPI(http.Controller):
         if 'table_column_config' in body:
             tcc = body['table_column_config']
             update_vals['table_column_config'] = tcc if isinstance(tcc, str) else json.dumps(tcc)
+        if 'detail_drawer_config' in body:
+            ddc = body['detail_drawer_config']
+            update_vals['detail_drawer_config'] = ddc if isinstance(ddc, str) else json.dumps(ddc)
 
         # Ranked Detail List v2 JSON configs
         if 'ranked_master_config' in body:
@@ -1701,6 +1708,7 @@ class DesignerAPI(http.Controller):
                         'echart_override': defn.echart_override or '',
                         'builder_config': defn.builder_config or '',
                         'table_column_config': defn.table_column_config or '',
+                        'detail_drawer_config': defn.detail_drawer_config or '',
                         'column_link_config': defn.column_link_config or '',
                         'click_action': defn.click_action,
                         'action_page_key': defn.action_page_key or '',
@@ -2100,6 +2108,7 @@ class DesignerAPI(http.Controller):
                 'action_url_template': defn.action_url_template or '',
                 'column_link_config': defn.column_link_config or '',
                 'table_column_config': defn.table_column_config or '',
+                'detail_drawer_config': defn.detail_drawer_config or '',
                 'ranked_master_config': (defn.ranked_master_config or '') if hasattr(defn, 'ranked_master_config') else '',
                 'ranked_detail_config': (defn.ranked_detail_config or '') if hasattr(defn, 'ranked_detail_config') else '',
                 'builder_config': defn.builder_config or '',

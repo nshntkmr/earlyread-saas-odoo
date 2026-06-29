@@ -17,6 +17,34 @@ const RAG_BG = {
   red: '#fef2f2', amber: '#fffbeb', green: '#f0fdf4',
 }
 
+function buildKpiLabelStyle(...configs) {
+  const style = {}
+  for (const cfg of configs) {
+    if (!cfg) continue
+    if (Object.prototype.hasOwnProperty.call(cfg, 'kpi_label_font_size')) {
+      if (cfg.kpi_label_font_size === '') {
+        delete style.fontSize
+      } else {
+        const size = Number(cfg.kpi_label_font_size)
+        if (Number.isFinite(size)) style.fontSize = size
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(cfg, 'kpi_label_color')) {
+      if (cfg.kpi_label_color) style.color = cfg.kpi_label_color
+      else delete style.color
+    }
+    if (Object.prototype.hasOwnProperty.call(cfg, 'kpi_label_bold')) {
+      if (cfg.kpi_label_bold) style.fontWeight = 700
+      else delete style.fontWeight
+    }
+    if (Object.prototype.hasOwnProperty.call(cfg, 'kpi_label_italic')) {
+      if (cfg.kpi_label_italic) style.fontStyle = 'italic'
+      else delete style.fontStyle
+    }
+  }
+  return Object.keys(style).length ? style : undefined
+}
+
 function GaugePreviewInline({ data, height }) {
   if (!data) return null
   const v = data.gauge_variant
@@ -281,11 +309,12 @@ function CompositeChildPreview({ child }) {
     )
   }
   if (d.formatted_value !== undefined) {
+    const kpiLabelStyle = buildKpiLabelStyle(d)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         {d.icon_class && <i className={`fa ${d.icon_class} wb-kpi-icon ${d.status_css || ''}`} />}
         <span style={{ fontSize: 26, fontWeight: 700, color: '#0f172a' }}>{d.formatted_value || '—'}</span>
-        {d.label && <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.label}</span>}
+        {d.label && <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', ...(kpiLabelStyle || {}) }}>{d.label}</span>}
         {d.secondary && <span className={`wb-kpi-secondary ${d.status_css || ''}`} style={{ fontSize: 12 }}>{d.secondary}</span>}
       </div>
     )
@@ -483,6 +512,7 @@ export default function LivePreview({
   const kpiLabelPos = builderState.visualFlags?.kpi_label_position || 'default'
   const kpiShowLabel = kpiLabelPos !== 'hidden'
   const kpiLabelAbove = kpiLabelPos === 'above_value'
+  const kpiLabelStyle = buildKpiLabelStyle(previewData, builderState.visualFlags)
 
   const runPreview = async () => {
     setLoading(true)
@@ -721,7 +751,7 @@ export default function LivePreview({
               <i className={`fa ${previewData.icon_class} wb-kpi-icon ${previewData.status_css || ''}`} />
             )}
             {kpiShowLabel && kpiLabelAbove && (
-              <span className="wb-kpi-label">
+              <span className="wb-kpi-label" style={kpiLabelStyle}>
                 {previewData.label || builderState.appearance?.title || 'KPI'}
               </span>
             )}
@@ -729,7 +759,7 @@ export default function LivePreview({
               {previewData.formatted_value || '—'}
             </span>
             {kpiShowLabel && !kpiLabelAbove && (
-              <span className="wb-kpi-label">
+              <span className="wb-kpi-label" style={kpiLabelStyle}>
                 {previewData.label || builderState.appearance?.title || 'KPI'}
               </span>
             )}

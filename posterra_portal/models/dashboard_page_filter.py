@@ -296,6 +296,8 @@ class DashboardPageFilter(models.Model):
         [
             ('default',        'Standard (Dropdown / Multi-select)'),
             ('hha_comparison', 'HHA Comparison Picker (chips, max 4)'),
+            ('pills',          'Pill tabs (inline buttons)'),
+            ('segmented',      'Segmented buttons (joined)'),
         ],
         string='UI Type',
         default='default',
@@ -309,7 +311,12 @@ class DashboardPageFilter(models.Model):
              'to 4 HHAs by type-ahead search. Use for the "Compare HHAs" '
              'filter on the Utilization Comparison page. Pairs with the '
              'saved-comparisons feature so users can persist their '
-             'favourite 4-HHA sets.',
+             'favourite 4-HHA sets.\n'
+             '\n'
+             '• Pill tabs / Segmented buttons: render the options inline as '
+             'a row of buttons instead of a dropdown (good for short option '
+             'sets like Month or Gap Type). Honours Multi-select. Segmented '
+             'is the same control with joined/grouped styling.',
     )
 
     # ── Display template ───────────────────────────────────────────────────────

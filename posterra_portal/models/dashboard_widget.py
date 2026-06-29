@@ -753,6 +753,7 @@ class DashboardWidget(models.Model):
         # Column links and table column config (from mixin)
         self.column_link_config = defn.column_link_config
         self.table_column_config = defn.table_column_config
+        self.detail_drawer_config = defn.detail_drawer_config
 
     # ── ORM onchange ──────────────────────────────────────────────────────────
     @api.onchange('orm_model_id')
@@ -3992,6 +3993,8 @@ class DashboardWidget(models.Model):
         result['alert_text'] = alert_text
 
         result.update(self._get_typography_overrides())
+
+        self._apply_kpi_label_overrides(result, vc)
         return result
 
     # =========================================================================
@@ -4477,11 +4480,8 @@ class DashboardWidget(models.Model):
 
             # Override inner label: empty = no duplication with card header,
             # custom text = shows different text inside the KPI body
-            result['label'] = vc.get('kpi_label', '')
-            # Where the inner label sits relative to the value (renderer-driven).
-            # '' / 'default' = each renderer's current placement (no regression);
-            # 'above_value' | 'below_value' | 'hidden' = explicit override.
-            result['kpi_label_position'] = vc.get('kpi_label_position', '')
+            self._apply_kpi_label_overrides(
+                result, vc, force_label=True, force_position=True)
 
             # Override value format from visual_config (builder-created widgets)
             # and apply the optional compact unit (K/M/B). The unit applies even
@@ -4550,13 +4550,20 @@ class DashboardWidget(models.Model):
             {c: (v if v is not None else '') for c, v in zip(cols, r)}
             for r in rows
         ]
-        return {
+        payload = {
             'type': 'table',
             'columnDefs': column_config,
             'rowData': row_data,
             'row_count': len(rows),
             'visual_config': vc,
         }
+        # Detail Drawer: attach the SQL-stripped render schema (None when the
+        # widget has no drawer → table renders exactly as before). SQL never
+        # reaches the client; the /detail?detail_type=drawer endpoint runs it.
+        drawer_schema = self._build_drawer_render_schema()
+        if drawer_schema:
+            payload['detail_drawer'] = drawer_schema
+        return payload
 
     def _build_smart_table_data(self, cols, rows):
         """Build dict for chart_type='smart_table' widgets.
@@ -5200,6 +5207,34 @@ class DashboardWidget(models.Model):
                 overrides['icon_bg'] = _ICON_COLOR_MAP[self.icon_color]['bg']
         return overrides
 
+    def _apply_kpi_label_overrides(
+            self, result, visual_config, force_label=False, force_position=False):
+        """Copy builder-managed KPI label settings into portal render data."""
+        vc = visual_config or {}
+
+        if force_label or 'kpi_label' in vc:
+            result['label'] = vc.get('kpi_label', '')
+
+        if force_position:
+            result['kpi_label_position'] = vc.get('kpi_label_position', '')
+        elif vc.get('kpi_label_position'):
+            result['kpi_label_position'] = vc.get('kpi_label_position', '')
+
+        if vc.get('kpi_label_font_size') not in (None, ''):
+            try:
+                size = int(vc.get('kpi_label_font_size'))
+                if size > 0:
+                    result['kpi_label_font_size'] = size
+            except (TypeError, ValueError):
+                pass
+
+        if vc.get('kpi_label_color'):
+            result['kpi_label_color'] = str(vc.get('kpi_label_color')).strip()
+        if vc.get('kpi_label_bold'):
+            result['kpi_label_bold'] = True
+        if vc.get('kpi_label_italic'):
+            result['kpi_label_italic'] = True
+
     # =========================================================================
     # KPI formatting helper
     # =========================================================================
@@ -5611,6 +5646,104 @@ class DashboardWidget(models.Model):
         from ..utils.query_executors import get_executor
         executor = get_executor(self.env, self.schema_source_id)
         return executor.execute(sql, safe_params)
+
+    # ════════════════════════════════════════════════════════════════════════
+    # DETAIL DRAWER — generic configurable row-detail drawer for table widgets.
+    # Member-360 is one preset. SQL sections are source-inherited (run against
+    # the widget's own schema_source_id via _run_detail_query). The raw config
+    # (with SQL) is admin-only; the portal gets a SQL-stripped render schema.
+    # ════════════════════════════════════════════════════════════════════════
+    _DRAWER_SECTION_TYPES = (
+        'field_grid', 'flag_chips', 'measure_cards', 'alert_blocks')
+
+    def _get_detail_drawer_config(self):
+        """Parse detail_drawer_config JSON → dict ({} when unset/invalid)."""
+        self.ensure_one()
+        raw = self.detail_drawer_config or ''
+        if not raw.strip():
+            return {}
+        try:
+            cfg = json.loads(raw)
+            return cfg if isinstance(cfg, dict) else {}
+        except (json.JSONDecodeError, TypeError):
+            _logger.warning(
+                'widget %s: invalid detail_drawer_config JSON', self.id)
+            return {}
+
+    def _build_drawer_render_schema(self):
+        """Client-safe projection of the drawer config — SQL STRIPPED.
+
+        The portal/runtime payload must NEVER carry section SQL (admin-only).
+        Returns None when the drawer is absent/disabled so the table renders
+        exactly as before (no regression for tables without a drawer).
+        """
+        self.ensure_one()
+        cfg = self._get_detail_drawer_config()
+        if not cfg or not cfg.get('enabled'):
+            return None
+        sections = []
+        for s in (cfg.get('sections') or []):
+            if not isinstance(s, dict):
+                continue
+            safe = {k: v for k, v in s.items() if k != 'sql'}  # never send SQL
+            safe['has_sql'] = bool(s.get('source') == 'sql' and s.get('sql'))
+            sections.append(safe)
+        return {
+            'enabled': True,
+            'trigger': cfg.get('trigger') or 'cell',
+            'row_key_column': cfg.get('row_key_column') or '',
+            'title_template': cfg.get('title_template') or '',
+            'subtitle_template': cfg.get('subtitle_template') or '',
+            'sections': sections,
+        }
+
+    def _execute_drawer_detail(self, row_key_value, portal_ctx):
+        """Resolve ALL sql-backed drawer sections for one clicked row.
+
+        Returns {'sections': {<id>: {'rows': [{col: val}, ...]} | {'error': str}}}.
+        Rows are NAMED OBJECTS (not cols/rows arrays) so the client maps by
+        column name. master_row sections are absent (rendered client-side).
+        Reuses _run_detail_query → row_key binding, {where_clause}/[[ ]], the
+        SELECT/WITH read-only guard, and the connector-correct, tenant-safe
+        executor. A failing section is isolated to its own {'error': ...} key.
+        """
+        self.ensure_one()
+        cfg = self._get_detail_drawer_config()
+        if not cfg or not cfg.get('enabled'):
+            return {'sections': {}}
+
+        sql_cache = {}  # sql text → list[dict]  (dedup identical queries)
+
+        def _rows_for(sql_text):
+            if sql_text in sql_cache:
+                return sql_cache[sql_text]
+            cols, rows = self._run_detail_query(
+                sql_text, row_key_value, portal_ctx)
+            objs = [
+                {c: (v if v is not None else '') for c, v in zip(cols, r)}
+                for r in rows
+            ]
+            sql_cache[sql_text] = objs
+            return objs
+
+        out = {}
+        for s in (cfg.get('sections') or []):
+            if not isinstance(s, dict) or s.get('source') != 'sql':
+                continue  # master_row sections are resolved on the client
+            sid = s.get('id') or ''
+            sql_text = (s.get('sql') or '').strip()
+            try:
+                if not sql_text:
+                    raise ValueError('Section source is "sql" but no SQL set')
+                if '%(row_key)s' not in sql_text:
+                    raise ValueError('Detail SQL must reference %(row_key)s')
+                out[sid] = {'rows': _rows_for(sql_text)}
+            except Exception as exc:
+                _logger.warning(
+                    'drawer section %s (widget %s) failed: %s',
+                    sid, self.id, exc)
+                out[sid] = {'error': str(exc)}
+        return {'sections': out}
 
     def _build_detail_tile(self, tile_config, cols, rows):
         """Build one detail-panel tile. Dispatches by tile type.

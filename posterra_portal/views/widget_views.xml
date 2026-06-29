@@ -428,6 +428,14 @@
                                        style="font-family: monospace; min-height: 120px;"
                                        nolabel="1" colspan="2"/>
                             </group>
+                            <!-- Detail Drawer Config (editable JSON — authors the row/cell detail drawer) -->
+                            <group string="Detail Drawer Config (JSON)"
+                                   invisible="chart_type != 'table'">
+                                <field name="detail_drawer_config" widget="text"
+                                       placeholder='{"enabled": true, "trigger": "cell", "row_key_column": "...", "sections": [...]}'
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
                             <!-- Builder Config (read-only reference, for tables shown here instead of Actions) -->
                             <group string="Builder Config"
                                    invisible="not builder_config or chart_type != 'table'">

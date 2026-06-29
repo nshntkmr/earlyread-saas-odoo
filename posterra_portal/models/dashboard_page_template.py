@@ -213,6 +213,7 @@ class DashboardPageTemplate(models.Model):
                 'echart_override': w.echart_override or '',
                 'builder_config': w.builder_config or '',
                 'table_column_config': w.table_column_config or '',
+                'detail_drawer_config': w.detail_drawer_config or '',
                 'column_link_config': w.column_link_config or '',
                 'bar_stack': w.bar_stack,
                 # Actions
@@ -604,6 +605,7 @@ class DashboardPageTemplate(models.Model):
                 'echart_override': w.get('echart_override', ''),
                 'builder_config': w.get('builder_config', ''),
                 'table_column_config': w.get('table_column_config', ''),
+                'detail_drawer_config': w.get('detail_drawer_config', ''),
                 'column_link_config': w.get('column_link_config', ''),
                 'bar_stack': w.get('bar_stack', False),
                 'click_action': w.get('click_action', 'none'),

@@ -3,6 +3,7 @@ import { TrendIcon } from './TrendIcons'
 import CategoryIcon from './CategoryIcons'
 import KPIStrip from './KPIStrip'
 import { resolveLabelPlacement } from './kpiLabelPosition'
+import { buildKpiLabelStyle } from './kpiLabelStyle'
 
 /**
  * StatusKPI — chart_type: "status_kpi"
@@ -39,6 +40,7 @@ export default function StatusKPI({ data = {}, name }) {
   const labelStyle = (label_font_weight || label_color)
     ? { ...(label_font_weight && { fontWeight: label_font_weight }), ...(label_color && { color: label_color }) }
     : undefined
+  const kpiLabelStyle = buildKpiLabelStyle(data, labelStyle)
   const alignStyle = text_align ? { textAlign: text_align } : undefined
 
   // Label placement (opt-in). Default for StatusKPI is ABOVE the value in both
@@ -52,7 +54,7 @@ export default function StatusKPI({ data = {}, name }) {
   } : undefined
   const labelEl = (label && showLabel)
     ? <div className={`pv-widget-kpi-label${isLabelBadge ? ' pv-widget-kpi-label--badge' : ''}`}
-           style={{ ...labelStyle, ...labelBadgeStyle }}>{label}</div>
+           style={{ ...kpiLabelStyle, ...labelBadgeStyle }}>{label}</div>
     : null
 
   if (kpi_layout === 'inline') {

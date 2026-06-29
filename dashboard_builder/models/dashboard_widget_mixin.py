@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from odoo import fields, models
+import json
+
+from odoo import api, fields, models
+from odoo.exceptions import ValidationError
+
+_DRAWER_SECTION_TYPES = ('field_grid', 'flag_chips', 'measure_cards', 'alert_blocks')
+_DRAWER_TRIGGERS = ('row', 'cell')
+_DRAWER_SOURCES = ('master_row', 'sql')
 
 
 class DashboardWidgetActionMixin(models.AbstractModel):
@@ -59,6 +66,22 @@ class DashboardWidgetActionMixin(models.AbstractModel):
              'formatting, and per-column click actions. Only used when '
              'chart_type is "table". Auto-populated by builder.')
 
+    # ── Detail Drawer config (generic DataTable row-detail drawer) ────────
+    # Drives the configurable "open a detail drawer on row/cell click" feature
+    # for table widgets. JSON shape: {enabled, trigger ('row'|'cell'),
+    # row_key_column, title_template, subtitle_template, sections:[...]}.
+    # Member-360 is one preset of this. Authored by the Detail Drawer designer
+    # panel (or the advanced JSON editor). SQL-backed sections run against the
+    # widget's own schema_source_id (source-inherited, v1). The raw value
+    # (with SQL) is admin-only; the portal payload carries a SQL-stripped
+    # projection (see dashboard.widget._build_drawer_render_schema).
+    detail_drawer_config = fields.Text(
+        string='Detail Drawer Config (JSON)',
+        help='JSON config for the row/cell Detail Drawer on table widgets. '
+             'Sections of type field_grid / flag_chips / measure_cards / '
+             'alert_blocks, each master_row or sql (with row_key param). '
+             'Member-360 ships as a preset.')
+
     # ── Ranked Detail List configs (v2 consolidated) ──────────────────────
     ranked_master_config = fields.Text(
         string='Ranked Master Layout (JSON)',
@@ -79,3 +102,59 @@ class DashboardWidgetActionMixin(models.AbstractModel):
         help='JSON schema defining columns + cell recipes for smart_table '
              'widgets. Five recipes supported: text, metric, '
              'metric_with_delta, badge, composite. Auto-populated by builder.')
+
+    # ── Detail Drawer config validation (save-time, every API path) ────────
+    @api.constrains('detail_drawer_config')
+    def _check_detail_drawer_config(self):
+        """Validate the Detail Drawer JSON on save (designer, builder, Odoo
+        form — all paths) so a bad config produces a clear admin error instead
+        of a broken portal. Runtime adds per-section error isolation on top."""
+        for rec in self:
+            raw = (rec.detail_drawer_config or '').strip()
+            if not raw:
+                continue
+            try:
+                cfg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                raise ValidationError('Detail Drawer config is not valid JSON.')
+            if not isinstance(cfg, dict):
+                raise ValidationError('Detail Drawer config must be a JSON object.')
+            if not cfg.get('enabled'):
+                continue  # disabled config need not be fully valid
+            trigger = cfg.get('trigger')
+            if trigger not in _DRAWER_TRIGGERS:
+                raise ValidationError(
+                    "Detail Drawer 'trigger' must be 'row' or 'cell'.")
+            if not (cfg.get('row_key_column') or '').strip():
+                raise ValidationError(
+                    'Detail Drawer requires a row_key_column.')
+            sections = cfg.get('sections')
+            if not isinstance(sections, list) or not sections:
+                raise ValidationError(
+                    'Detail Drawer requires at least one section.')
+            seen_ids = set()
+            for s in sections:
+                if not isinstance(s, dict):
+                    raise ValidationError('Each drawer section must be an object.')
+                sid = s.get('id')
+                if not sid:
+                    raise ValidationError('Each drawer section needs an id.')
+                if sid in seen_ids:
+                    raise ValidationError(
+                        'Duplicate drawer section id: %s' % sid)
+                seen_ids.add(sid)
+                if s.get('type') not in _DRAWER_SECTION_TYPES:
+                    raise ValidationError(
+                        "Section '%s' has an invalid type." % sid)
+                src = s.get('source')
+                if src not in _DRAWER_SOURCES:
+                    raise ValidationError(
+                        "Section '%s' source must be 'master_row' or 'sql'." % sid)
+                if src == 'sql':
+                    sql = (s.get('sql') or '').strip()
+                    if not sql:
+                        raise ValidationError(
+                            "Section '%s' is source 'sql' but has no SQL." % sid)
+                    if '%(row_key)s' not in sql:
+                        raise ValidationError(
+                            "Section '%s' SQL must reference %%(row_key)s." % sid)

@@ -1,6 +1,7 @@
-import React, { useMemo, useCallback, useRef } from 'react'
+import React, { useMemo, useCallback, useRef, useState } from 'react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
+import DetailDrawer from './DetailDrawer'
 // Import CELL_RENDERERS explicitly to prevent Rollup tree-shaking.
 // resolveColumnDefs uses dynamic property access (CELL_RENDERERS[key])
 // which Rollup may not trace as "used" during static analysis.
@@ -12,9 +13,16 @@ void CELL_RENDERERS
 ModuleRegistry.registerModules([AllCommunityModule])
 
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
-function AGGridTable({ data, onCellClick, searchText, fillHeight = false }) {
-  const { columnDefs, rowData = [], row_count, visual_config: vc = {} } = data
+function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widgetId, fetchDrawerDetail }) {
+  const { columnDefs, rowData = [], row_count, visual_config: vc = {}, detail_drawer: drawer } = data
   const gridRef = useRef(null)
+
+  // Detail Drawer state — owned by DataTable (it has event.data locally; the
+  // WidgetGrid onCellClick bridge drops the row). null = closed.
+  const [drawerRow, setDrawerRow] = useState(null)
+  const canDrawer = !!(drawer && drawer.enabled && widgetId != null && fetchDrawerDetail)
+  const openDrawer = useCallback((row) => { if (canDrawer) setDrawerRow(row || {}) }, [canDrawer])
+  const closeDrawer = useCallback(() => setDrawerRow(null), [])
 
   // Table display mode from admin config (visual_config).
   // fillHeight (widget has an exact Height) overrides autoHeight so the grid fills
@@ -55,7 +63,20 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false }) {
       return
     }
 
-    if (action === 'none') return
+    // Detail Drawer (cell trigger): a column explicitly set to open_detail_drawer
+    // opens the drawer — this is that column's action and always wins for it.
+    if (action === 'open_detail_drawer') {
+      openDrawer(event.data)
+      return
+    }
+
+    // Detail Drawer (row trigger): clicking a column with NO action opens the
+    // drawer. Columns WITH their own action fall through to the switch below and
+    // never open the drawer (existing click actions always win).
+    if (action === 'none') {
+      if (canDrawer && drawer.trigger === 'row') openDrawer(event.data)
+      return
+    }
 
     // Resolve value: actionValueField reads from a different column in row data
     // e.g. display = "147000 - VNA HEALTH CARE" but actionValueField = "hha_ccn" → passes "147000"
@@ -104,7 +125,7 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false }) {
         break
       }
     }
-  }, [onCellClick])
+  }, [onCellClick, canDrawer, drawer, openDrawer])
 
   // Container style: fillHeight (exact widget height) → no inline height; the
   // .pv-widget-table-wrap--fill CSS (flex:1; min-height:0) gives the grid a
@@ -139,6 +160,14 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false }) {
         <div className="pv-table-meta text-muted small mt-1">
           Showing {rowData.length} of {row_count} rows
         </div>
+      )}
+      {canDrawer && drawerRow && (
+        <DetailDrawer
+          schema={drawer}
+          row={drawerRow}
+          fetchDetail={(rowKey) => fetchDrawerDetail(rowKey)}
+          onClose={closeDrawer}
+        />
       )}
     </div>
   )
@@ -234,10 +263,11 @@ function LegacyTable({ data, columnLinkConfig, onCellClick }) {
  *   columnLinkConfig — legacy column link map (only used in legacy mode)
  *   onCellClick     — ({ column, value, row, linkConfig }) => void
  */
-export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText, fillHeight }) {
+export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText, fillHeight, widgetId, fetchDrawerDetail }) {
   // AG Grid mode: has columnDefs from table_column_config
   if (data.columnDefs) {
-    return <AGGridTable data={data} onCellClick={onCellClick} searchText={searchText} fillHeight={fillHeight} />
+    return <AGGridTable data={data} onCellClick={onCellClick} searchText={searchText} fillHeight={fillHeight}
+      widgetId={widgetId} fetchDrawerDetail={fetchDrawerDetail} />
   }
 
   // Legacy mode: plain cols/rows (backward compat for existing widgets)

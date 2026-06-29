@@ -928,6 +928,7 @@ class BuilderAPI(http.Controller):
             'default_row_span': defn.default_row_span or 1,
             'bar_stack': defn.bar_stack or False,
             'table_column_config': '',
+            'detail_drawer_config': defn.detail_drawer_config or '',
             # Ranked Detail List v2 configs (consolidated JSON) — required
             # by the builder's edit-load flow. Previously omitted, which
             # caused Master Row Layout + Detail Config to load blank.
@@ -978,6 +979,8 @@ class BuilderAPI(http.Controller):
                 # Also get table_column_config from instance
                 if instances[0].table_column_config:
                     data['table_column_config'] = instances[0].table_column_config
+                if instances[0].detail_drawer_config:
+                    data['detail_drawer_config'] = instances[0].detail_drawer_config
         except Exception:
             pass  # dashboard.widget may not exist
         data['scope_options'] = scope_options

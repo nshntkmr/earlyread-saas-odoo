@@ -380,8 +380,23 @@ def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
 
     result = {
         'formatted_value': formatted,
-        'label': config.get('title') or x_col or 'KPI',
+        'label': visual_config.get('kpi_label', config.get('title') or x_col or 'KPI'),
     }
+    if visual_config.get('kpi_label_position'):
+        result['kpi_label_position'] = visual_config.get('kpi_label_position')
+    if visual_config.get('kpi_label_font_size') not in (None, ''):
+        try:
+            size = int(visual_config.get('kpi_label_font_size'))
+            if size > 0:
+                result['kpi_label_font_size'] = size
+        except (TypeError, ValueError):
+            pass
+    if visual_config.get('kpi_label_color'):
+        result['kpi_label_color'] = str(visual_config.get('kpi_label_color')).strip()
+    if visual_config.get('kpi_label_bold'):
+        result['kpi_label_bold'] = True
+    if visual_config.get('kpi_label_italic'):
+        result['kpi_label_italic'] = True
 
     # Secondary value — match the portal trend badge: "±N% vs <comparison_label>".
     # Comparison label: SQL column 'comparison_label' (trimmed, non-blank)

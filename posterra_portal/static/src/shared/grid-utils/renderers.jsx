@@ -524,14 +524,80 @@ function InlineChartRenderer(params) {
   )
 }
 
+// ── 9. Compliance dot-strip ───────────────────────────────────────────────────
+// PURE, AG-Grid-independent component: a horizontal row of small status cells
+// (e.g. Jan..Dec, each compliant / nonCompliant / na). Reused by the AG-Grid
+// renderer below AND directly by the Detail Drawer's measure cards — so drawer
+// code never depends on AG-Grid renderer params. Config-driven: months/colours
+// come from data + params, nothing hardcoded.
+//
+// `items`: array of { label, status }, status ∈ {compliant, nonCompliant, na}.
+const STRIP_DEFAULT_COLORS = { compliant: '#16a34a', nonCompliant: '#dc2626', na: '#e5e7eb' }
+const STRIP_SIZES = { sm: 12, md: 16, lg: 20 }
+
+// Accepts native array, stringified JSON, null/empty, or malformed — never throws.
+function normalizeStripItems(items) {
+  let arr = items
+  if (typeof arr === 'string') {
+    const s = arr.trim()
+    if (!s) return []
+    try { arr = JSON.parse(s) } catch { console.warn('[ComplianceStrip] malformed JSON value'); return [] }
+  }
+  if (!Array.isArray(arr)) {
+    if (arr != null) console.warn('[ComplianceStrip] unexpected value shape:', typeof arr)
+    return []
+  }
+  return arr.map(it => (it && typeof it === 'object')
+    ? { label: it.label ?? '', status: it.status ?? 'na' }
+    : { label: '', status: 'na' })
+}
+
+// `size` accepts a keyword (sm/md/lg) OR a number (custom px). For pills
+// (showLabels), `fontSize`/`padding` give full control. All three default so
+// keyword sizes render byte-identical to before (sm → 11px font / 3px 7px pad).
+export function ComplianceStrip({ items, colors, size = 'sm', showLabels = false, fontSize, padding }) {
+  const list = normalizeStripItems(items)
+  if (!list.length) return <span style={{ color: '#9ca3af', fontSize: '0.8em' }}>—</span>
+  const c = { ...STRIP_DEFAULT_COLORS, ...(colors || {}) }
+  const px = typeof size === 'number' ? size : (STRIP_SIZES[size] || STRIP_SIZES.sm)
+  const pillFont = fontSize != null ? fontSize : (typeof size === 'number' ? size : 11)
+  const pillPad = padding != null ? padding : `${Math.round(pillFont * 0.3)}px ${Math.round(pillFont * 0.65)}px`
+  return (
+    <div style={{ display: 'inline-flex', gap: 2, alignItems: 'center' }}>
+      {list.map((it, i) => {
+        const status = c[it.status] ? it.status : 'na'
+        return (
+          <span
+            key={i}
+            title={it.label ? `${it.label}: ${it.status}` : it.status}
+            style={showLabels
+              ? { fontSize: pillFont, fontWeight: 700, borderRadius: 4, padding: pillPad, color: '#fff', backgroundColor: c[status] }
+              : { width: px, height: px, borderRadius: 3, backgroundColor: c[status], display: 'inline-block' }}
+          >
+            {showLabels ? it.label : ''}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+// Thin AG-Grid wrapper: maps cellRendererParams → the pure component.
+function ComplianceStripRenderer(params) {
+  const p = params.colDef?.cellRendererParams || {}
+  const raw = p.itemsField ? params.data?.[p.itemsField] : params.value
+  return <ComplianceStrip items={raw} colors={p.colors} size={p.size || 'sm'} showLabels={p.showLabels} fontSize={p.fontSize} padding={p.padding} />
+}
+
 // ── Registry ────────────────────────────────────────────────────────────────
 export const CELL_RENDERERS = {
-  starRating:  StarRatingRenderer,
-  pctColored:  PctColoredRenderer,
-  badge:       BadgeRenderer,
-  sparkline:   SparklineRenderer,
-  barInline:   BarInlineRenderer,
-  composite:   CompositeRenderer,
-  dualValue:   DualValueRenderer,
-  inlineChart: InlineChartRenderer,
+  starRating:      StarRatingRenderer,
+  pctColored:      PctColoredRenderer,
+  badge:           BadgeRenderer,
+  sparkline:       SparklineRenderer,
+  barInline:       BarInlineRenderer,
+  composite:       CompositeRenderer,
+  dualValue:       DualValueRenderer,
+  inlineChart:     InlineChartRenderer,
+  complianceStrip: ComplianceStripRenderer,
 }
