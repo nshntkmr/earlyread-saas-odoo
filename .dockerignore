@@ -67,6 +67,15 @@ work
 # Office apps create `~$<filename>.docx` etc. while a doc is open, with an
 # exclusive lock that `az acr build` cannot read. `.pptx`/`.docx`/`.xlsx`
 # files at the repo root are documentation, not app artifacts.
+#
+# IMPORTANT: az acr build's walker treats `**/foo` as "foo in a subdirectory"
+# and does NOT match root-level files. So root-level patterns (no `**/`) are
+# ALSO required — a `~$EarlyRead.pptx` at repo root broke a deploy on
+# 2026-06-25 even with the `**/~$*` pattern present.
+~$*
+*.pptx
+*.docx
+*.xlsx
 **/~$*
 **/*.pptx
 **/*.docx
