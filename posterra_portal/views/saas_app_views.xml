@@ -70,6 +70,10 @@
                                    placeholder="e.g. posterra_portal.group_posterra_mssp_user"
                                    invisible="access_mode != 'group'"/>
                         </group>
+                        <group>
+                            <field name="session_idle_timeout_mins"
+                                   placeholder="e.g. 15 (0 = disabled)"/>
+                        </group>
                     </group>
 
                     <!-- Pages -->

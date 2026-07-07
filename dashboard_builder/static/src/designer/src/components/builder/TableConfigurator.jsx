@@ -267,6 +267,7 @@ export default function TableConfigurator({
         const optSql = cfg.dataMode === 'ai' ? (ai.generatedSql || '') : (cs.sql || '')
         return {
           label: opt.label || '', value: opt.value || '', icon: opt.icon || '',
+          color: opt.color || '', icon_color: opt.icon_color || '',
           sequence: (idx + 1) * 10, query_sql: optSql,
           table_column_config: cfg.tableColumnConfig?.length ? JSON.stringify(cfg.tableColumnConfig) : '',
           x_column: cs.xColumn || '', y_columns: cs.yColumns || '', series_column: cs.seriesColumn || '',

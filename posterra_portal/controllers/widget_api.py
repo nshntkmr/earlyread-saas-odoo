@@ -32,6 +32,14 @@ from .portal import _get_providers_for_user
 
 _logger = logging.getLogger(__name__)
 
+# Auto-select-ALL cap: when a resets_target cascade would select every option
+# of a multiselect as one CSV value, anything longer than this resets to ''
+# ("All") instead. Keeps widget URLs / permalinks sane when an unconstrained
+# target has hundreds of options (e.g. 635 plan IDs ~= 4.7KB CSV). Client
+# twin: AUTO_SELECT_ALL_MAX_CHARS in
+# posterra_portal/static/src/react/src/components/FilterBar.jsx — keep in sync.
+AUTO_SELECT_ALL_MAX_CHARS = 1500
+
 
 # ── JWT validation helper ─────────────────────────────────────────────────────
 
@@ -572,6 +580,24 @@ class PosterraWidgetAPI(http.Controller):
         except Exception as exc:
             _logger.warning('api_widget_data: portal_ctx error widget=%s: %s', widget_id, exc)
             return _json_error(500, f'Context build error: {exc}')
+
+        # ── Map choropleth drill params (validated) ───────────────────────
+        # Normalise + inject the drill request into sql_params. The scope
+        # option / widget decides via _effective_map_level whether the drill is
+        # actually honored, and clears these if it falls back to state (defense
+        # in depth). Only whitelisted, format-checked values are injected —
+        # never raw request keys, and only for map widgets.
+        if widget.chart_type in ('map', 'albers_choropleth'):
+            _raw_lvl = (kw.get('_map_level') or '').strip().lower()
+            if _raw_lvl in ('state', 'county'):
+                portal_ctx['sql_params']['_map_level'] = _raw_lvl
+                if _raw_lvl == 'county':
+                    _dc = (kw.get('_drill_state_code') or '').strip().upper()
+                    _df = (kw.get('_drill_state_fips') or '').strip()
+                    if len(_dc) == 2 and _dc.isalpha():
+                        portal_ctx['sql_params']['_drill_state_code'] = _dc
+                    if len(_df) == 2 and _df.isdigit():
+                        portal_ctx['sql_params']['_drill_state_fips'] = _df
 
         # ── Widget-scoped control override ───────────────────────────────
         _scope_option_id = kw.pop('_scope_option_id', None)
@@ -1374,10 +1400,14 @@ class PosterraWidgetAPI(http.Controller):
                     elif (target_filter.is_multiselect
                           and len(options) > 1
                           and not target_filter.include_all_option):
-                        # Multi-select with 2+ options → select ALL as CSV
+                        # Multi-select with 2+ options → select ALL as CSV.
+                        # Capped: a giant all-options CSV (e.g. 635 plan IDs)
+                        # resets to '' instead — same "All" semantics, sane URLs.
                         new_value = ','.join(
                             o['value'] for o in options if o.get('value')
                         )
+                        if len(new_value) > AUTO_SELECT_ALL_MAX_CHARS:
+                            new_value = ''
                     else:
                         new_value = ''
                     value_changed = (new_value != old_value)

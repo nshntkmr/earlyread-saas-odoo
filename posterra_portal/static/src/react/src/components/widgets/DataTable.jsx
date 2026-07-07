@@ -120,7 +120,22 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widget
       }
       case 'open_url': {
         const tpl = colDef.actionUrlTemplate || ''
-        const finalUrl = tpl.replace(/\{value\}/g, encodeURIComponent(value))
+        let finalUrl = tpl.replace(/\{value\}/g, encodeURIComponent(value))
+        // {filters} expands to the current page's URL-synced filter params so
+        // navigation carries context (Month, Market, ...). Params written
+        // explicitly in the template win over carried ones; `tab` is never
+        // carried (the template targets its own tab or none).
+        if (finalUrl.includes('{filters}')) {
+          const carried = new URLSearchParams(window.location.search)
+          carried.delete('tab')
+          const explicit = new URLSearchParams(
+            (finalUrl.replace(/\{filters\}/g, '').split('?')[1] || '')
+          )
+          for (const k of explicit.keys()) carried.delete(k)
+          finalUrl = finalUrl.replace(/\{filters\}/g, carried.toString())
+          // Tidy artifacts when nothing is carried ("...&" / "...?")
+          finalUrl = finalUrl.replace(/[?&]+$/, '')
+        }
         if (finalUrl) window.open(finalUrl, '_blank', 'noopener')
         break
       }

@@ -246,6 +246,7 @@ class DashboardWidget(models.Model):
         ('gauge_kpi',    'Gauge + KPI Breakdown'),
         ('kpi_strip',    'KPI Strip — Compact'),
         ('map',          'Map'),
+        ('albers_choropleth', 'US Choropleth'),
         ('ranked_detail_list', 'Ranked Detail List'),
         ('smart_table',  'Smart Table'),
         ('sankey',       'Sankey (Flow Diagram)'),
@@ -821,6 +822,8 @@ class DashboardWidget(models.Model):
                 'value': o.value or '',
                 'label': o.label or o.value or '',
                 'icon': o.icon or '',
+                'color': o.color or '',
+                'icon_color': o.icon_color or '',
             } for o in self.scope_option_ids.filtered('is_active').sorted('sequence')]
         # Schema source fallback (for dropdown with dynamic options)
         if self.scope_schema_source_id and self.scope_value_column:
@@ -878,6 +881,8 @@ class DashboardWidget(models.Model):
             return self._build_gauge_kpi_data(cols, rows)
         elif self.chart_type == 'map':
             return self._build_map_data(cols, rows)
+        elif self.chart_type == 'albers_choropleth':
+            return self._build_albers_choropleth(cols, rows)
         elif self.chart_type == 'ranked_detail_list':
             return self._build_ranked_detail_list_data(cols, rows)
         elif self.chart_type == 'smart_table':
@@ -992,6 +997,8 @@ class DashboardWidget(models.Model):
             result.update(self._get_typography_overrides())
         elif ct == 'map':
             result = self._build_map_data(cols, rows)
+        elif ct == 'albers_choropleth':
+            result = self._build_albers_choropleth(cols, rows)
         elif ct == 'ranked_detail_list':
             result = self._build_ranked_detail_list_data(cols, rows)
         elif ct == 'smart_table':
@@ -1239,7 +1246,23 @@ class DashboardWidget(models.Model):
                 return result
 
             if self.query_type == 'sql':
-                effective_params = self._resolve_where_clause_params(portal_ctx)
+                # Copy first: _resolve_where_clause_params returns the SHARED
+                # portal_ctx['sql_params'] when there's no {where_clause}, and
+                # portal.py reuses one ctx across widgets — never mutate it.
+                effective_params = dict(self._resolve_where_clause_params(portal_ctx) or {})
+                # Map widgets: inject the effective geo level so level-aware SQL
+                # resolves on initial render (non-scoped path). Non-scoped drill
+                # is deferred; a forged _map_level is ignored by the helper.
+                if self.chart_type in ('map', 'albers_choropleth'):
+                    _lvl = self._effective_map_level(
+                        option=None,
+                        raw_map_level=(portal_ctx.get('sql_params') or {}).get('_map_level'))
+                    effective_params['_map_level'] = _lvl
+                    # Non-scoped maps never drill; if the level isn't county,
+                    # drop any drill scope so it can't leak into a [[ ]] clause.
+                    if _lvl != 'county':
+                        effective_params.pop('_drill_state_code', None)
+                        effective_params.pop('_drill_state_fips', None)
                 cols, rows = self._execute_sql(effective_params)
             else:
                 cols, rows = self._execute_orm()
@@ -4106,7 +4129,7 @@ class DashboardWidget(models.Model):
                 'period': start_period,
                 'value': start_value,
             },
-            'footer': 'Members must have a qualifying claim in the past 12 months to remain aligned.',
+            'footer': 'Members must have a qualifying claim in the past 12 months to remain eligible.',
         }
 
     def _build_kpi_data(self, cols, rows, portal_ctx):
@@ -4831,6 +4854,51 @@ class DashboardWidget(models.Model):
             'map_config': vc,
         }
 
+    def _merged_visual_config(self):
+        """Merged visual_config: definition first, then instance overrides."""
+        self.ensure_one()
+        vc = {}
+        try:
+            if self.definition_id and self.definition_id.visual_config:
+                vc.update(json.loads(self.definition_id.visual_config) or {})
+            if self.visual_config:
+                vc.update(json.loads(self.visual_config) or {})
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return vc
+
+    def _effective_map_level(self, option=None, raw_map_level=None):
+        """Resolve the concrete choropleth geo level ('state' | 'county').
+
+        Single source of truth for BOTH paths:
+          • scoped     → execute_option_sql passes the active scope option
+          • non-scoped → get_portal_data passes option=None (capability from the
+            widget's own visual_config: single level, no drill)
+        Defensive getattr — never assumes a base widget carries option fields.
+        A drill request (raw='county') is honored only if county is allowed AND
+        drill is supported (or the default level is already county); forged or
+        disallowed values fall back to the default level.
+        """
+        self.ensure_one()
+        if option is not None:
+            default_lvl = (getattr(option, 'default_geo_level', None) or 'state')
+            allowed_raw = getattr(option, 'allowed_geo_levels', None) or default_lvl
+            allowed = {t.strip() for t in str(allowed_raw).split(',') if t.strip()} or {default_lvl}
+            supports_drill = bool(getattr(option, 'supports_drill', False))
+        else:
+            vc = self._merged_visual_config()
+            default_lvl = (vc.get('choropleth_level') or 'state').strip() or 'state'
+            allowed = {default_lvl}          # non-scoped = single level, no drill
+            supports_drill = False
+        raw = (raw_map_level or '').strip().lower()
+        if raw == 'county':
+            if default_lvl == 'county' or ('county' in allowed and supports_drill):
+                return 'county'
+            return default_lvl
+        if raw == 'state' and 'state' in allowed:
+            return 'state'
+        return default_lvl
+
     def _build_map_choropleth(self, cols, rows, col_idx, vc):
         """Build choropleth data: aggregated metrics per region (no GeoJSON features).
 
@@ -4866,10 +4934,17 @@ class DashboardWidget(models.Model):
             if region is None:
                 continue
             region = str(region).strip()
+            # Preserve None as "no data" (kept DISTINCT from a real 0) and
+            # EXCLUDE it from the domain/range calc — otherwise no-data regions
+            # would render as the lowest value instead of the no-data color.
+            if metric is None:
+                region_data[region] = None
+                continue
             try:
-                metric = float(metric) if metric is not None else 0
+                metric = float(metric)
             except (ValueError, TypeError):
-                metric = 0
+                region_data[region] = None
+                continue
             region_data[region] = metric
             all_metrics.append(metric)
 
@@ -4902,13 +4977,86 @@ class DashboardWidget(models.Model):
                     str(round(mn + step * i)) for i in range(1, 5)
                 )
 
+        # Concrete geo level + join property for the SVG/Albers frontend.
+        # (Effective-level resolution for scoped/drill paths is layered on in
+        # Phase 3/4; here we read the widget's own configured level.)
+        geo_level = (vc.get('choropleth_level') or 'state').strip()
+        join_property = (vc.get('choropleth_join_property')
+                         or ('GEOID' if geo_level == 'county' else 'STUSPS'))
+
+        # Domain (min/max/mid) for a continuous gradient legend — nulls already
+        # excluded from all_metrics above.
+        if all_metrics:
+            dmin, dmax = min(all_metrics), max(all_metrics)
+            domain = {'min': dmin, 'max': dmax, 'mid': (dmin + dmax) / 2}
+        else:
+            domain = {'min': 0, 'max': 0, 'mid': 0}
+
+        # SQL-driven metric label (constant per query) — surfaced so the tooltip
+        # + legend can label the metric per scope tab straight from its SQL
+        # (e.g. `'Volume — State' AS metric_label`), no widget-level config needed.
+        metric_label = ''
+        if 'metric_label' in col_idx and rows:
+            _ml = rows[0][col_idx['metric_label']]
+            metric_label = str(_ml).strip() if _ml is not None else ''
+
         return {
             'type': 'map',
             'choropleth_data': region_data,
             'choropleth_popup_data': popup_data,
             'choropleth_ranges': ranges,
+            'geo_level': geo_level,
+            'join_property': join_property,
+            'choropleth_domain': domain,
+            'metric_label': metric_label,
             'map_config': vc,
         }
+
+    def _build_albers_choropleth(self, cols, rows):
+        """Build data for the standalone ``albers_choropleth`` (US Choropleth)
+        chart type.
+
+        This type is a first-class SVG-Albers choropleth, decoupled from the
+        MapLibre-backed ``map`` type. It reuses the shared choropleth builder
+        (``_build_map_choropleth``) but FORCES choropleth mode + the SVG-Albers
+        renderer (it has no ``marker_mode`` / renderer toggle in its flags), so
+        it never touches the point/bubble/heatmap branching in
+        ``_build_map_data``. The payload ``type`` is tagged ``albers_choropleth``
+        so the intent is explicit end-to-end (React dispatch still keys on the
+        widget ``chart_type``, not this payload ``type``).
+        """
+        col_idx = {c: i for i, c in enumerate(cols)}
+        # Merge visual_config: definition flags first, instance overrides on top
+        # (same precedence as _build_map_data / the gauge builder).
+        vc = {}
+        if self.definition_id and self.definition_id.visual_config:
+            try:
+                vc = json.loads(self.definition_id.visual_config) or {}
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if self.visual_config:
+            try:
+                vc_inst = json.loads(self.visual_config) or {}
+                vc.update(vc_inst)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # Force the mode + renderer — this widget IS a choropleth on SVG-Albers,
+        # so map_config stays self-consistent and is_choropleth / renderer checks
+        # (portal.py, scope-option serializers) resolve correctly.
+        vc['marker_mode'] = 'choropleth'
+        vc['choropleth_renderer'] = 'svg_albers_usa'
+        # Convention for this type: SQL aliases the join key AS `region` and the
+        # metric AS `value`. The builder shows these as flag defaults, but a
+        # never-touched field may not persist into visual_config — so fall back
+        # here (blank/missing → region/value) instead of erroring "not found".
+        if not vc.get('choropleth_join_column'):
+            vc['choropleth_join_column'] = 'region'
+        if not vc.get('choropleth_metric_column'):
+            vc['choropleth_metric_column'] = 'value'
+        result = self._build_map_choropleth(cols, rows, col_idx, vc)
+        if isinstance(result, dict):
+            result['type'] = 'albers_choropleth'
+        return result
 
     def _build_insight_data(self, cols, rows, portal_ctx):
         """Build dict for insight_panel widgets."""

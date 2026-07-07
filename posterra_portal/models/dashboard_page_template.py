@@ -279,6 +279,8 @@ class DashboardPageTemplate(models.Model):
                     'label': o.label,
                     'value': o.value or '',
                     'icon': o.icon or '',
+                    'color': o.color or '',
+                    'icon_color': o.icon_color or '',
                     'sequence': o.sequence,
                     'query_sql': o.query_sql or '',
                     'schema_source_table': (
@@ -294,6 +296,10 @@ class DashboardPageTemplate(models.Model):
                     'action_pass_value_as': o.action_pass_value_as or '',
                     'drill_detail_columns': o.drill_detail_columns or '',
                     'action_url_template': o.action_url_template or '',
+                    # Per-option geo metadata (map choropleth drill)
+                    'default_geo_level': o.default_geo_level or 'state',
+                    'allowed_geo_levels': o.allowed_geo_levels or 'state',
+                    'supports_drill': bool(o.supports_drill),
                 })
             if scope_opts:
                 wdata['scope_options'] = scope_opts
@@ -672,6 +678,8 @@ class DashboardPageTemplate(models.Model):
                     'label': opt.get('label', ''),
                     'value': opt.get('value', ''),
                     'icon': opt.get('icon', ''),
+                    'color': opt.get('color', ''),
+                    'icon_color': opt.get('icon_color', ''),
                     'sequence': opt.get('sequence', 10),
                     'query_sql': opt.get('query_sql', ''),
                     'where_clause_exclude': opt.get('where_clause_exclude', ''),
@@ -685,6 +693,10 @@ class DashboardPageTemplate(models.Model):
                     'action_pass_value_as': opt.get('action_pass_value_as', ''),
                     'drill_detail_columns': opt.get('drill_detail_columns', ''),
                     'action_url_template': opt.get('action_url_template', ''),
+                    # Per-option geo metadata (map choropleth drill)
+                    'default_geo_level': opt.get('default_geo_level', 'state') or 'state',
+                    'allowed_geo_levels': opt.get('allowed_geo_levels', 'state') or 'state',
+                    'supports_drill': bool(opt.get('supports_drill', False)),
                 }
                 opt_table = opt.get('schema_source_table', '')
                 if opt_table:

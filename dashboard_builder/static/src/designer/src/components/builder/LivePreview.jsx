@@ -507,6 +507,10 @@ export default function LivePreview({
   const isMemberFlow = builderState.chartType === 'sankey_member_flow'
   const isComposite = builderState.chartType === 'composite'
   const isKeyTakeaways = builderState.chartType === 'key_takeaways'
+  // Maps / choropleths render entirely client-side on the live dashboard; the
+  // builder shows a lightweight placeholder instead of the empty-KPI fallback.
+  const isMap = builderState.chartType === 'map'
+    || builderState.chartType === 'albers_choropleth'
   // KPI label placement (opt-in) — read from live config so the preview reflects
   // above/below/hidden without a backend round-trip. Default keeps current order.
   const kpiLabelPos = builderState.visualFlags?.kpi_label_position || 'default'
@@ -556,12 +560,17 @@ export default function LivePreview({
           const optSql = cfg.dataMode === 'ai' ? (ai.generatedSql || '') : (cs.sql || '')
           const optPayload = {
             label: opt.label || '', value: opt.value || '', icon: opt.icon || '',
+            color: opt.color || '', icon_color: opt.icon_color || '',
             sequence: (idx + 1) * 10, query_sql: optSql,
             table_column_config: cfg.tableColumnConfig?.length ? JSON.stringify(cfg.tableColumnConfig) : '',
             x_column: cs.xColumn || '', y_columns: cs.yColumns || '', series_column: cs.seriesColumn || '',
             click_action: cfg.clickAction || 'none', action_page_key: cfg.actionPageKey || '',
             action_tab_key: cfg.actionTabKey || '', action_pass_value_as: cfg.actionPassValueAs || '',
             drill_detail_columns: cfg.drillDetailColumns || '', action_url_template: cfg.actionUrlTemplate || '',
+            // Per-option geo metadata (map choropleth drill)
+            default_geo_level: cfg.defaultGeoLevel || 'state',
+            allowed_geo_levels: cfg.allowedGeoLevels || 'state',
+            supports_drill: !!cfg.supportsDrill,
           }
           // Mode B: per-option ranked configs
           if (
@@ -743,8 +752,24 @@ export default function LivePreview({
         <KeyTakeawaysPreviewInline data={previewData} />
       )}
 
+      {/* Map / US Choropleth preview — rendered client-side on the dashboard;
+          show a placeholder + region count here (real geometry needs the portal). */}
+      {isMap && previewData && (
+        <div className="wb-preview-chart" style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', height: builderState.appearance?.chartHeight || 360, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 12 }}>
+            <i className="fa fa-map" style={{ fontSize: 28, marginBottom: 10, display: 'block', color: '#9ca3af' }} />
+            <div>Map preview renders on the dashboard</div>
+            {previewData.choropleth_data && (
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                {Object.keys(previewData.choropleth_data).length} regions with data
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* KPI / Gauge preview */}
-      {!isChart && !isTable && !isMemberFlow && !isComposite && !isKeyTakeaways && previewData && (
+      {!isChart && !isTable && !isMemberFlow && !isComposite && !isKeyTakeaways && !isMap && previewData && (
         <div className="wb-preview-kpi">
           <div className="wb-kpi-preview-card">
             {previewData.icon_class && (

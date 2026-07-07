@@ -49,6 +49,7 @@ class DashboardWidgetDefinition(models.Model):
         ('key_takeaways', 'Key Takeaways'),
         ('gauge_kpi',     'Gauge + KPI'),
         ('map',           'Map'),
+        ('albers_choropleth', 'US Choropleth'),
         ('ranked_detail_list', 'Ranked Detail List'),
         ('composite',     'Composite (Multi-section)'),
     ], required=True, default='bar')

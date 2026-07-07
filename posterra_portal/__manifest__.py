@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Posterra Portal',
-    'version': '19.0.1.6.0',
+    'version': '19.0.1.7.0',
     'category': 'Healthcare',
     'summary': 'Branded login portal and dashboard for Home Health Agency clients',
     'description': """

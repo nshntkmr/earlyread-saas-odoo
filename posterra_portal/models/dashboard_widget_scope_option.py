@@ -5,6 +5,7 @@ import logging
 import re
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -33,6 +34,48 @@ class DashboardWidgetScopeOption(models.Model):
         help='Parameter value passed to SQL. Empty = "All" (no filter applied).')
     icon = fields.Char(string='Icon (FA class)',
         help='Font Awesome icon for toggle buttons. e.g., fa-hospital-o')
+    color = fields.Char(string='Option Color',
+        help='Accent color for this option (hex, e.g. #4f46e5). Drives the active '
+             'toggle button background (and the selected dropdown accent). '
+             'Blank = default styling.')
+    icon_color = fields.Char(string='Icon Color',
+        help='Color for this option\'s Font Awesome icon (hex). '
+             'Blank = falls back to Option Color, then default.')
+
+    # ── Map choropleth geo level (per-option; drives state vs county render) ────
+    # default_geo_level = what this option RENDERS by default.
+    # allowed_geo_levels = which levels its SQL CAN render.
+    # supports_drill     = whether clicking a state may request county.
+    default_geo_level = fields.Selection(
+        [('state', 'State'), ('county', 'County')],
+        string='Default Geo Level', default='state',
+        help='For choropleth map scope options: the geographic level this option '
+             'renders by default.')
+    allowed_geo_levels = fields.Char(
+        string='Allowed Geo Levels', default='state',
+        help='Comma-separated levels this option\'s SQL can render, e.g. "state" or '
+             '"state,county". Must include the Default Geo Level.')
+    supports_drill = fields.Boolean(
+        string='Supports Drill', default=False,
+        help='When ON, clicking a state on this option may drill into its counties '
+             '(requires "county" in Allowed Geo Levels).')
+
+    @api.constrains('default_geo_level', 'allowed_geo_levels')
+    def _check_geo_levels(self):
+        valid = {'state', 'county'}
+        for rec in self:
+            allowed = {t.strip() for t in (rec.allowed_geo_levels or '').split(',') if t.strip()}
+            if not allowed:
+                continue  # blank → treated as widget default elsewhere
+            bad = allowed - valid
+            if bad:
+                raise ValidationError(
+                    'Allowed Geo Levels may only contain "state" or "county"; got: %s'
+                    % ', '.join(sorted(bad)))
+            if (rec.default_geo_level or 'state') not in allowed:
+                raise ValidationError(
+                    'Default Geo Level "%s" must be included in Allowed Geo Levels (%s).'
+                    % (rec.default_geo_level, ', '.join(sorted(allowed))))
 
     # ── Query Mode: per-option SQL ────────────────────────────────────────────
     query_sql = fields.Text(string='SQL Query (Query Mode)',
@@ -144,6 +187,21 @@ class DashboardWidgetScopeOption(models.Model):
             return {'error': 'No SQL configured for this option'}
 
         sql_params = dict(portal_ctx.get('sql_params', {}))
+
+        # Map choropleth: resolve THIS option's effective geo level (widget helper
+        # is the single source of truth) and inject into the LOCAL params so
+        # level-aware SQL (%(_map_level)s / [[ ... ]]) resolves — initial + drill.
+        if self.widget_id.chart_type in ('map', 'albers_choropleth'):
+            _lvl = self.widget_id._effective_map_level(
+                option=self, raw_map_level=sql_params.get('_map_level'))
+            sql_params['_map_level'] = _lvl
+            # Drill filters only apply at county level. If the effective level
+            # fell back to state (drill not supported, or a forged _map_level),
+            # drop the drill scope so a [[ AND state_cd = %(_drill_state_code)s ]]
+            # clause can't silently filter a state query by stale drill params.
+            if _lvl != 'county':
+                sql_params.pop('_drill_state_code', None)
+                sql_params.pop('_drill_state_fips', None)
 
         try:
             # Handle {where_clause} — use option's source or fall back to widget's
@@ -292,6 +350,19 @@ class DashboardWidgetScopeOption(models.Model):
                     'detail_chart_config': [],
                     'detail_sublist_config': {},
                 }
+            elif widget.chart_type in ('map', 'albers_choropleth'):
+                # Build map data, then OVERWRITE geo_level/join_property with this
+                # option's effective level — _build_map_choropleth reads the widget
+                # visual_config level and has NO option awareness, so injecting the
+                # SQL param alone is not enough (Codex).
+                result = widget._format_scope_result(cols, rows)
+                if isinstance(result, dict):
+                    lvl = widget._effective_map_level(
+                        option=self, raw_map_level=sql_params.get('_map_level'))
+                    result['geo_level'] = lvl
+                    jp = (result.get('map_config') or {}).get('choropleth_join_property')
+                    result['join_property'] = jp or ('GEOID' if lvl == 'county' else 'STUSPS')
+                return result
             elif widget.chart_type not in ('table',) and (self.x_column or self.y_columns):
                 # Chart with per-option column mapping — override x/y/series
                 # Temporarily set widget columns to option's columns for formatting

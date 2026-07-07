@@ -1,0 +1,89 @@
+{
+  "_maplibre-gl-CS9VPw2X.js": {
+    "file": "chunks/maplibre-gl-CS9VPw2X.js",
+    "name": "maplibre-gl",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.jsx"
+    ]
+  },
+  "src/components/widgets/AlbersChoroplethMap.jsx": {
+    "file": "chunks/AlbersChoroplethMap-kkVhdbrH.js",
+    "name": "AlbersChoroplethMap",
+    "src": "src/components/widgets/AlbersChoroplethMap.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.jsx"
+    ],
+    "dynamicImports": [
+      "src/data/us-counties-10m.json",
+      "src/data/us-states.json"
+    ]
+  },
+  "src/components/widgets/AlbersChoroplethWidget.jsx": {
+    "file": "chunks/AlbersChoroplethWidget-DoFwlByH.js",
+    "name": "AlbersChoroplethWidget",
+    "src": "src/components/widgets/AlbersChoroplethWidget.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.jsx"
+    ],
+    "dynamicImports": [
+      "src/components/widgets/AlbersChoroplethMap.jsx"
+    ]
+  },
+  "src/components/widgets/MapLibreMap.jsx": {
+    "file": "chunks/MapLibreMap-CndkTUkl.js",
+    "name": "MapLibreMap",
+    "src": "src/components/widgets/MapLibreMap.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.jsx"
+    ],
+    "dynamicImports": [
+      "_maplibre-gl-CS9VPw2X.js",
+      "src/data/us-states.json"
+    ],
+    "css": [
+      "MapLibreMap-BVVtf18c.css"
+    ]
+  },
+  "src/components/widgets/MapWidget.jsx": {
+    "file": "chunks/MapWidget-BmJy0XxG.js",
+    "name": "MapWidget",
+    "src": "src/components/widgets/MapWidget.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.jsx"
+    ],
+    "dynamicImports": [
+      "src/components/widgets/MapLibreMap.jsx",
+      "src/components/widgets/AlbersChoroplethMap.jsx"
+    ]
+  },
+  "src/data/us-counties-10m.json": {
+    "file": "chunks/us-counties-10m-B_5LufOQ.js",
+    "name": "us-counties-10m",
+    "src": "src/data/us-counties-10m.json",
+    "isDynamicEntry": true
+  },
+  "src/data/us-states.json": {
+    "file": "chunks/us-states-DMYvs5vg.js",
+    "name": "us-states",
+    "src": "src/data/us-states.json",
+    "isDynamicEntry": true
+  },
+  "src/main.jsx": {
+    "file": "portal-CyDX4K0O.js",
+    "name": "main",
+    "src": "src/main.jsx",
+    "isEntry": true,
+    "dynamicImports": [
+      "src/components/widgets/MapWidget.jsx",
+      "src/components/widgets/AlbersChoroplethWidget.jsx"
+    ],
+    "css": [
+      "main-yjnlDMQQ.css"
+    ]
+  }
+}

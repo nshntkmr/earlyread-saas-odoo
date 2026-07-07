@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import json
 import logging
+import mimetypes
+import os
 import time as _time
 
 import odoo.exceptions
@@ -9,6 +12,7 @@ import odoo.exceptions
 from odoo.addons.portal.controllers.portal import CustomerPortal
 from odoo.addons.web.controllers.utils import ensure_db
 from odoo.http import request, route
+from werkzeug.exceptions import Forbidden, NotFound
 
 from ..utils.app_resolver import get_app_from_host, build_app_url
 
@@ -29,22 +33,110 @@ def _is_dashboard_admin(user):
 
 # ── Phase 7: React shell helpers ──────────────────────────────────────────────
 
+_REACT_DIST_URL = '/posterra_portal/static/src/react/dist/'
+
+
+def _react_dist_assets():
+    """Resolve the React bundle's hashed entry JS + CSS from Vite's manifest.
+
+    The dist files are served with a week-long Cache-Control, so filenames
+    must change when content changes or browsers keep running stale
+    bundles across deploys. A ``?v=`` query on a FIXED entry name is NOT
+    safe here: Vite's lazy chunks import shared code (React) from the
+    entry by its bare filename, so ``portal.js?v=N`` and a cached
+    ``portal.js`` load as two separate module graphs — two React
+    instances, hook error #321, widget-tree crash. Content-hashed
+    filenames (vite.config.js) keep one graph; this helper reads
+    ``dist/.vite/manifest.json`` to find them.
+
+    Returns {'js': <url>, 'css': [<url>, ...]}. Falls back to the legacy
+    fixed names if the manifest is missing (dist built pre-hashing).
+    """
+    dist_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'static', 'src', 'react', 'dist',
+    )
+    for rel in (('.vite', 'manifest.json'), ('manifest.json',)):
+        manifest_path = os.path.join(dist_dir, *rel)
+        try:
+            with open(manifest_path, encoding='utf-8') as fh:
+                manifest = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        entry = manifest.get('src/main.jsx') or next(
+            (m for m in manifest.values() if isinstance(m, dict) and m.get('isEntry')),
+            None,
+        )
+        if entry and entry.get('file'):
+            return {
+                'js':  _REACT_DIST_URL + entry['file'],
+                'css': [_REACT_DIST_URL + c for c in entry.get('css', [])],
+            }
+    # Legacy dist (built before hashed filenames) — fixed names.
+    return {
+        'js':  _REACT_DIST_URL + 'portal.js',
+        'css': [_REACT_DIST_URL + 'main.css'],
+    }
+
 def _make_portal_access_token(user, app):
     """Generate a short-lived JWT for the current Odoo session user.
 
     Embeds the token in the QWeb shell so React can call the JSON API
     (Phase 6) for filter-driven widget refetches without a separate login.
+
+    TTL is per-app: when the app has an idle timeout, the token lifetime
+    is capped at the timeout so an abandoned tab's token lapses inside
+    the idle window (see _access_token_ttl in auth_api.py).
     """
-    from .auth_api import _make_token, ACCESS_TOKEN_TTL
+    from .auth_api import _make_token, _access_token_ttl
     now = int(_time.time())
     return _make_token({
         'type':    'access',
         'user_id': user.id,
         'app_id':  app.id,
         'app_key': app.app_key,
-        'exp':     now + ACCESS_TOKEN_TTL,
+        'exp':     now + _access_token_ttl(app),
         'iat':     now,
     })
+
+
+# ── Per-app idle timeout — server-side activity stamps ───────────────────────
+#
+# The client NEVER sends a timestamp. The server stamps its own clock into
+# the Odoo session on the requests that (by client design) only occur when
+# the user is genuinely active: dashboard render, login, and the activity-
+# gated session-refresh. The gap between stamps is the server's authoritative
+# idle measure.
+
+def _stamp_portal_activity(app):
+    """Record 'user was active on this app now' in the Odoo session.
+
+    Stamped unconditionally — even when the app's timeout is 0 — so
+    sessions already have stamps if an admin enables the timeout later.
+    """
+    stamps = dict(request.session.get('pp_last_activity') or {})
+    stamps[app.app_key] = _time.time()
+    # Reassign (not mutate in place) so the session is marked dirty.
+    request.session['pp_last_activity'] = stamps
+
+
+def _portal_session_is_stale(app):
+    """True if the app's idle timeout is enabled AND exceeded.
+
+    Compares two server-generated timestamps — no client clock involved,
+    so there is no grace window: the check is exactly ``> timeout``.
+
+    Missing stamp returns False (not stale); the CALL SITES decide what
+    a missing stamp means:
+      - app_dashboard / login → fresh session, initialize the stamp
+      - session_refresh_token (idle-enabled app) → fail closed
+        (pre-rollout tab running old JS — see the endpoint)
+    """
+    timeout_mins = app.session_idle_timeout_mins or 0
+    if timeout_mins <= 0:
+        return False
+    last = (request.session.get('pp_last_activity') or {}).get(app.app_key)
+    return bool(last) and (_time.time() - last) > timeout_mins * 60
 
 
 def _build_page_config_json(app, page, tabs, page_filters, filter_options,
@@ -81,7 +173,15 @@ def _build_page_config_json(app, page, tabs, page_filters, filter_options,
             'primary_color': app.primary_color or '#0066cc',
             'tagline':       app.tagline or '',
             'access_mode':   app.access_mode,
+            # Per-app idle timeout (minutes, 0 = disabled). Drives the
+            # React idle watcher + warning modal.
+            'idle_timeout_mins': app.session_idle_timeout_mins or 0,
         },
+        # For user-scoped localStorage keys (pp_activity_<app>_<uid>) —
+        # prevents shared-workstation contamination across logins.
+        # request.env.user, NOT app.env.user — app is a sudo'd record, so
+        # its env user is the superuser, not the logged-in portal user.
+        'user_id': request.env.user.id,
         'page': {
             'id':   page.id,
             'key':  page.key,
@@ -220,12 +320,18 @@ def _build_initial_widgets_json(widgets, widget_data):
                         'value': o.value or '',
                         'label': o.label or '',
                         'icon': o.icon or '',
+                        'color': o.color or '',
+                        'icon_color': o.icon_color or '',
                         'has_sql': bool(o.query_sql),
                         'click_action': o.click_action or 'none',
                         'action_page_key': o.action_page_key or '',
                         'action_tab_key': o.action_tab_key or '',
                         'action_pass_value_as': o.action_pass_value_as or '',
                         'action_url_template': o.action_url_template or '',
+                        # Per-option geo metadata (map choropleth drill gating)
+                        'default_geo_level': o.default_geo_level or 'state',
+                        'allowed_geo_levels': o.allowed_geo_levels or 'state',
+                        'supports_drill': bool(o.supports_drill),
                     } for o in active_opts]
                 else:
                     _scope['options'] = w.get_scope_options()
@@ -235,6 +341,30 @@ def _build_initial_widgets_json(widgets, widget_data):
                     and _scope.get('options')):
                 _scope['default_value'] = _scope['options'][0].get('value', '')
         result[str(w.id)]['scope'] = _scope
+
+        # ── Stable map-control flags ──
+        # Read from the MERGED visual_config (definition then instance), never
+        # from runtime data (absent during loading/error). Choropleth maps
+        # relocate their scope control into the map body so the tabs persist
+        # through loading/error; other widgets keep header controls.
+        _mvc = {}
+        try:
+            if w.definition_id and w.definition_id.visual_config:
+                _mvc.update(json.loads(w.definition_id.visual_config) or {})
+            if w.visual_config:
+                _mvc.update(json.loads(w.visual_config) or {})
+        except (json.JSONDecodeError, TypeError):
+            pass
+        _is_choro = (
+            w.chart_type == 'albers_choropleth'
+            or (w.chart_type == 'map'
+                and (_mvc.get('marker_mode') or 'points') == 'choropleth'))
+        result[str(w.id)]['is_choropleth'] = _is_choro
+        result[str(w.id)]['map_controls_placement'] = (
+            'body'
+            if (_is_choro and _scope.get('mode') in ('dependent', 'independent'))
+            else 'header'
+        )
 
         # ── Search config ──
         result[str(w.id)]['search'] = (
@@ -311,10 +441,52 @@ def _get_providers_for_user(user):
 class PosterraPortal(CustomerPortal):
 
     # ------------------------------------------------------------------ #
+    # APP LOGO                                                           #
+    # Serves saas.app.logo through the same app-access gate as the       #
+    # dashboard. Portal users may be authorised for a group-mode app     #
+    # without the generic saas.app ACL needed by /web/image, so the      #
+    # dashboard uses this endpoint for uploaded app logos.               #
+    # ------------------------------------------------------------------ #
+    @route('/posterra/app/<int:app_id>/logo', type='http', auth='user',
+           methods=['GET'], website=False)
+    def app_logo(self, app_id, **kw):
+        app = request.env['saas.app'].sudo().browse(app_id)
+        if not app.exists() or not app.is_active or not app.logo:
+            raise NotFound()
+
+        from ..utils.access import user_can_access_app
+        user = request.env.user
+        if not _is_dashboard_admin(user) and not user_can_access_app(user, app):
+            raise Forbidden()
+
+        try:
+            encoded = app.logo.encode('ascii') if isinstance(app.logo, str) else app.logo
+            content = base64.b64decode(encoded or b'')
+        except Exception:
+            _logger.warning('app_logo: failed to decode logo for app %s', app.app_key)
+            raise NotFound()
+
+        stripped = content.lstrip()
+        content_type = mimetypes.guess_type(app.logo_filename or '')[0]
+        if not content_type and (
+                stripped.startswith(b'<svg') or stripped.startswith(b'<?xml')):
+            content_type = 'image/svg+xml'
+        content_type = content_type or 'image/png'
+        return request.make_response(content, headers=[
+            ('Content-Type', content_type),
+            ('Cache-Control', 'private, max-age=3600'),
+            ('X-Content-Type-Options', 'nosniff'),
+        ])
+
+    # ------------------------------------------------------------------ #
     # SESSION-BASED TOKEN REFRESH                                         #
     # Called by React when the JWT is about to expire or after a 401.     #
     # Uses the Odoo session cookie (auth='user') — no refresh token       #
-    # needed.  Returns a fresh 1-hour access token.                       #
+    # needed. Returns a fresh access token (per-app TTL). Doubles as the  #
+    # server-side ACTIVITY STAMP for the per-app idle timeout: the React  #
+    # client only calls this when real user activity occurred (activity   #
+    # gate inside refreshToken()), and the server refuses + kills the     #
+    # session when its own stamp gap exceeds the app's timeout.           #
     # ------------------------------------------------------------------ #
     @route('/api/v1/auth/session-refresh', type='http', auth='user',
            methods=['POST'], csrf=False)
@@ -325,8 +497,9 @@ class PosterraPortal(CustomerPortal):
         refresh token is required.  React calls this proactively
         before the current token expires (and as a 401 fallback).
         """
-        from .auth_api import _json_response, _json_error, ACCESS_TOKEN_TTL
+        from .auth_api import _json_response, _json_error, _access_token_ttl
 
+        # ── 1. Active-user check ──────────────────────────────────────
         user = request.env.user
         if not user or user._is_public():
             return _json_error(401, 'Not authenticated')
@@ -337,53 +510,79 @@ class PosterraPortal(CustomerPortal):
         if not user.active:
             return _json_error(401, 'User account is deactivated')
 
-        # Resolve the app from the query param or auto-detect.
-        # Same security contract as ``api_login`` (see auth_api.py):
-        # explicit ``app_key`` must pass ``user_can_access_app`` (or
-        # bypass for superadmins). Auto-detect iterates active apps and
-        # picks the first authorised one — replaces the legacy
-        # "first hha_provider app" shortcut that returned 403 when the
-        # user was authorised for app B but app A came first in DB.
+        # ── 2. Resolve the requested app — app_key is REQUIRED ───────
+        # The portal SPA (TokenManager.jsx) is the only caller and always
+        # sends app_key. The legacy auto-detect fallback was removed with
+        # the idle-timeout work: auto-detecting an app the caller never
+        # named makes the missing-stamp fail-closed rule ambiguous.
         from ..utils.access import user_can_access_app
 
-        is_superadmin = _is_dashboard_admin(user)
         app_key = (kw.get('app_key') or '').strip()
-        app = None
-
-        if app_key:
-            candidate = request.env['saas.app'].sudo().search(
-                [('app_key', '=', app_key), ('is_active', '=', True)], limit=1,
-            )
-            if not candidate:
-                return _json_error(404, f'App {app_key!r} not found')
-            if not is_superadmin and not user_can_access_app(user, candidate):
-                _logger.info(
-                    'session_refresh: user %r requested app_key=%r but lacks access',
-                    user.login, app_key,
-                )
-                return _json_error(403, f'No access to app {app_key!r}')
-            app = candidate
-
+        if not app_key:
+            return _json_error(400, 'app_key is required')
+        app = request.env['saas.app'].sudo().search(
+            [('app_key', '=', app_key), ('is_active', '=', True)], limit=1,
+        )
         if not app:
-            candidates = request.env['saas.app'].sudo().search(
-                [('is_active', '=', True)], order='id asc',
+            return _json_error(404, f'App {app_key!r} not found')
+
+        # ── 3. Idle-stale check — BEFORE authorization ────────────────
+        # "Revoked while stale" must still kill the session (an access
+        # check first would return 403 with the Odoo session alive).
+        # A stamp for this app only exists if this session loaded its
+        # dashboard, so this cannot be triggered for apps the user
+        # never used.
+        if _portal_session_is_stale(app):
+            request.session.logout(keep_db=True)
+            return _json_error(401, 'Session expired due to inactivity')
+
+        # ── 4. Authorization ──────────────────────────────────────────
+        is_superadmin = _is_dashboard_admin(user)
+        if not is_superadmin and not user_can_access_app(user, app):
+            _logger.info(
+                'session_refresh: user %r requested app_key=%r but lacks access',
+                user.login, app_key,
             )
-            if is_superadmin:
-                app = candidates[:1]
-            else:
-                for cand in candidates:
-                    if user_can_access_app(user, cand):
-                        app = cand
-                        break
+            return _json_error(403, f'No access to app {app_key!r}')
 
-        if not app:
-            return _json_error(403, 'No accessible app found for this user')
+        idle_enabled = (app.session_idle_timeout_mins or 0) > 0
 
+        # ── 5. Missing-stamp fail-closed (idle-enabled apps only) ─────
+        # AFTER authorization (otherwise ?app_key=<other idle app> is a
+        # logout oracle for any logged-in user). A missing stamp here
+        # means the session predates the idle rollout — an old tab
+        # running pre-idle JS that would silent-refresh forever. Every
+        # legitimate portal tab loaded app_dashboard first (that's where
+        # the SPA and boot token come from), so its stamp exists.
+        if idle_enabled:
+            has_stamp = bool(
+                (request.session.get('pp_last_activity') or {}).get(app.app_key)
+            )
+            if not has_stamp:
+                request.session.logout(keep_db=True)
+                return _json_error(401, 'Session expired')
+
+        # ── 6. Same-origin header check (idle-enabled apps only) ─────
+        # This csrf=False endpoint doubles as the activity-stamp path;
+        # require the custom header React sends (custom headers are
+        # same-origin-safe: cross-origin senders trigger a CORS
+        # preflight Odoo won't approve). Checked LAST so pre-rollout
+        # tabs (no header) are caught by step 5's logout first.
+        if idle_enabled:
+            xrw = request.httprequest.headers.get('X-Requested-With', '')
+            if xrw != 'XMLHttpRequest':
+                return _json_error(403, 'Missing required request header')
+
+        # ── 7. Stamp activity + issue token ───────────────────────────
+        # A refresh only arrives when the client saw real user activity
+        # (the activity gate lives inside React's refreshToken()), so
+        # the server may record its own clock as the activity stamp.
+        _stamp_portal_activity(app)
         token = _make_portal_access_token(user, app)
         return _json_response({
             'access_token': token,
             'token_type':   'Bearer',
-            'expires_in':   ACCESS_TOKEN_TTL,
+            'expires_in':   _access_token_ttl(app),
         })
 
     # ------------------------------------------------------------------ #
@@ -514,6 +713,16 @@ class PosterraPortal(CustomerPortal):
         # cached sessions on archive, so we re-check defensively here.
         user = request.env.user
         if not user or user._is_public() or not user.active:
+            return request.redirect('/login')
+
+        # ── 2b. Idle-timeout stale check ──────────────────────────────
+        # BEFORE the authorization check (a user whose app access was
+        # revoked while idle-stale must still get their session killed,
+        # not a redirect with a live session) and BEFORE any render-time
+        # activity stamp (a stale session reloading the dashboard URL
+        # directly must not be revived by the stamp below).
+        if _portal_session_is_stale(app):
+            request.session.logout(keep_db=True)
             return request.redirect('/login')
 
         # System admins and dashboard builder admins bypass app-access
@@ -739,7 +948,6 @@ class PosterraPortal(CustomerPortal):
         #      because they have no per-user HHA scope.
         # Superadmins bypass. Raises 403 — explicit failure, not silent
         # clamping. (Mirror of widget_api._build_portal_ctx logic.)
-        from werkzeug.exceptions import Forbidden
         from ..utils.access import values_in_user_scope
         is_hha_app = (app.access_mode == 'hha_provider')
 
@@ -976,6 +1184,12 @@ class PosterraPortal(CustomerPortal):
         # ── 11. Phase 7 — React shell data ─────────────────────────────
         # Build JSON blobs and a fresh JWT for the React app-root div.
         # These are embedded as data-* attributes; React reads them on mount.
+        # Stamp server-side activity: a full dashboard render IS activity.
+        # (The idle-stale check in step 2b already ran, so a stale session
+        # never reaches this stamp.)
+        _stamp_portal_activity(app)
+        from .auth_api import _access_token_ttl
+        token_expires_in = _access_token_ttl(app)
         portal_access_token = _make_portal_access_token(request.env.user, app)
         page_config_json = _build_page_config_json(
             app, current_page, tabs, page_filters, filter_options,
@@ -1027,6 +1241,8 @@ class PosterraPortal(CustomerPortal):
             'sidebar_theme': app.sidebar_theme or 'dark',
             # Phase 7 — React shell data (embedded as data-* on #app-root)
             'portal_access_token':      portal_access_token,
+            'token_expires_in':         token_expires_in,
+            'react_assets':             _react_dist_assets(),
             'page_config_json':         page_config_json,
             'initial_widget_data_json': initial_widget_data_json,
             'initial_sections_json':    initial_sections_json,
@@ -1091,6 +1307,8 @@ class PosterraPortal(CustomerPortal):
                     'type':     'password',
                 }
                 request.session.authenticate(request.env, credential)
+                # Fresh login = fresh activity for this app's idle clock.
+                _stamp_portal_activity(app)
                 # Redirect to the explicit redirect param, or to this app's
                 # dashboard root. Same-origin since the user is already on
                 # the right subdomain.

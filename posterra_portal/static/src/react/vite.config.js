@@ -56,6 +56,9 @@ export default defineConfig({
   base: '/posterra_portal/static/src/react/dist/',
   build: {
     outDir: 'dist',
+    // Emit .vite/manifest.json — portal.py reads it to resolve the hashed
+    // entry/CSS filenames for the template's <script>/<link> tags.
+    manifest: true,
     rollupOptions: {
       // Explicit JS entry point (no index.html needed — Odoo serves the HTML)
       input: 'src/main.jsx',
@@ -70,11 +73,16 @@ export default defineConfig({
         // The odooSafeImports plugin still mangles AG Grid string-literals
         // as extra safety.
         format: 'es',
-        // Fixed entry filename so the template <script> tag never needs updating.
-        // Chunk files get content-hashed names for cache busting.
-        entryFileNames: 'portal.js',
+        // EVERYTHING content-hashed — entry included. A fixed entry name
+        // plus a ?v= query param caused a split-brain module graph: lazy
+        // chunks import shared code (React!) from the entry by its BARE
+        // filename, so `portal.js?v=N` and cached `portal.js` loaded as
+        // two separate bundles → two React instances → hook error #321 →
+        // widget tree crash. Hashed names keep one consistent graph and
+        // are immutable-cache safe across deploys.
+        entryFileNames: 'portal-[hash].js',
         chunkFileNames: 'chunks/[name]-[hash].js',
-        assetFileNames: '[name].[ext]',  // → portal.css
+        assetFileNames: '[name]-[hash][extname]',  // → main-<hash>.css
       },
     },
   },

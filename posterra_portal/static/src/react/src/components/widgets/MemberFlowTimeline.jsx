@@ -60,7 +60,7 @@ export default function MemberFlowTimeline({ data, height = 520 }) {
   const step = months.length > 1 ? (lastX - firstX) / (months.length - 1) : 0
   const columnXs = months.map((_, idx) => firstX + idx * step)
   const start = data?.start || {}
-  const footer = data?.footer || 'Members must have a qualifying claim in the past 12 months to remain aligned.'
+  const footer = data?.footer || 'Members must have a qualifying claim in the past 12 months to remain eligible.'
   const startTitle = String(start.label || 'Starting Aligned Members')
   const startLines = /aligned members/i.test(startTitle)
     ? ['Starting', 'Aligned Members']

@@ -573,6 +573,15 @@
                                                            placeholder="/detail/{value}"/>
                                                 </group>
                                             </group>
+                                            <group string="Map Choropleth (geo level)"
+                                                   invisible="parent.chart_type not in ('map', 'albers_choropleth')">
+                                                <group>
+                                                    <field name="default_geo_level"/>
+                                                    <field name="allowed_geo_levels"
+                                                           placeholder="state or state,county"/>
+                                                    <field name="supports_drill"/>
+                                                </group>
+                                            </group>
                                         </sheet>
                                     </form>
                                 </field>

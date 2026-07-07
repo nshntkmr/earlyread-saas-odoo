@@ -625,6 +625,8 @@ function reducer(state, action) {
           label: o.label || '',
           value: o.value || '',
           icon: o.icon || '',
+          color: o.color || '',
+          icon_color: o.icon_color || '',
         })),
         optionConfigs: (d.scope_options || []).map(o => ({
           dataMode: o.query_sql ? 'custom_sql' : 'custom_sql',
@@ -650,6 +652,10 @@ function reducer(state, action) {
           actionPassValueAs: o.action_pass_value_as || '',
           drillDetailColumns: o.drill_detail_columns || '',
           actionUrlTemplate: o.action_url_template || '',
+          // Per-option geo metadata (map choropleth drill)
+          defaultGeoLevel: o.default_geo_level || 'state',
+          allowedGeoLevels: o.allowed_geo_levels || 'state',
+          supportsDrill: !!o.supports_drill,
           tableColumnConfig: (() => {
             try {
               return o.table_column_config
@@ -1435,6 +1441,8 @@ function buildCreatePayload(state) {
           label: opt.label || '',
           value: opt.value || '',
           icon: opt.icon || '',
+          color: opt.color || '',
+          icon_color: opt.icon_color || '',
           sequence: (idx + 1) * 10,
           query_sql: optSql,
           table_column_config: cfg.tableColumnConfig?.length
@@ -1448,6 +1456,10 @@ function buildCreatePayload(state) {
           action_pass_value_as: cfg.actionPassValueAs || '',
           drill_detail_columns: cfg.drillDetailColumns || '',
           action_url_template: cfg.actionUrlTemplate || '',
+          // Per-option geo metadata (map choropleth drill)
+          default_geo_level: cfg.defaultGeoLevel || 'state',
+          allowed_geo_levels: cfg.allowedGeoLevels || 'state',
+          supports_drill: !!cfg.supportsDrill,
         }
         // Mode B: save per-option ranked configs (master layout + detail config)
         if (

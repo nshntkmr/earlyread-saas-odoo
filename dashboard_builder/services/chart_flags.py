@@ -1308,6 +1308,551 @@ MAP_FLAGS = [
         'label': 'Radius Default (miles)',
         'help': 'Default radius slider value on page load.',
     },
+    # ── Choropleth renderer + styling (SVG Albers) ──
+    {
+        'flag': 'choropleth_renderer',
+        'type': 'select',
+        'default': 'maplibre_webmercator',
+        'label': 'Choropleth Renderer',
+        'help': 'maplibre_webmercator = tiled WebMercator (default, back-compat). '
+                'svg_albers_usa = SVG Albers-USA with Alaska/Hawaii insets (statistical map, no basemap).',
+        'options': [
+            {'value': 'maplibre_webmercator', 'label': 'MapLibre (WebMercator)'},
+            {'value': 'svg_albers_usa', 'label': 'SVG Albers USA (insets)'},
+        ],
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_color_start',
+        'type': 'text',
+        'default': '',
+        'label': 'Color Scale — Start',
+        'help': 'Hex color for the low end (e.g. #f7fbff). Blank = default sequential ramp.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_color_mid',
+        'type': 'text',
+        'default': '',
+        'label': 'Color Scale — Mid',
+        'help': 'Optional hex color for the midpoint (diverging scales).',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_color_end',
+        'type': 'text',
+        'default': '',
+        'label': 'Color Scale — End',
+        'help': 'Hex color for the high end (e.g. #08306b). Blank = default sequential ramp.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_no_data_color',
+        'type': 'text',
+        'default': '#e9e7ef',
+        'label': 'No-data Color',
+        'help': 'Color for regions with no metric value (kept distinct from the lowest value).',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_fill_opacity',
+        'type': 'number',
+        'default': 0.7,
+        'label': 'Fill Opacity',
+        'help': 'Region fill opacity, 0–1.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_border_color',
+        'type': 'text',
+        'default': '#ffffff',
+        'label': 'Border Color',
+        'help': 'Region boundary line color.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_border_width',
+        'type': 'number',
+        'default': 1,
+        'label': 'Border Width',
+        'help': 'Region boundary line width.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_include_territories',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Include Territories',
+        'help': 'Include PR and other US territories in the map (default: 50 states + DC only).',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_legend_style',
+        'type': 'select',
+        'default': 'steps',
+        'label': 'Legend Style',
+        'help': 'gradient = continuous bottom bar; steps = bucketed swatches; none = hidden.',
+        'options': [
+            {'value': 'steps', 'label': 'Stepped swatches'},
+            {'value': 'gradient', 'label': 'Gradient bar'},
+            {'value': 'none', 'label': 'Hidden'},
+        ],
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_legend_position',
+        'type': 'select',
+        'default': 'bottom',
+        'label': 'Legend Position',
+        'help': 'Where the legend sits under the map.',
+        'options': [
+            {'value': 'bottom', 'label': 'Bottom (full width)'},
+            {'value': 'bottom_right', 'label': 'Bottom right'},
+            {'value': 'top_right', 'label': 'Top right'},
+            {'value': 'hidden', 'label': 'Hidden'},
+        ],
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_legend_title',
+        'type': 'text',
+        'default': '',
+        'label': 'Legend Title',
+        'help': 'Optional title shown above the legend.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_hover_columns',
+        'type': 'text',
+        'default': '',
+        'label': 'Hover Columns',
+        'help': 'Comma-separated SQL columns to show in the hover tooltip. Falls back to Popup Columns.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_hover_enabled',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Hover Tooltip',
+        'help': 'Show a tooltip on region hover.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_join_property',
+        'type': 'text',
+        'default': '',
+        'label': 'Join Property (advanced)',
+        'help': 'ADVANCED — GeoJSON feature property to join on. Leave blank to derive from level '
+                '(state → STUSPS, county → GEOID). Only set if your geometry uses a different property.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_click_action',
+        'type': 'select',
+        'default': 'drill',
+        'label': 'Region Click Action',
+        'help': 'drill = state→county drill (SVG Albers renderer + a drill-capable '
+                'scope option; MapLibre falls back to popup); '
+                'cross_filter = apply a page filter from the clicked region '
+                '(both renderers); popup = hover/click tooltip only.',
+        'options': [
+            {'value': 'drill', 'label': 'Drill (state → county)'},
+            {'value': 'cross_filter', 'label': 'Cross-filter the page'},
+            {'value': 'popup', 'label': 'Popup only'},
+        ],
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_click_filter_param',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Param',
+        'help': 'Page filter param_name to set when a region is clicked '
+                '(only used when Region Click Action = cross_filter), e.g. hha_state.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_click_filter_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Value Column',
+        'help': 'Column in the region hover/popup data whose value is sent to the '
+                'cross-filter param. Leave blank to send the region join key '
+                '(state STUSPS / county GEOID).',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_click_filter_param_county',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Param (county level)',
+        'help': 'Page filter param_name to set when a COUNTY-level region is '
+                'clicked (drilled view or county-default level), e.g. FIPS_COUNTY. '
+                'Blank = county clicks use the base Cross-filter Param.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+    {
+        'flag': 'choropleth_click_filter_column_county',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Value Column (county level)',
+        'help': 'Popup-data column sent for county-level clicks. Leave blank to '
+                'send the county join key (5-digit FIPS GEOID) — usually correct '
+                'for a County filter whose values are FIPS codes.',
+        'show_when': {'marker_mode': 'choropleth'},
+    },
+]
+
+
+# ── US Choropleth (albers_choropleth) Flags ──────────────────────────────────
+#
+# Standalone SVG-Albers choropleth chart type — decoupled from the MapLibre
+# `map` type. These are the choropleth-relevant flags ONLY (no MapLibre / point /
+# bubble / heatmap / brand / radius controls) and carry NO `show_when` — this
+# type never exposes `marker_mode`, so a `show_when: {marker_mode: choropleth}`
+# would hide every control. `marker_mode` + `choropleth_renderer` are forced
+# server-side (dashboard_widget._build_albers_choropleth), so they are NOT
+# exposed here. `choropleth_color_scale` is omitted (the SVG renderer honours
+# the start/mid/end stops, not sequential/diverging). Join/metric default to the
+# recommended `region`/`value` column names so the tile works out-of-the-box.
+ALBERS_CHOROPLETH_FLAGS = [
+    {
+        'flag': 'choropleth_level',
+        'type': 'select',
+        'default': 'state',
+        'label': 'Choropleth Level',
+        'help': 'Geographic boundary level for region fills.',
+        'options': [
+            {'value': 'state', 'label': 'State'},
+            {'value': 'county', 'label': 'County'},
+        ],
+    },
+    {
+        'flag': 'choropleth_scale_mode',
+        'type': 'select',
+        'default': 'linear',
+        'label': 'Scale Mode',
+        'help': 'How region values map to color. Linear = raw value (default); '
+                'Log = compress large outliers so the rest differentiate; '
+                'Quantile = equal-count buckets (best for skewed data).',
+        'options': [
+            {'value': 'linear', 'label': 'Linear'},
+            {'value': 'log', 'label': 'Log (compress outliers)'},
+            {'value': 'quantile', 'label': 'Quantile (equal-count buckets)'},
+        ],
+    },
+    {
+        'flag': 'choropleth_join_column',
+        'type': 'text',
+        'default': 'region',
+        'label': 'Region Join Column',
+        'help': 'SQL column with state abbreviation (e.g., FL) or county FIPS code to join to GeoJSON. '
+                'Defaults to "region" — alias your join key AS region.',
+    },
+    {
+        'flag': 'choropleth_metric_column',
+        'type': 'text',
+        'default': 'value',
+        'label': 'Metric Column',
+        'help': 'SQL column with the numeric value for color graduation. '
+                'Defaults to "value" — alias your metric AS value.',
+    },
+    {
+        'flag': 'choropleth_metric_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Metric Label',
+        'help': 'Human label shown before the value in the hover tooltip '
+                '(e.g. "Market size", "Penetration per 1k"). Blank falls back to '
+                'the Legend Title, then to just the number — so the tooltip never '
+                'shows the raw "value" column name.',
+    },
+    {
+        'flag': 'choropleth_ranges',
+        'type': 'text',
+        'default': '',
+        'label': 'Range Breakpoints',
+        'help': 'Comma-separated values for color breaks (e.g., 1,10,100,1000,10000). Auto-calculated if empty.',
+    },
+    {
+        'flag': 'choropleth_color_start',
+        'type': 'text',
+        'default': '',
+        'label': 'Color Scale — Start',
+        'help': 'Hex color for the low end (e.g. #f7fbff). Blank = default sequential ramp.',
+    },
+    {
+        'flag': 'choropleth_color_mid',
+        'type': 'text',
+        'default': '',
+        'label': 'Color Scale — Mid',
+        'help': 'Optional hex color for the midpoint.',
+    },
+    {
+        'flag': 'choropleth_color_end',
+        'type': 'text',
+        'default': '',
+        'label': 'Color Scale — End',
+        'help': 'Hex color for the high end (e.g. #08306b). Blank = default sequential ramp.',
+    },
+    {
+        'flag': 'choropleth_no_data_color',
+        'type': 'text',
+        'default': '#e9e7ef',
+        'label': 'No-data Color',
+        'help': 'Color for regions with no metric value (kept distinct from the lowest value).',
+    },
+    {
+        'flag': 'choropleth_fill_opacity',
+        'type': 'number',
+        'default': 1,
+        'label': 'Fill Opacity',
+        'help': 'Region fill opacity, 0–1.',
+    },
+    {
+        'flag': 'choropleth_border_color',
+        'type': 'text',
+        'default': '#94a3b8',
+        'label': 'Border Color',
+        'help': 'Region boundary line color. A visible slate keeps every state outlined even when fills are light.',
+    },
+    {
+        'flag': 'choropleth_border_width',
+        'type': 'number',
+        'default': 1,
+        'label': 'Border Width',
+        'help': 'Region boundary line width.',
+    },
+    {
+        'flag': 'choropleth_include_territories',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Include Territories',
+        'help': 'Include PR and other US territories in the map (default: 50 states + DC only).',
+    },
+    {
+        'flag': 'choropleth_zoom_control',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Zoom Control',
+        'help': 'Show a floating +/- zoom control over the map. Mouse wheel and '
+                'trackpad pinch also zoom (anchored on the cursor). '
+                'Off = fixed full-US view.',
+    },
+    {
+        'flag': 'choropleth_zoom_control_position',
+        'type': 'select',
+        'default': 'top_right',
+        'label': 'Zoom Control Position',
+        'help': 'Default corner for the zoom control. If Draggable is on, users can '
+                'move it and their position is remembered per widget (browser-local).',
+        'options': [
+            {'value': 'top_right', 'label': 'Top right'},
+            {'value': 'top_left', 'label': 'Top left'},
+            {'value': 'bottom_right', 'label': 'Bottom right'},
+            {'value': 'bottom_left', 'label': 'Bottom left'},
+        ],
+    },
+    {
+        'flag': 'choropleth_zoom_control_size',
+        'type': 'select',
+        'default': 'medium',
+        'label': 'Zoom Control Size',
+        'help': 'Button size for the zoom control; the +/- and pan icons scale with it.',
+        'options': [
+            {'value': 'compact', 'label': 'Compact (32px)'},
+            {'value': 'small', 'label': 'Small (38px)'},
+            {'value': 'medium', 'label': 'Medium (44px)'},
+            {'value': 'large', 'label': 'Large (52px)'},
+        ],
+    },
+    {
+        'flag': 'choropleth_zoom_draggable',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Draggable Control',
+        'help': 'Let users drag the zoom control anywhere inside the map (a grip '
+                'handle appears on top). The dragged spot is remembered per widget '
+                'in the browser. Off = pinned at the chosen corner.',
+    },
+    {
+        'flag': 'choropleth_pan_enabled',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Pan (hand) Tool',
+        'help': 'Add a hand toggle to the control. When active, drag the map to pan '
+                '(only meaningful when zoomed in). While pan is OFF, clicks still '
+                'drill / cross-filter as normal. Default off.',
+    },
+    {
+        'flag': 'choropleth_legend_style',
+        'type': 'select',
+        'default': 'steps',
+        'label': 'Legend Style',
+        'help': 'gradient = continuous bottom bar; steps = bucketed swatches; none = hidden.',
+        'options': [
+            {'value': 'steps', 'label': 'Stepped swatches'},
+            {'value': 'gradient', 'label': 'Gradient bar'},
+            {'value': 'none', 'label': 'Hidden'},
+        ],
+    },
+    {
+        'flag': 'choropleth_legend_position',
+        'type': 'select',
+        'default': 'bottom',
+        'label': 'Legend Position',
+        'help': 'Where the legend sits under the map. Use Legend Style = none to hide it.',
+        'options': [
+            {'value': 'bottom', 'label': 'Bottom (full width)'},
+            {'value': 'bottom_right', 'label': 'Bottom right'},
+            {'value': 'top_right', 'label': 'Top right'},
+        ],
+    },
+    {
+        'flag': 'choropleth_legend_title',
+        'type': 'text',
+        'default': '',
+        'label': 'Legend Title',
+        'help': 'Optional title shown above the legend.',
+    },
+    {
+        'flag': 'choropleth_legend_interactive',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Interactive Legend (drag to filter)',
+        'help': 'Turn the bottom legend bar into a drag handle. Moving it highlights '
+                'regions whose value falls in the selected range and dims the rest. '
+                'Purely visual — no data reload. Off = the static legend (default).',
+    },
+    {
+        'flag': 'choropleth_legend_mode',
+        'type': 'select',
+        'default': 'range',
+        'label': 'Legend Interaction Mode',
+        'help': 'range = two handles select a band (min–max); '
+                'threshold = one handle, highlight everything at or above it. '
+                'Only applies when Interactive Legend is on.',
+        'options': [
+            {'value': 'range', 'label': 'Range (two handles)'},
+            {'value': 'threshold', 'label': 'Threshold (one handle, ≥)'},
+        ],
+    },
+    {
+        'flag': 'choropleth_legend_selection_scale',
+        'type': 'select',
+        'default': 'auto',
+        'label': 'Legend Handle Scale',
+        'help': 'How handle position maps to value. Auto = follow Scale Mode (recommended) '
+                'so a quantile/log map spreads skewed data evenly across the track instead '
+                'of squeezing most regions into the low end. Labels always show real values.',
+        'options': [
+            {'value': 'auto', 'label': 'Auto (follow Scale Mode)'},
+            {'value': 'linear', 'label': 'Linear (raw value)'},
+            {'value': 'log', 'label': 'Log (compress outliers)'},
+            {'value': 'quantile', 'label': 'Quantile (even by rank)'},
+        ],
+    },
+    {
+        'flag': 'choropleth_legend_highlight',
+        'type': 'select',
+        'default': 'dim_others',
+        'label': 'Legend Highlight Style',
+        'help': 'dim_others = fade non-matching regions (default); '
+                'outline = keep all regions, outline the matching ones. '
+                'Only applies when Interactive Legend is on.',
+        'options': [
+            {'value': 'dim_others', 'label': 'Dim non-matching'},
+            {'value': 'outline', 'label': 'Outline matching'},
+        ],
+    },
+    {
+        'flag': 'choropleth_legend_min_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Legend Min Label',
+        'help': 'Text for the left end of the legend bar. Blank = the real minimum '
+                'value, auto-formatted (e.g. 120K).',
+    },
+    {
+        'flag': 'choropleth_legend_max_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Legend Max Label',
+        'help': 'Text for the right end of the legend bar. Blank = the real maximum '
+                'value, auto-formatted (e.g. 5.3M).',
+    },
+    {
+        'flag': 'choropleth_hover_columns',
+        'type': 'text',
+        'default': '',
+        'label': 'Hover Columns',
+        'help': 'Comma-separated SQL columns to show in the hover tooltip.',
+    },
+    {
+        'flag': 'choropleth_hover_enabled',
+        'type': 'boolean',
+        'default': True,
+        'label': 'Hover Tooltip',
+        'help': 'Show a tooltip on region hover.',
+    },
+    {
+        'flag': 'choropleth_join_property',
+        'type': 'text',
+        'default': '',
+        'label': 'Join Property (advanced)',
+        'help': 'ADVANCED — GeoJSON feature property to join on. Leave blank to derive from level '
+                '(state → STUSPS, county → GEOID). Only set if your geometry uses a different property.',
+    },
+    {
+        'flag': 'choropleth_click_action',
+        'type': 'select',
+        'default': 'drill',
+        'label': 'Region Click Action',
+        'help': 'drill = state→county drill (needs a drill-capable scope option); '
+                'cross_filter = apply a page filter from the clicked region; '
+                'drill_cross_filter = do BOTH on one click (drill in + update the KPIs); '
+                'popup = hover/click tooltip only.',
+        'options': [
+            {'value': 'drill', 'label': 'Drill (state → county)'},
+            {'value': 'cross_filter', 'label': 'Cross-filter the page'},
+            {'value': 'drill_cross_filter', 'label': 'Drill + Cross-filter (both)'},
+            {'value': 'popup', 'label': 'Popup only'},
+        ],
+    },
+    {
+        'flag': 'choropleth_click_filter_param',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Param',
+        'help': 'Page filter param_name to set when a region is clicked '
+                '(only used when Region Click Action = cross_filter), e.g. STATE_NAME.',
+    },
+    {
+        'flag': 'choropleth_click_filter_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Value Column',
+        'help': 'Column in the region hover/popup data whose value is sent to the '
+                'cross-filter param. Leave blank to send the region join key.',
+    },
+    {
+        'flag': 'choropleth_click_filter_param_county',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Param (county level)',
+        'help': 'Page filter param_name to set when a COUNTY-level region is '
+                'clicked (drilled view or county-default level), e.g. FIPS_COUNTY. '
+                'Blank = county clicks use the base Cross-filter Param.',
+    },
+    {
+        'flag': 'choropleth_click_filter_column_county',
+        'type': 'text',
+        'default': '',
+        'label': 'Cross-filter Value Column (county level)',
+        'help': 'Popup-data column sent for county-level clicks. Leave blank to '
+                'send the county join key (5-digit FIPS GEOID) — usually correct '
+                'for a County filter whose values are FIPS codes.',
+    },
 ]
 
 
@@ -1629,6 +2174,7 @@ CHART_FLAGS = {
     'key_takeaways': COMMON_FLAGS + KEY_TAKEAWAYS_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
     'map': MAP_FLAGS,
+    'albers_choropleth': ALBERS_CHOROPLETH_FLAGS,
 }
 
 

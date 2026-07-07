@@ -8,7 +8,7 @@ const CHART_ICONS = {
   kpi: 'fa-hashtag', status_kpi: 'fa-arrow-up', table: 'fa-table',
   scatter: 'fa-braille', heatmap: 'fa-th', battle_card: 'fa-columns',
   insight_panel: 'fa-lightbulb-o', gauge_kpi: 'fa-dashboard',
-  key_takeaways: 'fa-lightbulb-o',
+  key_takeaways: 'fa-lightbulb-o', map: 'fa-map-marker', albers_choropleth: 'fa-map',
 }
 
 /**

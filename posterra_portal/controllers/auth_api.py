@@ -33,6 +33,20 @@ _logger = logging.getLogger(__name__)
 ACCESS_TOKEN_TTL  = 3600        # 1 hour
 REFRESH_TOKEN_TTL = 86400 * 7   # 7 days
 
+
+def _access_token_ttl(app):
+    """Per-app JWT TTL for the PORTAL token path only.
+
+    Idle timeout enabled → cap the TTL at the timeout so an abandoned
+    tab's token lapses within the idle window. Standalone API auth
+    (``api_login`` / ``api_refresh``) deliberately does NOT use this —
+    API clients keep the 1-hour constant with no idle semantics.
+    """
+    mins = getattr(app, 'session_idle_timeout_mins', 0) or 0
+    if mins <= 0:
+        return ACCESS_TOKEN_TTL
+    return min(ACCESS_TOKEN_TTL, mins * 60)
+
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
 def _get_jwt_secret():

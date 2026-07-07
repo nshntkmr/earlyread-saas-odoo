@@ -1,0 +1,62 @@
+{
+  "_comment": "Member-360 preset for the Detail Drawer (a generic DataTable capability). Paste into a table widget's 'Detail Drawer Config (JSON)' field (Odoo widget form, Advanced tab) or load it via the designer. Column/table names are examples — adjust to your registered Schema Builder source. All source:\"sql\" sections run against the parent table widget's own schema_source_id (any connector). Every sql section must reference %(row_key)s.",
+  "enabled": true,
+  "trigger": "cell",
+  "row_key_column": "src_mbr_id",
+  "title_template": "Member {src_mbr_id}",
+  "subtitle_template": "{contract_name} - {mco_contract_nbr} - {st}",
+  "sections": [
+    {
+      "id": "info",
+      "type": "field_grid",
+      "title": "Member Information",
+      "source": "sql",
+      "sql": "SELECT hum_id, st, program FROM members WHERE src_mbr_id = %(row_key)s",
+      "fields": [
+        { "label": "HUM ID", "column": "hum_id" },
+        { "label": "State", "column": "st" },
+        { "label": "Program", "column": "program" }
+      ]
+    },
+    {
+      "id": "plan",
+      "type": "field_grid",
+      "title": "Plan Information",
+      "source": "sql",
+      "sql": "SELECT mco_contract_nbr, overall_rating FROM members WHERE src_mbr_id = %(row_key)s",
+      "fields": [
+        { "label": "Contract", "column": "mco_contract_nbr" },
+        { "label": "Overall", "column": "overall_rating", "renderer": "stars" }
+      ]
+    },
+    {
+      "id": "flags",
+      "type": "flag_chips",
+      "title": "Member Flags",
+      "source": "sql",
+      "sql": "SELECT partd_low_income_ind, srf_ind FROM members WHERE src_mbr_id = %(row_key)s",
+      "chips": [
+        { "label": "Part D Low Income", "column": "partd_low_income_ind", "true_value": 1 },
+        { "label": "SRF", "column": "srf_ind", "true_value": 1 }
+      ]
+    },
+    {
+      "id": "measures",
+      "type": "measure_cards",
+      "title": "Measures and Gaps 2026",
+      "source": "sql",
+      "sql": "SELECT measure_cat, measure_desc, compliant, monthly_compliance, non_compliance_reason, suggested_call_to_action FROM care_gaps WHERE src_mbr_id = %(row_key)s",
+      "card": {
+        "group_by": "measure_cat",
+        "title_column": "measure_cat",
+        "desc_column": "measure_desc",
+        "status_column": "compliant",
+        "strip_column": "monthly_compliance",
+        "alerts": [
+          { "kind": "error", "title": "Non-Compliance Reason", "body_column": "non_compliance_reason" },
+          { "kind": "warn", "title": "Recommended Action", "body_column": "suggested_call_to_action" }
+        ]
+      }
+    }
+  ]
+}

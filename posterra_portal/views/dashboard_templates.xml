@@ -48,7 +48,13 @@
                             onclick="var s=document.querySelector('.pv-sidebar');s&amp;&amp;s.classList.toggle('show')">
                         <i class="fa fa-bars"/>
                     </button>
-                    <i class="fa fa-heartbeat"/>
+                    <t t-if="app and app.logo">
+                        <img t-att-src="'/posterra/app/%s/logo' % app.id"
+                             t-att-alt="(app.name or 'Application') + ' logo'"
+                             class="pv-topbar-logo"/>
+                    </t>
+                    <i t-if="not (app and app.logo)"
+                       class="fa fa-heartbeat pv-topbar-fallback-icon"/>
                     <span class="pv-topbar-brand-name" t-esc="app and app.name or 'Portal'"/>
                     <t t-if="org_display_name">
                         <span class="pv-topbar-sep">|</span>
@@ -173,15 +179,23 @@
                     <!-- app module graph. Vite's ESM build does NOT auto-inject CSS  -->
                     <!-- for the entry chunk (only for lazy chunks), so we link it    -->
                     <!-- explicitly. Lazy chunks (e.g. MapWidget.css) still self-load.-->
-                    <link rel="stylesheet" href="/posterra_portal/static/src/react/dist/main.css"/>
-                    <script type="module" src="/posterra_portal/static/src/react/dist/portal.js"/>
+                    <!-- Content-hashed filenames resolved from Vite's manifest
+                         (portal.py _react_dist_assets). Hashing the ENTRY (not a
+                         ?v= query) is load-bearing: lazy chunks import React from
+                         the entry by filename, and a query-param variant loads a
+                         second module graph → two React instances → crash. -->
+                    <t t-foreach="react_assets['css']" t-as="css_href">
+                        <link rel="stylesheet" t-att-href="css_href"/>
+                    </t>
+                    <script type="module" t-att-src="react_assets['js']"/>
                     <div id="app-root"
                          t-att-data-page-config="page_config_json"
                          t-att-data-initial-widgets="initial_widget_data_json"
                          t-att-data-initial-sections="initial_sections_json"
                          t-att-data-initial-badges="initial_badges_json"
                          data-api-base="/api/v1"
-                         t-att-data-access-token="portal_access_token"/>
+                         t-att-data-access-token="portal_access_token"
+                         t-att-data-token-expires-in="token_expires_in"/>
 
                     <!-- Page footnote -->
                     <div t-if="current_page and current_page.footnote"

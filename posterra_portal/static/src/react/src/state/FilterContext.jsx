@@ -164,6 +164,47 @@ export function FilterProvider({ children, pageConfig, apiBase }) {
     setPendingValues(prev => ({ ...prev, [fieldName]: value }))
   }, [])
 
+  /** Apply a patch of {param: value} immediately (no Apply-button round-trip).
+   *  Sets BOTH applied and pending values in one shot so the widget refetch and
+   *  the filter-bar UI stay in sync. Functional updaters avoid the stale-closure
+   *  that a pendingValues-based apply would hit. */
+  const applyFilterPatch = useCallback((patch) => {
+    if (!patch || typeof patch !== 'object') return
+    setPendingValues(prev => ({ ...prev, ...patch }))
+    setFilterValues(prev => ({ ...prev, ...patch }))
+  }, [])
+
+  // ── Cross-filter → cascade resolver ─────────────────────────────────────────
+  // A cross-filter click (e.g. clicking a choropleth region) changes filter
+  // VALUES without going through the FilterBar change handler, so dependent
+  // dropdowns would keep stale option lists (County stuck on the previous
+  // state's counties). FilterBar registers a resolver here; applyCrossFilter
+  // runs it BEFORE committing, so the click's patch and the cascade's value
+  // resets land in filterValues as ONE commit → ONE widget refetch wave.
+  const crossFilterResolverRef = useRef(null)
+
+  /** Cross-filter entry point: pending updates instantly (dropdown UI), then
+   *  the FilterBar cascade resolver refreshes dependent options and returns
+   *  its value resets, and everything commits to filterValues in one shot.
+   *  With no resolver registered (no FilterBar mounted, or cascade error),
+   *  this degrades to exactly applyFilterPatch. */
+  const applyCrossFilter = useCallback(async (patch) => {
+    if (!patch || typeof patch !== 'object') return
+    setPendingValues(prev => ({ ...prev, ...patch }))
+    let extra = {}
+    const resolve = crossFilterResolverRef.current
+    if (resolve) {
+      try {
+        extra = (await resolve(patch)) || {}
+      } catch (err) {
+        console.warn('[CASCADE-XFILTER] resolver failed, committing click patch only:', err)
+        extra = {}
+      }
+    }
+    setPendingValues(prev => ({ ...prev, ...extra }))
+    setFilterValues(prev => ({ ...prev, ...patch, ...extra }))
+  }, [])
+
   return (
     <FilterContext.Provider value={{
       config:          pageConfig,
@@ -171,6 +212,9 @@ export function FilterProvider({ children, pageConfig, apiBase }) {
       pendingValues,
       setPendingFilter,
       applyFilters,
+      applyFilterPatch,
+      applyCrossFilter,
+      crossFilterResolverRef,
       currentTabKey,
       setCurrentTabKey,
       accessToken,

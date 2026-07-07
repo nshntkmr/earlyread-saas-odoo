@@ -78,6 +78,12 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
     if chart_type == 'key_takeaways':
         return _format_key_takeaways_preview(columns, rows, config, visual_config)
 
+    # Maps / choropleths render entirely client-side from the SQL result; the
+    # builder preview needs no server-formatted payload (same as the existing
+    # 'map' behaviour, which also falls through to {}).
+    if chart_type in ('map', 'albers_choropleth'):
+        return {}
+
     # Composite-only child types
     if chart_type == 'legend_list':
         return _build_legend_list_preview(columns, rows, config)
@@ -278,7 +284,7 @@ def _build_member_flow_preview(columns, rows, visual_config=None):
             'period': start_period,
             'value': start_value,
         },
-        'footer': 'Members must have a qualifying claim in the past 12 months to remain aligned.',
+        'footer': 'Members must have a qualifying claim in the past 12 months to remain eligible.',
     }
 
 

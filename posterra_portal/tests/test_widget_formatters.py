@@ -322,3 +322,64 @@ class TestExistingWidgetRegression(TransactionCase):
         bar_out = bar._dispatch_chart_builder(
             ['cat', 'val'], [['A', 1], ['B', 2]], ctx)
         self.assertIn('echart_json', bar_out)
+
+
+@tagged('post_install', '-at_install', 'posterra_key_takeaways')
+class TestAlbersChoroplethDispatch(TransactionCase):
+    """The standalone ``albers_choropleth`` chart type must dispatch to the
+    SVG-Albers choropleth builder — NOT fall through to the ECharts branch."""
+
+    def _widget(self, **vals):
+        base = {
+            'chart_type': 'albers_choropleth',
+            'name': 'Geo',
+            'query_type': 'sql',
+            'visual_config': json.dumps({
+                'choropleth_join_column': 'region',
+                'choropleth_metric_column': 'value',
+            }),
+        }
+        base.update(vals)
+        return self.env['dashboard.widget'].new(base)
+
+    def test_build_returns_choropleth_payload(self):
+        w = self._widget()
+        cols = ['region', 'value', 'STATE_NAME']
+        rows = [['CA', 100, 'California'], ['NY', 50, 'New York']]
+        out = w._build_albers_choropleth(cols, rows)
+        # Tagged as the standalone type, not 'map'
+        self.assertEqual(out['type'], 'albers_choropleth')
+        # Choropleth payload shape (not an ECharts option)
+        self.assertIn('choropleth_data', out)
+        self.assertIn('geo_level', out)
+        self.assertIn('join_property', out)
+        self.assertNotIn('echart_json', out)
+        # Region → numeric metric mapping
+        self.assertEqual(out['choropleth_data'], {'CA': 100.0, 'NY': 50.0})
+        # Default state level → STUSPS join; renderer forced to SVG Albers
+        self.assertEqual(out['geo_level'], 'state')
+        self.assertEqual(out['join_property'], 'STUSPS')
+        self.assertEqual(out['map_config'].get('choropleth_renderer'),
+                         'svg_albers_usa')
+
+    def test_dispatch_routes_to_choropleth_not_echarts(self):
+        w = self._widget()
+        cols = ['region', 'value']
+        rows = [['CA', 100], ['NY', 50]]
+        out = w._dispatch_chart_builder(cols, rows, {})
+        self.assertEqual(out['type'], 'albers_choropleth')
+        self.assertIn('choropleth_data', out)
+        self.assertNotIn('echart_json', out)
+
+    def test_preview_formatter_returns_empty_no_fallthrough(self):
+        try:
+            from odoo.addons.dashboard_builder.services.preview_formatter import (
+                format_preview,
+            )
+        except ImportError:
+            self.skipTest('dashboard_builder not installed')
+        # Maps/choropleths render client-side → empty preview payload (NOT the
+        # raw-data fallback), same contract as the existing 'map' type.
+        out = format_preview('albers_choropleth', ['region', 'value'],
+                             [['CA', 100]], {}, {})
+        self.assertEqual(out, {})

@@ -3,6 +3,7 @@ import { TokenProvider } from './state/TokenManager'
 import { FilterProvider } from './state/FilterContext'
 import BadgeBar from './components/BadgeBar'
 import FilterBar from './components/FilterBar'
+import IdleWarningModal from './components/IdleWarningModal'
 import SectionGrid from './components/SectionGrid'
 import TabBar from './components/TabBar'
 import WidgetGrid from './components/WidgetGrid'
@@ -18,11 +19,18 @@ import WidgetGrid from './components/WidgetGrid'
  *   apiBase         — "/api/v1"
  *   accessToken     — JWT access token for API calls
  */
-export default function App({ pageConfig, initialWidgets, initialSections, initialBadges, apiBase, accessToken }) {
+export default function App({ pageConfig, initialWidgets, initialSections, initialBadges, apiBase, accessToken, tokenExpiresIn }) {
   const appKey = pageConfig?.app?.key || ''
 
   return (
-    <TokenProvider initialToken={accessToken} appKey={appKey} apiBase={apiBase}>
+    <TokenProvider
+      initialToken={accessToken}
+      appKey={appKey}
+      apiBase={apiBase}
+      initialExpiresIn={tokenExpiresIn}
+      idleTimeoutMins={pageConfig?.app?.idle_timeout_mins || 0}
+      userId={pageConfig?.user_id || 0}
+    >
       <FilterProvider
         pageConfig={pageConfig}
         apiBase={apiBase}
@@ -33,6 +41,7 @@ export default function App({ pageConfig, initialWidgets, initialSections, initi
         <TabBar />
         <SectionGrid placement="tab-level" initialSections={initialSections} apiBase={apiBase} />
         <WidgetGrid initialWidgets={initialWidgets} />
+        <IdleWarningModal primaryColor={pageConfig?.app?.primary_color || '#0066cc'} />
       </FilterProvider>
     </TokenProvider>
   )

@@ -514,6 +514,8 @@ class BuilderAPI(http.Controller):
                             'label': opt.get('label', ''),
                             'value': opt.get('value', ''),
                             'icon': opt.get('icon', ''),
+                            'color': opt.get('color', ''),
+                            'icon_color': opt.get('icon_color', ''),
                             'sequence': opt.get('sequence', 10),
                             'query_sql': opt.get('query_sql', ''),
                             'table_column_config': opt.get('table_column_config', ''),
@@ -527,6 +529,10 @@ class BuilderAPI(http.Controller):
                             'action_pass_value_as': opt.get('action_pass_value_as', ''),
                             'drill_detail_columns': opt.get('drill_detail_columns', ''),
                             'action_url_template': opt.get('action_url_template', ''),
+                            # Per-option geo metadata (map choropleth drill)
+                            'default_geo_level': opt.get('default_geo_level', 'state') or 'state',
+                            'allowed_geo_levels': opt.get('allowed_geo_levels', 'state') or 'state',
+                            'supports_drill': bool(opt.get('supports_drill', False)),
                         }
                         table_name = opt.get('schema_source_table', '')
                         if table_name:
@@ -680,6 +686,8 @@ class BuilderAPI(http.Controller):
                             'label': opt.get('label', ''),
                             'value': opt.get('value', ''),
                             'icon': opt.get('icon', ''),
+                            'color': opt.get('color', ''),
+                            'icon_color': opt.get('icon_color', ''),
                             'sequence': opt.get('sequence', 10),
                             'query_sql': opt.get('query_sql', ''),
                             'table_column_config': opt.get('table_column_config', ''),
@@ -692,6 +700,10 @@ class BuilderAPI(http.Controller):
                             'action_pass_value_as': opt.get('action_pass_value_as', ''),
                             'drill_detail_columns': opt.get('drill_detail_columns', ''),
                             'action_url_template': opt.get('action_url_template', ''),
+                            # Per-option geo metadata (map choropleth drill)
+                            'default_geo_level': opt.get('default_geo_level', 'state') or 'state',
+                            'allowed_geo_levels': opt.get('allowed_geo_levels', 'state') or 'state',
+                            'supports_drill': bool(opt.get('supports_drill', False)),
                         }
                         table_name = opt.get('schema_source_table', '')
                         if table_name:
@@ -956,6 +968,8 @@ class BuilderAPI(http.Controller):
                         'label': o.label or '',
                         'value': o.value or '',
                         'icon': o.icon or '',
+                        'color': o.color or '',
+                        'icon_color': o.icon_color or '',
                         'sequence': o.sequence,
                         'query_sql': o.query_sql or '',
                         'schema_source_table': (
@@ -972,6 +986,10 @@ class BuilderAPI(http.Controller):
                         'action_pass_value_as': o.action_pass_value_as or '',
                         'drill_detail_columns': o.drill_detail_columns or '',
                         'action_url_template': o.action_url_template or '',
+                        # Per-option geo metadata (map choropleth drill)
+                        'default_geo_level': o.default_geo_level or 'state',
+                        'allowed_geo_levels': o.allowed_geo_levels or 'state',
+                        'supports_drill': bool(o.supports_drill),
                         # Mode B per-option ranked configs
                         'ranked_master_config': o.ranked_master_config or '',
                         'ranked_detail_config': o.ranked_detail_config or '',
@@ -1086,6 +1104,8 @@ class BuilderAPI(http.Controller):
                         'label': opt.get('label', ''),
                         'value': opt.get('value', ''),
                         'icon': opt.get('icon', ''),
+                        'color': opt.get('color', ''),
+                        'icon_color': opt.get('icon_color', ''),
                         'sequence': opt.get('sequence', 10),
                         'query_sql': opt.get('query_sql', ''),
                         'table_column_config': opt.get('table_column_config', ''),
@@ -1098,6 +1118,10 @@ class BuilderAPI(http.Controller):
                         'action_pass_value_as': opt.get('action_pass_value_as', ''),
                         'drill_detail_columns': opt.get('drill_detail_columns', ''),
                         'action_url_template': opt.get('action_url_template', ''),
+                        # Per-option geo metadata (map choropleth drill)
+                        'default_geo_level': opt.get('default_geo_level', 'state') or 'state',
+                        'allowed_geo_levels': opt.get('allowed_geo_levels', 'state') or 'state',
+                        'supports_drill': bool(opt.get('supports_drill', False)),
                     }
                     table_name = opt.get('schema_source_table', '')
                     if table_name:

@@ -37,6 +37,10 @@ const SQL_COLUMN_HELP = {
     cols: 'takeaway_text, severity   (severity ∈ critical / warning / positive / info / neutral; SQL row order = display order)',
     example: "SELECT finding AS takeaway_text, risk_level AS severity FROM mv_findings WHERE hha_ccn = %(hha_ccn)s ORDER BY priority LIMIT 4",
   },
+  albers_choropleth: {
+    cols: 'region, value [, hover columns...]   (region = state code / county FIPS to join geometry; value = numeric metric for color)',
+    example: "SELECT STATE_CD AS region, STATE_NAME, SUM(total_qty) AS value FROM shared.fact_state GROUP BY STATE_CD, STATE_NAME",
+  },
 }
 
 function getSqlHelpKey(chartType, donutStyle, lineStyle, gaugeStyle) {

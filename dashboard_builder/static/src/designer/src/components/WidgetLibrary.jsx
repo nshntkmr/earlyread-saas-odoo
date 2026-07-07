@@ -9,7 +9,7 @@ const CHART_ICONS = {
   scatter: 'fa-braille', heatmap: 'fa-th', sankey: 'fa-random',
   sankey_member_flow: 'fa-exchange',
   battle_card: 'fa-columns', insight_panel: 'fa-lightbulb-o',
-  key_takeaways: 'fa-lightbulb-o',
+  key_takeaways: 'fa-lightbulb-o', map: 'fa-map-marker', albers_choropleth: 'fa-map',
   gauge_kpi: 'fa-dashboard',
 }
 

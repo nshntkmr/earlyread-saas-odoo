@@ -37,6 +37,7 @@ _CHART_TYPES = [
     ('insight_panel', 'Insight Panel'), ('gauge_kpi', 'Gauge + KPI'),
     ('key_takeaways', 'Key Takeaways'),
     ('kpi_strip', 'KPI Strip'),
+    ('albers_choropleth', 'US Choropleth'),
 ]
 
 _COL_SPAN_CHOICES = [

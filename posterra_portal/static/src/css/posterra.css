@@ -281,9 +281,17 @@
     color: #1a202c;
 }
 
-.pv-topbar-left .fa-heartbeat {
+.pv-topbar-left .pv-topbar-fallback-icon {
     font-size: 20px;
     color: var(--pv-primary);
+}
+
+.pv-topbar-logo {
+    display: block;
+    height: 32px;
+    max-width: 150px;
+    object-fit: contain;
+    flex-shrink: 0;
 }
 
 .pv-topbar-brand-name {
@@ -416,10 +424,20 @@
     margin-left: auto;
     flex-shrink: 0;
 }
+/* Body-placement controls (choropleth map toolbar) take the FULL card width so
+   the tab group can wrap instead of overflowing/clipping. Builder-resizable
+   widgets (col_span 30–100) must survive without a fixed intrinsic tab width. */
+.pv-widget-controls--body {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+}
 
 /* Toggle Button Group */
 .pv-widget-toggle-group {
     display: inline-flex;
+    flex-wrap: wrap;          /* wrap tabs to a 2nd row instead of clipping on narrow cards */
+    max-width: 100%;          /* never exceed the card — forces the wrap above */
     gap: 2px;
     background: #f1f5f9;
     padding: 3px;

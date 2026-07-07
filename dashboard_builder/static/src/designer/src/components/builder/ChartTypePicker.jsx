@@ -22,6 +22,7 @@ const CHART_TYPES = [
   { key: 'key_takeaways', label: 'Key Takeaways', icon: 'fa-lightbulb-o',     desc: 'Multi-row SQL-driven takeaways with severity icons' },
   { key: 'gauge_kpi',     label: 'Gauge + KPI',   icon: 'fa-dashboard',       desc: 'Gauge with sub-KPI breakdown' },
   { key: 'map',           label: 'Map',           icon: 'fa-map-marker',      desc: 'Geographic point/area visualization' },
+  { key: 'albers_choropleth', label: 'US Choropleth', icon: 'fa-map',         desc: 'SVG Albers state/county geography' },
   { key: 'ranked_detail_list', label: 'Ranked List', icon: 'fa-list-ol',   desc: 'Expandable ranked list with detail charts' },
   { key: 'smart_table',   label: 'Smart Table',   icon: 'fa-th-list',         desc: 'Analytical table with deltas, status pills, conditional colors' },
   { key: 'composite',     label: 'Composite',     icon: 'fa-object-group',    desc: 'Multi-section card — donut, table, KPI in one card' },

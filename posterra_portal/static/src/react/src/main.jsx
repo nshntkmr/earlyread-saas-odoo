@@ -31,6 +31,7 @@ function mount() {
         initialBadges={initialBadges}
         apiBase={rootEl.dataset.apiBase || '/api/v1'}
         accessToken={rootEl.dataset.accessToken || ''}
+        tokenExpiresIn={Number(rootEl.dataset.tokenExpiresIn) || 3600}
       />
     </React.StrictMode>
   )

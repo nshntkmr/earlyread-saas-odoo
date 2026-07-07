@@ -41,6 +41,10 @@ function createDefaultOptionConfig() {
     actionPassValueAs: '',
     drillDetailColumns: '',
     actionUrlTemplate: '',
+    // Per-option geo metadata (map choropleth drill)
+    defaultGeoLevel: 'state',
+    allowedGeoLevels: 'state',
+    supportsDrill: false,
     tableColumnConfig: [],
     generatedSql: '',
     aiState: { prompt: '', generatedSql: '', xColumn: '', yColumns: '', explanation: '', warnings: [] },
@@ -58,6 +62,9 @@ export default function WidgetControlsStep({
   // scope_query_mode='query' (_check_composite_no_scope_query). Hide the
   // query-mode choice and pin the value.
   const isComposite = chartType === 'composite'
+  // Both 'map' and the standalone 'albers_choropleth' expose the per-option
+  // geo level + drill controls (they share the choropleth scope machinery).
+  const isGeoChoropleth = chartType === 'map' || chartType === 'albers_choropleth'
   const effectiveQueryMode = isComposite ? 'parameter' : (scopeQueryMode || 'query')
   const addOption = () => {
     const newOpt = { label: '', value: '', icon: '' }
@@ -72,6 +79,15 @@ export default function WidgetControlsStep({
     const updated = [...(scopeOptions || [])]
     updated[idx] = { ...updated[idx], [field]: value }
     onUpdate({ scopeOptions: updated })
+  }
+
+  // Per-option config lives in optionConfigs[] (parallel to scopeOptions[]).
+  // Accepts a partial patch so multi-field updates (geo level + allowed set)
+  // land in ONE onUpdate — avoids the stale-closure overwrite of chained calls.
+  const patchOptionConfig = (idx, patch) => {
+    const updated = [...(optionConfigs || [])]
+    updated[idx] = { ...(updated[idx] || createDefaultOptionConfig()), ...patch }
+    onUpdate({ optionConfigs: updated })
   }
 
   const removeOption = (idx) => {
@@ -256,6 +272,99 @@ export default function WidgetControlsStep({
                       <i className="fa fa-trash-o" />
                     </button>
                   </div>
+
+                  {/* Per-option colors — active toggle accent + FA icon color.
+                      Blank = default styling (no regression). Icon color falls
+                      back to Option color, then to the theme default. */}
+                  <div className="wb-scope-colors"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center',
+                             marginTop: 8, paddingLeft: 28 }}>
+                    {['color', 'icon_color'].map(field => {
+                      const val = opt[field] || ''
+                      const labelText = field === 'color' ? 'Option color' : 'Icon color'
+                      return (
+                        <div key={field} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <span className="wb-label" style={{ margin: 0, fontSize: 11 }}>{labelText}</span>
+                          <label title="Pick color"
+                            style={{ position: 'relative', width: 20, height: 20, borderRadius: 4,
+                                     border: '1px solid #cbd5e1', cursor: 'pointer', display: 'inline-block',
+                                     background: val || '#fff',
+                                     backgroundImage: val ? 'none'
+                                       : 'repeating-linear-gradient(45deg,#e2e8f0 0 4px,#fff 4px 8px)' }}>
+                            <input type="color" value={val || '#4f46e5'}
+                              onChange={e => updateOption(idx, field, e.target.value)}
+                              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+                          </label>
+                          <input className="wb-input wb-input--xs" placeholder="#hex" value={val}
+                            onChange={e => updateOption(idx, field, e.target.value)}
+                            style={{ width: 76 }} />
+                          {val && (
+                            <button type="button" title="Clear color" className="wb-btn-icon"
+                              onClick={() => updateOption(idx, field, '')}
+                              style={{ padding: '0 5px', fontSize: 12, lineHeight: 1 }}>×</button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Map choropleth: per-option geo level + drill capability.
+                      Kept in sync with the backend @api.constrains (default
+                      level must stay in the allowed set). */}
+                  {isGeoChoropleth && (() => {
+                    const cfg = (optionConfigs || [])[idx] || {}
+                    const defLvl = cfg.defaultGeoLevel || 'state'
+                    const allowed = (cfg.allowedGeoLevels || 'state')
+                      .split(',').map(s => s.trim()).filter(Boolean)
+                    const countyAllowed = allowed.includes('county')
+                    const setDefault = (def) => {
+                      const set = new Set(allowed)
+                      set.add(def)  // default is always allowed
+                      patchOptionConfig(idx, {
+                        defaultGeoLevel: def,
+                        allowedGeoLevels: ['state', 'county'].filter(l => set.has(l)).join(','),
+                      })
+                    }
+                    const toggleCounty = (on) => {
+                      const set = new Set(allowed)
+                      if (on) set.add('county'); else set.delete('county')
+                      set.add(defLvl)  // never drop the default level
+                      const patch = {
+                        allowedGeoLevels: ['state', 'county'].filter(l => set.has(l)).join(','),
+                      }
+                      if (!set.has('county')) patch.supportsDrill = false
+                      patchOptionConfig(idx, patch)
+                    }
+                    return (
+                      <div className="wb-map-geo"
+                        style={{ display: 'flex', flexWrap: 'wrap', gap: 12,
+                                 alignItems: 'center', marginTop: 8, paddingLeft: 28 }}>
+                        <label className="wb-label" style={{ margin: 0, fontSize: 11 }}>Map level</label>
+                        <select
+                          className="wb-select wb-input--sm"
+                          value={defLvl}
+                          onChange={e => setDefault(e.target.value)}
+                          style={{ maxWidth: 120 }}
+                        >
+                          <option value="state">State</option>
+                          <option value="county">County</option>
+                        </select>
+                        <label className="wb-label" style={{ margin: 0, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <input type="checkbox"
+                            checked={countyAllowed}
+                            onChange={e => toggleCounty(e.target.checked)} />
+                          Allow county
+                        </label>
+                        <label className="wb-label" style={{ margin: 0, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4, opacity: countyAllowed ? 1 : 0.5 }}>
+                          <input type="checkbox"
+                            checked={!!cfg.supportsDrill}
+                            disabled={!countyAllowed}
+                            onChange={e => patchOptionConfig(idx, { supportsDrill: e.target.checked })} />
+                          Drill state → county
+                        </label>
+                      </div>
+                    )
+                  })()}
                 </div>
               ))}
 

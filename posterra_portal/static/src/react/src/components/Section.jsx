@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch } from '../api/client'
 import { useFilters } from '../state/FilterContext'
 import { useToken } from '../state/TokenManager'
 import ScopeDropdown from './ScopeDropdown'
@@ -17,7 +18,7 @@ import LeaderboardTable from './LeaderboardTable'
  */
 export default function Section({ config, apiBase }) {
   const { filterValues, config: pageConfig } = useFilters()
-  const { token } = useToken()
+  const { token, refreshToken } = useToken()
   const [sectionData, setSectionData] = useState(config.data || {})
   const [scopeValue, setScopeValue] = useState('')
   const [loading, setLoading] = useState(false)
@@ -70,11 +71,10 @@ export default function Section({ config, apiBase }) {
     const url = `${apiBase}/section/${config.id}/data?${params.toString()}`
     setLoading(true)
     try {
-      const resp = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const json = await resp.json()
+      // apiFetch retries once via refreshToken() on 401 — with per-app
+      // (shorter) TTLs, a token can expire between page load and a
+      // drawer/section interaction.
+      const json = await apiFetch(url, token, {}, refreshToken)
       if (mountedRef.current && json.data) {
         setSectionData(json.data)
       }
@@ -83,7 +83,7 @@ export default function Section({ config, apiBase }) {
     } finally {
       if (mountedRef.current) setLoading(false)
     }
-  }, [filterValues, scope.param_name, config.id, apiBase, token])
+  }, [filterValues, scope.param_name, config.id, apiBase, token, refreshToken])
 
   // Re-fetch when page filters change (after Apply)
   useEffect(() => {

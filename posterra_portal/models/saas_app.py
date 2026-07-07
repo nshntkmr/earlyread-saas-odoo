@@ -83,6 +83,15 @@ class SaaSApp(models.Model):
              'Only used when Access Mode = Security Group.',
     )
 
+    session_idle_timeout_mins = fields.Integer(
+        string='Session Idle Timeout (minutes)',
+        default=0,
+        help='Minutes of user inactivity before automatic portal logout. '
+             '0 disables the timeout (default). Minimum 5 minutes when enabled. '
+             'Applies to portal dashboards only — Designer/admin surfaces are '
+             'not affected.',
+    )
+
     # ── Relationships ────────────────────────────────────────────────────────
     page_ids   = fields.One2many('dashboard.page', 'app_id', string='Pages')
     page_count = fields.Integer(compute='_compute_page_count', string='Page Count')
@@ -140,6 +149,25 @@ class SaaSApp(models.Model):
                     f"App key '{app.app_key}' is reserved and cannot be used "
                     "as an app subdomain. Reserved keys: "
                     f"{', '.join(sorted(self._RESERVED_APP_KEYS))}"
+                )
+
+    @api.constrains('session_idle_timeout_mins')
+    def _check_session_idle_timeout(self):
+        # 1–4 minutes is rejected (not clamped): a timeout below 5 minutes
+        # fights the client's 60s stamp cadence and the 60s warning lead,
+        # producing false logouts for active users.
+        for app in self:
+            val = app.session_idle_timeout_mins or 0
+            if val < 0:
+                raise ValidationError(
+                    "Session Idle Timeout cannot be negative. "
+                    "Use 0 to disable the timeout."
+                )
+            if 0 < val < 5:
+                raise ValidationError(
+                    "Session Idle Timeout must be 0 (disabled) or at least "
+                    "5 minutes. Shorter timeouts conflict with the warning "
+                    "countdown and token refresh cadence."
                 )
 
     @api.constrains('app_key')

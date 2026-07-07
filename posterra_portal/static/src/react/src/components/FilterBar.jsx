@@ -21,8 +21,20 @@ import PillTabs from './PillTabs'
  * Falls back to legacy depends_on_field_name cascade when no
  * filter_dependencies are configured.
  */
+// Auto-select-ALL cap: when a resets_target cascade would select every option
+// of a multiselect as one CSV value, anything longer than this resets to ''
+// ("All") instead. Keeps URLs/permalinks sane when an unconstrained target has
+// hundreds of options (e.g. 635 plan IDs ≈ 4.7KB CSV). Server twin:
+// AUTO_SELECT_ALL_MAX_CHARS in posterra_portal/controllers/widget_api.py —
+// keep the two values in sync.
+const AUTO_SELECT_ALL_MAX_CHARS = 1500
+
 export default function FilterBar() {
-  const { config, pendingValues, setPendingFilter, applyFilters, accessToken, refreshToken, apiBase } = useFilters()
+  const {
+    config, pendingValues, setPendingFilter, applyFilters,
+    crossFilterResolverRef,
+    accessToken, refreshToken, apiBase,
+  } = useFilters()
   const { filters = [], filter_dependencies = [] } = config
 
   // Dynamic options for cascaded filters (filter.id → [{value, label}])
@@ -240,8 +252,11 @@ export default function FilterBar() {
           opts.length > 1 &&
           !targetFilter.include_all_option
         ) {
-          // Multi-select with 2+ real options, no "All" → select ALL as CSV
+          // Multi-select with 2+ real options, no "All" → select ALL as CSV.
+          // Capped: a giant all-options CSV (e.g. 635 plan IDs) resets to ''
+          // instead — same "All" semantics, sane URLs.
           autoVal = opts.map(o => o.value).filter(Boolean).join(',')
+          if (autoVal.length > AUTO_SELECT_ALL_MAX_CHARS) autoVal = ''
         }
         // else: 0 options or has include_all_option → reset to '' (user chooses)
         setPendingFilter(targetParam, autoVal)
@@ -346,6 +361,135 @@ export default function FilterBar() {
       await handleLegacyCascade(filter, newValue)
     }
   }, [useNewDeps, handleBatchCascade, handleLegacyCascade])
+
+  // ── Cross-filter (map click) cascade resolver ──────────────────────────
+  // applyCrossFilter (in-widget cross-filter clicks, e.g. choropleth regions)
+  // changes filter VALUES without going through handleFilterChange, so
+  // dependent dropdowns would keep stale options (County stuck on the
+  // previous state's list). FilterContext calls the resolver registered
+  // below BEFORE committing filterValues: these helpers refresh dependent
+  // options and RETURN the cascade's value resets, so the click patch and
+  // the resets land as ONE filterValues commit → ONE widget refetch wave.
+  // baseValues = pending values + the click patch (passed explicitly:
+  // pendingRef is stale here because the resolver runs before React
+  // re-renders from applyCrossFilter's setPendingValues).
+
+  // Fallback mirror of handleGraphCascade: run it on a private snapshot and
+  // return whatever the cascade changed vs the pre-cascade values.
+  const crossFilterGraphCascade = useCallback(async (filter, newValue, baseValues) => {
+    const paramKey = filter.param_name || filter.field_name
+    const before = { ...baseValues, [paramKey]: newValue }
+    const snapshot = { ...before }
+    await handleGraphCascade(filter, newValue, null, snapshot)
+    const valuePatch = {}
+    for (const [k, v] of Object.entries(snapshot)) {
+      if ((before[k] ?? '') !== (v ?? '')) valuePatch[k] = v
+    }
+    return valuePatch
+  }, [handleGraphCascade])
+
+  // Mirror of handleBatchCascade (single HTTP call) that returns the resets.
+  const crossFilterBatchCascade = useCallback(async (filter, newValue, baseValues) => {
+    const paramKey = filter.param_name || filter.field_name
+    const pageId = config.page?.id
+    if (!pageId) {
+      return crossFilterGraphCascade(filter, newValue, baseValues)
+    }
+    const currentValues = { ...baseValues, [paramKey]: newValue }
+    console.debug(`[CASCADE-XFILTER] ▶ START: filter=${filter.name}(id=${filter.id}), value="${newValue}"`)
+    try {
+      const url = filtersResolveUrl(apiBase)
+      const data = await apiFetch(url, accessToken, {
+        method: 'POST',
+        body: JSON.stringify({
+          page_id: pageId,
+          changed_filter_id: filter.id,
+          changed_value: newValue,
+          current_values: currentValues,
+        }),
+      }, refreshToken)
+
+      const updated = data.updated_filters || {}
+      const valuePatch = {}
+      for (const [filterId, info] of Object.entries(updated)) {
+        setDynamicOptions(prev => ({
+          ...prev,
+          [parseInt(filterId, 10)]: info.options || [],
+        }))
+        if (info.value_changed && info.param_name) {
+          valuePatch[info.param_name] = info.new_value
+        }
+      }
+      console.debug(`[CASCADE-XFILTER] ◼ END: ${Object.keys(updated).length} filters updated`)
+      return valuePatch
+    } catch (err) {
+      console.warn('[CASCADE-XFILTER] ✗ Batch resolve failed, falling back to graph cascade:', err)
+      return crossFilterGraphCascade(filter, newValue, baseValues)
+    }
+  }, [config, apiBase, accessToken, refreshToken, crossFilterGraphCascade])
+
+  // Legacy mirror of handleLegacyCascade (pages with depends_on_field_name
+  // and no dependency edges): refresh child options, return child +
+  // descendant resets.
+  const crossFilterLegacyCascade = useCallback(async (filter, newValue, baseValues) => {
+    const paramKey = filter.param_name || filter.field_name
+    const valuePatch = {}
+    const collectDescendantResets = (parentParam) => {
+      for (const desc of filters.filter(f => f.depends_on_field_name === parentParam)) {
+        const dp = desc.param_name || desc.field_name
+        if (!dp) continue
+        valuePatch[dp] = ''
+        setDynamicOptions(prev => ({ ...prev, [desc.id]: [] }))
+        collectDescendantResets(dp)
+      }
+    }
+    const children = filters.filter(f => f.depends_on_field_name === paramKey)
+    for (const child of children) {
+      const childParam = child.param_name || child.field_name
+      try {
+        const url = cascadeUrl(apiBase, child.id, newValue)
+        const data = await apiFetch(url, accessToken, {}, refreshToken)
+        setDynamicOptions(prev => ({ ...prev, [child.id]: data.options || [] }))
+        if (childParam) {
+          valuePatch[childParam] = ''
+          collectDescendantResets(childParam)
+        }
+      } catch (err) {
+        console.warn('[CASCADE-XFILTER] Legacy cascade fetch failed for filter', child.id, err)
+      }
+    }
+    const changed = {}
+    for (const [k, v] of Object.entries(valuePatch)) {
+      if ((baseValues[k] ?? '') !== v) changed[k] = v
+    }
+    return changed
+  }, [filters, apiBase, accessToken, refreshToken])
+
+  // Resolver: cascade each patched filter that has dependents and merge the
+  // resulting value resets. Filters nothing depends on resolve to {} with no
+  // API call. Registered with FilterContext so applyCrossFilter can await it.
+  const resolveCrossFilterPatch = useCallback(async (patch) => {
+    const valuePatch = {}
+    for (const [param, value] of Object.entries(patch || {})) {
+      const filter = filters.find(f => (f.param_name || f.field_name) === param)
+      if (!filter) continue
+      const hasNewTargets = useNewDeps && (sourceToTargets.get(filter.id) || []).length > 0
+      const hasLegacyChildren = !useNewDeps && filters.some(f => f.depends_on_field_name === param)
+      if (!hasNewTargets && !hasLegacyChildren) continue
+      const base = { ...pendingRef.current, ...patch, ...valuePatch }
+      const resets = useNewDeps
+        ? await crossFilterBatchCascade(filter, value, base)
+        : await crossFilterLegacyCascade(filter, value, base)
+      Object.assign(valuePatch, resets)
+    }
+    return valuePatch
+  }, [filters, useNewDeps, sourceToTargets, crossFilterBatchCascade, crossFilterLegacyCascade])
+
+  React.useEffect(() => {
+    if (!crossFilterResolverRef) return undefined
+    crossFilterResolverRef.current = resolveCrossFilterPatch
+    return () => { crossFilterResolverRef.current = null }
+  }, [crossFilterResolverRef, resolveCrossFilterPatch])
 
   // ── Clear All handler ──────────────────────────────────────────────
   const handleClearAll = useCallback(() => {

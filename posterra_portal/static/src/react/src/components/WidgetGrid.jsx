@@ -20,6 +20,8 @@ import { resolveChildWidget } from './widgets/childRegistry'
 
 // Lazy-load MapWidget to avoid 600KB+ MapLibre bundle on non-map pages
 const MapWidget = React.lazy(() => import('./widgets/MapWidget'))
+// Standalone SVG-Albers choropleth type — its own chunk, never loads MapLibre.
+const AlbersChoroplethWidget = React.lazy(() => import('./widgets/AlbersChoroplethWidget'))
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 import CategoryIcon from './widgets/CategoryIcons'
@@ -41,7 +43,7 @@ const ECHART_TYPES = new Set([
 
 const SCALABLE_TYPES = new Set([
   ...ECHART_TYPES,
-  'table', 'gauge_kpi', 'map', 'ranked_detail_list', 'sankey_member_flow',
+  'table', 'gauge_kpi', 'map', 'albers_choropleth', 'ranked_detail_list', 'sankey_member_flow',
   // key_takeaways fills its equal-height row (no alignSelf:start) and scrolls
   // its list internally — see isExactHeightType below.
   'key_takeaways',
@@ -52,6 +54,7 @@ function resolveWidget(chartType) {
   switch (chartType) {
     case 'composite':          return CompositeWidget
     case 'map':                return MapWidget         // lazy — Suspense boundary preserved
+    case 'albers_choropleth':  return AlbersChoroplethWidget  // SVG-Albers only, no MapLibre
     case 'ranked_detail_list': return RankedDetailList  // needs widgetId for /detail
     case 'smart_table':        return SmartTable        // also in childRegistry (composite-child-safe)
     case 'battle_card':        return BattleCard        // complex per-widget config
@@ -78,7 +81,7 @@ function resolveWidget(chartType) {
  * Click actions: dispatches drill-down, page navigation, filter, or URL open.
  */
 export default function WidgetGrid({ initialWidgets }) {
-  const { config, filterValues, currentTabKey, accessToken, refreshToken, apiBase } = useFilters()
+  const { config, filterValues, currentTabKey, accessToken, refreshToken, apiBase, applyCrossFilter } = useFilters()
 
   // widgetData state: { "<widgetId>": { ...widgetMeta, data: {...} } }
   const [widgetData, setWidgetData] = useState(initialWidgets || {})
@@ -91,6 +94,9 @@ export default function WidgetGrid({ initialWidgets }) {
   const [scopeValues, setScopeValues] = useState({})      // { widgetId: scopeValue }
   const [scopeOptionIds, setScopeOptionIds] = useState({}) // { widgetId: optionId } (query mode)
   const [searchTexts, setSearchTexts] = useState({})
+  // Map state→county drill, per widget:
+  //   { widgetId: { mapLevel: 'state'|'county', drillStateCode, drillStateFips, drillStateName } }
+  const [mapDrillStates, setMapDrillStates] = useState({})
 
   // Auto-select first scope option on mount for query-mode widgets
   // so the toggle button is active and filter-Apply includes _scope_option_id
@@ -116,10 +122,23 @@ export default function WidgetGrid({ initialWidgets }) {
   // Track whether this is the initial mount (skip refetch on first render)
   const isFirst = useRef(true)
 
+  // Set to a widgetId when a map 'drill_cross_filter' click fires — the click
+  // ALSO applies a page filter, which triggers the [filterValues] refetch effect.
+  // That effect would normally clear all drill states + refetch the map at base
+  // level, snapping the just-drilled county view back to states. This flag tells
+  // the effect to preserve THIS widget's drill and skip its base-level refetch.
+  const drillJustFiredRef = useRef(null)
+
   // ── Widget-scoped control handler ─────────────────────────────────────────
   const handleScopeChange = useCallback(async (widgetId, newValue, optionId) => {
     setScopeValues(prev => ({ ...prev, [widgetId]: newValue }))
     if (optionId != null) setScopeOptionIds(prev => ({ ...prev, [widgetId]: optionId }))
+    // Switching scope tab resets any active state→county drill for this widget
+    // (the new tab starts from its own default level).
+    setMapDrillStates(prev => {
+      if (!(widgetId in prev)) return prev
+      const n = { ...prev }; delete n[widgetId]; return n
+    })
 
     const w = widgetData[String(widgetId)]
     if (!w) return
@@ -132,6 +151,9 @@ export default function WidgetGrid({ initialWidgets }) {
       params[w.scope.param_name] = newValue  // Parameter mode: send param value
     }
 
+    // Clear any prior error for this widget so a failed option's error does not
+    // linger while the user switches to another tab (toolbar stays usable).
+    setErrors(prev => { if (!(widgetId in prev)) return prev; const n = { ...prev }; delete n[widgetId]; return n })
     setLoading(prev => ({ ...prev, [widgetId]: true }))
     try {
       const url = widgetDataUrl(apiBase, widgetId, params)
@@ -146,6 +168,61 @@ export default function WidgetGrid({ initialWidgets }) {
       setLoading(prev => ({ ...prev, [widgetId]: false }))
     }
   }, [widgetData, filterValues, apiBase, accessToken, refreshToken])
+
+  // ── Map state→county drill handler ────────────────────────────────────────
+  // drillData = { code, fips, name } to drill into a state; null to go back to
+  // the state view. Mirrors handleScopeChange's fetch shape and preserves the
+  // active scope option / filters — drill and scope are orthogonal.
+  const handleMapDrill = useCallback(async (widgetId, drillData, coupledWithCrossFilter = false) => {
+    const w = widgetData[String(widgetId)]
+    if (!w) return
+
+    // A drill_cross_filter click ALSO changes filterValues, which fires the
+    // [filterValues] refetch effect below. Flag this widget so that effect
+    // preserves the drill we're about to set (and skips its base refetch)
+    // rather than snapping it back to states. ONLY set the flag when a
+    // cross-filter actually accompanies the drill — a plain 'drill' triggers no
+    // filterValues change, so an unconditional flag would never be consumed and
+    // would go stale, wrongly protecting this widget on the next unrelated Apply.
+    if (drillData && coupledWithCrossFilter) drillJustFiredRef.current = widgetId
+
+    setMapDrillStates(prev => ({
+      ...prev,
+      [widgetId]: drillData
+        ? { mapLevel: 'county', drillStateCode: drillData.code,
+            drillStateFips: drillData.fips, drillStateName: drillData.name }
+        : { mapLevel: 'state' },
+    }))
+
+    const params = { ...filterValues }
+    if (w.scope?.query_mode === 'query' && scopeOptionIds[widgetId]) {
+      params._scope_option_id = scopeOptionIds[widgetId]
+    } else if (w.scope?.param_name && scopeValues[widgetId]) {
+      params[w.scope.param_name] = scopeValues[widgetId]
+    }
+    if (drillData) {
+      params._map_level = 'county'
+      params._drill_state_code = drillData.code
+      params._drill_state_fips = drillData.fips
+    } else {
+      params._map_level = 'state'
+    }
+
+    setErrors(prev => { if (!(widgetId in prev)) return prev; const n = { ...prev }; delete n[widgetId]; return n })
+    setLoading(prev => ({ ...prev, [widgetId]: true }))
+    try {
+      const url = widgetDataUrl(apiBase, widgetId, params)
+      const result = await apiFetch(url, accessToken, {}, refreshToken)
+      setWidgetData(prev => ({
+        ...prev,
+        [String(widgetId)]: { ...prev[String(widgetId)], data: result.data },
+      }))
+    } catch (err) {
+      setErrors(prev => ({ ...prev, [widgetId]: err.message || 'Failed to load' }))
+    } finally {
+      setLoading(prev => ({ ...prev, [widgetId]: false }))
+    }
+  }, [widgetData, filterValues, scopeValues, scopeOptionIds, apiBase, accessToken, refreshToken])
 
   // ── Refetch when filterValues changes (after Apply) ───────────────────────
   useEffect(() => {
@@ -171,14 +248,34 @@ export default function WidgetGrid({ initialWidgets }) {
 
     if (!visibleWidgets.length) return
 
-    // Mark all visible widgets as loading
-    const loadingMap = {}
-    visibleWidgets.forEach(w => { loadingMap[w.id] = true })
-    setLoading(loadingMap)
+    // If this filterValues change was fired by a map drill_cross_filter click,
+    // keep that widget's drill and skip its base-level refetch below —
+    // handleMapDrill already fetched its county data with the drill params.
+    // Every OTHER widget still refetches with the new filter (the cross-filter's
+    // whole purpose — e.g. the KPI strip re-scopes to the clicked state).
+    const drillWidget = drillJustFiredRef.current
+    drillJustFiredRef.current = null
+
+    // Mark visible widgets as loading, but PRESERVE the drilling widget's own
+    // loading state (handleMapDrill set it true for the in-flight county fetch)
+    // so its spinner covers the brief window where drilledState is already the
+    // clicked state but the county data hasn't landed yet.
+    setLoading(prev => {
+      const loadingMap = {}
+      visibleWidgets.forEach(w => { if (String(w.id) !== String(drillWidget)) loadingMap[w.id] = true })
+      if (drillWidget != null && prev[drillWidget]) loadingMap[drillWidget] = true
+      return loadingMap
+    })
     setErrors({})
+    // Drop active drills so stale county geometry isn't shown against fresh data
+    // — but PRESERVE the widget that just drilled via cross-filter.
+    setMapDrillStates(prev => (
+      drillWidget != null && prev[drillWidget] ? { [drillWidget]: prev[drillWidget] } : {}
+    ))
 
     // Fire all fetches in parallel
     visibleWidgets.forEach(async (w) => {
+      if (drillWidget != null && String(w.id) === String(drillWidget)) return
       try {
         // Include scope param if widget has active scope control
         const params = { ...filterValues }
@@ -207,6 +304,9 @@ export default function WidgetGrid({ initialWidgets }) {
   // When user clicks a new tab, fetch those widgets via per-widget API.
   // Once fetched, they stay cached — switching back is instant.
   useEffect(() => {
+    // Reset any active drill on tab change — the previous tab's drilled state
+    // must not carry over to a widget rendered on the new tab.
+    setMapDrillStates({})
     if (!currentTabKey) return
     const deferredWidgets = Object.values(widgetData).filter(w =>
       w.tab_key === currentTabKey && w.data && w.data._deferred
@@ -405,6 +505,37 @@ export default function WidgetGrid({ initialWidgets }) {
         extraProps.scopeOptionId = scopeOptionIds[w.id]
       }
     }
+    if (w.chart_type === 'map' || w.chart_type === 'albers_choropleth') {
+      // State→county drill: drillable iff the ACTIVE scope option supports it.
+      // AlbersChoroplethMap additionally gates on the rendered level === 'state',
+      // so a county view (drilled or county-default) won't re-drill.
+      // Both 'map' (via MapWidget) and 'albers_choropleth' (via AlbersChoroplethWidget)
+      // consume the same drill + cross-filter props.
+      const activeOpt = (w.scope?.options || []).find(o => o.id === scopeOptionIds[w.id])
+      extraProps.drillable = !!activeOpt?.supports_drill
+      extraProps.widgetId = w.id   // per-widget localStorage key for the draggable zoom control
+      extraProps.mapDrillState = mapDrillStates[w.id] || { mapLevel: 'state' }
+      extraProps.onMapDrill = (drillData, coupledWithCrossFilter) =>
+        handleMapDrill(w.id, drillData, coupledWithCrossFilter)
+      // Click → cross-filter: apply a page filter in place (atomic, no reload)
+      // and run the dependency cascade before the single filterValues commit.
+      // Returns whether it actually fired — a value identical to the applied
+      // one is a no-op (zero refetches), and the renderer uses the return to
+      // decide the drill-coupling flag (a no-op must not arm drillJustFiredRef,
+      // which only a filterValues change can consume).
+      extraProps.onCrossFilter = (param, value) => {
+        if (!param) return false
+        const v = value == null ? '' : String(value)
+        if ((filterValues[param] ?? '') === v) return false
+        // A cross-filter fired FROM a drilled map (e.g. a county click applying
+        // the County filter) must keep that drill through the coming commit —
+        // arm the same guard a drill_cross_filter state click arms. Safe here:
+        // applyCrossFilter always commits, so the flag is always consumed.
+        if (mapDrillStates[w.id]?.mapLevel === 'county') drillJustFiredRef.current = w.id
+        applyCrossFilter({ [param]: v })
+        return true
+      }
+    }
 
     // CSS Grid placement: column span from width, row span for tall widgets
     const gridColSpan = pctToGridCols(w.col_span)
@@ -463,15 +594,18 @@ export default function WidgetGrid({ initialWidgets }) {
                     ? { ...(w.label_font_weight && { fontWeight: w.label_font_weight }), ...(w.label_color && { color: w.label_color }) }
                     : undefined}
               >{w.name}</span>
-              {/* Widget-scoped controls (toggle/dropdown/search) */}
-              <WidgetControls
-                scope={w.scope}
-                search={w.search}
-                scopeValue={scopeValues[w.id] ?? w.scope?.default_value ?? ''}
-                onScopeChange={(val, optId) => handleScopeChange(w.id, val, optId)}
-                searchText={searchTexts[w.id] || ''}
-                onSearchChange={(val) => setSearchTexts(prev => ({ ...prev, [w.id]: val }))}
-              />
+              {/* Widget-scoped controls (toggle/dropdown/search) — header placement.
+                  Choropleth maps relocate this into the map body (see below). */}
+              {w.map_controls_placement !== 'body' && (
+                <WidgetControls
+                  scope={w.scope}
+                  search={w.search}
+                  scopeValue={scopeValues[w.id] ?? w.scope?.default_value ?? ''}
+                  onScopeChange={(val, optId) => handleScopeChange(w.id, val, optId)}
+                  searchText={searchTexts[w.id] || ''}
+                  onSearchChange={(val) => setSearchTexts(prev => ({ ...prev, [w.id]: val }))}
+                />
+              )}
               {w.annotation_type === 'badge' && w.annotation_text && (
                 <span className="pv-widget-badge badge bg-light text-dark ms-2">
                   {w.annotation_text}
@@ -485,6 +619,39 @@ export default function WidgetGrid({ initialWidgets }) {
           {!isCompact && w.subtitle && (
             <div className="pv-widget-subtitle text-muted px-3">
               {w.subtitle}
+            </div>
+          )}
+          {/* Map-body scope toolbar (choropleth tabs). Rendered OUTSIDE the
+              loading/error/content block so the tabs persist and stay
+              interactive while a tab loads or after one errors — the user can
+              always switch away. Search is hidden for choropleth. */}
+          {w.map_controls_placement === 'body' && w.scope?.mode !== 'none' && (
+            <div className="pv-map-toolbar px-3 pt-2">
+              <WidgetControls
+                placement="body"
+                scope={w.scope}
+                search={null}
+                scopeValue={scopeValues[w.id] ?? w.scope?.default_value ?? ''}
+                onScopeChange={(val, optId) => handleScopeChange(w.id, val, optId)}
+                searchText={''}
+                onSearchChange={() => {}}
+              />
+              {/* Drill breadcrumb: shown only while drilled into a state's
+                  counties. Clicking returns to the national state view. */}
+              {mapDrillStates[w.id]?.mapLevel === 'county' && mapDrillStates[w.id]?.drillStateName && (
+                <div className="pv-map-breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-link p-0"
+                    style={{ fontSize: 12, textDecoration: 'none' }}
+                    onClick={() => handleMapDrill(w.id, null)}
+                  >
+                    ← USA
+                  </button>
+                  <span style={{ color: '#9ca3af' }}>/</span>
+                  <span style={{ fontWeight: 600 }}>{mapDrillStates[w.id].drillStateName}</span>
+                </div>
+              )}
             </div>
           )}
           {error || w.data?.error ? (
