@@ -1,0 +1,4 @@
+
+# Python bytecode cache — Odoo regenerates these at runtime
+**/__pycache__/
+*.pyc
