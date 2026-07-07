@@ -82,6 +82,69 @@ const TYPE_AUTO_FILL = {
  *   allColumns — available columns from source (for tooltip field dropdown)
  *   onChange   — (changes) => void
  */
+// ── Custom status → color mapping (Compliance Dot Strip) ────────────────────
+// The renderer accepts ANY status string (the hover tooltip shows it verbatim)
+// as long as the colors map has an entry for it. These rows edit the non-fixed
+// keys of cellRendererParams.colors — add as many statuses as the data needs
+// (2, 5, 10 — unbounded). Fixed keys keep their dedicated inputs above.
+const FIXED_STATUS_KEYS = ['compliant', 'nonCompliant', 'na']
+
+function CustomStatusColors({ colors, onColorsChange }) {
+  const entries = Object.entries(colors || {}).filter(([k]) => !FIXED_STATUS_KEYS.includes(k))
+
+  // Rebuild the colors object: fixed keys first (preserved as-is), then the
+  // custom rows in display order. Key order is insertion order, so rows keep
+  // their position while being renamed.
+  const rebuild = (rows) => {
+    const next = {}
+    for (const k of FIXED_STATUS_KEYS) {
+      if (colors && colors[k] !== undefined) next[k] = colors[k]
+    }
+    for (const [k, v] of rows) next[k] = v
+    return next
+  }
+
+  const setRow = (idx, key, val) => {
+    onColorsChange(rebuild(entries.map((e, i) => (i === idx ? [key, val] : e))))
+  }
+
+  return (
+    <div className="tcs-row">
+      <label className="tcs-label">Custom Status Colors</label>
+      {entries.map(([status, color], i) => (
+        <div key={i} className="tcs-rule-row">
+          <input type="text" className="tcs-input tcs-input--sm"
+            value={status}
+            onChange={e => setRow(i, e.target.value, color)}
+            placeholder='Status text, e.g. True Care Gap'
+          />
+          <input type="text" className="tcs-input tcs-input--sm" style={{ maxWidth: 90 }}
+            value={color}
+            onChange={e => setRow(i, status, e.target.value)}
+            placeholder="#dc2626"
+          />
+          <span title={color} style={{ width: 14, height: 14, borderRadius: 3, flex: '0 0 auto',
+            display: 'inline-block', backgroundColor: color || '#e5e7eb' }} />
+          <button type="button" className="tcs-remove-btn"
+            onClick={() => onColorsChange(rebuild(entries.filter((_, j) => j !== i)))}>
+            <i className="fa fa-times" />
+          </button>
+        </div>
+      ))}
+      <button type="button" className="wb-btn wb-btn--outline wb-btn--sm"
+        disabled={entries.some(([k]) => k === '')}
+        onClick={() => onColorsChange(rebuild([...entries, ['', '#dc2626']]))}>
+        <i className="fa fa-plus me-1" /> Add Status Color
+      </button>
+      <div className="tcs-help-text">
+        For statuses beyond compliant / nonCompliant / na. The status text must
+        match the data exactly (case-sensitive) — the hover tooltip shows it
+        verbatim. Statuses with no color here fall back to the N/A Color.
+      </div>
+    </div>
+  )
+}
+
 export default function TableColumnSettings({ column, allColumns = [], onChange }) {
   const [showBehavior, setShowBehavior] = useState(false)
   const [showFormatting, setShowFormatting] = useState(false)
@@ -515,6 +578,13 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
                 />
               </div>
             </div>
+            <CustomStatusColors
+              colors={column.cellRendererParams?.colors}
+              onColorsChange={colors => set('cellRendererParams', {
+                ...column.cellRendererParams,
+                colors,
+              })}
+            />
             <div className="tcs-row-inline">
               <div>
                 <label className="tcs-label">Dot Size</label>
@@ -566,7 +636,7 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
               </div>
             )}
             <div className="tcs-help-text">
-              {'Items source must be a JSON array column like [{"label":"Jan","status":"compliant"}]. status = compliant | nonCompliant | na. Null / empty / malformed values render an empty placeholder.'}
+              {'Items source must be a JSON array column like [{"label":"Jan","status":"compliant"}]. status can be compliant | nonCompliant | na or any custom text (e.g. "True Care Gap") mapped under Custom Status Colors. Null / empty / malformed values render an empty placeholder.'}
             </div>
           </div>
         )}
