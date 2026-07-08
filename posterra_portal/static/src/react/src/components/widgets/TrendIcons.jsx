@@ -26,11 +26,20 @@ export const TrendWarning = () => (
   </svg>
 )
 
-/** Pick the right SVG based on status_css class */
-export function TrendIcon({ statusCss }) {
-  if (!statusCss) return null
-  if (statusCss.includes('up'))      return <TrendUp />
-  if (statusCss.includes('down'))    return <TrendDown />
-  if (statusCss.includes('warning')) return <TrendWarning />
+/** Pick the arrow SVG.
+ *
+ * Direction comes from `iconClass` (the server's numeric-direction field:
+ * fa-arrow-up / fa-arrow-down / fa-minus) when provided, so the arrow reflects
+ * whether the value ROSE or FELL — independent of good/bad color. Falls back to
+ * `statusCss` for callers that don't pass an icon_class (backward compatible:
+ * where the two agree, behavior is unchanged). Color is applied by the parent
+ * badge via `status_css`, so e.g. a lower-is-better metric that rose renders an
+ * UP arrow in RED. */
+export function TrendIcon({ statusCss, iconClass }) {
+  const src = iconClass || statusCss
+  if (!src) return null
+  if (src.includes('up'))      return <TrendUp />
+  if (src.includes('down'))    return <TrendDown />
+  if (src.includes('warning')) return <TrendWarning />
   return <TrendNeutral />
 }

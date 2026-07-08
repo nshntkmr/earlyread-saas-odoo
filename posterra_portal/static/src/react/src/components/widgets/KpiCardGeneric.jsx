@@ -152,7 +152,7 @@ export default function KpiCardGeneric({ data = {}, name }) {
 
         {secondary && !isProgress && !isRag && (
           <div className={`pv-trend-badge ${status_css || ''}`}>
-            <TrendIcon statusCss={status_css} />
+            <TrendIcon statusCss={status_css} iconClass={data.icon_class} />
             <span>{secondary}</span>
           </div>
         )}
