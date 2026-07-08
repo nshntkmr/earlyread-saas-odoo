@@ -4385,9 +4385,10 @@ class DashboardWidget(models.Model):
         if y_col and y_col in col_idx and rows:
             prior_raw = rows[0][col_idx[y_col]]
             if prior_raw is None:
-                # No prior period exists (SQL returned NULL) — distinct from a real 0.
-                if (vc.get('trend_mode') or 'relative_percent') != 'absolute_delta':
-                    result['secondary'] = f'No {noun}'                   # e.g. "No Prior Month"
+                # No prior period exists (SQL returned NULL) — distinct from a
+                # real 0. Applies to every trend mode (relative % AND absolute
+                # delta): with no prior there is no delta to show either way.
+                result['secondary'] = f'No {noun}'                   # e.g. "No Prior Month"
             else:
                 try:
                     secondary = self._format_kpi_trend_secondary(
