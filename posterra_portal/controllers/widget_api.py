@@ -21,14 +21,20 @@ Key principle: all Python computation is unchanged.  The API is just a JSON
 delivery layer on top of the existing model methods.
 """
 
+import csv
+import datetime
+import io
 import json
 import logging
+import re
+from decimal import Decimal
 
 from odoo import http
-from odoo.http import request
+from odoo.http import content_disposition, request
 
-from .auth_api import _json_error, _json_response, _verify_token
+from .auth_api import _get_request_json, _json_error, _json_response, _verify_token
 from .portal import _get_providers_for_user
+from ..models.dashboard_widget import DOWNLOAD_MAX_ROWS
 
 _logger = logging.getLogger(__name__)
 
@@ -39,6 +45,99 @@ _logger = logging.getLogger(__name__)
 # twin: AUTO_SELECT_ALL_MAX_CHARS in
 # posterra_portal/static/src/react/src/components/FilterBar.jsx — keep in sync.
 AUTO_SELECT_ALL_MAX_CHARS = 1500
+
+# ── Widget download serialization helpers ────────────────────────────────────
+
+# Strings starting with these characters can be interpreted as formulas by
+# Excel / LibreOffice (CSV injection). Neutralised with a leading apostrophe
+# in BOTH formats and for header labels too (POST labels are client-provided).
+# xlsxwriter is additionally created with strings_to_formulas/urls disabled.
+_FORMULA_PREFIXES = ('=', '+', '@', '-', '\t', '\r')
+
+# Sanity ceiling for the POST rows-export path (AG Grid displayed columns).
+_DOWNLOAD_MAX_COLUMNS = 256
+
+
+def _norm_cell(value):
+    """Normalise one cell (or header label) for CSV/XLSX output."""
+    if value is None:
+        return ''
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return value.isoformat()
+    if isinstance(value, bytes):
+        value = value.decode('utf-8', errors='replace')
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+def _serialize_csv(labels, matrix):
+    """labels: list of header strings; matrix: iterable of row sequences."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator='\r\n')
+    writer.writerow([_norm_cell(c) for c in labels])
+    for row in matrix:
+        writer.writerow([_norm_cell(v) for v in row])
+    # utf-8-sig BOM so Excel auto-detects UTF-8 (accented provider names etc.)
+    return buf.getvalue().encode('utf-8-sig')
+
+
+def _serialize_xlsx(labels, matrix):
+    # Lazy import — keeps module import light; Odoo core ships xlsxwriter.
+    try:
+        import xlsxwriter
+    except ImportError as exc:  # pragma: no cover — core dependency
+        raise RuntimeError('xlsxwriter is not installed on the server') from exc
+    out = io.BytesIO()
+    # strings_to_formulas/urls MUST stay off: with the defaults a cell value
+    # like '=HYPERLINK(...)' becomes a live formula in the exported workbook.
+    workbook = xlsxwriter.Workbook(out, {
+        'in_memory': True,
+        'strings_to_formulas': False,
+        'strings_to_urls': False,
+    })
+    sheet = workbook.add_worksheet('Data')
+    bold = workbook.add_format({'bold': True})
+    for ci, label in enumerate(labels):
+        sheet.write(0, ci, _norm_cell(label), bold)
+    for ri, row in enumerate(matrix, start=1):
+        for ci, val in enumerate(row):
+            sheet.write(ri, ci, _norm_cell(val))
+    workbook.close()
+    return out.getvalue()
+
+
+def _download_filename(widget, fmt):
+    """Sanitized ASCII base name + date + extension (admin name may be junk)."""
+    base = (widget.download_filename or widget.name or 'widget_data').strip()
+    base = re.sub(r'\.(csv|xlsx)$', '', base, flags=re.IGNORECASE)
+    slug = re.sub(r'[^A-Za-z0-9_-]+', '_', base).strip('_') or 'widget_data'
+    return f"{slug}_{datetime.date.today():%Y%m%d}.{fmt}"
+
+
+def _download_response(payload, fmt, filename, truncated):
+    """File response with PHI-grade cache headers + CORS parity."""
+    content_type = (
+        'text/csv; charset=utf-8' if fmt == 'csv'
+        else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    headers = [
+        ('Content-Type', content_type),
+        ('Content-Disposition', content_disposition(filename)),
+        ('Cache-Control', 'private, no-store, no-cache, must-revalidate'),
+        ('Pragma', 'no-cache'),
+        ('X-Content-Type-Options', 'nosniff'),
+        ('Access-Control-Allow-Origin', '*'),
+        ('Access-Control-Allow-Headers', 'Authorization, Content-Type'),
+        ('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'),
+        # Without Expose-Headers the JS blob client cannot read the filename.
+        ('Access-Control-Expose-Headers',
+         'Content-Disposition, X-Download-Truncated'),
+    ]
+    if truncated:
+        headers.append(('X-Download-Truncated', '1'))
+    return request.make_response(payload, headers=headers)
 
 
 # ── JWT validation helper ─────────────────────────────────────────────────────
@@ -644,6 +743,177 @@ class PosterraWidgetAPI(http.Controller):
             'chart_type': widget.chart_type,
             'data':       clean_data,
         })
+
+    # ------------------------------------------------------------------ #
+    # GET/POST /api/v1/widget/<widget_id>/download                        #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/widget/<int:widget_id>/download',
+        type='http',
+        auth='none',
+        methods=['GET', 'POST', 'OPTIONS'],
+        csrf=False,
+        readonly=True,
+    )
+    def api_widget_download(self, widget_id, **kw):
+        """Download a widget's underlying data as a CSV or XLSX file.
+
+        GET  — server SQL export. Query params match the page's filter
+               param names (same contract as /data), plus:
+                   _format          csv | xlsx           (required)
+                   _scope_option_id active scope option  (optional)
+                   _map_level / _drill_state_*           (map widgets)
+               SQL priority: widget.download_sql > active query-mode scope
+               option SQL > widget.query_sql (ORM widgets use read_group).
+
+        POST — AG Grid filtered-rows export (table widgets WITHOUT a custom
+               Download SQL only). Serializes the client-visible rows the
+               grid holds after in-table filters/search/sort — this is NOT
+               a database export; rows are client-provided and the gate,
+               caps and formula guards are about enforcement consistency.
+               Body: {"_format": "csv"|"xlsx",
+                      "columns": [{"key": <colId>, "label": <header>}],
+                      "rows":    [{<colId>: value, ...}, ...]}
+
+        The button is client-side cosmetics — download_enabled is enforced
+        HERE (403 when off), and the format must be one the admin allowed.
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _json_response({})
+
+        try:
+            user, app = _get_api_user()
+        except ValueError as exc:
+            return _json_error(401, str(exc))
+
+        # ── Load widget + access control (mirrors api_widget_data) ────────
+        widget = request.env['dashboard.widget'].sudo().browse(widget_id)
+        if not widget.exists() or not widget.is_active:
+            return _json_error(404, f'Widget {widget_id} not found or inactive')
+        if widget.page_id.app_id.id != app.id:
+            return _json_error(403, 'Widget does not belong to your app')
+        if not widget.download_enabled:
+            return _json_error(403, 'Download is not enabled for this widget')
+
+        # ── Format: reserved param `_format` (GET) / body key (POST) ──────
+        # Popped from kw BEFORE _build_portal_ctx so it can never collide
+        # with an admin-created page filter.
+        is_post = request.httprequest.method == 'POST'
+        body = _get_request_json() if is_post else {}
+        raw_fmt = body.get('_format') if is_post else kw.pop('_format', '')
+        fmt = str(raw_fmt or '').strip().lower()
+        if fmt not in ('csv', 'xlsx'):
+            return _json_error(400, "Invalid or missing _format (expected 'csv' or 'xlsx')")
+        allowed_fmt = widget.download_formats or 'csv'
+        if allowed_fmt != 'both' and fmt != allowed_fmt:
+            return _json_error(400, f"Format '{fmt}' is not enabled for this widget")
+
+        # ── POST: AG Grid filtered-rows export ────────────────────────────
+        if is_post:
+            if widget.chart_type != 'table' or (widget.download_sql or '').strip():
+                return _json_error(
+                    400, 'Rows export is only available for table widgets '
+                         'without a custom Download SQL')
+            columns = body.get('columns') or []
+            rows_in = body.get('rows') or []
+            if not isinstance(columns, list) or not columns:
+                return _json_error(400, 'columns must be a non-empty list')
+            if len(columns) > _DOWNLOAD_MAX_COLUMNS:
+                return _json_error(400, f'Too many columns (max {_DOWNLOAD_MAX_COLUMNS})')
+            if not isinstance(rows_in, list):
+                return _json_error(400, 'rows must be a list')
+            if not all(isinstance(c, dict) and c.get('key') for c in columns):
+                return _json_error(400, 'each column needs a non-empty key')
+            if not all(isinstance(r, dict) for r in rows_in):
+                return _json_error(400, 'each row must be an object keyed by column key')
+            cap = min(widget.download_row_limit or DOWNLOAD_MAX_ROWS,
+                      DOWNLOAD_MAX_ROWS)
+            if len(rows_in) > cap:
+                return _json_error(400, f'Too many rows (max {cap})')
+            col_keys = [str(c['key']) for c in columns]
+            col_labels = [str(c.get('label') or c['key']) for c in columns]
+            matrix = [[r.get(k) for k in col_keys] for r in rows_in]
+            payload = (_serialize_csv(col_labels, matrix) if fmt == 'csv'
+                       else _serialize_xlsx(col_labels, matrix))
+            return _download_response(
+                payload, fmt, _download_filename(widget, fmt), truncated=False)
+
+        # ── GET: server SQL export ─────────────────────────────────────────
+        # Reserved params popped before ctx build (never filter values).
+        _scope_option_id = kw.pop('_scope_option_id', None)
+
+        from ..utils.access import ForgedProviderValueError
+        try:
+            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw)
+        except ForgedProviderValueError as exc:
+            _logger.info('api_widget_download: forged provider value widget=%s: %s',
+                         widget_id, exc)
+            return _json_error(403, str(exc))
+        except Exception as exc:
+            _logger.warning('api_widget_download: portal_ctx error widget=%s: %s',
+                            widget_id, exc)
+            return _json_error(500, f'Context build error: {exc}')
+
+        # ── Map choropleth drill params (same whitelist as /data) ─────────
+        if widget.chart_type in ('map', 'albers_choropleth'):
+            _raw_lvl = (kw.get('_map_level') or '').strip().lower()
+            if _raw_lvl in ('state', 'county'):
+                portal_ctx['sql_params']['_map_level'] = _raw_lvl
+                if _raw_lvl == 'county':
+                    _dc = (kw.get('_drill_state_code') or '').strip().upper()
+                    _df = (kw.get('_drill_state_fips') or '').strip()
+                    if len(_dc) == 2 and _dc.isalpha():
+                        portal_ctx['sql_params']['_drill_state_code'] = _dc
+                    if len(_df) == 2 and _df.isdigit():
+                        portal_ctx['sql_params']['_drill_state_fips'] = _df
+
+        # ── Widget-scoped control (same guards as /data) ───────────────────
+        scope_opt = None
+        if widget.scope_query_mode == 'query' and _scope_option_id:
+            # Query Mode: download the ACTIVE option's rows ("what you see").
+            # The record is passed to get_download_data — never
+            # execute_option_sql, which returns chart-formatted data.
+            try:
+                opt = request.env['dashboard.widget.scope.option'].sudo().browse(
+                    int(_scope_option_id))
+                if (opt.exists() and opt.widget_id.id == widget.id
+                        and opt.is_active and opt.query_sql):
+                    scope_opt = opt
+            except (ValueError, TypeError):
+                pass  # fall through to widget SQL
+
+        if widget.scope_mode in ('dependent', 'independent'):
+            # Parameter Mode: inject scope param into sql_params
+            pname = ''
+            if widget.scope_mode == 'dependent' and widget.scope_filter_id:
+                pname = (widget.scope_filter_id.param_name
+                         or widget.scope_filter_id.field_name or '')
+            elif widget.scope_mode == 'independent':
+                pname = widget.scope_param_name or ''
+            if pname:
+                scope_val = (kw.get(pname) or '').strip()
+                if scope_val and scope_val.lower() not in ('', 'all'):
+                    portal_ctx['sql_params'][pname] = scope_val
+
+        # ── Execute + serialize ────────────────────────────────────────────
+        try:
+            cols, rows, truncated = widget.get_download_data(
+                portal_ctx, scope_option=scope_opt)
+        except ValueError as exc:
+            return _json_error(400, str(exc))
+        except Exception as exc:
+            _logger.warning('api_widget_download: widget=%s error: %s',
+                            widget_id, exc)
+            return _json_error(
+                500, 'Download failed — check the widget/download SQL configuration')
+        if not cols:
+            return _json_error(
+                400, 'Download produced no columns — check the SQL configuration')
+
+        payload = (_serialize_csv(cols, rows) if fmt == 'csv'
+                   else _serialize_xlsx(cols, rows))
+        return _download_response(
+            payload, fmt, _download_filename(widget, fmt), truncated=truncated)
 
     # ------------------------------------------------------------------ #
     # GET /api/v1/widget/<widget_id>/detail                               #

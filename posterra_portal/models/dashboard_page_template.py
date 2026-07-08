@@ -197,6 +197,17 @@ class DashboardPageTemplate(models.Model):
                 'series_column': w.series_column or '',
                 'schema_source_table': w.schema_source_id.table_name if w.schema_source_id else '',
                 'where_clause_exclude': w.where_clause_exclude or '',
+                # Download (per-widget data export)
+                'download_enabled': bool(w.download_enabled),
+                'download_formats': w.download_formats or 'csv',
+                'download_sql': w.download_sql or '',
+                'download_schema_source_table': (
+                    w.download_schema_source_id.table_name
+                    if w.download_schema_source_id else ''),
+                'download_icon_position': w.download_icon_position or 'header_right',
+                'download_icon_color': w.download_icon_color or '',
+                'download_filename': w.download_filename or '',
+                'download_row_limit': w.download_row_limit or 0,
                 # KPI
                 'kpi_format': w.kpi_format or 'number',
                 'kpi_prefix': w.kpi_prefix or '',
@@ -667,6 +678,20 @@ class DashboardPageTemplate(models.Model):
                 scope_src = Source.search([('table_name', '=', scope_table)], limit=1)
                 if scope_src:
                     wvals['scope_schema_source_id'] = scope_src.id
+
+            # Download fields — `if fld in w` keeps templates saved before
+            # this feature restoring cleanly (keys absent → widget defaults).
+            for fld in ('download_enabled', 'download_formats', 'download_sql',
+                        'download_icon_position', 'download_icon_color',
+                        'download_filename', 'download_row_limit'):
+                if fld in w:
+                    wvals[fld] = w[fld]
+            # Resolve download schema source by table name
+            dl_table = w.get('download_schema_source_table', '')
+            if dl_table:
+                dl_src = Source.search([('table_name', '=', dl_table)], limit=1)
+                if dl_src:
+                    wvals['download_schema_source_id'] = dl_src.id
 
             new_widget = Widget.create(wvals)
 

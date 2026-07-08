@@ -372,6 +372,20 @@ def _build_initial_widgets_json(widgets, widget_data):
             if w.search_enabled else None
         )
 
+        # ── Download config ──
+        # UI-relevant keys only. download_sql / schema source / row limit are
+        # server-side — the client only needs to know WHETHER a custom SQL
+        # exists (it decides grid-POST vs server-GET path from that flag).
+        result[str(w.id)]['download'] = (
+            {
+                'formats':    w.download_formats or 'csv',
+                'position':   w.download_icon_position or 'header_right',
+                'icon_color': w.download_icon_color or '',
+                'custom_sql': bool((w.download_sql or '').strip()),
+            }
+            if w.download_enabled else None
+        )
+
     return json.dumps(result, default=str)
 
 

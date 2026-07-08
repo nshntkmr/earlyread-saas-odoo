@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef, useState } from 'react'
+import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
 import DetailDrawer from './DetailDrawer'
@@ -13,9 +13,17 @@ void CELL_RENDERERS
 ModuleRegistry.registerModules([AllCommunityModule])
 
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
-function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widgetId, fetchDrawerDetail }) {
+function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widgetId, fetchDrawerDetail, registerGridApi }) {
   const { columnDefs, rowData = [], row_count, visual_config: vc = {}, detail_drawer: drawer } = data
   const gridRef = useRef(null)
+
+  // Expose the grid api upward (WidgetGrid download export reads the
+  // filtered/sorted row set through it). Ref-latched so the inline closure
+  // WidgetGrid passes each render never re-triggers effects; deregister on
+  // unmount so a stale api is never used after tab switches.
+  const registerRef = useRef(registerGridApi)
+  registerRef.current = registerGridApi
+  useEffect(() => () => registerRef.current?.(null), [])
 
   // Detail Drawer state — owned by DataTable (it has event.data locally; the
   // WidgetGrid onCellClick bridge drops the row). null = closed.
@@ -167,6 +175,7 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widget
           suppressCellFocus={true}
           enableCellTextSelection={true}
           onCellClicked={handleCellClicked}
+          onGridReady={(params) => registerRef.current?.(params.api)}
           animateRows={false}
           quickFilterText={searchText || ''}
         />
@@ -278,11 +287,11 @@ function LegacyTable({ data, columnLinkConfig, onCellClick }) {
  *   columnLinkConfig — legacy column link map (only used in legacy mode)
  *   onCellClick     — ({ column, value, row, linkConfig }) => void
  */
-export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText, fillHeight, widgetId, fetchDrawerDetail }) {
+export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText, fillHeight, widgetId, fetchDrawerDetail, registerGridApi }) {
   // AG Grid mode: has columnDefs from table_column_config
   if (data.columnDefs) {
     return <AGGridTable data={data} onCellClick={onCellClick} searchText={searchText} fillHeight={fillHeight}
-      widgetId={widgetId} fetchDrawerDetail={fetchDrawerDetail} />
+      widgetId={widgetId} fetchDrawerDetail={fetchDrawerDetail} registerGridApi={registerGridApi} />
   }
 
   // Legacy mode: plain cols/rows (backward compat for existing widgets)

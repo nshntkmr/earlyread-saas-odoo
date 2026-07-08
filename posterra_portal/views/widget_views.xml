@@ -588,6 +588,60 @@
                             </group>
                         </page>
 
+                        <!-- ──────────────────────────── Download tab ──── -->
+                        <page string="Download" name="download">
+                            <group>
+                                <group string="Download">
+                                    <field name="download_enabled"/>
+                                    <field name="download_formats"
+                                           invisible="not download_enabled"/>
+                                    <field name="download_filename"
+                                           invisible="not download_enabled"
+                                           placeholder="empty = widget name (date + extension appended)"/>
+                                    <field name="download_row_limit"
+                                           invisible="not download_enabled"/>
+                                </group>
+                                <group string="Appearance"
+                                       invisible="not download_enabled">
+                                    <field name="download_icon_position"/>
+                                    <field name="download_icon_color" widget="color"/>
+                                </group>
+                            </group>
+                            <div class="alert alert-warning" role="alert"
+                                 invisible="not download_enabled or chart_type != 'composite'">
+                                Composite widgets have no query of their own — set a
+                                <strong>Download SQL</strong> below or the download button
+                                will return an error.
+                            </div>
+                            <div class="alert alert-info" role="alert"
+                                 invisible="not download_enabled or chart_type != 'kpi_strip'">
+                                Compact widgets (KPI Strip) render without a card header,
+                                so the download button will not appear on them.
+                            </div>
+                            <div class="alert alert-info" role="alert"
+                                 invisible="not download_enabled or chart_type != 'table' or download_sql">
+                                Table widgets download the grid's <strong>currently filtered
+                                rows</strong> (in-table filters, quick search, sort, visible
+                                columns). Set a Download SQL below to export a fixed
+                                server-side dataset instead.
+                            </div>
+                            <group string="Custom Download SQL"
+                                   invisible="not download_enabled">
+                                <field name="download_schema_source_id"/>
+                                <div class="text-muted" colspan="2">
+                                    Optional — overrides the widget SQL for downloads (e.g.
+                                    detail rows behind an aggregate chart). Same syntax as
+                                    the widget SQL: filter placeholders, {where_clause} and
+                                    [[ ]] optional clauses. SELECT/WITH only. When set it
+                                    serves ALL scope options and bypasses in-table filters.
+                                </div>
+                                <field name="download_sql" widget="text"
+                                       placeholder="SELECT ... FROM ... WHERE {where_clause}"
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+
                         <page string="Composite Items" name="composite_items"
                               invisible="chart_type != 'composite'">
                             <p class="text-muted">

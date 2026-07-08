@@ -39,6 +39,26 @@ export function widgetDetailUrl(apiBase, widgetId, rowKey, params = {}) {
 }
 
 /**
+ * Build the URL for downloading a widget's data as a file (CSV/XLSX).
+ *
+ * Same param contract as widgetDataUrl (filter values + scope/drill params),
+ * plus the reserved `_format` param ('csv' | 'xlsx'). The POST rows-export
+ * path calls this with no params — the body carries everything.
+ *
+ * @param {string} apiBase    — e.g. "/api/v1"
+ * @param {number} widgetId   — dashboard.widget ID
+ * @param {object} params     — filter values dict (field_name → value)
+ * @returns {string}
+ */
+export function widgetDownloadUrl(apiBase, widgetId, params = {}) {
+  const filtered = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+  )
+  const qs = new URLSearchParams(filtered).toString()
+  return `${apiBase}/widget/${widgetId}/download${qs ? '?' + qs : ''}`
+}
+
+/**
  * Build the URL for fetching cascading filter options.
  *
  * @param {string} apiBase      — e.g. "/api/v1"

@@ -103,6 +103,12 @@ _BLOCKED_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
+# ── Hard ceiling on rows in a widget data download (CSV / XLSX) ─────────────
+# A per-widget download_row_limit may lower this but never raise it. The slice
+# is applied post-fetch (same memory profile as widget queries; no SQL LIMIT
+# wrapping — trailing comments / subquery ORDER BY make wrapping unsafe).
+DOWNLOAD_MAX_ROWS = 100_000
+
 
 class DashboardWidget(models.Model):
     _name = 'dashboard.widget'
@@ -483,6 +489,48 @@ class DashboardWidget(models.Model):
         string='Series Column',
         help='Result column to split into multiple series (optional)')
 
+    # ── Download (per-widget data export; admin-form-only config) ────────────
+    download_enabled = fields.Boolean(
+        string='Enable Download', default=False,
+        help='Show a Download button on this widget in the portal. '
+             'Downloads the widget\'s underlying data with the current '
+             'page filters applied, unless a custom Download SQL is set.')
+    download_formats = fields.Selection([
+        ('csv',  'CSV'),
+        ('xlsx', 'Excel (.xlsx)'),
+        ('both', 'CSV + Excel'),
+    ], default='csv', string='Download Formats',
+        help='File formats offered to the user. "CSV + Excel" shows a '
+             'two-item menu on click.')
+    download_sql = fields.Text(
+        string='Download SQL',
+        help='Optional. Overrides the widget SQL for downloads — e.g. detail '
+             'rows behind an aggregate chart. Same syntax as widget SQL: '
+             '%(param_name)s placeholders, {where_clause}, [[ ]] optional '
+             'clauses. SELECT/WITH only. When set, it is used for ALL scope '
+             'options and bypasses in-table (AG Grid) filters.')
+    download_schema_source_id = fields.Many2one(
+        'dashboard.schema.source', string='Download Schema Source',
+        ondelete='set null',
+        help='Only used when Download SQL is set. Empty = the widget\'s own '
+             'Schema Source. Set this when the download reads a different '
+             'table (e.g. a detail MV behind an aggregate widget).')
+    download_icon_position = fields.Selection([
+        ('header_right', 'Header Right'),
+        ('header_left',  'Header Left'),
+    ], default='header_right', string='Download Icon Position')
+    download_icon_color = fields.Char(
+        string='Download Icon Color',
+        help='Hex color for the download icon. Empty = theme default.')
+    download_filename = fields.Char(
+        string='Download File Name',
+        help='Base file name (no extension). Empty = widget name. '
+             'The date and extension are appended automatically.')
+    download_row_limit = fields.Integer(
+        string='Download Row Limit', default=0,
+        help='Maximum rows in a download. 0 = platform default '
+             '(100,000). Values above the platform default are capped.')
+
     # ── ORM branch ────────────────────────────────────────────────────────────
     orm_model_id = fields.Many2one('ir.model', string='Model', ondelete='set null')
     orm_model_name = fields.Char(
@@ -771,6 +819,35 @@ class DashboardWidget(models.Model):
                 raise ValidationError(
                     'A Schema Source is required when using {where_clause} in SQL.')
 
+    @api.constrains('download_sql', 'download_schema_source_id',
+                    'schema_source_id', 'download_row_limit')
+    def _check_download_config(self):
+        """Admin-time feedback for the Download tab. Runtime _execute_sql
+        re-validates everything, so this is UX, not the security boundary."""
+        for w in self:
+            if w.download_row_limit < 0:
+                raise ValidationError('Download Row Limit cannot be negative.')
+            dl_sql = (w.download_sql or '').strip()
+            if not dl_sql:
+                continue
+            # Same comment-stripping + first-token check as _execute_sql.
+            sql_clean = re.sub(r'/\*.*?\*/', ' ', dl_sql, flags=re.DOTALL)
+            sql_clean = re.sub(r'--[^\n]*', ' ', sql_clean)
+            first_word = sql_clean.strip().split()[0].upper() if sql_clean.strip() else ''
+            if first_word not in ('SELECT', 'WITH'):
+                raise ValidationError(
+                    'Download SQL must start with SELECT or WITH.')
+            if _BLOCKED_KEYWORDS.search(sql_clean):
+                raise ValidationError(
+                    'Download SQL contains a disallowed keyword '
+                    '(DML/DDL not permitted).')
+            if ('{where_clause}' in dl_sql
+                    and not w.download_schema_source_id
+                    and not w.schema_source_id):
+                raise ValidationError(
+                    'A Schema Source (widget or download-specific) is required '
+                    'when using {where_clause} in Download SQL.')
+
     @api.constrains('chart_type', 'scope_query_mode')
     def _check_composite_no_scope_query(self):
         """v1 limitation: composite widgets cannot use Query scope mode. The
@@ -896,24 +973,32 @@ class DashboardWidget(models.Model):
     # Public entry point called by controller
     # =========================================================================
 
-    def _resolve_where_clause_params(self, portal_ctx):
-        """Apply DashboardFilterBuilder when {where_clause} is in self.query_sql.
+    def _resolve_where_clause_params(self, portal_ctx, *, sql_text=None,
+                                     schema_source=None, exclude=None):
+        """Apply DashboardFilterBuilder when {where_clause} is in the SQL.
         Returns the effective params dict to pass to _execute_sql. If the SQL
         has no {where_clause} placeholder, returns sql_params unchanged.
 
         Extracted from get_portal_data so composite children with
         data_mode='own_sql' get the same WHERE-clause treatment as standalone
-        widgets."""
+        widgets.
+
+        Keyword overrides (all default to the widget's own config) let the
+        download path run an alternate SQL text against an alternate schema
+        source with an alternate exclude list — same building, same guards."""
         self.ensure_one()
+        sql = sql_text if sql_text is not None else (self.query_sql or '')
+        source = schema_source if schema_source is not None else self.schema_source_id
+        exclude_csv = exclude if exclude is not None else self.where_clause_exclude
         sql_params = portal_ctx.get('sql_params', {})
-        if '{where_clause}' not in (self.query_sql or ''):
+        if '{where_clause}' not in sql:
             return sql_params
         from ..utils.filter_builder import DashboardFilterBuilder
         source_columns = {
-            c.column_name for c in self.schema_source_id.column_ids
-        } if self.schema_source_id else None
+            c.column_name for c in source.column_ids
+        } if source else None
         exclude = [
-            p.strip() for p in (self.where_clause_exclude or '').split(',')
+            p.strip() for p in (exclude_csv or '').split(',')
             if p.strip()
         ] or None
         builder = DashboardFilterBuilder(
@@ -1277,13 +1362,87 @@ class DashboardWidget(models.Model):
             return {'error': str(exc)}
 
     # =========================================================================
+    # Download (per-widget data export)
+    # =========================================================================
+
+    def get_download_data(self, portal_ctx, scope_option=None):
+        """Return (col_names, rows, truncated) for the Download feature.
+
+        SQL priority — "download what you see":
+            1. download_sql (admin's custom export query; serves ALL scope
+               options when set)
+            2. the active query-mode scope option's query_sql (raw rows —
+               NOT execute_option_sql, which returns chart-formatted data)
+            3. the widget's own query_sql (ORM widgets fall back to
+               _execute_orm)
+
+        Raises ValueError with a user-safe message on config problems; the
+        controller maps that to HTTP 400.
+        """
+        self.ensure_one()
+        dl_sql = (self.download_sql or '').strip()
+        if dl_sql:
+            sql_text = dl_sql
+            source = self.download_schema_source_id or self.schema_source_id
+            exclude = self.where_clause_exclude
+        elif scope_option is not None and (scope_option.query_sql or '').strip():
+            # Ownership chain mirrors execute_option_sql: the option's own
+            # source/exclude win, widget's are the fallback.
+            sql_text = scope_option.query_sql.strip()
+            source = scope_option.schema_source_id or self.schema_source_id
+            exclude = scope_option.where_clause_exclude or self.where_clause_exclude
+        elif self.chart_type == 'composite':
+            raise ValueError(
+                'This composite widget needs a Download SQL — it has no '
+                'query of its own.')
+        elif self.query_type == 'orm':
+            cols, rows = self._execute_orm()
+            return self._apply_download_cap(cols, rows)
+        else:
+            sql_text = (self.query_sql or '').strip()
+            source = self.schema_source_id
+            exclude = self.where_clause_exclude
+        if not sql_text:
+            raise ValueError('No SQL configured for download.')
+
+        # Never mutate the shared portal_ctx['sql_params'] (see get_portal_data).
+        effective_params = dict(self._resolve_where_clause_params(
+            portal_ctx, sql_text=sql_text, schema_source=source,
+            exclude=exclude) or {})
+        # Map widgets: same effective-geo-level injection as get_portal_data,
+        # so a drilled county view downloads county rows.
+        if self.chart_type in ('map', 'albers_choropleth'):
+            _lvl = self._effective_map_level(
+                option=scope_option,
+                raw_map_level=(portal_ctx.get('sql_params') or {}).get('_map_level'))
+            effective_params['_map_level'] = _lvl
+            if _lvl != 'county':
+                effective_params.pop('_drill_state_code', None)
+                effective_params.pop('_drill_state_fips', None)
+
+        cols, rows = self._execute_sql(
+            effective_params, sql_text=sql_text, schema_source=source)
+        return self._apply_download_cap(cols, rows)
+
+    def _apply_download_cap(self, cols, rows):
+        """Clamp rows to the effective download limit; report truncation."""
+        cap = self.download_row_limit or DOWNLOAD_MAX_ROWS
+        cap = min(cap, DOWNLOAD_MAX_ROWS)
+        truncated = len(rows) > cap
+        return cols, rows[:cap], truncated
+
+    # =========================================================================
     # SQL execution
     # =========================================================================
 
-    def _execute_sql(self, params):
-        """Validate and execute the SQL query; return (col_names, rows)."""
+    def _execute_sql(self, params, *, sql_text=None, schema_source=None):
+        """Validate and execute the SQL query; return (col_names, rows).
+
+        Keyword overrides (defaults = the widget's own query_sql /
+        schema_source_id) let the download path reuse this exact validation
+        + executor dispatch for an alternate SQL text and source."""
         self.ensure_one()
-        sql = (self.query_sql or '').strip()
+        sql = (sql_text if sql_text is not None else self.query_sql or '').strip()
         if not sql:
             return [], []
 
@@ -1337,7 +1496,9 @@ class DashboardWidget(models.Model):
         # at a ``dashboard.connection`` route to that engine's executor
         # (e.g. ClickHouseExecutor).
         from ..utils.query_executors import get_executor
-        executor = get_executor(self.env, self.schema_source_id)
+        executor = get_executor(
+            self.env,
+            schema_source if schema_source is not None else self.schema_source_id)
         return executor.execute(sql, safe_params)
 
     # =========================================================================

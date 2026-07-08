@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useFilters } from '../state/FilterContext'
-import { apiFetch } from '../api/client'
-import { widgetDataUrl, widgetDetailUrl } from '../api/endpoints'
+import { apiFetch, apiFetchBlob } from '../api/client'
+import { widgetDataUrl, widgetDetailUrl, widgetDownloadUrl } from '../api/endpoints'
 
 // ── Widget components ─────────────────────────────────────────────────────────
 import KPICard      from './widgets/KPICard'
@@ -28,6 +28,9 @@ import CategoryIcon from './widgets/CategoryIcons'
 
 // ── Widget-scoped controls ──────────────────────────────────────────────────
 import WidgetControls from './WidgetControls'
+
+// ── Per-widget data download (admin-gated) ──────────────────────────────────
+import WidgetDownloadButton from './WidgetDownloadButton'
 
 // ── Drill-down ──────────────────────────────────────────────────────────────
 import DrillDownModal from './builder/DrillDownModal'
@@ -97,6 +100,11 @@ export default function WidgetGrid({ initialWidgets }) {
   // Map state→county drill, per widget:
   //   { widgetId: { mapLevel: 'state'|'county', drillStateCode, drillStateFips, drillStateName } }
   const [mapDrillStates, setMapDrillStates] = useState({})
+
+  // Per-widget download-in-flight flags + AG Grid api registry (table widgets
+  // register on grid-ready so the download export can read the filtered rows).
+  const [downloadingIds, setDownloadingIds] = useState({})
+  const gridApisRef = useRef({})
 
   // Auto-select first scope option on mount for query-mode widgets
   // so the toggle button is active and filter-Apply includes _scope_option_id
@@ -223,6 +231,93 @@ export default function WidgetGrid({ initialWidgets }) {
       setLoading(prev => ({ ...prev, [widgetId]: false }))
     }
   }, [widgetData, filterValues, scopeValues, scopeOptionIds, apiBase, accessToken, refreshToken])
+
+  // ── Per-widget download (admin-gated) ─────────────────────────────────────
+  // Two paths, decided per click:
+  //   Grid path   — table widget, NO custom download SQL, AG Grid mounted →
+  //                 POST the client-visible rows (after in-table filters /
+  //                 quick search / sort, visible columns only, all pages).
+  //                 The server re-checks the gate, caps rows, applies formula
+  //                 guards and names the file — this is serialization of
+  //                 client-visible rows, not a database export.
+  //   Server path — everything else → GET with the same param contract as
+  //                 the widget data fetch (filters + scope + map drill).
+  const handleDownload = useCallback(async (w, format) => {
+    if (downloadingIds[w.id]) return
+    setDownloadingIds(prev => ({ ...prev, [w.id]: true }))
+    try {
+      let result
+      const gridApi = gridApisRef.current[w.id]
+      if (w.chart_type === 'table' && !w.download?.custom_sql && gridApi) {
+        // Columns keyed by colId, NOT colDef.field — valueGetter-only columns
+        // have no field, and two columns can share one field.
+        const displayedCols = gridApi.getAllDisplayedColumns()
+        const columns = displayedCols.map(col => ({
+          key: col.getColId(),
+          label: col.getColDef().headerName || col.getColId(),
+        }))
+        const rows = []
+        gridApi.forEachNodeAfterFilterAndSort(node => {
+          rows.push(Object.fromEntries(
+            displayedCols.map(col => [
+              col.getColId(),
+              // useFormatter:false is the deliberate native-value decision:
+              // valueGetters are honored (computed columns export correctly),
+              // display formatters are not (Excel keeps numeric types).
+              gridApi.getCellValue({ rowNode: node, colKey: col, useFormatter: false }),
+            ])
+          ))
+        })
+        result = await apiFetchBlob(
+          widgetDownloadUrl(apiBase, w.id),
+          accessToken,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ _format: format, columns, rows }),
+          },
+          refreshToken,
+        )
+      } else {
+        const params = { ...filterValues }
+        const sv = scopeValues[w.id]
+        if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
+          params._scope_option_id = scopeOptionIds[w.id]
+        } else if (w.scope?.param_name && sv) {
+          params[w.scope.param_name] = sv
+        }
+        const drill = mapDrillStates[w.id]
+        if (drill?.mapLevel === 'county') {
+          params._map_level = 'county'
+          params._drill_state_code = drill.drillStateCode
+          params._drill_state_fips = drill.drillStateFips
+        }
+        params._format = format
+        result = await apiFetchBlob(
+          widgetDownloadUrl(apiBase, w.id, params), accessToken, {}, refreshToken,
+        )
+      }
+      const fallback = `${(w.name || 'widget_data').replace(/[^A-Za-z0-9_-]+/g, '_')}.${format}`
+      const objectUrl = URL.createObjectURL(result.blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = result.filename || fallback
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+      if (result.truncated) {
+        window.alert('Download truncated: this widget\'s row limit was reached.')
+      }
+    } catch (err) {
+      // Deliberately NOT written into errors[w.id] — that state replaces the
+      // widget body, and a failed download must not blank a healthy widget.
+      console.warn('Widget download failed:', err)
+      window.alert(`Download failed: ${err.message || 'unknown error'}`)
+    } finally {
+      setDownloadingIds(prev => { const n = { ...prev }; delete n[w.id]; return n })
+    }
+  }, [downloadingIds, filterValues, scopeValues, scopeOptionIds, mapDrillStates, apiBase, accessToken, refreshToken])
 
   // ── Refetch when filterValues changes (after Apply) ───────────────────────
   useEffect(() => {
@@ -484,6 +579,13 @@ export default function WidgetGrid({ initialWidgets }) {
       if (!isCompact && w.height) {
         extraProps.fillHeight = true
       }
+      // Download grid path: register the AG Grid api so handleDownload can
+      // read the filtered/sorted row set. Legacy-mode tables never call this
+      // (no AG Grid) and fall back to the server GET path.
+      extraProps.registerGridApi = (api) => {
+        if (api) gridApisRef.current[w.id] = api
+        else delete gridApisRef.current[w.id]
+      }
       // Detail Drawer: thread widgetId (every render path) + a fetch helper that
       // reuses the SAME api client / auth as widget data, plus current filters,
       // so drawer SQL resolves %(param)s/{where_clause}/%(row_key)s identically.
@@ -570,6 +672,14 @@ export default function WidgetGrid({ initialWidgets }) {
         >
           {!isCompact && (
             <div className="pv-widget-card-header">
+              {w.download && w.download.position === 'header_left' && (
+                <WidgetDownloadButton
+                  download={w.download}
+                  position="header_left"
+                  downloading={!!downloadingIds[w.id]}
+                  onDownload={(fmt) => handleDownload(w, fmt)}
+                />
+              )}
               {w.icon_name && w.icon_name !== 'none' && w.icon_position === 'title' && (() => {
                 const titleStatusCss = w.title_icon_color_mode === 'status'
                   ? (w.data?.status_css || '')
@@ -610,6 +720,14 @@ export default function WidgetGrid({ initialWidgets }) {
                 <span className="pv-widget-badge badge bg-light text-dark ms-2">
                   {w.annotation_text}
                 </span>
+              )}
+              {w.download && w.download.position !== 'header_left' && (
+                <WidgetDownloadButton
+                  download={w.download}
+                  position="header_right"
+                  downloading={!!downloadingIds[w.id]}
+                  onDownload={(fmt) => handleDownload(w, fmt)}
+                />
               )}
               {isLoading && (
                 <span className="pv-widget-spinner spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true" />
