@@ -4328,12 +4328,16 @@ class DashboardWidget(models.Model):
             result['status_css'] = css_mod
             result['status_val'] = status_val
         elif self.chart_type in ('kpi', 'status_kpi', 'kpi_strip') and not self.status_column:
-            # Auto-trend: compare x_column (current) vs first y_column (prior)
+            # Auto-trend: compare x_column (current) vs first y_column (prior).
+            # A NULL prior (no prior period) skips the trend entirely so the card
+            # shows NO arrow alongside the "No Prior Month" secondary — a genuine
+            # 0 prior still computes a direction.
             y_col_trend = (self.y_columns or '').split(',')[0].strip()
-            if y_col_trend and y_col_trend in col_idx and rows:
+            if (y_col_trend and y_col_trend in col_idx and rows
+                    and rows[0][col_idx[y_col_trend]] is not None):
                 try:
                     current = float(raw_val or 0)
-                    prior = float(rows[0][col_idx[y_col_trend]] or 0)
+                    prior = float(rows[0][col_idx[y_col_trend]])
 
                     direction = self.metric_direction
                     if not direction:

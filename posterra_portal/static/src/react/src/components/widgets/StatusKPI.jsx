@@ -74,7 +74,7 @@ export default function StatusKPI({ data = {}, name }) {
         {labelBelow && labelEl}
         {secondary && (
           <div className={`pv-trend-badge ${status_css || ''}`} style={alignStyle && { justifyContent: text_align }}>
-            <TrendIcon statusCss={status_css} />
+            <TrendIcon statusCss={status_css} iconClass={data.icon_class} />
             <span>{secondary}</span>
           </div>
         )}
@@ -94,7 +94,7 @@ export default function StatusKPI({ data = {}, name }) {
       {labelBelow && labelEl}
       {secondary && (
         <div className={`pv-trend-badge ${status_css || ''}`} style={alignStyle && { justifyContent: text_align }}>
-          <TrendIcon statusCss={status_css} />
+          <TrendIcon statusCss={status_css} iconClass={data.icon_class} />
           <span>{secondary}</span>
         </div>
       )}

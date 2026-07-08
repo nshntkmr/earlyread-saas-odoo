@@ -49,7 +49,7 @@ export default function KPIStrip({ data = {}, name }) {
         {secondary && (
           status_css ? (
             <div className={`pv-trend-badge ${status_css}`} style={alignStyle && { justifyContent: text_align }}>
-              <TrendIcon statusCss={status_css} />
+              <TrendIcon statusCss={status_css} iconClass={data.icon_class} />
               <span>{secondary}</span>
             </div>
           ) : (
@@ -74,7 +74,7 @@ export default function KPIStrip({ data = {}, name }) {
       {secondary && (
         status_css ? (
           <div className={`pv-trend-badge ${status_css}`} style={alignStyle && { justifyContent: text_align }}>
-            <TrendIcon statusCss={status_css} />
+            <TrendIcon statusCss={status_css} iconClass={data.icon_class} />
             <span>{secondary}</span>
           </div>
         ) : (
