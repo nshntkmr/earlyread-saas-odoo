@@ -5,9 +5,13 @@ import json
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-_DRAWER_SECTION_TYPES = ('field_grid', 'flag_chips', 'measure_cards', 'alert_blocks')
+_DRAWER_SECTION_TYPES = (
+    'field_grid', 'flag_chips', 'measure_cards', 'alert_blocks', 'chart')
 _DRAWER_TRIGGERS = ('row', 'cell')
 _DRAWER_SOURCES = ('master_row', 'sql')
+_DRAWER_CHART_TYPES = ('bar',)
+_DRAWER_CHART_ORIENTATIONS = ('vertical', 'horizontal')
+_DRAWER_CHART_NUMBER_FORMATS = ('compact', 'number', 'raw')
 
 
 class DashboardWidgetActionMixin(models.AbstractModel):
@@ -79,7 +83,7 @@ class DashboardWidgetActionMixin(models.AbstractModel):
         string='Detail Drawer Config (JSON)',
         help='JSON config for the row/cell Detail Drawer on table widgets. '
              'Sections of type field_grid / flag_chips / measure_cards / '
-             'alert_blocks, each master_row or sql (with row_key param). '
+             'alert_blocks / chart, each master_row or sql (with row_key param). '
              'Member-360 ships as a preset.')
 
     # ── Ranked Detail List configs (v2 consolidated) ──────────────────────
@@ -158,3 +162,25 @@ class DashboardWidgetActionMixin(models.AbstractModel):
                     if '%(row_key)s' not in sql:
                         raise ValidationError(
                             "Section '%s' SQL must reference %%(row_key)s." % sid)
+                if s.get('type') == 'chart':
+                    chart_type = s.get('chart_type') or 'bar'
+                    if chart_type not in _DRAWER_CHART_TYPES:
+                        raise ValidationError(
+                            "Chart section '%s' currently supports only "
+                            "chart_type 'bar'." % sid)
+                    if not (s.get('x_column') or '').strip():
+                        raise ValidationError(
+                            "Chart section '%s' requires x_column." % sid)
+                    if not (s.get('y_column') or '').strip():
+                        raise ValidationError(
+                            "Chart section '%s' requires y_column." % sid)
+                    orientation = s.get('orientation') or 'vertical'
+                    if orientation not in _DRAWER_CHART_ORIENTATIONS:
+                        raise ValidationError(
+                            "Chart section '%s' orientation must be "
+                            "'vertical' or 'horizontal'." % sid)
+                    number_format = s.get('number_format') or 'compact'
+                    if number_format not in _DRAWER_CHART_NUMBER_FORMATS:
+                        raise ValidationError(
+                            "Chart section '%s' number_format must be "
+                            "'compact', 'number', or 'raw'." % sid)

@@ -371,6 +371,46 @@ class TestAlbersChoroplethDispatch(TransactionCase):
         self.assertIn('choropleth_data', out)
         self.assertNotIn('echart_json', out)
 
+    def test_all_zero_opt_in_round_trips_without_collapsing_zero_to_null(self):
+        """The backend must preserve both the opt-in flag and genuine zeros.
+
+        The client decides whether the complete zero-only selection uses the
+        no-data fill; keeping zeros numeric preserves tooltip/display semantics
+        and keeps mixed zero/non-zero selections on the normal scale.
+        """
+        w = self._widget(visual_config=json.dumps({
+            'choropleth_join_column': 'region',
+            'choropleth_metric_column': 'value',
+            'choropleth_all_zero_as_no_data': True,
+        }))
+        out = w._build_albers_choropleth(
+            ['region', 'value'], [['CA', 0], ['NY', 0]])
+        self.assertIs(out['map_config']['choropleth_all_zero_as_no_data'], True)
+        self.assertEqual(out['choropleth_data'], {'CA': 0.0, 'NY': 0.0})
+
+    def test_existing_config_does_not_enable_all_zero_behavior(self):
+        """Absent flag remains absent/false so prior maps render identically."""
+        out = self._widget()._build_albers_choropleth(
+            ['region', 'value'], [['CA', 0], ['NY', 0]])
+        self.assertFalse(
+            out['map_config'].get('choropleth_all_zero_as_no_data', False))
+        self.assertEqual(out['choropleth_data'], {'CA': 0.0, 'NY': 0.0})
+
+    def test_builder_exposes_all_zero_flag_as_opt_in(self):
+        try:
+            from odoo.addons.dashboard_builder.services.chart_flags import (
+                get_flags_for_chart,
+            )
+        except ImportError:
+            self.skipTest('dashboard_builder not installed')
+        matches = [
+            flag for flag in get_flags_for_chart('albers_choropleth')
+            if flag.get('flag') == 'choropleth_all_zero_as_no_data'
+        ]
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]['type'], 'boolean')
+        self.assertIs(matches[0]['default'], False)
+
     def test_preview_formatter_returns_empty_no_fallthrough(self):
         try:
             from odoo.addons.dashboard_builder.services.preview_formatter import (

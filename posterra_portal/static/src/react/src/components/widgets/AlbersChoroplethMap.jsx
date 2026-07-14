@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { geoAlbersUsa, geoPath } from 'd3-geo'
+import { shouldUseAllZeroNoData } from './choroplethDataState'
 
 // ═════════════════════════════════════════════════════════════════════════════
 // AlbersChoroplethMap — open-source SVG/D3 choropleth (Image-2 fidelity)
@@ -223,6 +224,10 @@ export default function AlbersChoroplethMap({ data, height, name, widgetId = nul
        cfg.choropleth_color_end]
     : DEFAULT_STOPS
   const noDataColor = cfg.choropleth_no_data_color || '#e9e7ef'
+  // Strictly opt-in for backward compatibility. NULL regions always retain
+  // their existing no-data behavior; this flag only handles a numeric dataset
+  // whose complete finite value set is exactly zero.
+  const allZeroAsNoData = cfg.choropleth_all_zero_as_no_data === true
   const borderColor = cfg.choropleth_border_color || '#ffffff'
   const borderWidth = cfg.choropleth_border_width != null ? Number(cfg.choropleth_border_width) : 0.7
   const fillOpacity = cfg.choropleth_fill_opacity != null ? Number(cfg.choropleth_fill_opacity) : 1
@@ -394,6 +399,7 @@ export default function AlbersChoroplethMap({ data, height, name, widgetId = nul
     const allVals = Object.values(regionData)
       .filter(v => v != null && !isNaN(Number(v))).map(Number)
     const sorted = allVals.slice().sort((a, b) => a - b)
+    const allZeroNoData = shouldUseAllZeroNoData(allZeroAsNoData, allVals)
     const { scale, breakpoints } = buildScale(dom, stops, scaleMode, allVals)
 
     const paths = feats.map(f => {
@@ -410,8 +416,8 @@ export default function AlbersChoroplethMap({ data, height, name, widgetId = nul
         : null
       return { d: pg(f), key, label: f.properties?.name || key, v, drill }
     })
-    return { paths, dom, scale, breakpoints, sorted }
-  }, [geo, geoLevel, drilledState, includeTerr, joinProp, regionData, data?.choropleth_domain, stops, scaleMode])
+    return { paths, dom, scale, breakpoints, sorted, allZeroNoData }
+  }, [geo, geoLevel, drilledState, includeTerr, joinProp, regionData, data?.choropleth_domain, stops, scaleMode, allZeroAsNoData])
 
   if (!view) {
     return (
@@ -579,7 +585,9 @@ export default function AlbersChoroplethMap({ data, height, name, widgetId = nul
           const clickable = !panMode && (crossFilterEnabled || (canDrill && p.drill))
           return (
           <path key={i} d={p.d}
-            fill={p.v == null ? noDataColor : (view.scale(p.v) || noDataColor)}
+            fill={(p.v == null || view.allZeroNoData)
+              ? noDataColor
+              : (view.scale(p.v) || noDataColor)}
             fillOpacity={dimmed ? fillOpacity * 0.2 : fillOpacity}
             stroke={outlined ? '#1f2937' : borderColor}
             strokeWidth={outlined ? Math.max(borderWidth, 1.6) : borderWidth}
@@ -636,7 +644,8 @@ export default function AlbersChoroplethMap({ data, height, name, widgetId = nul
           interactive={legendInteractive} legendMode={legendMode}
           selScale={selScale} sorted={view.sorted}
           hlPos={hlPos} setHlPos={setHlPos}
-          minLabel={legendMinLabel} maxLabel={legendMaxLabel} />
+          minLabel={legendMinLabel} maxLabel={legendMaxLabel}
+          allZeroNoData={view.allZeroNoData} />
       )}
 
       {tip && (
@@ -672,8 +681,25 @@ export default function AlbersChoroplethMap({ data, height, name, widgetId = nul
 // ── Legend: continuous gradient bar OR stepped swatches ──────────────────────
 function ChoroplethLegend({ style, dom, stops, title, pos, noDataColor, mode = 'linear', breakpoints = null,
                             interactive = false, legendMode = 'range', selScale = 'linear', sorted = null,
-                            hlPos = { lo: 0, hi: 1 }, setHlPos = () => {}, minLabel = '', maxLabel = '' }) {
+                            hlPos = { lo: 0, hi: 1 }, setHlPos = () => {}, minLabel = '', maxLabel = '',
+                            allZeroNoData = false }) {
   const align = (pos === 'top_right' || pos === 'bottom_right') ? 'flex-end' : 'flex-start'
+  // An all-zero selection has no meaningful color range. When the widget opts
+  // in, replace both static and interactive legends with an honest single-state
+  // swatch. Tooltips still receive the underlying numeric zero.
+  if (allZeroNoData) {
+    return (
+      <div style={{ padding: '8px 14px 12px', display: 'flex', flexDirection: 'column', alignItems: align }}>
+        {title && (
+          <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, marginBottom: 4 }}>{title}</div>
+        )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#6b7280' }}>
+          <i style={{ width: 14, height: 10, background: noDataColor, borderRadius: 2, display: 'inline-block' }} />
+          all values 0
+        </span>
+      </div>
+    )
+  }
   // Interactive (drag-to-filter) legend replaces the static bar entirely.
   if (interactive) {
     return (

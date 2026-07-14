@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { ComplianceStrip } from '@posterra/grid-utils'
+import DrawerChartSection from './DrawerChartSection'
+import { formatDrawerChartValue } from './drawerChartOptions'
 
 /**
  * DetailDrawer — generic, config-driven row-detail drawer for table widgets.
@@ -68,7 +70,11 @@ function FieldGrid({ sec, record }) {
     <div style={{ ...C.grid2, gridTemplateColumns: `repeat(${sec.columns || 2}, 1fr)` }}>
       {fields.map((f, i) => {
         const raw = record?.[f.column]
-        const val = f.renderer === 'stars' ? stars(raw) : (raw == null || raw === '' ? '—' : String(raw))
+        const val = f.renderer === 'stars'
+          ? stars(raw)
+          : f.renderer === 'compact'
+            ? (raw == null || raw === '' ? '—' : formatDrawerChartValue(raw, 'compact'))
+            : (raw == null || raw === '' ? '—' : String(raw))
         return (
           <div key={i}>
             <div style={C.diLbl}>{f.label}</div>
@@ -175,6 +181,7 @@ function Section({ sec, row, result, loading }) {
   else if (sec.type === 'flag_chips') body = <FlagChips sec={sec} record={rows[0] || {}} />
   else if (sec.type === 'measure_cards') body = <MeasureCards sec={sec} rows={rows} />
   else if (sec.type === 'alert_blocks') body = <AlertBlocks sec={sec} record={rows[0] || {}} />
+  else if (sec.type === 'chart') body = <DrawerChartSection section={sec} rows={rows} />
   else body = <div style={{ fontSize: 12, color: '#9ca3af' }}>Unsupported section type: {sec.type}</div>
 
   return (

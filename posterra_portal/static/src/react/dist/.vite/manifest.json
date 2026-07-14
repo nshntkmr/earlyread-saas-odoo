@@ -1,6 +1,6 @@
 {
-  "_maplibre-gl-IeFMazIm.js": {
-    "file": "chunks/maplibre-gl-IeFMazIm.js",
+  "_maplibre-gl-9HlHAY7Y.js": {
+    "file": "chunks/maplibre-gl-9HlHAY7Y.js",
     "name": "maplibre-gl",
     "isDynamicEntry": true,
     "imports": [
@@ -8,7 +8,7 @@
     ]
   },
   "src/components/widgets/AlbersChoroplethMap.jsx": {
-    "file": "chunks/AlbersChoroplethMap-CCc4_iyC.js",
+    "file": "chunks/AlbersChoroplethMap-rUD-837p.js",
     "name": "AlbersChoroplethMap",
     "src": "src/components/widgets/AlbersChoroplethMap.jsx",
     "isDynamicEntry": true,
@@ -21,7 +21,7 @@
     ]
   },
   "src/components/widgets/AlbersChoroplethWidget.jsx": {
-    "file": "chunks/AlbersChoroplethWidget-fIeYrX6m.js",
+    "file": "chunks/AlbersChoroplethWidget-DkhlBxXm.js",
     "name": "AlbersChoroplethWidget",
     "src": "src/components/widgets/AlbersChoroplethWidget.jsx",
     "isDynamicEntry": true,
@@ -33,7 +33,7 @@
     ]
   },
   "src/components/widgets/MapLibreMap.jsx": {
-    "file": "chunks/MapLibreMap-Cgbhs4ju.js",
+    "file": "chunks/MapLibreMap-DSmpGtRe.js",
     "name": "MapLibreMap",
     "src": "src/components/widgets/MapLibreMap.jsx",
     "isDynamicEntry": true,
@@ -41,7 +41,7 @@
       "src/main.jsx"
     ],
     "dynamicImports": [
-      "_maplibre-gl-IeFMazIm.js",
+      "_maplibre-gl-9HlHAY7Y.js",
       "src/data/us-states.json"
     ],
     "css": [
@@ -49,7 +49,7 @@
     ]
   },
   "src/components/widgets/MapWidget.jsx": {
-    "file": "chunks/MapWidget-Dhin5N7v.js",
+    "file": "chunks/MapWidget-BR7ssw0o.js",
     "name": "MapWidget",
     "src": "src/components/widgets/MapWidget.jsx",
     "isDynamicEntry": true,
@@ -74,7 +74,7 @@
     "isDynamicEntry": true
   },
   "src/main.jsx": {
-    "file": "portal-DA9wKb_z.js",
+    "file": "portal-DNHw99uC.js",
     "name": "main",
     "src": "src/main.jsx",
     "isEntry": true,

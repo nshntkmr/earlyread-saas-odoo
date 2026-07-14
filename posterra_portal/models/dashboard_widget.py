@@ -5968,7 +5968,7 @@ class DashboardWidget(models.Model):
     # (with SQL) is admin-only; the portal gets a SQL-stripped render schema.
     # ════════════════════════════════════════════════════════════════════════
     _DRAWER_SECTION_TYPES = (
-        'field_grid', 'flag_chips', 'measure_cards', 'alert_blocks')
+        'field_grid', 'flag_chips', 'measure_cards', 'alert_blocks', 'chart')
 
     def _get_detail_drawer_config(self):
         """Parse detail_drawer_config JSON → dict ({} when unset/invalid)."""

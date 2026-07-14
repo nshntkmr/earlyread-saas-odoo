@@ -1603,6 +1603,16 @@ ALBERS_CHOROPLETH_FLAGS = [
         'help': 'Color for regions with no metric value (kept distinct from the lowest value).',
     },
     {
+        'flag': 'choropleth_all_zero_as_no_data',
+        'type': 'boolean',
+        'default': False,
+        'label': 'All-zero Result Uses No-data Color',
+        'help': 'Opt in: when every numeric region value is exactly 0, fill the map '
+                'with the No-data Color and show an "all values 0" legend. Mixed '
+                'results still treat 0 as a real lowest value. Existing maps are '
+                'unchanged while this option is off.',
+    },
+    {
         'flag': 'choropleth_fill_opacity',
         'type': 'number',
         'default': 1,
