@@ -3,10 +3,10 @@
 
 The chatbot's queryable-source set is resolved exclusively through
 ``dashboard.schema.source.get_ai_visible_sources(app)``. Visibility
-requires EXPLICIT per-app AI assignment (``ai_app_ids``) — a source that
-is globally available for dashboards (empty ``app_ids``) is still
-invisible to the chatbot unless assigned. These tests pin the truth table
-plus the AI SQL policy (table allowlist, engine gate, LIMIT cap).
+requires EXPLICIT per-app AI assignment (``ai_app_ids``) AND the v1
+tenancy contract (active ClickHouse connection with
+``requires_tenant_filter=True``). The SQL policy is parser- and
+scope-aware and REWRITES the outer LIMIT into the executed SQL.
 
 Run:
     odoo-bin --test-enable -u posterra_portal \\
@@ -16,7 +16,10 @@ Run:
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
-from ..utils.ai_query_policy import build_allowed_tables, check_ai_sql
+from ..utils.ai_query_policy import (
+    build_allowed_tables,
+    validate_and_rewrite_ai_sql,
+)
 
 
 @tagged('post_install', '-at_install', 'posterra_ai_assist')
@@ -34,12 +37,23 @@ class TestAiVisibleSources(TransactionCase):
             'name': 'AI Other App', 'app_key': 'ai-other-app',
             'access_mode': 'group', 'ai_assist_enabled': True,
         })
+        Conn = cls.env['dashboard.connection'].sudo()
+        # v1 tenancy contract: active CH + requires_tenant_filter=True.
+        cls.ch_conn = Conn.create({
+            'name': 'CH Test', 'engine': 'clickhouse',
+            'requires_tenant_filter': True, 'is_active': True,
+        })
+        cls.ch_conn_unfiltered = Conn.create({
+            'name': 'CH Unfiltered', 'engine': 'clickhouse',
+            'requires_tenant_filter': False, 'is_active': True,
+        })
         cls.Source = cls.env['dashboard.schema.source'].sudo()
 
     def _mk_source(self, table, assign=True, **vals):
         base = {
             'name': table, 'table_name': table,
             'is_active': True, 'data_classification': 'non_phi',
+            'connection_id': self.ch_conn.id,
         }
         if assign:
             base['ai_app_ids'] = [(6, 0, [self.app.id])]
@@ -48,6 +62,8 @@ class TestAiVisibleSources(TransactionCase):
 
     def _visible(self):
         return self.Source.get_ai_visible_sources(self.app)
+
+    # ── assignment semantics ────────────────────────────────────────────
 
     def test_assigned_source_visible(self):
         src = self._mk_source('t_ai_assigned')
@@ -67,12 +83,12 @@ class TestAiVisibleSources(TransactionCase):
         self.assertIn(
             src, self.Source.get_ai_visible_sources(self.other_app))
 
-    def test_general_app_scoping_still_applies(self):
-        # AI-assigned to self.app but generally scoped to other_app only →
-        # invisible (both scoping layers must pass).
-        src = self._mk_source('t_ai_general_scope',
-                              app_ids=[(6, 0, [self.other_app.id])])
-        self.assertNotIn(src, self._visible())
+    def test_cross_app_assignment_rejected(self):
+        # Generally scoped to other_app only → cannot be AI-assigned to
+        # self.app (would be advertised nowhere / inconsistent).
+        with self.assertRaises(ValidationError):
+            self._mk_source('t_ai_cross_app',
+                            app_ids=[(6, 0, [self.other_app.id])])
 
     def test_inactive_excludes(self):
         src = self._mk_source('t_ai_inactive', is_active=False)
@@ -87,6 +103,50 @@ class TestAiVisibleSources(TransactionCase):
         self._mk_source('t_ai_noapp')
         self.assertFalse(self.Source.get_ai_visible_sources(None))
 
+    # ── v1 tenancy contract (fail-closed) ───────────────────────────────
+
+    def test_local_pg_source_cannot_be_assigned(self):
+        with self.assertRaises(ValidationError):
+            self._mk_source('t_ai_localpg', connection_id=False)
+
+    def test_unfiltered_connection_cannot_be_assigned(self):
+        with self.assertRaises(ValidationError):
+            self._mk_source('t_ai_nofilter',
+                            connection_id=self.ch_conn_unfiltered.id)
+
+    def test_connection_deactivation_hides_source(self):
+        src = self._mk_source('t_ai_conn_off')
+        self.assertIn(src, self._visible())
+        self.ch_conn.is_active = False
+        try:
+            self.assertNotIn(src, self._visible())
+        finally:
+            self.ch_conn.is_active = True
+
+    def test_inverse_assignment_validated_on_app_side(self):
+        # Writing through saas.app.ai_schema_source_ids must enforce the
+        # same eligibility rules (source-side constraint may not fire on
+        # inverse M2M writes).
+        src = self.Source.create({
+            'name': 't_ai_inverse', 'table_name': 't_ai_inverse',
+            'is_active': True, 'data_classification': 'non_phi',
+            'connection_id': self.ch_conn_unfiltered.id,
+        })
+        with self.assertRaises(ValidationError):
+            self.app.write({'ai_schema_source_ids': [(4, src.id)]})
+
+    def test_inverse_cross_app_assignment_rejected(self):
+        src = self.Source.create({
+            'name': 't_ai_inv_cross', 'table_name': 't_ai_inv_cross',
+            'is_active': True, 'data_classification': 'non_phi',
+            'connection_id': self.ch_conn.id,
+            'app_ids': [(6, 0, [self.other_app.id])],
+        })
+        with self.assertRaises(ValidationError):
+            self.app.write({'ai_schema_source_ids': [(4, src.id)]})
+
+    # ── PHI interaction ─────────────────────────────────────────────────
+
     def test_phi_constraint_blocks_assignment(self):
         src = self._mk_source('t_ai_phi', assign=False)
         with self.assertRaises(ValidationError):
@@ -99,7 +159,7 @@ class TestAiVisibleSources(TransactionCase):
         try:
             src.write({'data_classification': 'phi_masked'})
         except ValidationError as e:
-            # PHI source-scoping constraint may fire (no hospital_phi
+            # The PHI source-scoping constraint may fire (no hospital_phi
             # connection in this fixture) — but it must be THAT constraint,
             # not the AI one: the write() hook clears the AI assignment
             # before constraints evaluate.
@@ -110,55 +170,129 @@ class TestAiVisibleSources(TransactionCase):
 
 @tagged('post_install', '-at_install', 'posterra_ai_assist')
 class TestAiQueryPolicy(TransactionCase):
-    """Pure-function policy tests — no DB rows needed."""
+    """Parser/scope-based policy — pure functions, no DB rows needed."""
 
     ALLOWED = build_allowed_tables(
-        ['mer_data', 'gold.utilization_snapshot'])
+        ['mer_data', 'gold.allowed', 'gold.utilization_snapshot'])
 
-    def _check(self, sql, engine='clickhouse', allowed=None, cap=500):
-        return check_ai_sql(sql, engine, allowed or self.ALLOWED, cap)
+    def _run(self, sql, req=200, engine='clickhouse', cap=500):
+        return validate_and_rewrite_ai_sql(
+            sql, engine, self.ALLOWED, req, cap)
 
-    def test_allowed_table_passes(self):
-        self._check('SELECT market, SUM(x) FROM mer_data GROUP BY market')
-
-    def test_qualified_and_bare_forms_pass(self):
-        self._check('SELECT 1 FROM gold.utilization_snapshot')
-        self._check('SELECT 1 FROM utilization_snapshot')
-
-    def test_cross_table_rejected(self):
-        # source_id says A; SQL reads B (not AI-visible) → reject.
+    def _rejects(self, sql, **kw):
         with self.assertRaises(ValueError):
-            self._check('SELECT * FROM ul_humana_retention_data')
+            self._run(sql, **kw)
 
-    def test_join_to_non_visible_rejected(self):
-        with self.assertRaises(ValueError):
-            self._check('SELECT 1 FROM mer_data m '
-                        'JOIN secret_table s ON s.id = m.id')
+    # ── legitimate shapes pass, with the outer LIMIT rewritten in ───────
 
-    def test_cte_alias_not_flagged(self):
-        self._check('WITH t AS (SELECT market FROM mer_data) '
-                    'SELECT * FROM t')
+    def test_allowed_shapes_pass_with_outer_limit(self):
+        out = self._run('SELECT market, SUM(x) FROM mer_data '
+                        'GROUP BY market')
+        self.assertTrue(out.endswith('LIMIT 200'), out)
+        self._run('SELECT 1 FROM gold.allowed')
+        self._run('WITH t AS (SELECT market FROM mer_data) '
+                  'SELECT * FROM t')
+        self._run('SELECT m.x FROM mer_data m '
+                  'JOIN gold.utilization_snapshot u ON u.k = m.k')
+        self._run('SELECT * FROM mer_data, gold.allowed')  # comma join OK
+        self._run('SELECT * FROM (SELECT x FROM mer_data) s')
+
+    def test_string_literal_limit_marker_still_capped(self):
+        # 'LIMIT' as data would defeat substring-based cap appending —
+        # the AST rewrite is immune.
+        out = self._run("SELECT 'LIMIT' AS marker FROM mer_data")
+        self.assertTrue(out.endswith('LIMIT 200'), out)
+
+    def test_nested_only_limit_gets_outer_cap(self):
+        out = self._run('SELECT * FROM (SELECT * FROM mer_data LIMIT 1) x '
+                        'CROSS JOIN mer_data y')
+        self.assertTrue(out.endswith('LIMIT 200'), out)
+
+    def test_existing_smaller_outer_limit_wins(self):
+        out = self._run('SELECT * FROM mer_data LIMIT 50', req=200)
+        self.assertTrue(out.endswith('LIMIT 50'), out)
+
+    def test_union_root_wrapped_with_outer_limit(self):
+        out = self._run('SELECT a FROM mer_data '
+                        'UNION ALL SELECT b FROM mer_data')
+        self.assertIn('LIMIT 200', out)
+
+    # ── round-3 probes ──────────────────────────────────────────────────
+
+    def test_cte_scope_shadowing_outer_table_rejected(self):
+        # Outer `secret` must NOT be hidden by an inner CTE of the same
+        # name (global CTE-name collection was bypassable; scope-aware
+        # resolution is not).
+        self._rejects(
+            'SELECT * FROM secret WHERE EXISTS ('
+            'WITH secret AS (SELECT * FROM gold.allowed) '
+            'SELECT * FROM secret)')
+
+    def test_legit_cte_shadowing_allowed_outer_passes(self):
+        self._run(
+            'SELECT * FROM mer_data WHERE EXISTS ('
+            'WITH mer_data AS (SELECT * FROM gold.allowed) '
+            'SELECT * FROM mer_data)')
+
+    def test_settings_clause_rejected(self):
+        self._rejects(
+            "SELECT * FROM mer_data SETTINGS SQL_tenant_id = 'other'")
+
+    def test_nested_settings_rejected(self):
+        self._rejects('SELECT * FROM ('
+                      'SELECT * FROM mer_data SETTINGS max_threads = 8) x')
+
+    def test_format_clause_rejected(self):
+        self._rejects('SELECT * FROM mer_data FORMAT JSONEachRow')
+
+    def test_dict_and_join_accessors_rejected(self):
+        self._rejects("SELECT dictGet('hidden', 'secret', id) "
+                      'FROM mer_data')
+        self._rejects("SELECT joinGet('j', 'v', k) FROM mer_data")
+
+    def test_bare_name_of_qualified_registration_rejected(self):
+        # 'gold.allowed' is registered; bare 'allowed' could resolve to
+        # default.allowed — a different object.
+        self._rejects('SELECT 1 FROM allowed')
+
+    def test_case_mismatch_rejected(self):
+        # ClickHouse identifiers are case-sensitive; MER_DATA ≠ mer_data.
+        self._rejects('SELECT 1 FROM MER_DATA')
+
+    # ── rounds 1–2 stay closed ──────────────────────────────────────────
+
+    def test_comma_join_bypass_rejected(self):
+        self._rejects('SELECT * FROM gold.allowed, secret_table')
+
+    def test_limit_null_rejected(self):
+        self._rejects('SELECT * FROM gold.allowed LIMIT NULL')
+
+    def test_subquery_hidden_table_rejected(self):
+        self._rejects('SELECT * FROM (SELECT x FROM hidden_t) s')
 
     def test_system_tables_rejected(self):
         for tbl in ('system.tables', 'information_schema.tables',
                     'pg_catalog.pg_tables'):
-            with self.assertRaises(ValueError):
-                self._check(f'SELECT * FROM {tbl}')
+            self._rejects(f'SELECT * FROM {tbl}')
 
     def test_table_functions_rejected(self):
-        with self.assertRaises(ValueError):
-            self._check("SELECT * FROM url('http://x', 'CSV')")
-        with self.assertRaises(ValueError):
-            self._check("SELECT * FROM s3('http://b/x.parquet')")
+        self._rejects("SELECT * FROM url('http://x', 'CSV')")
+        self._rejects("SELECT * FROM s3('http://b/x.parquet')")
+        self._rejects('SELECT * FROM numbers(10)')
 
-    def test_postgres_local_engine_rejected(self):
-        with self.assertRaises(ValueError):
-            self._check('SELECT 1 FROM mer_data', engine='postgres_local')
+    def test_limit_rules(self):
+        self._rejects('SELECT * FROM mer_data LIMIT 1000000')
+        self._rejects('SELECT * FROM mer_data LIMIT 1+1')
 
-    def test_oversized_limit_rejected(self):
-        with self.assertRaises(ValueError):
-            self._check('SELECT * FROM mer_data LIMIT 1000000')
-        self._check('SELECT * FROM mer_data LIMIT 100')
+    def test_multi_statement_rejected(self):
+        self._rejects('SELECT 1 FROM mer_data; SELECT 2 FROM mer_data')
+
+    def test_unparseable_rejected(self):
+        self._rejects('SELECT FROM WHERE (')
+
+    def test_engine_gates(self):
+        self._rejects('SELECT 1 FROM mer_data', engine='postgres_local')
+        self._rejects('SELECT 1 FROM mer_data', engine='mysql')
 
 
 @tagged('post_install', '-at_install', 'posterra_ai_assist')

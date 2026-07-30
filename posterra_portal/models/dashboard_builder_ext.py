@@ -56,9 +56,31 @@ class SaasAppPhiExt(models.Model):
     ai_schema_source_ids = fields.Many2many(
         'dashboard.schema.source', 'schema_source_ai_app_rel',
         'app_id', 'source_id', string='AI Assist Schema Sources',
+        domain=[('data_classification', '=', 'non_phi'),
+                ('is_active', '=', True),
+                ('connection_id', '!=', False),
+                ('connection_id.is_active', '=', True),
+                ('connection_id.engine', '=', 'clickhouse'),
+                ('connection_id.requires_tenant_filter', '=', True)],
         help='Schema sources the AI chatbot may see and query for this app. '
              'Explicit assignment only — a source available to the app for '
-             'dashboards is NOT automatically available to the chatbot.')
+             'dashboards is NOT automatically available to the chatbot. '
+             'v1 offers only Non-PHI sources on active, tenant-filtered '
+             'ClickHouse connections.')
+
+    @api.constrains('ai_schema_source_ids')
+    def _check_ai_sources_eligible(self):
+        # Mirrors the source-side constraint — an M2M written through THIS
+        # (inverse) side must be validated here; the source-side constraint
+        # is not guaranteed to fire on inverse writes. Same shared helper,
+        # same complete contract (classification, tenancy, app_ids).
+        for app in self:
+            for src in app.ai_schema_source_ids:
+                reason = src._ai_eligibility_error(app)
+                if reason:
+                    raise ValidationError(
+                        f"Source {src.name!r} cannot be assigned to AI "
+                        f"Assist for app {app.app_key!r}: {reason}.")
 
     def write(self, vals):
         # org_id is write-once: reject any attempt to change a non-empty value.
@@ -243,14 +265,16 @@ class DashboardSchemaSourceExt(models.Model):
              'source (unlike app_ids, where empty means globally available). '
              'Forbidden for PHI-classified sources.')
 
-    @api.constrains('ai_app_ids', 'data_classification')
-    def _check_ai_apps_non_phi(self):
+    @api.constrains('ai_app_ids', 'data_classification', 'connection_id',
+                    'app_ids')
+    def _check_ai_apps_eligible(self):
         for src in self:
-            if src.ai_app_ids and src.data_classification in _PHI_CLASSES:
-                raise ValidationError(
-                    f"Source {src.name!r} is PHI-classified and cannot be "
-                    "assigned to AI Assist. Only Non-PHI sources may be "
-                    "exposed to the chatbot.")
+            for app in src.ai_app_ids:
+                reason = src._ai_eligibility_error(app)
+                if reason:
+                    raise ValidationError(
+                        f"Source {src.name!r} cannot be assigned to AI "
+                        f"Assist for app {app.app_key!r}: {reason}.")
 
     # ── AI Assist visibility — the single source of truth ──────────────
     # Every chatbot surface (MCP gateway, embedded panel, tests) must
@@ -262,15 +286,60 @@ class DashboardSchemaSourceExt(models.Model):
     #   AND source.is_active
     #   AND data_classification == 'non_phi'
     #   AND (app_ids empty/global OR app ∈ app_ids)  (general availability)
+    #   AND the v1 TENANCY CONTRACT: an active ClickHouse connection with
+    #       requires_tenant_filter=True. Local-PG sources run on Odoo's own
+    #       cursor; a CH connection without the tenant filter executes
+    #       cross-tenant (the executor only warns); Snowflake has no
+    #       AI-safe tenancy contract yet. All three are therefore
+    #       INVISIBLE to the chatbot — visibility and executability share
+    #       this one rule, so list_sources never advertises what
+    #       query_data would refuse.
+
+    # Shared by the visibility domain, the app-form picker domain, and the
+    # eligibility constraints below — keep them identical.
+    _AI_ELIGIBLE_LEAF = [
+        ('is_active', '=', True),
+        ('data_classification', '=', 'non_phi'),
+        ('connection_id', '!=', False),
+        ('connection_id.is_active', '=', True),
+        ('connection_id.engine', '=', 'clickhouse'),
+        ('connection_id.requires_tenant_filter', '=', True),
+    ]
 
     @api.model
     def _ai_visible_domain(self, app):
         return [
             ('ai_app_ids', 'in', [app.id]),
-            ('is_active', '=', True),
-            ('data_classification', '=', 'non_phi'),
+            *self._AI_ELIGIBLE_LEAF,
             '|', ('app_ids', '=', False), ('app_ids', 'in', [app.id]),
         ]
+
+    def _ai_eligibility_error(self, app=None):
+        """Return a human-readable reason this source cannot be AI-assigned
+        (optionally: to ``app``), or None if eligible.
+
+        This helper + the assignment itself IS the visibility contract —
+        ``_ai_visible_domain`` is its search-domain twin; keep them in
+        sync. Covers: classification, the v1 tenancy contract, and (when
+        ``app`` is given) the general-availability rule (``app_ids``).
+        """
+        self.ensure_one()
+        if self.data_classification in _PHI_CLASSES:
+            return 'it is PHI-classified'
+        conn = self.connection_id
+        if not conn:
+            return 'runs on the local application database'
+        if not conn.is_active:
+            return 'its connection is inactive'
+        if conn.engine != 'clickhouse':
+            return (f'engine {conn.engine!r} has no AI tenancy contract yet '
+                    '(v1 supports tenant-filtered ClickHouse only)')
+        if not conn.requires_tenant_filter:
+            return 'its connection does not enforce the tenant filter'
+        if app is not None and self.app_ids and app not in self.app_ids:
+            return (f'it is not generally available to app '
+                    f'{app.app_key!r} (Available in Apps restricts it)')
+        return None
 
     @api.model
     def get_ai_visible_sources(self, app):

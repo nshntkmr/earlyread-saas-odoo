@@ -42,7 +42,13 @@ RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed \
         clickhouse-connect \
         anthropic \
         snowflake-connector-python==4.6.0 \
+        sqlglot==30.14.0 \
     && rm -rf /root/.cache
+# sqlglot is EXACT-pinned: the AI Assist SQL policy
+# (posterra_portal/utils/ai_query_policy.py) is security-critical and its
+# behaviour depends on parser AST shapes. Upgrade deliberately: bump the
+# pin, then re-run the policy probe suite (tests tagged posterra_ai_assist)
+# before shipping.
 # --ignore-installed on BOTH pip steps: snowflake-connector-python depends
 # on a newer `idna` than the Debian-installed one, and pip fails to
 # uninstall the Debian package ("RECORD file not found"). --ignore-installed

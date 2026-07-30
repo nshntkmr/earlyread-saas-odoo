@@ -200,8 +200,9 @@ def _source_payload(src, visible_ids, detail='full'):
         payload['columns'] = [
             AiSqlGenerator._build_column_context(c) for c in src.column_ids]
         # Only expose relations whose target is itself AI-visible for this
-        # app — a join edge to a PHI / non-opted-in source must not leak
-        # even its table name.
+        # app AND on the same connection — a join edge to a PHI /
+        # non-assigned source must not leak even its table name, and a
+        # cross-connection target cannot be joined in one query anyway.
         payload['relations'] = [{
             'target_source_id': rel.target_source_id.id,
             'target_table': rel.target_source_id.table_name,
@@ -209,7 +210,9 @@ def _source_payload(src, visible_ids, detail='full'):
             'from_column': rel.source_column,
             'to_column': rel.target_column,
         } for rel in src.relation_ids
-            if rel.target_source_id.id in visible_ids]
+            if rel.target_source_id.id in visible_ids
+            and rel.target_source_id.connection_id.id
+                == src.connection_id.id]
     else:
         payload['column_count'] = len(src.column_ids)
     return payload
@@ -318,8 +321,10 @@ class AiAssistAPI(http.Controller):
         if not sql:
             return _json_error(400, "Missing 'sql'")
         try:
-            limit = min(int(body.get('limit') or DEFAULT_ROW_LIMIT),
-                        MAX_ROW_LIMIT)
+            # Clamp BOTH bounds — a negative request limit must not reach
+            # execute_preview's LIMIT-append logic.
+            limit = max(1, min(int(body.get('limit') or DEFAULT_ROW_LIMIT),
+                               MAX_ROW_LIMIT))
         except (TypeError, ValueError):
             limit = DEFAULT_ROW_LIMIT
         mode = 'sql'
@@ -349,20 +354,25 @@ class AiAssistAPI(http.Controller):
         from odoo.addons.dashboard_builder.services.query_builder import (
             QueryBuilder,
         )
-        from ..utils.ai_query_policy import build_allowed_tables, check_ai_sql
+        from ..utils.ai_query_policy import (
+            build_allowed_tables,
+            validate_and_rewrite_ai_sql,
+        )
         qb = QueryBuilder(request.env)
         started = time.monotonic()
 
-        # AI-specific policy: engine gate (no local-PG in v1), table
-        # allowlist (same-connection AI-visible sources only), system-
-        # surface + table-function blocks, hard LIMIT cap. Layered ON TOP
-        # of validate_query — see utils/ai_query_policy.py.
+        # AI-specific policy (see utils/ai_query_policy.py): engine gate,
+        # scope-aware table allowlist (same-connection AI-visible sources,
+        # exact names), SETTINGS/FORMAT/function blocks — and the outer
+        # row cap is enforced by AST REWRITE, so the SQL executed below is
+        # the policy's sanitized output, not the caller's raw text.
         visible = Source.get_ai_visible_sources(app)
         same_conn = visible.filtered(
             lambda s: s.connection_id.id == src.connection_id.id)
         allowed = build_allowed_tables(same_conn.mapped('table_name'))
         try:
-            check_ai_sql(sql, src.engine, allowed, MAX_ROW_LIMIT)
+            sql = validate_and_rewrite_ai_sql(
+                sql, src.engine, allowed, limit, MAX_ROW_LIMIT)
         except ValueError as e:
             _log_query(user, app, src, mode, question, sql, 0,
                        int((time.monotonic() - started) * 1000),

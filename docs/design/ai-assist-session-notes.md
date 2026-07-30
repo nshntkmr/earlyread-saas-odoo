@@ -244,6 +244,31 @@ Shipped in this branch:
   The "wrong-user key generation" review point did not apply: the wizard
   already used `with_user(target)`.
 
+### Round-3 hardening (all three review probes confirmed + fixed)
+
+- **Scope-aware table resolution** — global CTE-name collection was
+  bypassable (`FROM secret WHERE EXISTS (WITH secret AS (...) ...)`);
+  now uses sqlglot `traverse_scope`, so CTE aliases are excluded per
+  their ACTUAL scope. Verified: outer shadowed table rejected, legit
+  shadowing of an allowed outer table passes.
+- **`SETTINGS`/`FORMAT`/`INTO` blocked anywhere in the AST** — inline
+  `SETTINGS SQL_tenant_id='other'` could have overridden the executor's
+  per-query tenant setting.
+- **Outer row cap enforced by AST rewrite** — `validate_and_rewrite_ai_sql`
+  returns the SQL to execute with `LIMIT min(requested, existing, cap)`
+  mutated onto the root (UNIONs get wrapped). Immune to the substring
+  heuristic in `_resolve_macros` (`'LIMIT'` string literal / nested-only
+  LIMIT probes verified).
+- Exact-match allowlist (case-sensitive, no bare-name expansion of
+  qualified registrations — `default.<table>` ambiguity + CH case
+  sensitivity); `dictGet*`/`joinGet*`/scalar-accessor denylist; shared
+  `_ai_eligibility_error(app)` now covers `app_ids` general availability
+  and backs both M2M-side constraints; advertised relations filtered to
+  same-connection targets; `sqlglot==30.14.0` exact-pinned in Dockerfile;
+  route-level HttpCase suite (`test_ai_api_routes.py`, registered in
+  tests/__init__.py) with `execute_preview` mocked — guard matrix,
+  scope payload, probe rejections, rewritten-SQL/row-cap assertions.
+
 Not yet done (M3): embedded React panel, `ai.provider` + adapter, agent
 loop, conversation store, OAuth 2.1 for remote MCP; known gap —
 `models/res_users.py` exists on main but is NOT imported in

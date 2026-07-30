@@ -2,7 +2,8 @@
 
 Exposes the Odoo AI gateway (`/api/v1/ai/*`) as an [MCP](https://modelcontextprotocol.io)
 server so internal users can chat with Posterra data from **Claude Desktop**
-or **ChatGPT Desktop**. The desktop client's own model does the reasoning
+(now) and **ChatGPT web** (once the OAuth 2.1 front-end lands; ChatGPT
+Desktop when officially supported). The desktop client's own model does the reasoning
 and summarizing; this service is a thin, stateless, credential-less proxy —
 all enforcement (SELECT-only validation, per-app source visibility, tenant
 scoping, row caps, rate limits, audit logging) happens in Odoo.

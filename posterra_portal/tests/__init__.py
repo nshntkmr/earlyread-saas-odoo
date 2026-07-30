@@ -6,3 +6,4 @@ from . import test_clickhouse_executor_params
 from . import test_widget_formatters
 from . import test_detail_drawer_chart
 from . import test_ai_assist_scope
+from . import test_ai_api_routes
