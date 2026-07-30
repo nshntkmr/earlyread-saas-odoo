@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Posterra Portal',
-    'version': '19.0.1.7.0',
+    'version': '19.0.1.8.0',
     'category': 'Healthcare',
     'summary': 'Branded login portal and dashboard for Home Health Agency clients',
     'description': """
@@ -60,6 +60,7 @@
         'views/login_templates.xml',
         'views/error_templates.xml',       # Phase 4: branded error pages (404/403/500)
         'views/dashboard_builder_ext_views.xml',
+        'views/ai_assist_views.xml',
         'views/dashboard_templates.xml',
     ],
     'assets': {

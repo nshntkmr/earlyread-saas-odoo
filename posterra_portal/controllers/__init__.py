@@ -4,3 +4,4 @@ from . import main
 from . import portal
 from . import auth_api
 from . import widget_api
+from . import ai_api

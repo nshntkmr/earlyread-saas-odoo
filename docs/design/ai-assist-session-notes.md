@@ -185,6 +185,43 @@ EID, CLAIM ID, PERS_GEN_KEY → dimension/identifier; star ratings →
 never_avg=True); begin column-intelligence fill on the 6 aggregate Humana
 tables (~57 cols) using the fill_inhome script pattern.
 
+## 4c. Build status (M1 + MCP service IMPLEMENTED on this branch)
+
+Decisions taken with the user after the original doc: **MCP returns as a
+consumer surface** (Claude Desktop / ChatGPT Desktop are the first chat UI —
+their models do the reasoning/summarizing, so no agent loop/provider adapter
+yet), internal-team-only desktop access via per-person API keys, one combined
+service later hosts the panel agent loop. Superseded: "No MCP server" in §1
+(that verdict applied to MCP as the *enforcement boundary*; it is now a thin
+consumer of the Odoo gateway, which remains the boundary).
+
+Shipped in this branch:
+- `saas.app.ai_assist_enabled` + `dashboard.schema.source.ai_enabled`
+  toggles; PHI×AI constraint; reclassify-to-PHI auto-clears opt-in;
+  `get_ai_visible_sources(app)` = the single visibility rule
+  (`posterra_portal/models/dashboard_builder_ext.py`).
+- API keys: core `res.users.apikeys` scope `'posterra_ai'`, admin wizard
+  ("Generate AI Assist Key" button on user form,
+  `models/res_users_ai.py`, `views/ai_assist_views.xml`).
+- Gateway `posterra_portal/controllers/ai_api.py`: `X-API-Key`/`X-App-Key`
+  guard (mirrors `_get_api_user`, sets `request.tenant_id`),
+  `GET /api/v1/ai/scope`, `GET /api/v1/ai/schema/<id>`,
+  `POST /api/v1/ai/query` (primary `sql` mode via
+  `validate_query`+`execute_preview`; secondary `question` mode via
+  `AiSqlGenerator.generate_sql`, 501 when unconfigured), per-user daily
+  rate cap, `never_avg` advisory warnings.
+- Audit log `ai.query.log` (doubles as the rate-limit counter) + admin views.
+- `ai_service/`: FastMCP (3.x) server — tools `list_sources`, `get_schema`,
+  `query_data`, `ask_data`; stdio + streamable-HTTP transports; stateless,
+  credential-forwarding; Dockerfile; README with Claude/ChatGPT Desktop
+  connector setup; pytest suite (4 passing).
+- Tests: `posterra_portal/tests/test_ai_assist_scope.py` (visibility truth
+  table + constraints; needs an Odoo runtime to execute).
+
+Not yet done (M3): embedded React panel, `ai.provider` + adapter, agent
+loop, conversation store; known gap — `models/res_users.py` exists on main
+but is NOT imported in `models/__init__.py` (dead code; left untouched).
+
 ## 5. Branch state
 
 - `claude/festive-carson-6f2gel`, rebased on origin/main (400db60), pushed.

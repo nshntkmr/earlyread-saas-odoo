@@ -24,3 +24,7 @@
 "access_geo_zip_centroid_admin","geo.zip.centroid admin","model_geo_zip_centroid","posterra_portal.group_posterra_admin",1,1,1,1
 "access_portal_audit_log_admin","portal.audit.log admin read","model_portal_audit_log","posterra_portal.group_posterra_admin",1,0,0,0
 "access_portal_audit_log_system","portal.audit.log system read","model_portal_audit_log","base.group_system",1,0,0,0
+"access_ai_query_log_admin","ai.query.log admin read","model_ai_query_log","posterra_portal.group_posterra_admin",1,0,0,0
+"access_ai_query_log_system","ai.query.log system read","model_ai_query_log","base.group_system",1,0,0,0
+"access_ai_apikey_wizard_admin","ai.apikey.wizard admin","model_ai_apikey_wizard","posterra_portal.group_posterra_admin",1,1,1,1
+"access_ai_apikey_wizard_system","ai.apikey.wizard system","model_ai_apikey_wizard","base.group_system",1,1,1,1

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── AI Assist API-key wizard ─────────────────────────────────── -->
+    <record id="view_ai_apikey_wizard_form" model="ir.ui.view">
+        <field name="name">ai.apikey.wizard.form</field>
+        <field name="model">ai.apikey.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generate AI Assist API Key">
+                <group>
+                    <field name="user_id" options="{'no_create': True}"
+                           readonly="key != False"/>
+                    <field name="name" readonly="key != False"/>
+                    <field name="expires_days" readonly="key != False"/>
+                    <field name="key" invisible="key == False"
+                           class="text-monospace"/>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="key == False">
+                    Copy this key now — it is shown only once and stored
+                    hashed. Configure it as <code>POSTERRA_API_KEY</code> in
+                    the desktop MCP connector.
+                </div>
+                <footer>
+                    <button name="action_generate" string="Generate Key"
+                            type="object" class="btn-primary"
+                            invisible="key != False"/>
+                    <button string="Close" special="cancel"
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Button on the user form (admins only) -->
+    <record id="view_users_form_ai_key" model="ir.ui.view">
+        <field name="name">res.users.form.ai.key</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_open_ai_key_wizard"
+                        string="Generate AI Assist Key"
+                        type="object" class="btn-secondary" icon="fa-key"
+                        groups="base.group_system,posterra_portal.group_posterra_admin"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── AI query log (admin read-only) ───────────────────────────── -->
+    <record id="view_ai_query_log_list" model="ir.ui.view">
+        <field name="name">ai.query.log.list</field>
+        <field name="model">ai.query.log</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false">
+                <field name="create_date"/>
+                <field name="user_id"/>
+                <field name="app_key"/>
+                <field name="source_id"/>
+                <field name="channel"/>
+                <field name="mode"/>
+                <field name="status"/>
+                <field name="row_count"/>
+                <field name="duration_ms"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_ai_query_log_form" model="ir.ui.view">
+        <field name="name">ai.query.log.form</field>
+        <field name="model">ai.query.log</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="create_date"/>
+                            <field name="user_id"/>
+                            <field name="app_id"/>
+                            <field name="app_key"/>
+                            <field name="source_id"/>
+                        </group>
+                        <group>
+                            <field name="channel"/>
+                            <field name="mode"/>
+                            <field name="status"/>
+                            <field name="row_count"/>
+                            <field name="duration_ms"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="question"/>
+                        <field name="sql" widget="text"/>
+                        <field name="error"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_ai_query_log" model="ir.actions.act_window">
+        <field name="name">AI Assist Query Log</field>
+        <field name="res_model">ai.query.log</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_ai_query_log"
+              name="AI Assist Query Log"
+              parent="menu_posterra_config"
+              action="action_ai_query_log"
+              sequence="90"/>
+
+</odoo>

@@ -80,6 +80,7 @@
                 <field name="org_id"
                        placeholder="immutable hospital/org identity (write-once)"/>
                 <field name="single_organization"/>
+                <field name="ai_assist_enabled"/>
             </xpath>
         </field>
     </record>
@@ -92,6 +93,8 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='is_active']" position="before">
                 <field name="data_classification"/>
+                <field name="ai_enabled"
+                       invisible="data_classification != 'non_phi'"/>
                 <field name="phi_approval_ref"
                        invisible="data_classification == 'non_phi'"
                        placeholder="approved-view contract ref / attestation"/>

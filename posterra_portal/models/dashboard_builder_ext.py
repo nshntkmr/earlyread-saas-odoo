@@ -44,6 +44,11 @@ class SaasAppPhiExt(models.Model):
              'before a Snowflake Hospital-PHI connection can be scoped to it. '
              'Cannot be turned off while an active PHI connection references '
              'this app.')
+    ai_assist_enabled = fields.Boolean(
+        string='AI Assist Enabled', default=False,
+        help='Master switch: exposes this app to the AI Assist chatbot '
+             '(MCP desktop clients + embedded panel). Only active, non-PHI, '
+             'AI-opted-in schema sources are ever visible through it.')
 
     def write(self, vals):
         # org_id is write-once: reject any attempt to change a non-empty value.
@@ -220,6 +225,48 @@ class DashboardSchemaSourceExt(models.Model):
         help='Reference/version of the approved secure-view contract (or the '
              'hospital/compliance attestation) that establishes masking '
              'correctness. Masking CANNOT be proven from column names alone.')
+    ai_enabled = fields.Boolean(
+        string='AI Assist Opt-in', default=False,
+        help='Explicit opt-in: allow the AI Assist chatbot to see this '
+             "source's schema and query it. Forbidden for PHI-classified "
+             'sources — reclassifying a source to PHI clears this flag.')
+
+    @api.constrains('ai_enabled', 'data_classification')
+    def _check_ai_enabled_non_phi(self):
+        for src in self:
+            if src.ai_enabled and src.data_classification in _PHI_CLASSES:
+                raise ValidationError(
+                    f"Source {src.name!r} is PHI-classified and cannot be "
+                    "opted into AI Assist. Only Non-PHI sources may be "
+                    "exposed to the chatbot.")
+
+    # ── AI Assist visibility — the single source of truth ──────────────
+    # Every chatbot surface (MCP gateway, embedded panel, tests) must
+    # resolve the queryable source set through these two methods. A source
+    # is chatbot-visible for an app iff ALL of:
+    #   app.ai_assist_enabled AND source.ai_enabled AND source.is_active
+    #   AND data_classification == 'non_phi'
+    #   AND (app_ids empty/global OR app ∈ app_ids)
+
+    @api.model
+    def _ai_visible_domain(self, app):
+        return [
+            ('ai_enabled', '=', True),
+            ('is_active', '=', True),
+            ('data_classification', '=', 'non_phi'),
+            '|', ('app_ids', '=', False), ('app_ids', 'in', [app.id]),
+        ]
+
+    @api.model
+    def get_ai_visible_sources(self, app):
+        """Return the recordset of sources the AI chatbot may see for ``app``.
+
+        Fail-closed: an app without ``ai_assist_enabled`` gets an empty set
+        regardless of per-source flags.
+        """
+        if not app or not app.ai_assist_enabled:
+            return self.sudo().browse()
+        return self.sudo().search(self._ai_visible_domain(app))
 
     @api.constrains('data_classification', 'app_ids', 'connection_id')
     def _check_phi_source_scoping(self):
@@ -255,6 +302,10 @@ class DashboardSchemaSourceExt(models.Model):
                         'app_ids', 'phi_approval_ref'}
         if invalidating.intersection(vals) and 'source_verified' not in vals:
             vals = dict(vals, source_verified=False, source_verified_at=False)
+        # Reclassifying to PHI silently withdraws the AI opt-in — fail closed
+        # rather than tripping the constraint on an unrelated admin edit.
+        if vals.get('data_classification') in _PHI_CLASSES:
+            vals.setdefault('ai_enabled', False)
         return super().write(vals)
 
     def action_validate_phi_source(self):
