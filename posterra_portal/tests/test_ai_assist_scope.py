@@ -309,6 +309,16 @@ class TestAiQueryPolicy(TransactionCase):
         self._rejects('SELECT hostName() FROM mer_data')
         self._rejects("SELECT getSetting('SQL_tenant_id') FROM mer_data")
         self._rejects('SELECT currentUser() FROM mer_data')
+        # These parse as TYPED sqlglot nodes (exp.CurrentDatabase /
+        # exp.CurrentVersion) — an Anonymous-only scan misses them.
+        self._rejects('SELECT currentDatabase() FROM mer_data')
+        self._rejects('SELECT version() FROM mer_data')
+
+    def test_normal_aggregates_not_over_blocked(self):
+        # The generalized Func scan must not deny ordinary analytics
+        # functions (typed nodes like Sum / TimestampTrunc included).
+        self._run('SELECT toStartOfMonth(d) AS m, SUM(v), COUNT(*), '
+                  'AVG(w), uniqExact(id) FROM mer_data GROUP BY m')
 
     def test_offset_rejected(self):
         self._rejects('SELECT * FROM mer_data LIMIT 1 OFFSET 1000000000')

@@ -89,8 +89,20 @@ class TestAiApiRoutes(HttpCase):
             u.partner_id.sudo().write(
                 {'portal_app_ids': [(4, cls.app.id)]})
 
+        # Dedicated user for the rate-limit test — the daily counter is
+        # per-user, and the analyst accumulates rows in other tests.
+        cls.rate_user = Users.create({
+            'name': 'Rate User', 'login': 'ai.rate@test.local',
+            'email': 'ai.rate@test.local',
+        })
+        group_internal.sudo().write({'user_ids': [(4, cls.rate_user.id)]})
+        group_ai.sudo().write({'user_ids': [(4, cls.rate_user.id)]})
+        cls.rate_user.partner_id.sudo().write(
+            {'portal_app_ids': [(4, cls.app.id)]})
+
         cls.analyst_key = cls._make_key(cls.analyst)
         cls.no_group_key = cls._make_key(cls.no_group_user)
+        cls.rate_key = cls._make_key(cls.rate_user)
 
     @classmethod
     def _make_key(cls, user):
@@ -165,12 +177,20 @@ class TestAiApiRoutes(HttpCase):
         self.assertEqual(resp.status_code, 403)
 
     def test_query_comma_join_probe_400(self):
+        probe = 'SELECT * FROM route_src, secret_table'
         resp = self._open(
             '/api/v1/ai/query', key=self.analyst_key, method='POST',
-            payload={'source_id': self.source.id,
-                     'sql': 'SELECT * FROM route_src, secret_table'})
+            payload={'source_id': self.source.id, 'sql': probe})
         self.assertEqual(resp.status_code, 400)
         self.assertIn('secret_table', resp.json().get('error', ''))
+        # Audit contract: rejection stores the SUBMITTED sql only —
+        # nothing executed, so the executed column must be empty.
+        log = self.env['ai.query.log'].sudo().search(
+            [('user_id', '=', self.analyst.id),
+             ('status', '=', 'validation_error')],
+            limit=1, order='id desc')
+        self.assertEqual(log.requested_sql, probe)
+        self.assertFalse(log.sql)
 
     def test_query_settings_probe_400(self):
         resp = self._open(
@@ -203,12 +223,50 @@ class TestAiApiRoutes(HttpCase):
         # returned more.
         self.assertEqual(data['row_count'], 40)
         self.assertTrue(data['truncated'])
-        # Audit row written.
+        # Audit contract on success: BOTH the submitted and the executed
+        # (rewritten) SQL are stored.
         log = self.env['ai.query.log'].sudo().search(
             [('user_id', '=', self.analyst.id), ('status', '=', 'ok')],
             limit=1, order='id desc')
         self.assertTrue(log)
+        self.assertEqual(log.requested_sql, 'SELECT a FROM route_src')
         self.assertIn('LIMIT 40', log.sql)
+
+    def test_rate_limit_429_and_audit(self):
+        ICP = self.env['ir.config_parameter'].sudo()
+        old = ICP.get_param('posterra_ai.daily_query_limit', False)
+        ICP.set_param('posterra_ai.daily_query_limit', '1')
+
+        def fake_execute_preview(self_qb, sql, params=None, limit=25,
+                                 schema_source=None):
+            return ['a'], [(1,)]
+
+        try:
+            with patch('odoo.addons.dashboard_builder.services.'
+                       'query_builder.QueryBuilder.execute_preview',
+                       fake_execute_preview):
+                r1 = self._open(
+                    '/api/v1/ai/query', key=self.rate_key, method='POST',
+                    payload={'source_id': self.source.id,
+                             'sql': 'SELECT a FROM route_src'})
+                self.assertEqual(r1.status_code, 200)
+                r2 = self._open(
+                    '/api/v1/ai/query', key=self.rate_key, method='POST',
+                    payload={'source_id': self.source.id,
+                             'sql': 'SELECT a FROM route_src'})
+            self.assertEqual(r2.status_code, 429)
+            self.assertIn('resets_at', r2.json())
+            # Audit contract when rate-limited: submitted SQL recorded,
+            # executed column empty (nothing ran).
+            log = self.env['ai.query.log'].sudo().search(
+                [('user_id', '=', self.rate_user.id),
+                 ('status', '=', 'rate_limited')],
+                limit=1, order='id desc')
+            self.assertTrue(log)
+            self.assertEqual(log.requested_sql, 'SELECT a FROM route_src')
+            self.assertFalse(log.sql)
+        finally:
+            ICP.set_param('posterra_ai.daily_query_limit', old or '200')
 
     def test_query_negative_limit_clamped(self):
         captured = {}

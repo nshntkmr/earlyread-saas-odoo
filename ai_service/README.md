@@ -10,8 +10,8 @@ scoping, row caps, rate limits, audit logging) happens in Odoo.
 
 ## Prerequisites
 
-1. The target `saas.app` has **AI Assist Enabled** checked (Applications
-   admin form).
+1. The target `saas.app` has **AI Assist Enabled** checked (Odoo admin:
+   Posterra → Configuration → Apps).
 2. The schema sources you want queryable are **explicitly assigned** to the
    app for AI (the app form's *AI Assist Schema Sources*, or the source
    form's *AI Assist Apps* — Non-PHI sources only; general dashboard
@@ -56,6 +56,11 @@ Install the package once (`pip install -e .` in this directory, or use
   }
 }
 ```
+
+On **Windows**, use the absolute path to the console script instead of the
+bare name (Claude Desktop does not inherit your shell PATH), e.g.
+`"command": "C:\\Users\\<you>\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\posterra-mcp.exe"`
+(find yours with `where posterra-mcp`).
 
 One connector = one (user, app) context. For a second app, add a second
 entry with a different `POSTERRA_APP_KEY`.

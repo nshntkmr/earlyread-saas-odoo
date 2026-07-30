@@ -39,9 +39,13 @@ Checks:
      name may resolve to ``default.<table>`` — a different object.
   6. System-surface block — system./information_schema/pg_catalog refs.
   7. LIMIT — every LIMIT in the tree must be an integer literal ≤ cap
-     (kills ``LIMIT NULL`` — unlimited on Snowflake — and bounds inner
-     query work); the OUTER limit is then rewritten to
-     ``min(requested, existing_outer, cap)``.
+     (kills ``LIMIT NULL`` — unlimited on Snowflake); the OUTER limit is
+     then rewritten to ``min(requested, existing_outer, cap)``. NOTE:
+     this bounds the RESULT SET, not warehouse work — the engine may
+     still scan/sort/aggregate the full input; the executor's per-query
+     time/memory/rows-read settings are the workload bound. Nonzero
+     OFFSET and ``LIMIT BY``/``WITH TIES`` are rejected (the rewrite
+     would silently drop the latter).
 
 If sqlglot is not installed, every check fails CLOSED — AI SQL is refused
 with a clear operator-facing message, never waved through.
@@ -76,8 +80,12 @@ _DENIED_FUNCS = (
     'cluster*', 'executable', 'dictionary', 'numbers', 'zeros',
     'generaterandom', 'fuzzjson', 'format', 'loop', 'view',
     # Infrastructure disclosure — reveal host/user/server config.
+    # Matched against a normalized name (lowercase, underscores removed)
+    # so typed sqlglot nodes (CURRENT_DATABASE, CURRENT_VERSION, ...)
+    # and raw ClickHouse spellings (currentDatabase, version) both hit.
     'hostname', 'currentuser', 'getsetting', 'getserversetting',
     'getmacro', 'fqdn', 'tcpport', 'currentdatabase', 'currentroles',
+    'version', 'currentversion', 'currentschema',
 )
 
 # Keyword backstop — parser check on function nodes is primary.
@@ -109,7 +117,9 @@ def build_allowed_tables(visible_sources_same_conn):
 
 
 def _func_name_denied(name):
-    n = (name or '').lower()
+    # Normalize: lowercase + strip underscores, so typed sqlglot names
+    # (CURRENT_DATABASE) and CH spellings (currentDatabase) unify.
+    n = (name or '').lower().replace('_', '')
     for entry in _DENIED_FUNCS:
         if entry.endswith('*'):
             if n.startswith(entry[:-1]):
@@ -117,6 +127,19 @@ def _func_name_denied(name):
         elif n == entry:
             return True
     return False
+
+
+def _func_display_name(fn):
+    """Best-effort function name for checks and error messages: raw
+    spelling for Anonymous, canonical sql_name for typed nodes
+    (sqlglot parses currentDatabase() as exp.CurrentDatabase, not
+    Anonymous — an Anonymous-only scan misses typed functions)."""
+    if isinstance(fn, _exp.Anonymous):
+        return str(fn.this)
+    try:
+        return fn.sql_name()
+    except Exception:
+        return type(fn).__name__
 
 
 def _table_ref(table):
@@ -181,11 +204,13 @@ def validate_and_rewrite_ai_sql(sql, engine, allowed_tables,
         if node.args.get('into'):
             raise ValueError('INTO clauses are not permitted.')
 
-    # Function denylist — anywhere in the statement, not just FROM.
-    for fn in tree.find_all(_exp.Anonymous):
-        if _func_name_denied(str(fn.this)):
+    # Function denylist — anywhere in the statement, not just FROM, and
+    # across BOTH Anonymous and typed function nodes.
+    for fn in tree.find_all(_exp.Func):
+        name = _func_display_name(fn)
+        if _func_name_denied(name):
             raise ValueError(
-                f'Function {fn.this!r} is not permitted in AI Assist SQL.')
+                f'Function {name!r} is not permitted in AI Assist SQL.')
 
     # Bare-table IN: ClickHouse treats ``x IN table_name`` as
     # ``x IN (SELECT * FROM table_name)`` — an unauthorized-read path the

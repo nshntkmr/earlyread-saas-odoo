@@ -293,6 +293,28 @@ Shipped in this branch:
   AI-specific tighter executor caps are a follow-up (touching the shared
   executor affects widgets).
 
+### Round-5 fixes (audit consistency + typed-function bypass)
+
+- **Audit contract made consistent**: `_log_query` now takes keyword-only
+  `requested_sql` / `executed_sql`; executed SQL is stored ONLY when the
+  query actually reached `execute_preview`. Rejections (policy, secondary
+  validate, bad source_id, missing sql, question-mode) and rate-limited
+  requests log the submitted SQL with an empty executed column; every
+  query-route request now lands in the log. Route tests assert the
+  contract for success, policy rejection, and rate-limit (dedicated user).
+- **Typed-function bypass closed**: the denylist scan now covers ALL
+  `exp.Func` nodes (Anonymous by raw name, typed by `sql_name()`,
+  normalized) — `currentDatabase()` parses as `exp.CurrentDatabase` and
+  slipped past the Anonymous-only scan; `version()` added to the deny
+  set. Over-block regression test pins SUM/COUNT/AVG/toStartOfMonth/
+  uniqExact passing.
+- Text corrections: policy docstring no longer claims LIMIT bounds
+  warehouse work; controller docstring + pyproject no longer promise
+  "ChatGPT Desktop"; README menu path (Posterra → Configuration → Apps)
+  and Windows absolute-path connector note. Claim hygiene: the probe
+  suite runs in the dev sandbox; committed tests are Odoo
+  TransactionCase/HttpCase and need the runtime.
+
 Not yet done (M3): embedded React panel, `ai.provider` + adapter, agent
 loop, conversation store, OAuth 2.1 for remote MCP, AI-specific CH
 executor caps; known gap — `models/res_users.py` exists on main but is

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """AI Assist gateway — the ONLY data path for the AI chatbot surfaces.
 
-Serves the MCP service (desktop clients: Claude Desktop / ChatGPT Desktop)
-today and the embedded portal panel later. Design contract
+Serves the MCP service today (Claude Desktop now; ChatGPT web once the
+OAuth 2.1 front-end lands) and the embedded portal panel later. Design contract
 (docs/design/ai-assist-architecture.md + the M1 plan):
 
   - Auth: per-person Odoo API key (``res.users.apikeys``, scope
@@ -145,8 +145,16 @@ def _check_rate_limit(user):
         raise RateLimited(midnight + timedelta(days=1))
 
 
-def _log_query(user, app, source, mode, question, sql, row_count,
-               duration_ms, status, error=None, requested_sql=None):
+def _log_query(user, app, source, mode, question, *, status,
+               requested_sql=None, executed_sql=None, row_count=0,
+               duration_ms=0, error=None):
+    """Audit-log one gateway request.
+
+    ``requested_sql`` = what the caller submitted, on EVERY logged
+    outcome. ``executed_sql`` = the policy's rewrite, populated ONLY once
+    the query actually reached ``execute_preview`` — a rejected or
+    rate-limited request must never show SQL in the executed column.
+    """
     try:
         request.env['ai.query.log'].sudo().create({
             'user_id': user.id,
@@ -157,7 +165,7 @@ def _log_query(user, app, source, mode, question, sql, row_count,
             'mode': mode,
             'question': question or False,
             'requested_sql': requested_sql or False,
-            'sql': sql or False,
+            'sql': executed_sql or False,
             'row_count': row_count or 0,
             'duration_ms': duration_ms or 0,
             'status': status,
@@ -312,14 +320,23 @@ class AiAssistAPI(http.Controller):
         body = _get_request_json()
         source_id = body.get('source_id')
         sql = (body.get('sql') or '').strip()
+        requested_sql = sql
+        mode = 'sql'
+        question = (body.get('question') or '').strip()
         # v1 is MCP-first: the desktop client's model authors the SQL. The
         # server-side NL→SQL mode ('question') was cut per review — it
         # duplicated the desktop model's job and doubled the LLM surface.
-        if body.get('question'):
+        if question:
+            _log_query(user, app, None, 'question', question,
+                       status='validation_error',
+                       requested_sql=requested_sql or None,
+                       error="'question' mode not available")
             return _json_error(
                 400, "'question' mode is not available — author SQL from "
                      "get_schema() and send it as 'sql'")
         if not sql:
+            _log_query(user, app, None, mode, '',
+                       status='validation_error', error="missing 'sql'")
             return _json_error(400, "Missing 'sql'")
         try:
             # Clamp BOTH bounds — a negative request limit must not reach
@@ -328,12 +345,14 @@ class AiAssistAPI(http.Controller):
                                MAX_ROW_LIMIT))
         except (TypeError, ValueError):
             limit = DEFAULT_ROW_LIMIT
-        mode = 'sql'
-        question = ''
 
         try:
             source_id = int(source_id)
         except (TypeError, ValueError):
+            _log_query(user, app, None, mode, '',
+                       requested_sql=requested_sql,
+                       status='validation_error',
+                       error="missing or invalid 'source_id'")
             return _json_error(400, "Missing or invalid 'source_id'")
 
         # Re-verify the source against the visibility rule — NEVER trust ids.
@@ -341,14 +360,18 @@ class AiAssistAPI(http.Controller):
         src = Source.get_ai_visible_sources(app).filtered(
             lambda s: s.id == source_id)
         if not src:
+            _log_query(user, app, None, mode, '',
+                       requested_sql=requested_sql,
+                       status='validation_error',
+                       error=f'source {source_id} not AI-visible')
             return _json_error(403, 'Source is not available to AI Assist '
                                     'for this app')
 
         try:
             _check_rate_limit(user)
         except RateLimited as e:
-            _log_query(user, app, src, mode, question, sql, 0, 0,
-                       'rate_limited')
+            _log_query(user, app, src, mode, '',
+                       requested_sql=requested_sql, status='rate_limited')
             return _json_response(
                 {'error': str(e), 'resets_at': str(e.resets_at)}, status=429)
 
@@ -371,22 +394,26 @@ class AiAssistAPI(http.Controller):
         same_conn = visible.filtered(
             lambda s: s.connection_id.id == src.connection_id.id)
         allowed = build_allowed_tables(same_conn.mapped('table_name'))
-        requested_sql = sql
         try:
             sql = validate_and_rewrite_ai_sql(
                 sql, src.engine, allowed, limit, MAX_ROW_LIMIT)
         except ValueError as e:
-            _log_query(user, app, src, mode, question, sql, 0,
-                       int((time.monotonic() - started) * 1000),
-                       'validation_error', str(e),
-                       requested_sql=requested_sql)
+            # Nothing executed — requested_sql only.
+            _log_query(user, app, src, mode, '',
+                       requested_sql=requested_sql,
+                       status='validation_error',
+                       duration_ms=int((time.monotonic() - started) * 1000),
+                       error=str(e))
             return _json_error(400, f'SQL rejected: {e}')
 
         ok, err = qb.validate_query(sql)
         if not ok:
-            _log_query(user, app, src, mode, question, sql, 0,
-                       int((time.monotonic() - started) * 1000),
-                       'validation_error', err)
+            # Rewritten but never executed — still requested_sql only.
+            _log_query(user, app, src, mode, '',
+                       requested_sql=requested_sql,
+                       status='validation_error',
+                       duration_ms=int((time.monotonic() - started) * 1000),
+                       error=err)
             return _json_error(400, f'SQL rejected: {err}')
 
         try:
@@ -396,16 +423,19 @@ class AiAssistAPI(http.Controller):
             # still helps the desktop model self-correct on its next try.
             duration = int((time.monotonic() - started) * 1000)
             msg = _sanitize_error(e)
-            _log_query(user, app, src, mode, question, sql, 0, duration,
-                       'exec_error', msg, requested_sql=requested_sql)
+            # The rewrite DID reach execution — record it as executed.
+            _log_query(user, app, src, mode, '',
+                       requested_sql=requested_sql, executed_sql=sql,
+                       status='exec_error', duration_ms=duration, error=msg)
             return _json_error(400, f'Query failed: {msg}')
 
         # Hard cap regardless of what the SQL's own LIMIT allowed through.
         truncated = len(rows) > limit
         rows = rows[:limit]
         duration = int((time.monotonic() - started) * 1000)
-        _log_query(user, app, src, mode, question, sql, len(rows), duration,
-                   'ok', requested_sql=requested_sql)
+        _log_query(user, app, src, mode, '',
+                   requested_sql=requested_sql, executed_sql=sql,
+                   status='ok', row_count=len(rows), duration_ms=duration)
         return _json_response({
             'sql': sql,
             'columns': columns,

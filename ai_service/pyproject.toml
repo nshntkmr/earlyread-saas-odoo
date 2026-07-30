@@ -1,7 +1,7 @@
 [project]
 name = "posterra-ai-service"
 version = "0.1.0"
-description = "Posterra AI Assist MCP service — exposes the Odoo AI gateway to desktop LLM clients (Claude Desktop, ChatGPT Desktop)."
+description = "Posterra AI Assist MCP service — exposes the Odoo AI gateway to MCP clients (Claude Desktop now; ChatGPT web pending OAuth front-end)."
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=2.3",
