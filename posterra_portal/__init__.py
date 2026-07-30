@@ -1,7 +1,12 @@
 from . import controllers
 from . import models
-from . import tests
 from . import wizard
+
+# NOTE: ``tests`` is deliberately NOT imported here. Odoo's test runner
+# imports ``odoo.addons.<module>.tests`` itself under --test-enable;
+# importing it at module load meant any broken/missing test file took the
+# whole server down (which happened: tests/__init__ referenced a test
+# module that was never committed).
 
 
 def _fix_filter_noupdate(env):
