@@ -129,6 +129,62 @@ App `ulh-humana-ma`, connection ClickHouse-01 (all seen in admin UI):
 cluster as: cost/MER, utilization, member engagement (→ candidate scoped
 agents). Snowflake sources: unknown until dump runs.
 
+## 4b. Inventory review results (dump was run — findings confirmed)
+
+- `ul_humana_star_gaps_patient` = **member-grain PHI misclassified non_phi**
+  (HUM_ID, SRC_MBR_ID, PERS_GEN_KEY, service dates, demographics/eligibility
+  flags, 3 free-text columns). Needs `phi_direct` — BUT see blocker below.
+- **All six `POP_*` Snowflake sources (UL-Snowflake) misclassified non_phi**;
+  five carry PATIENT_NAME + MBI; `POP_PATIENT_DETAILS` also has BENE_ADDRESS /
+  BENE_DOB / BENE_ZIP **and is scoped GLOBAL** (double defect). All six →
+  `phi_direct`; `POP_PATIENT_DETAILS` → app_ids = ulp-upperline.
+- `UL-Snowflake` connection runs `security_profile='standard'` — the
+  hospital-PHI framework on main is NOT applied to it.
+- Rest of `ulh-humana-ma` (6 aggregate tables) correctly non_phi;
+  `ul_humana_retention_data` + `mer_data` should be rescoped from GLOBAL to
+  the app.
+- Systemic: column roles are type-derived garbage (YEAR_MONTH/EID/CLAIM ID =
+  additive_measure; ratings lack never_avg); AI intelligence fill = 1/38
+  sources (only mv_hha_final_inhome).
+
+### Correction runbook (ORDER MATTERS — main's constraints enforce it)
+
+Constraints found on origin/main (`_check_phi_source_scoping`,
+`_check_hospital_phi_invariants`, snowflake executor guard):
+PHI source requires hospital_phi connection; hospital_phi is **Snowflake-only**;
+hospital_phi conn requires scoped app with write-once org_id +
+single_organization; PHI source app_ids must equal exactly the conn's app;
+any classification/app_ids write clears `source_verified`; executor raises
+AccessError for unverified PHI sources (widgets break until re-validated,
+which requires `phi_approval_ref` + System-Admin `action_validate_phi_source`).
+
+Sequence for Upperline/Snowflake:
+1. `ulp-upperline` app: `single_organization=True`; set `org_id`
+   (**write-once/permanent — choose the canonical org identifier
+   deliberately**).
+2. Scope all six `POP_*` sources `app_ids = ulp-upperline` (allowed while
+   still non_phi).
+3. `UL-Snowflake` connection: `tenant_scope_app_id = ulp-upperline`,
+   `security_profile = 'hospital_phi'`; re-verify configuration if cleared.
+4. Flip each `POP_*` to `phi_direct` (auto-clears source_verified —
+   widgets on them now fail closed).
+5. Set `phi_approval_ref` per source (real compliance attestation ref),
+   System Admin runs Validate PHI Source on each → widgets recover.
+   Do 4–5 in one maintenance window.
+
+**ClickHouse blocker:** `ul_humana_star_gaps_patient` CANNOT be classified
+phi_direct today — hospital_phi is only valid on Snowflake connections, and
+PHI sources must sit on hospital_phi connections. Interim: unmap from
+`ulh-humana-ma` / deactivate (check widget usage first). Proper fix: small
+code change to allow PHI classification on non-Snowflake sources with
+fail-closed exclusion from AI/preview/export (design decision pending).
+
+Safe to do anytime (no constraint interaction): rescope retention_data +
+mer_data → ulh-humana-ma; fix column roles (YEAR_MONTH, MEASUREMENT_YEAR,
+EID, CLAIM ID, PERS_GEN_KEY → dimension/identifier; star ratings →
+never_avg=True); begin column-intelligence fill on the 6 aggregate Humana
+tables (~57 cols) using the fill_inhome script pattern.
+
 ## 5. Branch state
 
 - `claude/festive-carson-6f2gel`, rebased on origin/main (400db60), pushed.
