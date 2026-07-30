@@ -27,6 +27,19 @@
         <field name="comment">Portal users who access the MSSP / open-access dashboard at the mssp.* subdomain. No HHA provider restriction applies. Assign this group for ACO builders, MSSP analysts, or any user whose data is not HHA-specific.</field>
     </record>
 
+    <!-- Group: AI Assist Desktop User
+         v1 user-scope contract: chatbot SQL is NOT filtered down to a
+         portal user's provider scope — it sees the whole tenant (app).
+         Therefore only internal analysts explicitly placed in this group
+         may use the AI gateway / desktop MCP connectors. Do NOT add
+         provider-scoped portal users until per-user predicate scoping
+         exists. -->
+    <record id="group_ai_assist_user" model="res.groups">
+        <field name="name">AI Assist Desktop User</field>
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]"/>
+        <field name="comment">Internal analysts allowed to query app data through the AI Assist chatbot (desktop MCP). Queries are tenant-scoped to the app but NOT restricted to a user's provider scope — internal users only.</field>
+    </record>
+
     <!-- Record Rule: Portal users can read HHA providers (filtering by email domain is done in controllers) -->
     <record id="rule_hha_provider_portal_own" model="ir.rule">
         <field name="name">HHA Provider: Portal users read access</field>

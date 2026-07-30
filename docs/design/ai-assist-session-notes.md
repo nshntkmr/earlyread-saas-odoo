@@ -218,9 +218,36 @@ Shipped in this branch:
 - Tests: `posterra_portal/tests/test_ai_assist_scope.py` (visibility truth
   table + constraints; needs an Odoo runtime to execute).
 
+### Security-review revision (Codex review, applied)
+
+- **Per-app AI assignment**: `ai_enabled` Boolean replaced by explicit
+  `ai_app_ids` M2M (+ inverse `saas.app.ai_schema_source_ids`). Empty =
+  never visible — dashboard availability does NOT imply chatbot
+  availability. Reclassify-to-PHI clears the assignment.
+- **`utils/ai_query_policy.py`** — AI-specific execution boundary layered
+  on validate_query: engine gate (**local-PG sources refused in v1** — the
+  PostgresLocalExecutor runs on Odoo's own cursor), FROM/JOIN table
+  allowlist vs same-connection AI-visible sources (CTE-aware), system
+  table/schema + CH table-function blocks, hard LIMIT-literal cap, plus
+  fetch-side row truncation in the gateway. Pure functions, unit-tested.
+- **User-scope contract (v1)**: new group
+  `posterra_portal.group_ai_assist_user` required by the guard — chatbot
+  SQL is tenant-scoped, NOT provider-scoped, so internal analysts only.
+- **`question` mode + `ask_data` tool removed** (contradicted MCP-first).
+- Driver errors sanitized (first line, hosts/URLs redacted, 300 chars);
+  `ai.query.log` autovacuum retention (`posterra_ai.log_retention_days`,
+  default 180); MCP tools carry `readOnlyHint`; README corrected: ChatGPT
+  = web now / Desktop when supported, OAuth 2.1 front-end is the planned
+  remote-auth path, MCPB packaging note for Claude Desktop.
+- Accepted-with-documentation: Odoo honours NULL-scope ("global") API keys
+  for any scope — compensated by the group gate (comment in ai_api.py).
+  The "wrong-user key generation" review point did not apply: the wizard
+  already used `with_user(target)`.
+
 Not yet done (M3): embedded React panel, `ai.provider` + adapter, agent
-loop, conversation store; known gap — `models/res_users.py` exists on main
-but is NOT imported in `models/__init__.py` (dead code; left untouched).
+loop, conversation store, OAuth 2.1 for remote MCP; known gap —
+`models/res_users.py` exists on main but is NOT imported in
+`models/__init__.py` (dead code; left untouched).
 
 ## 5. Branch state
 

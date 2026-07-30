@@ -47,8 +47,18 @@ class SaasAppPhiExt(models.Model):
     ai_assist_enabled = fields.Boolean(
         string='AI Assist Enabled', default=False,
         help='Master switch: exposes this app to the AI Assist chatbot '
-             '(MCP desktop clients + embedded panel). Only active, non-PHI, '
-             'AI-opted-in schema sources are ever visible through it.')
+             '(MCP desktop clients + embedded panel). Only active, non-PHI '
+             'schema sources explicitly assigned below are ever visible '
+             'through it.')
+    # Inverse of dashboard.schema.source.ai_app_ids (same relation table,
+    # reversed columns) — lets the admin curate the chatbot's table set
+    # directly on the app form.
+    ai_schema_source_ids = fields.Many2many(
+        'dashboard.schema.source', 'schema_source_ai_app_rel',
+        'app_id', 'source_id', string='AI Assist Schema Sources',
+        help='Schema sources the AI chatbot may see and query for this app. '
+             'Explicit assignment only — a source available to the app for '
+             'dashboards is NOT automatically available to the chatbot.')
 
     def write(self, vals):
         # org_id is write-once: reject any attempt to change a non-empty value.
@@ -225,33 +235,38 @@ class DashboardSchemaSourceExt(models.Model):
         help='Reference/version of the approved secure-view contract (or the '
              'hospital/compliance attestation) that establishes masking '
              'correctness. Masking CANNOT be proven from column names alone.')
-    ai_enabled = fields.Boolean(
-        string='AI Assist Opt-in', default=False,
-        help='Explicit opt-in: allow the AI Assist chatbot to see this '
-             "source's schema and query it. Forbidden for PHI-classified "
-             'sources — reclassifying a source to PHI clears this flag.')
+    ai_app_ids = fields.Many2many(
+        'saas.app', 'schema_source_ai_app_rel', 'source_id', 'app_id',
+        string='AI Assist Apps',
+        help='Apps whose AI chatbot may see and query this source. '
+             'EXPLICIT assignment — empty means the chatbot never sees this '
+             'source (unlike app_ids, where empty means globally available). '
+             'Forbidden for PHI-classified sources.')
 
-    @api.constrains('ai_enabled', 'data_classification')
-    def _check_ai_enabled_non_phi(self):
+    @api.constrains('ai_app_ids', 'data_classification')
+    def _check_ai_apps_non_phi(self):
         for src in self:
-            if src.ai_enabled and src.data_classification in _PHI_CLASSES:
+            if src.ai_app_ids and src.data_classification in _PHI_CLASSES:
                 raise ValidationError(
                     f"Source {src.name!r} is PHI-classified and cannot be "
-                    "opted into AI Assist. Only Non-PHI sources may be "
+                    "assigned to AI Assist. Only Non-PHI sources may be "
                     "exposed to the chatbot.")
 
     # ── AI Assist visibility — the single source of truth ──────────────
     # Every chatbot surface (MCP gateway, embedded panel, tests) must
     # resolve the queryable source set through these two methods. A source
     # is chatbot-visible for an app iff ALL of:
-    #   app.ai_assist_enabled AND source.ai_enabled AND source.is_active
+    #   app.ai_assist_enabled
+    #   AND app ∈ source.ai_app_ids        (explicit AI assignment — empty
+    #                                       means NEVER visible, fail closed)
+    #   AND source.is_active
     #   AND data_classification == 'non_phi'
-    #   AND (app_ids empty/global OR app ∈ app_ids)
+    #   AND (app_ids empty/global OR app ∈ app_ids)  (general availability)
 
     @api.model
     def _ai_visible_domain(self, app):
         return [
-            ('ai_enabled', '=', True),
+            ('ai_app_ids', 'in', [app.id]),
             ('is_active', '=', True),
             ('data_classification', '=', 'non_phi'),
             '|', ('app_ids', '=', False), ('app_ids', 'in', [app.id]),
@@ -302,10 +317,10 @@ class DashboardSchemaSourceExt(models.Model):
                         'app_ids', 'phi_approval_ref'}
         if invalidating.intersection(vals) and 'source_verified' not in vals:
             vals = dict(vals, source_verified=False, source_verified_at=False)
-        # Reclassifying to PHI silently withdraws the AI opt-in — fail closed
-        # rather than tripping the constraint on an unrelated admin edit.
+        # Reclassifying to PHI silently withdraws the AI assignment — fail
+        # closed rather than tripping the constraint on an unrelated edit.
         if vals.get('data_classification') in _PHI_CLASSES:
-            vals.setdefault('ai_enabled', False)
+            vals.setdefault('ai_app_ids', [(5, 0, 0)])
         return super().write(vals)
 
     def action_validate_phi_source(self):

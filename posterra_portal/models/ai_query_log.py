@@ -17,7 +17,9 @@ non-PHI sources only, so a lost log row on rollback is acceptable — the
 failed request never returned data anyway.
 """
 
-from odoo import fields, models
+from datetime import timedelta
+
+from odoo import api, fields, models
 
 
 class AiQueryLog(models.Model):
@@ -56,3 +58,22 @@ class AiQueryLog(models.Model):
         ('rate_limited', 'Rate limited'),
     ], readonly=True, index=True)
     error = fields.Char(readonly=True)
+
+    RETENTION_DAYS_PARAM = 'posterra_ai.log_retention_days'
+    DEFAULT_RETENTION_DAYS = 180
+
+    @api.autovacuum
+    def _gc_old_logs(self):
+        """Retention: drop rows older than the configured window (default
+        180 days). SQL/question text is operator-authored analytics intent,
+        not PHI, but it still should not accumulate forever."""
+        ICP = self.env['ir.config_parameter'].sudo()
+        try:
+            days = int(ICP.get_param(
+                self.RETENTION_DAYS_PARAM, self.DEFAULT_RETENTION_DAYS))
+        except (TypeError, ValueError):
+            days = self.DEFAULT_RETENTION_DAYS
+        if days <= 0:
+            return
+        cutoff = fields.Datetime.now() - timedelta(days=days)
+        self.sudo().search([('create_date', '<', cutoff)]).unlink()

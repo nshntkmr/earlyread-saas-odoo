@@ -110,6 +110,18 @@ def _get_ai_user():
     if not _is_dashboard_admin(user) and not user_can_access_app(user, app):
         raise PermissionError('Access to this app has been revoked')
 
+    # v1 user-scope contract: chatbot SQL sees the whole tenant, not the
+    # user's provider slice — so gate on an explicit internal-analyst
+    # group. NOTE: Odoo also accepts NULL-scope ("global") API keys for
+    # any requested scope; a global key is a strictly stronger credential
+    # the user already holds, and this group gate bounds who can use the
+    # AI surface regardless of which of their keys they present.
+    if not (user.has_group('posterra_portal.group_ai_assist_user')
+            or user.has_group('posterra_portal.group_posterra_admin')
+            or user.has_group('base.group_system')):
+        raise PermissionError(
+            'AI Assist requires the "AI Assist Desktop User" group')
+
     # Tenant context BEFORE any executor dispatch (CH row policies).
     request.tenant_id = app.app_key
     return user, app
@@ -203,6 +215,19 @@ def _source_payload(src, visible_ids, detail='full'):
     return payload
 
 
+_HOST_RE = re.compile(
+    r'(https?://\S+|[A-Za-z0-9.-]+\.(?:internal|local|svc|azure\.com|'
+    r'windows\.net|clickhouse\.cloud)\S*|:\d{2,5}\b)')
+
+
+def _sanitize_error(exc):
+    """First line only, hosts/URLs/ports stripped, capped at 300 chars —
+    enough signal for the desktop model to fix its SQL, no infra leakage."""
+    msg = str(exc).splitlines()[0] if str(exc) else 'query error'
+    msg = _HOST_RE.sub('[redacted]', msg)
+    return msg[:300]
+
+
 _AVG_RE = re.compile(r'\bAVG\s*\(\s*"?([A-Za-z0-9_]+)"?\s*\)', re.IGNORECASE)
 
 
@@ -283,16 +308,22 @@ class AiAssistAPI(http.Controller):
         body = _get_request_json()
         source_id = body.get('source_id')
         sql = (body.get('sql') or '').strip()
-        question = (body.get('question') or '').strip()
-        if bool(sql) == bool(question):
+        # v1 is MCP-first: the desktop client's model authors the SQL. The
+        # server-side NL→SQL mode ('question') was cut per review — it
+        # duplicated the desktop model's job and doubled the LLM surface.
+        if body.get('question'):
             return _json_error(
-                400, "Provide exactly one of 'sql' or 'question'")
+                400, "'question' mode is not available — author SQL from "
+                     "get_schema() and send it as 'sql'")
+        if not sql:
+            return _json_error(400, "Missing 'sql'")
         try:
             limit = min(int(body.get('limit') or DEFAULT_ROW_LIMIT),
                         MAX_ROW_LIMIT)
         except (TypeError, ValueError):
             limit = DEFAULT_ROW_LIMIT
-        mode = 'sql' if sql else 'question'
+        mode = 'sql'
+        question = ''
 
         try:
             source_id = int(source_id)
@@ -318,36 +349,25 @@ class AiAssistAPI(http.Controller):
         from odoo.addons.dashboard_builder.services.query_builder import (
             QueryBuilder,
         )
+        from ..utils.ai_query_policy import build_allowed_tables, check_ai_sql
         qb = QueryBuilder(request.env)
         started = time.monotonic()
-        extra = {}
 
-        # question mode: have the in-house generator author the SQL (engine-
-        # dialect-aware legacy path — no page context, so the intent
-        # pipeline's deterministic-WHERE machinery adds nothing here).
-        if mode == 'question':
-            from odoo.addons.dashboard_builder.services.ai_sql_generator import (
-                AiSqlGenerator,
-            )
-            ai = AiSqlGenerator(request.env)
-            if not ai._api_key:
-                return _json_error(
-                    501, "ask_data is not configured on this server "
-                         "(POSTERRA_AI_* unset) — author SQL from the "
-                         "schema and use 'sql' mode instead")
-            try:
-                context = ai.assemble_context(
-                    src.id, None, body.get('chart_type') or 'table')
-                result = ai.generate_sql(context, question)
-                sql = result.get('sql') or ''
-                extra = {k: result.get(k) for k in
-                         ('x_column', 'y_columns', 'explanation', 'warnings')
-                         if result.get(k)}
-            except Exception as e:  # noqa: BLE001 — surface as clean 502
-                _log_query(user, app, src, mode, question, '', 0,
-                           int((time.monotonic() - started) * 1000),
-                           'exec_error', str(e))
-                return _json_error(502, f'SQL generation failed: {e}')
+        # AI-specific policy: engine gate (no local-PG in v1), table
+        # allowlist (same-connection AI-visible sources only), system-
+        # surface + table-function blocks, hard LIMIT cap. Layered ON TOP
+        # of validate_query — see utils/ai_query_policy.py.
+        visible = Source.get_ai_visible_sources(app)
+        same_conn = visible.filtered(
+            lambda s: s.connection_id.id == src.connection_id.id)
+        allowed = build_allowed_tables(same_conn.mapped('table_name'))
+        try:
+            check_ai_sql(sql, src.engine, allowed, MAX_ROW_LIMIT)
+        except ValueError as e:
+            _log_query(user, app, src, mode, question, sql, 0,
+                       int((time.monotonic() - started) * 1000),
+                       'validation_error', str(e))
+            return _json_error(400, f'SQL rejected: {e}')
 
         ok, err = qb.validate_query(sql)
         if not ok:
@@ -359,26 +379,26 @@ class AiAssistAPI(http.Controller):
         try:
             columns, rows = qb.execute_preview(
                 sql, params={}, limit=limit, schema_source=src)
-        except Exception as e:  # noqa: BLE001 — driver message helps the
-            # desktop model self-correct on its next attempt.
+        except Exception as e:  # noqa: BLE001 — sanitized driver message
+            # still helps the desktop model self-correct on its next try.
             duration = int((time.monotonic() - started) * 1000)
+            msg = _sanitize_error(e)
             _log_query(user, app, src, mode, question, sql, 0, duration,
-                       'exec_error', str(e))
-            return _json_error(400, f'Query failed: {e}')
+                       'exec_error', msg)
+            return _json_error(400, f'Query failed: {msg}')
 
+        # Hard cap regardless of what the SQL's own LIMIT allowed through.
+        truncated = len(rows) > limit
+        rows = rows[:limit]
         duration = int((time.monotonic() - started) * 1000)
         _log_query(user, app, src, mode, question, sql, len(rows), duration,
                    'ok')
-        warnings = _never_avg_warnings(sql, src)
-        if extra.get('warnings'):
-            warnings = list(extra.pop('warnings')) + warnings
         return _json_response({
             'sql': sql,
             'columns': columns,
             'rows': rows,
             'row_count': len(rows),
-            'truncated': len(rows) >= limit,
+            'truncated': truncated or len(rows) >= limit,
             'duration_ms': duration,
-            'warnings': warnings,
-            **extra,
+            'warnings': _never_avg_warnings(sql, src),
         })

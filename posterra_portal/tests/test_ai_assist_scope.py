@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-"""AI Assist visibility + PHI-guard unit tests.
+"""AI Assist visibility + SQL-policy unit tests.
 
 The chatbot's queryable-source set is resolved exclusively through
-``dashboard.schema.source.get_ai_visible_sources(app)``. These tests pin
-the truth table: every condition (app toggle, per-source opt-in, active,
-non-PHI classification, app scoping) independently excludes a source, and
-the PHI×AI constraint + reclassification auto-clear hold.
+``dashboard.schema.source.get_ai_visible_sources(app)``. Visibility
+requires EXPLICIT per-app AI assignment (``ai_app_ids``) — a source that
+is globally available for dashboards (empty ``app_ids``) is still
+invisible to the chatbot unless assigned. These tests pin the truth table
+plus the AI SQL policy (table allowlist, engine gate, LIMIT cap).
 
 Run:
     odoo-bin --test-enable -u posterra_portal \\
@@ -14,6 +15,8 @@ Run:
 
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
+
+from ..utils.ai_query_policy import build_allowed_tables, check_ai_sql
 
 
 @tagged('post_install', '-at_install', 'posterra_ai_assist')
@@ -33,33 +36,42 @@ class TestAiVisibleSources(TransactionCase):
         })
         cls.Source = cls.env['dashboard.schema.source'].sudo()
 
-    def _mk_source(self, table, **vals):
+    def _mk_source(self, table, assign=True, **vals):
         base = {
             'name': table, 'table_name': table,
-            'ai_enabled': True, 'is_active': True,
-            'data_classification': 'non_phi',
+            'is_active': True, 'data_classification': 'non_phi',
         }
+        if assign:
+            base['ai_app_ids'] = [(6, 0, [self.app.id])]
         base.update(vals)
         return self.Source.create(base)
 
     def _visible(self):
         return self.Source.get_ai_visible_sources(self.app)
 
-    def test_global_source_visible(self):
-        src = self._mk_source('t_ai_global')
+    def test_assigned_source_visible(self):
+        src = self._mk_source('t_ai_assigned')
         self.assertIn(src, self._visible())
-        # Global (empty app_ids) is visible to every AI-enabled app.
-        self.assertIn(src, self.Source.get_ai_visible_sources(self.other_app))
 
-    def test_app_scoped_source(self):
-        src = self._mk_source('t_ai_scoped',
-                              app_ids=[(6, 0, [self.app.id])])
-        self.assertIn(src, self._visible())
+    def test_unassigned_excluded_even_if_globally_available(self):
+        # Empty app_ids = globally available for DASHBOARDS — but the
+        # chatbot requires explicit AI assignment, so this stays invisible.
+        src = self._mk_source('t_ai_unassigned', assign=False)
+        self.assertNotIn(src, self._visible())
+
+    def test_assignment_is_per_app(self):
+        src = self._mk_source('t_ai_per_app')
         self.assertNotIn(
             src, self.Source.get_ai_visible_sources(self.other_app))
+        src.ai_app_ids = [(4, self.other_app.id)]
+        self.assertIn(
+            src, self.Source.get_ai_visible_sources(self.other_app))
 
-    def test_ai_enabled_off_excludes(self):
-        src = self._mk_source('t_ai_off', ai_enabled=False)
+    def test_general_app_scoping_still_applies(self):
+        # AI-assigned to self.app but generally scoped to other_app only →
+        # invisible (both scoping layers must pass).
+        src = self._mk_source('t_ai_general_scope',
+                              app_ids=[(6, 0, [self.other_app.id])])
         self.assertNotIn(src, self._visible())
 
     def test_inactive_excludes(self):
@@ -75,36 +87,82 @@ class TestAiVisibleSources(TransactionCase):
         self._mk_source('t_ai_noapp')
         self.assertFalse(self.Source.get_ai_visible_sources(None))
 
-    def test_phi_constraint_blocks_opt_in(self):
-        # A PHI source cannot be opted into AI at all. Constructing a valid
-        # PHI source requires the whole hospital_phi connection scaffolding,
-        # so assert the AI constraint fires FIRST on a plain source — both
-        # constraints reject the write either way (fail closed).
-        src = self._mk_source('t_ai_phi', ai_enabled=False)
+    def test_phi_constraint_blocks_assignment(self):
+        src = self._mk_source('t_ai_phi', assign=False)
         with self.assertRaises(ValidationError):
             src.write({'data_classification': 'phi_masked',
-                       'ai_enabled': True})
+                       'ai_app_ids': [(6, 0, [self.app.id])]})
 
-    def test_reclassify_clears_opt_in(self):
+    def test_reclassify_clears_assignment(self):
         src = self._mk_source('t_ai_reclass')
-        self.assertTrue(src.ai_enabled)
-        # Reclassifying to PHI would trip _check_phi_source_scoping (no
-        # hospital_phi connection here), but the write() hook must clear
-        # ai_enabled BEFORE constraints evaluate — assert via the vals
-        # transformation by trying the write and checking the error is the
-        # PHI-connection one, not the AI one.
+        self.assertTrue(src.ai_app_ids)
         try:
             src.write({'data_classification': 'phi_masked'})
         except ValidationError as e:
+            # PHI source-scoping constraint may fire (no hospital_phi
+            # connection in this fixture) — but it must be THAT constraint,
+            # not the AI one: the write() hook clears the AI assignment
+            # before constraints evaluate.
             self.assertIn('Hospital-PHI', str(e))
         else:
-            # If source-scoping constraints ever allow it, the opt-in must
-            # have been auto-cleared.
-            self.assertFalse(src.ai_enabled)
+            self.assertFalse(src.ai_app_ids)
 
 
 @tagged('post_install', '-at_install', 'posterra_ai_assist')
-class TestAiQueryLogRateWindow(TransactionCase):
+class TestAiQueryPolicy(TransactionCase):
+    """Pure-function policy tests — no DB rows needed."""
+
+    ALLOWED = build_allowed_tables(
+        ['mer_data', 'gold.utilization_snapshot'])
+
+    def _check(self, sql, engine='clickhouse', allowed=None, cap=500):
+        return check_ai_sql(sql, engine, allowed or self.ALLOWED, cap)
+
+    def test_allowed_table_passes(self):
+        self._check('SELECT market, SUM(x) FROM mer_data GROUP BY market')
+
+    def test_qualified_and_bare_forms_pass(self):
+        self._check('SELECT 1 FROM gold.utilization_snapshot')
+        self._check('SELECT 1 FROM utilization_snapshot')
+
+    def test_cross_table_rejected(self):
+        # source_id says A; SQL reads B (not AI-visible) → reject.
+        with self.assertRaises(ValueError):
+            self._check('SELECT * FROM ul_humana_retention_data')
+
+    def test_join_to_non_visible_rejected(self):
+        with self.assertRaises(ValueError):
+            self._check('SELECT 1 FROM mer_data m '
+                        'JOIN secret_table s ON s.id = m.id')
+
+    def test_cte_alias_not_flagged(self):
+        self._check('WITH t AS (SELECT market FROM mer_data) '
+                    'SELECT * FROM t')
+
+    def test_system_tables_rejected(self):
+        for tbl in ('system.tables', 'information_schema.tables',
+                    'pg_catalog.pg_tables'):
+            with self.assertRaises(ValueError):
+                self._check(f'SELECT * FROM {tbl}')
+
+    def test_table_functions_rejected(self):
+        with self.assertRaises(ValueError):
+            self._check("SELECT * FROM url('http://x', 'CSV')")
+        with self.assertRaises(ValueError):
+            self._check("SELECT * FROM s3('http://b/x.parquet')")
+
+    def test_postgres_local_engine_rejected(self):
+        with self.assertRaises(ValueError):
+            self._check('SELECT 1 FROM mer_data', engine='postgres_local')
+
+    def test_oversized_limit_rejected(self):
+        with self.assertRaises(ValueError):
+            self._check('SELECT * FROM mer_data LIMIT 1000000')
+        self._check('SELECT * FROM mer_data LIMIT 100')
+
+
+@tagged('post_install', '-at_install', 'posterra_ai_assist')
+class TestAiQueryLog(TransactionCase):
 
     def test_log_model_creates(self):
         user = self.env.ref('base.user_admin')

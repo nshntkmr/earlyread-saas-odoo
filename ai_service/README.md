@@ -11,19 +11,30 @@ scoping, row caps, rate limits, audit logging) happens in Odoo.
 
 1. The target `saas.app` has **AI Assist Enabled** checked (Applications
    admin form).
-2. The schema sources you want queryable have **AI Assist Opt-in** checked
-   (Schema Source form — only offered for Non-PHI sources).
-3. An admin issued you an API key: Settings → Users → your user →
-   **Generate AI Assist Key** (scope `posterra_ai`; shown once).
+2. The schema sources you want queryable are **explicitly assigned** to the
+   app for AI (the app form's *AI Assist Schema Sources*, or the source
+   form's *AI Assist Apps* — Non-PHI sources only; general dashboard
+   availability does NOT imply chatbot availability).
+3. You are in the **AI Assist Desktop User** group, and an admin issued you
+   an API key: Settings → Users → your user → **Generate AI Assist Key**
+   (scope `posterra_ai`; shown once, stored hashed).
 
 ## Tools exposed
 
 | Tool | What it does |
 |---|---|
-| `list_sources()` | Tables available in the configured app |
+| `list_sources()` | Tables assigned to the chatbot for the configured app |
 | `get_schema(source_id)` | Columns, roles, descriptions, join relations, SQL dialect notes |
 | `query_data(source_id, sql, limit)` | Validated read-only SQL → columns + rows (≤500) |
-| `ask_data(source_id, question)` | Server-side NL→SQL fallback (501 if the server has no LLM configured) |
+
+All tools are read-only (`readOnlyHint`). The gateway additionally enforces
+a table allowlist (only tables advertised by `list_sources`, same
+connection), blocks system tables and table functions, hard-caps rows, and
+audits every query.
+
+**Who may connect:** users must hold the *AI Assist Desktop User* (or
+Posterra Admin) group. v1 queries are tenant-scoped to the app but NOT
+narrowed to a user's provider scope — issue keys to internal analysts only.
 
 ## Claude Desktop (stdio, local)
 
@@ -48,20 +59,31 @@ Install the package once (`pip install -e .` in this directory, or use
 One connector = one (user, app) context. For a second app, add a second
 entry with a different `POSTERRA_APP_KEY`.
 
-## ChatGPT Desktop / remote clients (streamable HTTP)
+Raw-JSON config is fine for the internal pilot; for wider rollout, package
+this as a Claude Desktop extension (MCPB) with the API-key field marked
+sensitive so Claude stores it in the OS credential store instead of a
+plaintext config file.
+
+## ChatGPT (web) / remote clients (streamable HTTP)
+
+**Availability caveat:** OpenAI's custom-MCP support is currently documented
+for **ChatGPT web** (developer mode / full MCP connectors), not ChatGPT
+Desktop — treat the milestone as "ChatGPT web now; Desktop when officially
+supported." OpenAI's documented contract for private MCP servers expects
+**OAuth 2.1 bearer tokens** validated by the MCP server; the header-based
+`X-API-Key`/`X-App-Key` scheme below works for clients that support custom
+headers, and an OAuth 2.1 front-end on this service is the planned path for
+clients that don't (tracked as an open item — do not build ChatGPT rollout
+plans on custom headers).
 
 Run the service (Docker image or `posterra-mcp --http`) behind the ingress,
-e.g. `https://ai.<domain>/mcp`, and configure a custom connector pointing at
-that URL with headers:
+e.g. `https://ai.<domain>/mcp`, and configure a connector pointing at that
+URL with headers:
 
 ```
 X-API-Key: <key>
 X-App-Key: ulh-humana-ma
 ```
-
-> Note: verify your ChatGPT Desktop version supports custom headers on MCP
-> connectors. If it doesn't, use the stdio mode via a local launcher, or
-> wait for the per-user URL-token frontend (tracked as an open item).
 
 ## Local dev
 
