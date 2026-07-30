@@ -30,14 +30,15 @@
     <!-- Group: AI Assist Desktop User
          v1 user-scope contract: chatbot SQL is NOT filtered down to a
          portal user's provider scope — it sees the whole tenant (app).
-         Therefore only internal analysts explicitly placed in this group
-         may use the AI gateway / desktop MCP connectors. Do NOT add
-         provider-scoped portal users until per-user predicate scoping
-         exists. -->
+         Therefore only internal analysts may use the AI gateway; the
+         internal-user requirement is enforced at RUNTIME by the gateway
+         guard (ai_api._get_ai_user), NOT via implied_ids here — implying
+         base.group_user made any accidental portal-user assignment blow
+         up module upgrades with an exclusive-groups ParseError instead
+         of failing that one user's request with a clear 403. -->
     <record id="group_ai_assist_user" model="res.groups">
         <field name="name">AI Assist Desktop User</field>
-        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]"/>
-        <field name="comment">Internal analysts allowed to query app data through the AI Assist chatbot (desktop MCP). Queries are tenant-scoped to the app but NOT restricted to a user's provider scope — internal users only.</field>
+        <field name="comment">Internal analysts allowed to query app data through the AI Assist chatbot (desktop MCP). Queries are tenant-scoped to the app but NOT restricted to a user's provider scope — the gateway refuses portal users at runtime.</field>
     </record>
 
     <!-- Record Rule: Portal users can read HHA providers (filtering by email domain is done in controllers) -->

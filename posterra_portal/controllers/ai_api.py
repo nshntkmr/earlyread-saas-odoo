@@ -111,11 +111,19 @@ def _get_ai_user():
         raise PermissionError('Access to this app has been revoked')
 
     # v1 user-scope contract: chatbot SQL sees the whole tenant, not the
-    # user's provider slice — so gate on an explicit internal-analyst
-    # group. NOTE: Odoo also accepts NULL-scope ("global") API keys for
-    # any requested scope; a global key is a strictly stronger credential
-    # the user already holds, and this group gate bounds who can use the
-    # AI surface regardless of which of their keys they present.
+    # user's provider slice — so gate on (a) being an INTERNAL user and
+    # (b) an explicit analyst group. The internal check lives HERE (not
+    # as implied_ids on the group) so a portal user accidentally holding
+    # the group gets a clean 403 instead of breaking module upgrades
+    # with an exclusive-groups error. NOTE: Odoo also accepts NULL-scope
+    # ("global") API keys for any requested scope; a global key is a
+    # strictly stronger credential the user already holds, and this gate
+    # bounds who can use the AI surface regardless of which key they
+    # present.
+    if not user.has_group('base.group_user'):
+        raise PermissionError(
+            'AI Assist is limited to internal users — portal accounts '
+            'cannot use the desktop chatbot')
     if not (user.has_group('posterra_portal.group_ai_assist_user')
             or user.has_group('posterra_portal.group_posterra_admin')
             or user.has_group('base.group_system')):
