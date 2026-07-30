@@ -3,7 +3,24 @@
     "allow": [
       "Bash(xargs wc:*)",
       "Bash(find /c/Users/nisha/Odoo_Dev -type f -name *.sql)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "WebFetch(domain:www.capterra.com)",
+      "WebSearch",
+      "WebFetch(domain:marketplace.athenahealth.com)",
+      "WebFetch(domain:www.roundingwell.com)",
+      "WebFetch(domain:www.milliman.com)",
+      "WebFetch(domain:www.cms.gov)",
+      "WebFetch(domain:www.federalregister.gov)",
+      "Bash(curl -sL --max-time 60 -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/126.0.0.0 Safari/537.36\" -H \"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\" -H \"Accept-Language: en-US,en;q=0.9\" \"https://www.cms.gov/priorities/innovation/innovation-models/team-model\" -o \"C:/Users/nisha/AppData/Local/Temp/claude/C--Users-nisha-Odoo-Dev/81e2df36-9474-4118-8325-61fe5fc500d1/scratchpad/team_model.html\" -w \"HTTP_STATUS:%{http_code} SIZE:%{size_download}\")",
+      "Bash(curl -sL -o \"C:/Users/nisha/AppData/Local/Temp/claude/C--Users-nisha-Odoo-Dev/81e2df36-9474-4118-8325-61fe5fc500d1/scratchpad/team-overview.pdf\" -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/126.0.0.0 Safari/537.36\" -w \"%{http_code} %{size_download} bytes\\\\n\" \"https://www.cms.gov/files/document/team-overview-updated.pdf\")",
+      "WebFetch(domain:aithority.com)",
+      "Bash(curl -sL -o team-model-fs.pdf -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/126.0.0.0 Safari/537.36\" -H \"Accept: application/pdf,*/*\" \"https://www.cms.gov/files/document/team-model-fs.pdf\")",
+      "Bash(file team-model-fs.pdf)",
+      "Bash(curl -sL --max-time 60 -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/126.0.0.0 Safari/537.36\" -H \"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\" -H \"Accept-Language: en-US,en;q=0.9\" -o \"C:/Users/nisha/AppData/Local/Temp/claude/C--Users-nisha-Odoo-Dev/81e2df36-9474-4118-8325-61fe5fc500d1/scratchpad/team_faq.html\" -w \"HTTP %{http_code} size %{size_download}\\\\n\" \"https://www.cms.gov/priorities/innovation/team-frequently-asked-questions\")",
+      "WebFetch(domain:www.lara.health)",
+      "WebFetch(domain:www.apma.org)",
+      "WebFetch(domain:github.com)",
+      "PowerShell(az aks list --query \"[].{name:name, rg:resourceGroup, power:powerState.code}\" -o table)"
     ]
   }
 }

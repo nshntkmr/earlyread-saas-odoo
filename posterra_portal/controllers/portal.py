@@ -218,6 +218,15 @@ def _build_page_config_json(app, page, tabs, page_filters, filter_options,
                 # searchable behaviour; specialised values like
                 # 'hha_comparison' route to dedicated React components.
                 'ui_type':               pf.ui_type or 'default',
+                # D1 placement + D2 remote-search config (additive; existing
+                # filters get filter_bar/manual and unused search fields).
+                'display_region':        pf.display_region or 'filter_bar',
+                'apply_behavior':        pf.apply_behavior or 'manual',
+                'placeholder':           pf.placeholder or '',
+                'search_page_size':      pf.search_page_size or 50,
+                'search_min_chars':      pf.search_min_chars or 0,
+                'control_width_px':      pf.control_width_px or 0,
+                # remote_autocomplete carries NO roster — server search only.
                 'options':               filter_options.get(pf.id, []),
                 'sequence':              pf.sequence,
             }
@@ -262,6 +271,7 @@ def _build_initial_widgets_json(widgets, widget_data):
             'id':           w.id,
             'chart_type':   w.chart_type,
             'tab_key':      w.tab_id.key if w.tab_id else None,
+            'render_region': w.render_region or 'tab_content',
             'col_span':     w.width_pct or {'3': 25, '4': 33, '6': 50, '8': 67, '12': 100}.get(w.col_span, 50),
             'max_col_span': w.max_width_pct or 0,
             'row_span':     w.row_span or 1,
@@ -1039,6 +1049,12 @@ class PosterraPortal(CustomerPortal):
                 filter_values[f.id] = f.compute_default_value(root_opts)
 
         for f in page_filters:
+            # remote_autocomplete NEVER preloads its roster — the whole point of
+            # the type. get_options() already returns [] for it; skip the call
+            # entirely so no 30-50K-row SELECT runs on page load.
+            if f.ui_type == 'remote_autocomplete':
+                filter_options[f.id] = []
+                continue
             if f.manual_options or (f.model_id and f.field_id) or (f.schema_source_id and f.schema_column_id):
                 # Build constraint_values from incoming dependencies (new system)
                 constraint_values = {}
@@ -1125,7 +1141,8 @@ class PosterraPortal(CustomerPortal):
         widget_data = {}
         for w in widgets:
             w_tab_key = w.tab_id.key if w.tab_id else None
-            if not w_tab_key or w_tab_key == current_tab_key:
+            # page_summary widgets are tab-independent → always eager (never deferred).
+            if not w_tab_key or w_tab_key == current_tab_key or w.render_region == 'page_summary':
                 # Current tab or no-tab widget → execute SQL, full data.
                 #
                 # For scope widgets in "Different SQL Per Option" mode
@@ -1180,10 +1197,17 @@ class PosterraPortal(CustomerPortal):
         # SQL-driven badges for the page header. Passed to React via
         # data-initial-badges so they refresh on filter Apply (not QWeb).
         initial_badges = []
+        has_page_header_start_badges = False
+        has_page_header_end_badges = False
         if current_page:
             active_badges = current_page.badge_ids.filtered(lambda b: b.is_active)
             for badge in active_badges:
                 value = badge.execute_badge_sql(portal_ctx)
+                placement = badge.placement or 'below_header_end'
+                if placement == 'page_header_start':
+                    has_page_header_start_badges = True
+                elif placement == 'page_header_end':
+                    has_page_header_end_badges = True
                 initial_badges.append({
                     'id': badge.id,
                     'icon': badge.icon or '',
@@ -1192,8 +1216,31 @@ class PosterraPortal(CustomerPortal):
                     'text_color': badge.text_color or '',
                     'icon_color': badge.icon_color or '',
                     'is_link': badge.is_link,
+                    'placement': placement,
+                    'sequence': badge.sequence,
                 })
         initial_badges_json = json.dumps(initial_badges)
+        has_page_header_badges = has_page_header_start_badges or has_page_header_end_badges
+
+        # ── 10c. Page header filters (D1) ─────────────────────────────
+        # Filters placed in the header via display_region. Only VISIBLE +
+        # active filters count — a hidden (SQL-context) filter must not shift
+        # the header layout. The combined gates below drive the SAME QWeb
+        # header slots that badges use (React portals both into them), so a
+        # header renders when EITHER a badge or a filter is placed there.
+        has_page_header_start_filters = False
+        has_page_header_end_filters = False
+        for f in page_filters:
+            if not f.is_visible:
+                continue
+            region = f.display_region or 'filter_bar'
+            if region == 'page_header_start':
+                has_page_header_start_filters = True
+            elif region == 'page_header_end':
+                has_page_header_end_filters = True
+        has_page_header_start = has_page_header_start_badges or has_page_header_start_filters
+        has_page_header_end = has_page_header_end_badges or has_page_header_end_filters
+        has_page_header_actions = has_page_header_start or has_page_header_end
 
         # ── 11. Phase 7 — React shell data ─────────────────────────────
         # Build JSON blobs and a fresh JWT for the React app-root div.
@@ -1251,6 +1298,19 @@ class PosterraPortal(CustomerPortal):
             'section_data':  section_data,
             # Page header badges (React-rendered)
             'initial_badges_json': initial_badges_json,
+            # Opt-in page-header annotation slots — drive the QWeb
+            # --with-actions modifier + portal-target divs. Template-context
+            # only; no page-config records are touched.
+            'has_page_header_start_badges': has_page_header_start_badges,
+            'has_page_header_end_badges':   has_page_header_end_badges,
+            'has_page_header_badges':       has_page_header_badges,
+            # D1: header-placed filters share the badge slots. Combined gates
+            # fire when EITHER a badge or a filter occupies the slot.
+            'has_page_header_start_filters': has_page_header_start_filters,
+            'has_page_header_end_filters':   has_page_header_end_filters,
+            'has_page_header_start':         has_page_header_start,
+            'has_page_header_end':           has_page_header_end,
+            'has_page_header_actions':       has_page_header_actions,
             # Sidebar theme (admin-configurable per app)
             'sidebar_theme': app.sidebar_theme or 'dark',
             # Phase 7 — React shell data (embedded as data-* on #app-root)

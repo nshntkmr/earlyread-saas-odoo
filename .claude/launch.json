@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "incyte-proto",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4599", "--directory", "C:/Users/nisha/Odoo_Dev/prototypes/incyte-market-insights"],
+      "port": 4599
+    }
+  ]
+}

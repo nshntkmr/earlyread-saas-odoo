@@ -2,6 +2,78 @@
 <odoo>
 
     <!-- ================================================================ -->
+    <!-- dashboard.page.filter — Full sectioned config form (D1)           -->
+    <!-- Opened via the "Configure" button on the Context Filters list.    -->
+    <!-- ================================================================ -->
+    <record id="view_dashboard_page_filter_config_form" model="ir.ui.view">
+        <field name="name">dashboard.page.filter.config.form</field>
+        <field name="model">dashboard.page.filter</field>
+        <field name="arch" type="xml">
+            <form string="Filter Configuration">
+                <sheet>
+                    <group>
+                        <group string="Identity">
+                            <field name="label" placeholder="Override label (optional)"/>
+                            <field name="param_name" string="URL Param"/>
+                            <field name="sequence"/>
+                            <field name="is_active"/>
+                            <field name="is_visible" widget="boolean_toggle"/>
+                        </group>
+                        <group string="Data Source">
+                            <field name="model_id" string="Table" placeholder="e.g. hha.provider"/>
+                            <field name="field_id" string="Column"
+                                   domain="[('model_id','=',model_id),('ttype','in',['char','text','selection','integer','float','date','datetime','many2one'])]"/>
+                            <field name="schema_source_id" string="Schema Source"/>
+                            <field name="schema_column_id" string="Value Column"
+                                   domain="[('source_id','=',schema_source_id)]"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Presentation">
+                            <field name="ui_type"/>
+                            <field name="display_region"/>
+                            <field name="placeholder"/>
+                            <field name="control_width_px"
+                                   invisible="ui_type != 'remote_autocomplete'"/>
+                            <field name="display_template"/>
+                            <field name="display_template_source"
+                                   invisible="not display_template"/>
+                            <field name="option_sort"/>
+                        </group>
+                        <group string="Behavior">
+                            <field name="apply_behavior"/>
+                            <field name="is_searchable" widget="boolean_toggle"/>
+                            <field name="is_multiselect" widget="boolean_toggle"/>
+                            <field name="default_strategy"/>
+                            <field name="default_value"/>
+                            <field name="include_all_option" widget="boolean_toggle"/>
+                            <field name="hide_all_option" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                    <!-- Remote Search: only when UI Type = Remote Search. -->
+                    <group string="Remote Search"
+                           invisible="ui_type != 'remote_autocomplete'">
+                        <field name="search_column_ids" widget="many2many_tags"
+                               domain="[('source_id','=',schema_source_id)]"
+                               options="{'no_create': True}"/>
+                        <field name="search_page_size"/>
+                        <field name="search_min_chars"/>
+                    </group>
+                    <group string="Scope &amp; Auto-fill">
+                        <field name="scope_to_user_hha" widget="boolean_toggle"/>
+                        <field name="hha_scope_column_id"
+                               invisible="not scope_to_user_hha or not schema_source_id"
+                               required="scope_to_user_hha and schema_source_id"
+                               options="{'no_create': True}"/>
+                        <field name="auto_fill_from_hha" widget="boolean_toggle"/>
+                        <field name="is_provider_selector" widget="boolean_toggle"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================ -->
     <!-- dashboard.page — List view                                        -->
     <!-- ================================================================ -->
     <record id="view_dashboard_page_list" model="ir.ui.view">
@@ -193,8 +265,24 @@
                                     <field name="ui_type"
                                            string="UI Type"
                                            optional="show"/>
+                                    <!-- D1: place a filter in the page header
+                                         (alongside badges) instead of the filter
+                                         bar. Blank/legacy = Filter Bar. -->
+                                    <field name="display_region"
+                                           string="Region"
+                                           optional="show"/>
+                                    <field name="apply_behavior"
+                                           string="Apply"
+                                           optional="hide"/>
                                     <field name="is_active"/>
                                     <field name="is_required"/>
+                                    <!-- Full sectioned editor (Remote Search
+                                         columns, scope, etc.). Saved rows only. -->
+                                    <button name="action_open_filter_configuration"
+                                            type="object"
+                                            string="Configure"
+                                            icon="fa-cog"
+                                            invisible="not id"/>
                                 </list>
                             </field>
                         </page>
@@ -230,7 +318,9 @@
                                     <field name="name"/>
                                     <field name="tab_id"
                                            domain="[('page_id','=',parent.id)]"
-                                           placeholder="All tabs"/>
+                                           readonly="render_region == 'page_summary'"
+                                           placeholder="All tabs — below the tab bar"/>
+                                    <field name="render_region"/>
                                     <field name="chart_type"/>
                                     <field name="col_span"/>
                                     <field name="color_palette"/>
@@ -255,6 +345,7 @@
                                            widget="char"/>
                                     <field name="is_active"/>
                                     <field name="is_link"/>
+                                    <field name="placement"/>
                                 </list>
                                 <form>
                                     <sheet>
@@ -264,6 +355,7 @@
                                                 <field name="icon" placeholder="fa-building"/>
                                                 <field name="sequence"/>
                                                 <field name="is_active"/>
+                                                <field name="placement"/>
                                             </group>
                                             <group string="Styling">
                                                 <field name="icon_color" placeholder="#2563eb"

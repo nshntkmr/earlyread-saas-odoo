@@ -6,7 +6,7 @@
 
 export { VALUE_FORMATTERS } from './formatters'
 export { CUSTOM_COLUMN_TYPES, TYPE_DEFAULTS } from './columnTypes'
-export { CELL_RENDERERS } from './renderers.jsx'
+export { CELL_RENDERERS, ComplianceStrip } from './renderers.jsx'
 export { resolveColumnDefs } from './resolveColumnDefs.jsx'
 
 // Smart Table cell recipes (chart_type='smart_table' — independent of AG Grid)

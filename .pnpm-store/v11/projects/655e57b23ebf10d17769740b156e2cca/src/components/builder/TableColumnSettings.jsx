@@ -1,0 +1,1016 @@
+import React, { useState, useCallback } from 'react'
+
+// ── Column type presets ─────────────────────────────────────────────────────
+const COLUMN_TYPES = [
+  { value: '',               label: 'Auto' },
+  { value: 'text',           label: 'Text' },
+  { value: 'numericColumn',  label: 'Numeric' },
+  { value: 'currency',       label: 'Currency' },
+  { value: 'percentage',     label: 'Percentage' },
+  { value: 'date',           label: 'Date' },
+]
+
+const FORMATTER_OPTIONS = [
+  { value: '',           label: 'None' },
+  { value: 'number',     label: 'Number (1,234)' },
+  { value: 'currency',   label: 'Currency ($1,234)' },
+  { value: 'percentage', label: 'Percentage (44.1%)' },
+  { value: 'decimal',    label: 'Decimal (0.94)' },
+  { value: 'date',       label: 'Date' },
+]
+
+const RENDERER_OPTIONS = [
+  { value: '',           label: 'None (text)' },
+  { value: 'pctColored', label: 'Colored Percentage' },
+  { value: 'badge',      label: 'Badge' },
+  { value: 'sparkline',  label: 'Sparkline' },
+  { value: 'starRating', label: 'Star Rating' },
+  { value: 'barInline',  label: 'Inline Bar' },
+  { value: 'composite',  label: 'Composite (multi-field)' },
+  { value: 'dualValue',  label: 'Dual Value (value + %)' },
+  { value: 'complianceStrip', label: 'Compliance Dot Strip' },
+]
+
+const FILTER_OPTIONS = [
+  { value: '',                      label: 'None' },
+  { value: 'agTextColumnFilter',    label: 'Text' },
+  { value: 'agNumberColumnFilter',  label: 'Number' },
+  { value: 'agDateColumnFilter',    label: 'Date' },
+]
+
+const PINNED_OPTIONS = [
+  { value: '',      label: 'None' },
+  { value: 'left',  label: 'Left' },
+  { value: 'right', label: 'Right' },
+]
+
+const SORT_OPTIONS = [
+  { value: '',     label: 'None' },
+  { value: 'asc',  label: 'Ascending' },
+  { value: 'desc', label: 'Descending' },
+]
+
+const CSS_CLASS_OPTIONS = [
+  { value: 'cell-good',  label: 'Good (green)' },
+  { value: 'cell-bad',   label: 'Bad (red)' },
+  { value: 'cell-warn',  label: 'Warning (amber)' },
+  { value: 'cell-muted', label: 'Muted (gray)' },
+]
+
+const CLICK_OPTIONS = [
+  { value: 'none',         label: 'No action' },
+  { value: 'go_to_page',   label: 'Go to page' },
+  { value: 'filter_page',  label: 'Filter this page' },
+  { value: 'open_url',     label: 'Open URL' },
+  { value: 'open_detail_drawer', label: 'Open detail drawer' },
+]
+
+// ── Type → auto-fill mapping ────────────────────────────────────────────────
+const TYPE_AUTO_FILL = {
+  text:          { width: 200, formatter: '',          filter: 'agTextColumnFilter',   align: 'left' },
+  numericColumn: { width: 110, formatter: 'number',    filter: 'agNumberColumnFilter', align: 'right' },
+  currency:      { width: 120, formatter: 'currency',  filter: 'agNumberColumnFilter', align: 'right' },
+  percentage:    { width: 100, formatter: 'percentage', filter: 'agNumberColumnFilter', align: 'right' },
+  date:          { width: 120, formatter: 'date',      filter: 'agDateColumnFilter',   align: 'left' },
+}
+
+/**
+ * TableColumnSettings — Expandable settings panel for one AG Grid column.
+ *
+ * Props:
+ *   column     — current column config object
+ *   allColumns — available columns from source (for tooltip field dropdown)
+ *   onChange   — (changes) => void
+ */
+// ── Custom status → color mapping (Compliance Dot Strip) ────────────────────
+// The renderer accepts ANY status string (the hover tooltip shows it verbatim)
+// as long as the colors map has an entry for it. These rows edit the non-fixed
+// keys of cellRendererParams.colors — add as many statuses as the data needs
+// (2, 5, 10 — unbounded). Fixed keys keep their dedicated inputs above.
+const FIXED_STATUS_KEYS = ['compliant', 'nonCompliant', 'na']
+
+function CustomStatusColors({ colors, onColorsChange }) {
+  const entries = Object.entries(colors || {}).filter(([k]) => !FIXED_STATUS_KEYS.includes(k))
+
+  // Rebuild the colors object: fixed keys first (preserved as-is), then the
+  // custom rows in display order. Key order is insertion order, so rows keep
+  // their position while being renamed.
+  const rebuild = (rows) => {
+    const next = {}
+    for (const k of FIXED_STATUS_KEYS) {
+      if (colors && colors[k] !== undefined) next[k] = colors[k]
+    }
+    for (const [k, v] of rows) next[k] = v
+    return next
+  }
+
+  const setRow = (idx, key, val) => {
+    onColorsChange(rebuild(entries.map((e, i) => (i === idx ? [key, val] : e))))
+  }
+
+  return (
+    <div className="tcs-row">
+      <label className="tcs-label">Custom Status Colors</label>
+      {entries.map(([status, color], i) => (
+        <div key={i} className="tcs-rule-row">
+          <input type="text" className="tcs-input tcs-input--sm"
+            value={status}
+            onChange={e => setRow(i, e.target.value, color)}
+            placeholder='Status text, e.g. True Care Gap'
+          />
+          <input type="text" className="tcs-input tcs-input--sm" style={{ maxWidth: 90 }}
+            value={color}
+            onChange={e => setRow(i, status, e.target.value)}
+            placeholder="#dc2626"
+          />
+          <span title={color} style={{ width: 14, height: 14, borderRadius: 3, flex: '0 0 auto',
+            display: 'inline-block', backgroundColor: color || '#e5e7eb' }} />
+          <button type="button" className="tcs-remove-btn"
+            onClick={() => onColorsChange(rebuild(entries.filter((_, j) => j !== i)))}>
+            <i className="fa fa-times" />
+          </button>
+        </div>
+      ))}
+      <button type="button" className="wb-btn wb-btn--outline wb-btn--sm"
+        disabled={entries.some(([k]) => k === '')}
+        onClick={() => onColorsChange(rebuild([...entries, ['', '#dc2626']]))}>
+        <i className="fa fa-plus me-1" /> Add Status Color
+      </button>
+      <div className="tcs-help-text">
+        For statuses beyond compliant / nonCompliant / na. The status text must
+        match the data exactly (case-sensitive) — the hover tooltip shows it
+        verbatim. Statuses with no color here fall back to the N/A Color.
+      </div>
+    </div>
+  )
+}
+
+export default function TableColumnSettings({ column, allColumns = [], onChange }) {
+  const [showBehavior, setShowBehavior] = useState(false)
+  const [showFormatting, setShowFormatting] = useState(false)
+  const [showClickAction, setShowClickAction] = useState(false)
+
+  const set = (key, val) => onChange({ [key]: val })
+  const setMulti = (obj) => onChange(obj)
+
+  // Handle column type change → auto-fill related settings
+  const handleTypeChange = (typeVal) => {
+    const fill = TYPE_AUTO_FILL[typeVal]
+    if (fill) {
+      setMulti({
+        type: typeVal || null,
+        width: fill.width,
+        valueFormatter: fill.formatter || null,
+        filter: fill.filter,
+        cellStyle: fill.align !== 'left' ? { textAlign: fill.align } : null,
+      })
+    } else {
+      set('type', typeVal || null)
+    }
+  }
+
+  // ── Conditional formatting rules ───────────────────────────────────────────
+  const rules = Object.entries(column.cellClassRules || {})
+  const addRule = () => {
+    const existing = column.cellClassRules || {}
+    const presets = ['cell-good', 'cell-bad', 'cell-warn', 'cell-muted']
+    let newClass = presets.find(c => !(c in existing))
+    if (!newClass) {
+      let n = 1
+      while (`cell-custom-${n}` in existing) n++
+      newClass = `cell-custom-${n}`
+    }
+    set('cellClassRules', { ...existing, [newClass]: 'x >= 0' })
+  }
+  const updateRule = (oldClass, newClass, condition) => {
+    const updated = { ...(column.cellClassRules || {}) }
+    if (oldClass !== newClass) delete updated[oldClass]
+    updated[newClass] = condition
+    set('cellClassRules', updated)
+  }
+  const removeRule = (cls) => {
+    const updated = { ...(column.cellClassRules || {}) }
+    delete updated[cls]
+    set('cellClassRules', updated)
+  }
+
+  return (
+    <div className="tcs-panel">
+
+      {/* ═══ BASIC (always visible) ═══ */}
+      <div className="tcs-section">
+        <div className="tcs-row">
+          <label className="tcs-label">Header Label</label>
+          <input
+            type="text" className="tcs-input"
+            value={column.headerName || ''}
+            onChange={e => set('headerName', e.target.value)}
+            placeholder={column.field}
+          />
+        </div>
+
+        <div className="tcs-row">
+          <label className="tcs-label">Column Type</label>
+          <select className="tcs-select"
+            value={column.type || ''}
+            onChange={e => handleTypeChange(e.target.value)}
+          >
+            {COLUMN_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        <div className="tcs-row-inline">
+          <div>
+            <label className="tcs-label">Width (px)</label>
+            <input
+              type="number" className="tcs-input tcs-input--narrow"
+              value={column.flex ? '' : (column.width || '')}
+              onChange={e => set('width', Number(e.target.value) || null)}
+              disabled={!!column.flex}
+              min={40} max={600}
+            />
+          </div>
+          <div>
+            <label className="tcs-label tcs-label--inline">
+              <input
+                type="checkbox"
+                checked={!!column.flex}
+                onChange={e => setMulti(e.target.checked
+                  ? { flex: 1, width: null }
+                  : { flex: null, width: 150 }
+                )}
+              />
+              Auto-flex
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ DISPLAY ═══ */}
+      <div className="tcs-section">
+        <div className="tcs-row-inline">
+          <div>
+            <label className="tcs-label">Formatter</label>
+            <select className="tcs-select"
+              value={column.valueFormatter || ''}
+              onChange={e => set('valueFormatter', e.target.value || null)}
+            >
+              {FORMATTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="tcs-label">Renderer</label>
+            <select className="tcs-select"
+              value={column.cellRenderer || ''}
+              onChange={e => set('cellRenderer', e.target.value || null)}
+            >
+              {RENDERER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Renderer-specific params */}
+        {column.cellRenderer === 'pctColored' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Good above</label>
+                <input type="number" className="tcs-input tcs-input--narrow"
+                  value={column.cellRendererParams?.goodAbove ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    goodAbove: Number(e.target.value),
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Bad below</label>
+                <input type="number" className="tcs-input tcs-input--narrow"
+                  value={column.cellRendererParams?.badBelow ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    badBelow: Number(e.target.value),
+                  })}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bar Inline renderer params */}
+        {column.cellRenderer === 'barInline' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Max (100% reference)</label>
+                <input type="number" className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.max ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      max: raw === '' ? null : Number(raw),
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Bar color (hex)</label>
+                <input type="text" className="tcs-input"
+                  placeholder="#3b82f6"
+                  value={column.cellRendererParams?.color ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    color: e.target.value || null,
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Multiply by 100</label>
+                <input type="checkbox"
+                  checked={column.cellRendererParams?.multiply === true}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    multiply: e.target.checked,
+                  })}
+                />
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Label Format</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.format || 'number'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    format: e.target.value,
+                  })}
+                >
+                  <option value="number">Number</option>
+                  <option value="percent">Percent (%)</option>
+                  <option value="currency">Currency ($)</option>
+                  <option value="pp">Percentage Points (pp)</option>
+                  <option value="raw">Raw</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Scale</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.scale || 'none'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    scale: e.target.value,
+                  })}
+                >
+                  <option value="none">None</option>
+                  <option value="thousands">Thousands (K)</option>
+                  <option value="millions">Millions (M)</option>
+                  <option value="billions">Billions (B)</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Decimals</label>
+                <input type="number" min={0} max={6} className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.decimals ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      decimals: raw === '' ? null : Number(raw),
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Label Position</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.valuePosition || 'right'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    valuePosition: e.target.value,
+                  })}
+                >
+                  <option value="right">Right of bar</option>
+                  <option value="left">Left of bar</option>
+                  <option value="hidden">Hidden</option>
+                </select>
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Prefix Override</label>
+                <input type="text" className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.prefix ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    prefix: e.target.value || null,
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Suffix Override</label>
+                <input type="text" className="tcs-input tcs-input--narrow"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.suffix ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    suffix: e.target.value || null,
+                  })}
+                />
+              </div>
+            </div>
+            <div className="tcs-help-text">
+              Value / Max = bar fill percentage. Use Percent for 86.1%, Currency + Millions for $1.2M, or Percentage Points for +3.4 pp.
+            </div>
+          </div>
+        )}
+
+        {/* Sparkline renderer params */}
+        {column.cellRenderer === 'sparkline' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Variant</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.variant ?? 'line'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    variant: e.target.value,
+                  })}
+                >
+                  <option value="line">Line</option>
+                  <option value="area">Area</option>
+                  <option value="bar">Bar</option>
+                  <option value="winloss">Win/Loss</option>
+                  <option value="bullet">Bullet</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Width</label>
+                <input type="number" min={40} max={400} className="tcs-input tcs-input--narrow"
+                  placeholder="60"
+                  value={column.cellRendererParams?.width ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      width: raw === '' ? null : Math.max(40, Math.min(400, Number(raw))),
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Height</label>
+                <input type="number" min={12} max={60} className="tcs-input tcs-input--narrow"
+                  placeholder="20"
+                  value={column.cellRendererParams?.height ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    set('cellRendererParams', {
+                      ...column.cellRendererParams,
+                      height: raw === '' ? null : Math.max(12, Math.min(60, Number(raw))),
+                    })
+                  }}
+                />
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Color (auto or hex)</label>
+                <input type="text" className="tcs-input"
+                  placeholder="auto"
+                  value={column.cellRendererParams?.color ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    color: e.target.value || null,
+                  })}
+                />
+              </div>
+              {column.cellRendererParams?.variant === 'bullet' && (
+                <>
+                  <div>
+                    <label className="tcs-label">Target Color</label>
+                    <input type="text" className="tcs-input"
+                      placeholder="#0f172a"
+                      value={column.cellRendererParams?.targetColor ?? ''}
+                      onChange={e => set('cellRendererParams', {
+                        ...column.cellRendererParams,
+                        targetColor: e.target.value || null,
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="tcs-label">Track Color</label>
+                    <input type="text" className="tcs-input"
+                      placeholder="#e2e8f0"
+                      value={column.cellRendererParams?.trackColor ?? ''}
+                      onChange={e => set('cellRendererParams', {
+                        ...column.cellRendererParams,
+                        trackColor: e.target.value || null,
+                      })}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="tcs-help-text">
+              {column.cellRendererParams?.variant === 'bullet'
+                ? 'Bullet input: {"value":26.3,"target":90,"max":100} (object or JSON string). Color = value bar; "auto"/empty = green when value ≥ target, amber below.'
+                : column.cellRendererParams?.variant === 'winloss'
+                ? 'Win/Loss input: JSON array or comma-separated numbers. Colors are automatic — green for positive, red for negative.'
+                : 'Input: JSON array [10,14,12] or comma-separated numbers. Color "auto"/empty = green when trending up, red when down.'}
+            </div>
+          </div>
+        )}
+
+        {/* Compliance Dot Strip renderer params */}
+        {column.cellRenderer === 'complianceStrip' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row">
+              <label className="tcs-label">Items Source Column</label>
+              <select className="tcs-select"
+                value={column.cellRendererParams?.itemsField || ''}
+                onChange={e => set('cellRendererParams', {
+                  ...column.cellRendererParams,
+                  itemsField: e.target.value || null,
+                })}
+              >
+                <option value="">(use this cell's value)</option>
+                {allColumns.map(c => (
+                  <option key={c.column_name} value={c.column_name}>
+                    {c.display_name || c.column_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Compliant Color</label>
+                <input type="text" className="tcs-input" placeholder="#16a34a"
+                  value={column.cellRendererParams?.colors?.compliant ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    colors: { ...(column.cellRendererParams?.colors || {}), compliant: e.target.value || undefined },
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Non-Compliant Color</label>
+                <input type="text" className="tcs-input" placeholder="#dc2626"
+                  value={column.cellRendererParams?.colors?.nonCompliant ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    colors: { ...(column.cellRendererParams?.colors || {}), nonCompliant: e.target.value || undefined },
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">N/A Color</label>
+                <input type="text" className="tcs-input" placeholder="#e5e7eb"
+                  value={column.cellRendererParams?.colors?.na ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    colors: { ...(column.cellRendererParams?.colors || {}), na: e.target.value || undefined },
+                  })}
+                />
+              </div>
+            </div>
+            <CustomStatusColors
+              colors={column.cellRendererParams?.colors}
+              onColorsChange={colors => set('cellRendererParams', {
+                ...column.cellRendererParams,
+                colors,
+              })}
+            />
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Dot Size</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={typeof column.cellRendererParams?.size === 'number' ? 'custom' : (column.cellRendererParams?.size || 'sm')}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    size: e.target.value === 'custom' ? 16 : e.target.value,
+                  })}
+                >
+                  <option value="sm">Small</option>
+                  <option value="md">Medium</option>
+                  <option value="lg">Large (labels)</option>
+                  <option value="custom">Custom (px)…</option>
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Show Labels</label>
+                <select className="tcs-select tcs-select--sm"
+                  value={column.cellRendererParams?.showLabels ? 'yes' : 'no'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    showLabels: e.target.value === 'yes',
+                  })}
+                >
+                  <option value="no">No (dots)</option>
+                  <option value="yes">Yes (pills)</option>
+                </select>
+              </div>
+            </div>
+            {typeof column.cellRendererParams?.size === 'number' && (
+              <div className="tcs-row-inline">
+                <div>
+                  <label className="tcs-label">Custom Size (px)</label>
+                  <input type="number" min={8} max={48} className="tcs-input tcs-input--narrow"
+                    value={column.cellRendererParams?.size ?? ''}
+                    onChange={e => {
+                      const raw = e.target.value
+                      set('cellRendererParams', {
+                        ...column.cellRendererParams,
+                        size: raw === '' ? 'sm' : Math.max(8, Math.min(48, Number(raw))),
+                      })
+                    }}
+                  />
+                </div>
+                <div className="tcs-help-text" style={{ alignSelf: 'flex-end' }}>
+                  Sets dot px (dots) or pill font size (labels); padding auto-scales.
+                </div>
+              </div>
+            )}
+            <div className="tcs-help-text">
+              {'Items source must be a JSON array column like [{"label":"Jan","status":"compliant"}]. status can be compliant | nonCompliant | na or any custom text (e.g. "True Care Gap") mapped under Custom Status Colors. Null / empty / malformed values render an empty placeholder.'}
+            </div>
+          </div>
+        )}
+
+        {/* Composite renderer params — line config */}
+        {column.cellRenderer === 'composite' && (
+          <CompositeParamsEditor
+            lines={column.cellRendererParams?.lines || []}
+            allColumns={allColumns}
+            onChange={lines => set('cellRendererParams', { ...column.cellRendererParams, lines })}
+          />
+        )}
+
+        {/* Dual Value renderer params */}
+        {column.cellRenderer === 'dualValue' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row">
+              <label className="tcs-label">Secondary Field</label>
+              <select className="tcs-select"
+                value={column.cellRendererParams?.secondaryField || ''}
+                onChange={e => set('cellRendererParams', {
+                  ...column.cellRendererParams,
+                  secondaryField: e.target.value || null,
+                })}
+              >
+                <option value="">(none)</option>
+                {allColumns.map(c => (
+                  <option key={c.column_name} value={c.column_name}>
+                    {c.display_name || c.column_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Format</label>
+                <select className="tcs-select"
+                  value={column.cellRendererParams?.secondaryFormat || 'pct'}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    secondaryFormat: e.target.value,
+                  })}
+                >
+                  <option value="pct">Percentage</option>
+                  <option value="number">Number</option>
+                  <option value="raw">Raw text</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Alignment */}
+        <div className="tcs-row">
+          <label className="tcs-label">Alignment</label>
+          <div className="tcs-btn-group">
+            {['left', 'center', 'right'].map(a => (
+              <button key={a} type="button"
+                className={`tcs-btn-toggle ${(column.cellStyle?.textAlign || 'left') === a ? 'tcs-btn-toggle--active' : ''}`}
+                onClick={() => set('cellStyle', a !== 'left' ? { textAlign: a } : null)}
+              >
+                {a.charAt(0).toUpperCase() + a.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="tcs-row">
+          <label className="tcs-label">Pinned</label>
+          <select className="tcs-select"
+            value={column.pinned || ''}
+            onChange={e => set('pinned', e.target.value || null)}
+          >
+            {PINNED_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* ═══ BEHAVIOR (collapsible) ═══ */}
+      <div className="tcs-section-collapsible">
+        <button type="button" className="tcs-section-toggle"
+          onClick={() => setShowBehavior(!showBehavior)}>
+          <i className={`fa fa-chevron-${showBehavior ? 'down' : 'right'} me-1`} />
+          Behavior
+        </button>
+        {showBehavior && (
+          <div className="tcs-section-body">
+            <div className="tcs-row-inline">
+              <label className="tcs-label tcs-label--inline">
+                <input type="checkbox" checked={column.sortable !== false}
+                  onChange={e => set('sortable', e.target.checked)} />
+                Sortable
+              </label>
+              <label className="tcs-label tcs-label--inline">
+                <input type="checkbox" checked={column.resizable !== false}
+                  onChange={e => set('resizable', e.target.checked)} />
+                Resizable
+              </label>
+              <label className="tcs-label tcs-label--inline">
+                <input type="checkbox" checked={!column.hide}
+                  onChange={e => set('hide', !e.target.checked)} />
+                Visible
+              </label>
+              <label className="tcs-label tcs-label--inline">
+                <input type="checkbox" checked={!!column.wrapText}
+                  onChange={e => set('wrapText', e.target.checked)} />
+                Wrap Text
+              </label>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Default Sort</label>
+                <select className="tcs-select"
+                  value={column.sort || ''}
+                  onChange={e => set('sort', e.target.value || null)}
+                >
+                  {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="tcs-label">Filter</label>
+                <select className="tcs-select"
+                  value={column.filter || ''}
+                  onChange={e => set('filter', e.target.value || false)}
+                >
+                  {FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="tcs-row">
+              <label className="tcs-label">Tooltip Field</label>
+              <select className="tcs-select"
+                value={column.tooltipField || ''}
+                onChange={e => set('tooltipField', e.target.value || null)}
+              >
+                <option value="">(none)</option>
+                {allColumns.map(c => (
+                  <option key={c.column_name} value={c.column_name}>
+                    {c.display_name || c.column_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tcs-row">
+              <label className="tcs-label">Header Tooltip</label>
+              <input type="text" className="tcs-input"
+                placeholder="Info text shown on column header hover"
+                value={column.headerTooltip || ''}
+                onChange={e => set('headerTooltip', e.target.value || null)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ═══ CONDITIONAL FORMATTING (collapsible) ═══ */}
+      <div className="tcs-section-collapsible">
+        <button type="button" className="tcs-section-toggle"
+          onClick={() => setShowFormatting(!showFormatting)}>
+          <i className={`fa fa-chevron-${showFormatting ? 'down' : 'right'} me-1`} />
+          Conditional Formatting {rules.length > 0 && `(${rules.length})`}
+        </button>
+        {showFormatting && (
+          <div className="tcs-section-body">
+            {rules.map(([cls, cond], ri) => (
+              <div key={ri} className="tcs-rule-row">
+                <select className="tcs-select tcs-select--sm"
+                  value={cls}
+                  onChange={e => updateRule(cls, e.target.value, cond)}
+                >
+                  {CSS_CLASS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <span className="tcs-rule-when">when</span>
+                <input type="text" className="tcs-input tcs-input--sm"
+                  value={cond}
+                  onChange={e => updateRule(cls, cls, e.target.value)}
+                  placeholder="x >= 70"
+                />
+                <button type="button" className="tcs-remove-btn"
+                  onClick={() => removeRule(cls)}>
+                  <i className="fa fa-times" />
+                </button>
+              </div>
+            ))}
+            <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={addRule}>
+              <i className="fa fa-plus me-1" /> Add Rule
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ═══ CLICK ACTION (collapsible) ═══ */}
+      <div className="tcs-section-collapsible">
+        <button type="button" className="tcs-section-toggle"
+          onClick={() => setShowClickAction(!showClickAction)}>
+          <i className={`fa fa-chevron-${showClickAction ? 'down' : 'right'} me-1`} />
+          Click Action {column.clickAction !== 'none' && column.clickAction ? `(${column.clickAction})` : ''}
+        </button>
+        {showClickAction && (
+          <div className="tcs-section-body">
+            <div className="tcs-row">
+              <label className="tcs-label">On Click</label>
+              <select className="tcs-select"
+                value={column.clickAction || 'none'}
+                onChange={e => set('clickAction', e.target.value)}
+              >
+                {CLICK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            {column.clickAction === 'go_to_page' && (
+              <>
+                <div className="tcs-row">
+                  <label className="tcs-label">Target Page Key</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionPageKey || ''}
+                    onChange={e => set('actionPageKey', e.target.value)}
+                    placeholder="e.g. hha_detail"
+                  />
+                </div>
+                <div className="tcs-row">
+                  <label className="tcs-label">Pass Value As</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionFilterParam || ''}
+                    onChange={e => set('actionFilterParam', e.target.value)}
+                    placeholder="e.g. hha_ccn"
+                  />
+                </div>
+                <div className="tcs-row">
+                  <label className="tcs-label">Value Field (from row data)</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionValueField || ''}
+                    onChange={e => set('actionValueField', e.target.value)}
+                    placeholder="Leave empty to use cell value"
+                  />
+                </div>
+              </>
+            )}
+            {column.clickAction === 'filter_page' && (
+              <>
+                <div className="tcs-row">
+                  <label className="tcs-label">Filter Param (URL key)</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionFilterParam || ''}
+                    onChange={e => set('actionFilterParam', e.target.value)}
+                    placeholder="e.g. hha_ccn"
+                  />
+                </div>
+                <div className="tcs-row">
+                  <label className="tcs-label">Value Field (from row data)</label>
+                  <input type="text" className="tcs-input"
+                    value={column.actionValueField || ''}
+                    onChange={e => set('actionValueField', e.target.value)}
+                    placeholder="Leave empty to use cell value"
+                  />
+                  <div className="tcs-help-text">
+                    Read the click value from a different SQL column in the row.
+                    E.g., display shows "147000 - VNA HEALTH CARE" but set this
+                    to hha_ccn to pass just "147000" as the filter value.
+                  </div>
+                </div>
+              </>
+            )}
+            {column.clickAction === 'open_url' && (
+              <div className="tcs-row">
+                <label className="tcs-label">URL Template</label>
+                <input type="text" className="tcs-input"
+                  value={column.actionUrlTemplate || ''}
+                  onChange={e => set('actionUrlTemplate', e.target.value)}
+                  placeholder="/my/posterra/hha/{value}"
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Composite Renderer: Line Editor ─────────────────────────────────────────
+// Lets admin configure multi-line composite cell: add/remove lines, pick
+// fields per line, set separator, bold/muted flags.
+function CompositeParamsEditor({ lines, allColumns, onChange }) {
+  const addLine = useCallback(() => {
+    onChange([...lines, { fields: [], separator: ' · ', bold: false, muted: false }])
+  }, [lines, onChange])
+
+  const removeLine = useCallback((index) => {
+    onChange(lines.filter((_, i) => i !== index))
+  }, [lines, onChange])
+
+  const updateLine = useCallback((index, key, value) => {
+    const updated = lines.map((line, i) =>
+      i === index ? { ...line, [key]: value } : line
+    )
+    onChange(updated)
+  }, [lines, onChange])
+
+  const toggleField = useCallback((lineIndex, fieldName) => {
+    const line = lines[lineIndex]
+    const fields = line.fields || []
+    const next = fields.includes(fieldName)
+      ? fields.filter(f => f !== fieldName)
+      : [...fields, fieldName]
+    updateLine(lineIndex, 'fields', next)
+  }, [lines, updateLine])
+
+  return (
+    <div className="tcs-renderer-params">
+      <label className="tcs-label" style={{ marginBottom: 4 }}>Lines</label>
+      {lines.map((line, li) => (
+        <div key={li} className="tcs-composite-line">
+          <div className="tcs-composite-line-header">
+            <span className="tcs-label" style={{ fontSize: 11 }}>Line {li + 1}</span>
+            <button type="button" className="tcs-remove-btn" onClick={() => removeLine(li)}>
+              <i className="fa fa-times" />
+            </button>
+          </div>
+          <div className="tcs-row" style={{ marginBottom: 4 }}>
+            <label className="tcs-label" style={{ fontSize: 11 }}>Fields (click to toggle)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {allColumns.map(c => {
+                const active = (line.fields || []).includes(c.column_name)
+                return (
+                  <button
+                    key={c.column_name}
+                    type="button"
+                    className={`tcs-btn-toggle ${active ? 'tcs-btn-toggle--active' : ''}`}
+                    style={{ fontSize: 10, padding: '1px 6px' }}
+                    onClick={() => toggleField(li, c.column_name)}
+                  >
+                    {c.display_name || c.column_name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div className="tcs-row-inline" style={{ gap: 6 }}>
+            <div>
+              <label className="tcs-label" style={{ fontSize: 11 }}>Separator</label>
+              <input type="text" className="tcs-input tcs-input--narrow"
+                value={line.separator || ''}
+                onChange={e => updateLine(li, 'separator', e.target.value)}
+                placeholder=" · "
+              />
+            </div>
+            <div>
+              <label className="tcs-label" style={{ fontSize: 11 }}>Prefix</label>
+              <input type="text" className="tcs-input tcs-input--narrow"
+                value={line.prefix || ''}
+                onChange={e => updateLine(li, 'prefix', e.target.value)}
+                placeholder="CCN "
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 3 }}>
+            <label style={{ fontSize: 11, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!line.bold}
+                onChange={e => updateLine(li, 'bold', e.target.checked)} /> Bold
+            </label>
+            <label style={{ fontSize: 11, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!line.muted}
+                onChange={e => updateLine(li, 'muted', e.target.checked)} /> Muted
+            </label>
+            <label style={{ fontSize: 11, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!line.small}
+                onChange={e => updateLine(li, 'small', e.target.checked)} /> Small
+            </label>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={addLine}>
+        <i className="fa fa-plus me-1" /> Add Line
+      </button>
+    </div>
+  )
+}

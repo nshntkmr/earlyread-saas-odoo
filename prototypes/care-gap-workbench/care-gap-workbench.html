@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Care Gap Workbench — Posterra-native prototype (from Humana dashboard)</title>
+<style>
+/* ════════════════════════════════════════════════════════════════════════════
+   POSTERRA DESIGN TOKENS  (from posterra_portal/static/src/css/posterra.css)
+   ════════════════════════════════════════════════════════════════════════════ */
+:root{
+  --pv-primary:#0066cc; --pv-primary-dark:#004d99; --pv-primary-l:#e6f0fb;
+  --pv-sidebar-bg:#1a1f2e; --pv-sidebar-hover:#252b3d; --pv-sidebar-active:#0066cc;
+  --pv-sidebar-text:#a0aec0; --pv-sidebar-text-active:#fff; --pv-sidebar-w:230px;
+  --pv-header-bg:#fff; --pv-content-bg:#f8fafc;
+  --ink:#1a2332; --muted:#6b7280; --border:#e5e7eb;
+  --ok-bg:#d4edda; --ok-fg:#155724; --bad-bg:#f8d7da; --bad-fg:#721c24;
+  --warn-bg:#fff3cd; --warn-fg:#856404; --warn:#f59e0b;
+  --data-bg:#fef3c7; --data-fg:#92400e; --true-bg:#ede9fe; --true-fg:#5b21b6;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-lg:0 10px 25px rgba(0,0,0,.15);
+  --radius:10px;
+  --font:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--pv-content-bg);color:var(--ink);font-size:14px}
+
+/* ── App shell: dark sidebar + content ─────────────────────────────────────── */
+.app{display:flex;min-height:100vh}
+.sidebar{width:var(--pv-sidebar-w);min-width:var(--pv-sidebar-w);background:var(--pv-sidebar-bg);
+  color:var(--pv-sidebar-text);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.sb-brand{padding:18px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a3142}
+.sb-brand .logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#0066cc,#3b9aff);
+  display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px}
+.sb-brand .nm{font-weight:700;color:#fff;font-size:16px;letter-spacing:-.2px}
+.sb-brand .nm small{display:block;font-size:10px;font-weight:500;color:var(--pv-sidebar-text);letter-spacing:.04em}
+.sb-nav{padding:10px 0;flex:1}
+.sb-sec{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#5a6478;padding:14px 20px 6px}
+.sb-item{display:flex;align-items:center;gap:11px;padding:9px 20px;font-size:13.5px;cursor:pointer;
+  border-left:3px solid transparent;color:var(--pv-sidebar-text)}
+.sb-item:hover{background:var(--pv-sidebar-hover);color:var(--pv-sidebar-text-active)}
+.sb-item.active{background:var(--pv-sidebar-hover);color:#fff;border-left-color:var(--pv-sidebar-active)}
+.sb-item .ic{width:18px;text-align:center;opacity:.9}
+.sb-foot{padding:14px 20px;border-top:1px solid #2a3142;font-size:11px;color:#5a6478}
+
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* ── Top header ────────────────────────────────────────────────────────────── */
+.topbar{background:var(--pv-header-bg);border-bottom:1px solid var(--border);
+  padding:13px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  position:sticky;top:0;z-index:150;box-shadow:var(--shadow)}
+.tb-left .crumb{font-size:11px;color:var(--muted);margin-bottom:2px}
+.tb-left .crumb b{color:var(--pv-primary)}
+.tb-left .pg-title{font-size:18px;font-weight:700;letter-spacing:-.3px}
+.tb-right{display:flex;align-items:center;gap:12px}
+.live-badge{background:var(--pv-primary-l);color:var(--pv-primary-dark);border:1px solid #cfe2f7;
+  border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.annot-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);
+  border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;user-select:none;background:#fff}
+.annot-toggle:hover{border-color:var(--pv-primary);color:var(--pv-primary)}
+.annot-toggle .sw{width:30px;height:17px;border-radius:10px;background:#cbd5e1;position:relative;transition:background .15s}
+.annot-toggle .sw::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:left .15s}
+body.annot-on .annot-toggle{border-color:var(--pv-primary);color:var(--pv-primary)}
+body.annot-on .annot-toggle .sw{background:var(--pv-primary)}
+body.annot-on .annot-toggle .sw::after{left:15px}
+.capmap-btn{border:1px solid var(--pv-primary);background:var(--pv-primary);color:#fff;border-radius:8px;
+  padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
+.capmap-btn:hover{background:var(--pv-primary-dark)}
+
+.main{padding:20px 24px;max-width:1760px;margin:0 auto;width:100%}
+
+/* ── Filter bar ────────────────────────────────────────────────────────────── */
+.fbar{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:14px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:18px;position:relative}
+.fg{display:flex;flex-direction:column;gap:5px;position:relative}
+.fg.row{flex-direction:row;align-items:center;gap:8px}
+.flabel{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.fsel{border:1.5px solid var(--border);border-radius:7px;padding:8px 11px;font-size:13px;color:var(--ink);
+  background:#fff;cursor:pointer;outline:none;min-width:200px;transition:border .15s;font-family:var(--font)}
+.fsel:hover,.fsel:focus{border-color:var(--pv-primary)}
+.pilltabs{display:flex;gap:5px;flex-wrap:wrap}
+.pill{border:1.5px solid var(--border);border-radius:18px;padding:6px 14px;font-size:12px;font-weight:600;
+  cursor:pointer;background:#fff;color:var(--muted);transition:all .12s}
+.pill:hover{border-color:var(--pv-primary);color:var(--pv-primary)}
+.pill.active{background:var(--pv-primary);border-color:var(--pv-primary);color:#fff}
+.pill.dg.active{background:var(--warn);border-color:var(--warn)}
+.pill.tcg.active{background:#7c3aed;border-color:#7c3aed}
+.fdiv{width:1px;height:36px;background:var(--border)}
+.fbar .apply{margin-left:auto;border:1px solid var(--pv-primary);background:var(--pv-primary);color:#fff;
+  border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer}
+
+/* ── KPI strip ─────────────────────────────────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:13px;margin-bottom:18px;position:relative}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:15px 16px;
+  box-shadow:var(--shadow);border-top:3px solid var(--border);transition:transform .12s}
+.kpi:hover{transform:translateY(-2px)}
+.kpi.c-g{border-top-color:#16a34a}.kpi.c-b{border-top-color:var(--pv-primary)}
+.kpi.c-r{border-top-color:#dc2626}.kpi.c-o{border-top-color:var(--warn)}
+.kpi.c-t{border-top-color:#0891b2}.kpi.c-d{border-top-color:#d97706}.kpi.c-p{border-top-color:#7c3aed}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
+.kpi-val{font-size:27px;font-weight:800;line-height:1}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px}
+
+/* ── Section / table card ──────────────────────────────────────────────────── */
+.sec{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);position:relative}
+.sec-hdr{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+  justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sec-title{font-size:15px;font-weight:700}
+.sec-meta{font-size:12px;color:var(--muted);margin-top:1px}
+.srch-wrap{position:relative}
+.srch-inp{border:1.5px solid var(--border);border-radius:7px;padding:8px 12px 8px 34px;font-size:13px;width:280px;
+  outline:none;font-family:var(--font);transition:border .15s}
+.srch-inp:focus{border-color:var(--pv-primary)}
+.srch-ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px}
+
+/* ── Table (AG-Grid Quartz-ish) ────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;max-height:560px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{position:sticky;top:0;background:#f8fafc;z-index:10}
+th{padding:11px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
+th:hover{color:var(--pv-primary)}
+th .arr{opacity:.4;font-size:9px}
+td{padding:10px 14px;border-bottom:1px solid #f1f3f6;vertical-align:middle}
+tbody tr{cursor:pointer;transition:background .1s}
+tbody tr:hover{background:var(--pv-primary-l)}
+tbody tr.sel{background:#d6e9fb}
+
+/* badges (badge renderer) */
+.bdg{display:inline-block;border-radius:16px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+.bdg-ok{background:var(--ok-bg);color:var(--ok-fg)}
+.bdg-bad{background:var(--bad-bg);color:var(--bad-fg)}
+.bdg-pa{background:var(--bad-bg);color:var(--bad-fg);border:1px solid #f5c6cb}
+.bdg-pb{background:var(--warn-bg);color:var(--warn-fg);border:1px solid #ffeeba}
+.bdg-data{background:var(--data-bg);color:var(--data-fg)}
+.bdg-true{background:var(--true-bg);color:var(--true-fg)}
+.bdg-mixed{background:#fde68a;color:#92400e}
+.mcat{font-weight:700;color:var(--pv-primary);font-size:12px}
+.stars{color:var(--warn);font-size:12.5px;white-space:nowrap}
+
+/* monthly dot-strip (sparkline-variant renderer) */
+.dotstrip{display:inline-flex;gap:2px}
+.dot{width:14px;height:14px;border-radius:3px;font-size:0;display:inline-block}
+.dot.ok{background:#16a34a}.dot.bad{background:#dc2626}.dot.na{background:#e5e7eb}
+.dotstrip.lg .dot{width:auto;height:auto;font-size:11px;font-weight:700;border-radius:5px;padding:3px 8px;color:#fff}
+.dotstrip.lg .dot.ok{background:#d4edda;color:#155724}
+.dotstrip.lg .dot.bad{background:#f8d7da;color:#721c24}
+.dotstrip.lg .dot.na{background:#f3f4f6;color:#9ca3af}
+
+/* pagination */
+.pgn{padding:12px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.pgi{font-size:12px;color:var(--muted)}
+.pgbtns{display:flex;gap:4px}
+.pgb{border:1px solid var(--border);border-radius:6px;padding:5px 11px;font-size:12px;cursor:pointer;background:#fff}
+.pgb:hover{border-color:var(--pv-primary);color:var(--pv-primary)}
+.pgb.act{background:var(--pv-primary);border-color:var(--pv-primary);color:#fff}
+.pgb:disabled{opacity:.4;cursor:not-allowed}
+.empty{text-align:center;padding:50px;color:var(--muted)}
+
+/* ── Member-360 drawer ─────────────────────────────────────────────────────── */
+.ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:400;justify-content:flex-end}
+.ovl.show{display:flex}
+.panel{background:#fff;width:560px;max-width:100vw;height:100vh;overflow-y:auto;box-shadow:-6px 0 30px rgba(0,0,0,.25);
+  animation:slideIn .24s ease}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.ph{background:linear-gradient(135deg,var(--pv-primary-dark),var(--pv-primary));color:#fff;padding:18px 20px;
+  display:flex;align-items:flex-start;justify-content:space-between;position:sticky;top:0;z-index:10}
+.ph-title{font-size:17px;font-weight:700}
+.ph-sub{font-size:11.5px;opacity:.85;margin-top:3px}
+.ph-close{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:16px;cursor:pointer;
+  width:30px;height:30px;border-radius:7px;line-height:1}
+.ph-close:hover{background:rgba(255,255,255,.28)}
+.pb{padding:20px}
+.ds{margin-bottom:22px}
+.ds-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--pv-primary);
+  margin-bottom:11px;padding-bottom:6px;border-bottom:2px solid var(--pv-primary-l)}
+.dg{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.di-lbl{font-size:11px;color:var(--muted);margin-bottom:2px}
+.di-val{font-size:13px;font-weight:600}
+.flags{display:flex;flex-wrap:wrap;gap:6px}
+.flag{border-radius:6px;padding:4px 11px;font-size:11px;font-weight:700}
+.flag-y{background:var(--warn-bg);color:var(--warn-fg)}
+.flag-n{background:#f3f4f6;color:#9ca3af}
+.mc{border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:11px}
+.mc:hover{border-color:var(--pv-primary)}
+.mc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px}
+.mc-cat{font-weight:800;font-size:15px;color:var(--pv-primary)}
+.mc-desc{font-size:12px;color:var(--muted);margin-bottom:9px;line-height:1.4}
+.alert{border-radius:7px;padding:10px 12px;margin-top:8px;font-size:12px;line-height:1.45}
+.alert-err{background:var(--bad-bg);border-left:3px solid #dc2626}
+.alert-err .at{color:#c62828;font-weight:700;margin-bottom:3px}
+.alert-warn{background:var(--warn-bg);border-left:3px solid var(--warn)}
+.alert-warn .at{color:var(--warn-fg);font-weight:700;margin-bottom:3px}
+.mc-detail{font-size:12px;margin-top:6px;line-height:1.5}
+.mc-detail-muted{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.45}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ANNOTATION LAYER  (toggle: maps each region → Posterra capability)
+   ════════════════════════════════════════════════════════════════════════════ */
+.cap-chip{display:none}
+body.annot-on [data-cap]{outline:2px dashed transparent;outline-offset:3px;border-radius:var(--radius)}
+body.annot-on [data-cap]{outline-color:#94a3b8}
+body.annot-on [data-status="ok"]{outline-color:#16a34a}
+body.annot-on [data-status="partial"]{outline-color:var(--warn)}
+body.annot-on [data-status="gap"]{outline-color:#dc2626}
+body.annot-on .cap-chip{display:inline-flex;align-items:center;gap:5px;position:absolute;z-index:120;
+  top:-11px;left:12px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:2px 9px;
+  font-size:10.5px;font-weight:700;box-shadow:var(--shadow);white-space:nowrap}
+.cap-chip .tag{font-size:9px;font-weight:800;padding:1px 5px;border-radius:7px}
+.cap-chip.ok .tag{background:#dcfce7;color:#166534}
+.cap-chip.partial .tag{background:var(--warn-bg);color:var(--warn-fg)}
+.cap-chip.gap .tag{background:var(--bad-bg);color:var(--bad-fg)}
+
+/* ── Capability-map drawer ─────────────────────────────────────────────────── */
+.cm-ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;justify-content:flex-end}
+.cm-ovl.show{display:flex}
+.cm-panel{background:#fff;width:620px;max-width:100vw;height:100vh;overflow-y:auto;box-shadow:-6px 0 30px rgba(0,0,0,.25);animation:slideIn .24s ease}
+.cm-head{background:#1a1f2e;color:#fff;padding:18px 22px;display:flex;justify-content:space-between;align-items:flex-start;position:sticky;top:0;z-index:5}
+.cm-head h2{font-size:17px;font-weight:700}
+.cm-head p{font-size:12px;color:#a0aec0;margin-top:3px;max-width:460px;line-height:1.45}
+.cm-body{padding:20px 22px}
+.cm-legend{display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.cm-legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:600}
+.cm-legend i{width:12px;height:12px;border-radius:4px;display:inline-block}
+.cm-item{border:1px solid var(--border);border-radius:9px;padding:13px 15px;margin-bottom:10px;border-left-width:4px}
+.cm-item.ok{border-left-color:#16a34a}.cm-item.partial{border-left-color:var(--warn)}.cm-item.gap{border-left-color:#dc2626}
+.cm-item .cm-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:5px}
+.cm-item .cm-el{font-size:13.5px;font-weight:700}
+.cm-item .cm-st{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:8px;white-space:nowrap}
+.cm-item.ok .cm-st{background:#dcfce7;color:#166534}
+.cm-item.partial .cm-st{background:var(--warn-bg);color:var(--warn-fg)}
+.cm-item.gap .cm-st{background:var(--bad-bg);color:var(--bad-fg)}
+.cm-item .cm-map{font-size:12px;color:var(--ink);line-height:1.5}
+.cm-item .cm-map b{color:var(--pv-primary)}
+.cm-item .cm-note{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+.cm-summary{background:var(--pv-primary-l);border:1px solid #cfe2f7;border-radius:9px;padding:14px 16px;margin-bottom:18px;font-size:12.5px;line-height:1.5}
+.cm-summary b{color:var(--pv-primary-dark)}
+.cm-phase{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:18px 0 8px}
+
+@media(max-width:1100px){.kpi-row{grid-template-columns:repeat(4,1fr)}.sidebar{display:none}}
+@media(max-width:680px){.kpi-row{grid-template-columns:repeat(2,1fr)}.panel,.cm-panel{width:100vw}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ── Sidebar (Posterra chrome) ─────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="logo">P</div>
+      <div class="nm">Posterra<small>Humana · Quality</small></div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-sec">Analytics</div>
+      <div class="sb-item"><span class="ic">▦</span> Overview</div>
+      <div class="sb-item active"><span class="ic">◉</span> Care Gap Workbench</div>
+      <div class="sb-item"><span class="ic">👤</span> Member 360</div>
+      <div class="sb-item"><span class="ic">★</span> Stars &amp; HEDIS</div>
+      <div class="sb-item"><span class="ic">▤</span> Plan Performance</div>
+      <div class="sb-sec">Admin</div>
+      <div class="sb-item"><span class="ic">⚙</span> Page Builder</div>
+      <div class="sb-item"><span class="ic">⛃</span> Data Sources</div>
+    </nav>
+    <div class="sb-foot">posterra · multi-tenant SaaS<br>Odoo 19 · React · ClickHouse</div>
+  </aside>
+
+  <!-- ── Content ───────────────────────────────────────────────────────────── -->
+  <div class="content">
+    <header class="topbar">
+      <div class="tb-left">
+        <div class="crumb"><b>Humana</b> ▸ Quality ▸ Care Gap Workbench</div>
+        <div class="pg-title">Patient Member Dashboard</div>
+      </div>
+      <div class="tb-right">
+        <div class="live-badge" id="liveBadge">Loading…</div>
+        <div class="annot-toggle" id="annotToggle"><span class="sw"></span> Capability overlay</div>
+        <button class="capmap-btn" id="capmapBtn">Capability map ▸</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- ── Filter bar ──────────────────────────────────────────────────────── -->
+      <div class="fbar" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> dashboard.page.filter · cascade + multiselect</span>
+        <div class="fg">
+          <span class="flabel">Plan</span>
+          <select class="fsel" id="planSel"><option value="">All Plans</option></select>
+        </div>
+        <div class="fdiv"></div>
+        <div class="fg">
+          <span class="flabel">Measure</span>
+          <select class="fsel" id="measSel"><option value="">All Measures</option></select>
+        </div>
+        <div class="fdiv"></div>
+        <div class="fg" data-cap data-status="partial">
+          <span class="cap-chip partial"><span class="tag">DISPLAY GAP</span> filter exists · pill-tab render is new</span>
+          <span class="flabel">Month</span>
+          <div class="pilltabs" id="mtabs"><div class="pill active" data-m="">All 2026</div></div>
+        </div>
+        <div class="fdiv"></div>
+        <div class="fg" data-cap data-status="partial">
+          <span class="cap-chip partial"><span class="tag">SQL DERIVED</span> classifyGap() → CASE expr</span>
+          <span class="flabel">Gap Type</span>
+          <div class="pilltabs" id="gtabs">
+            <div class="pill active" data-g="">All Gaps</div>
+            <div class="pill dg" data-g="Data Gap">Data Gap</div>
+            <div class="pill tcg" data-g="True Care Gap">True Care Gap</div>
+          </div>
+        </div>
+        <button class="apply" title="Posterra: Apply pushes all filter values to URL">Apply</button>
+      </div>
+
+      <!-- ── KPI strip ───────────────────────────────────────────────────────── -->
+      <div class="kpi-row" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> KPI Strip widget (kpi_style=kpi_strip)</span>
+        <div class="kpi c-g"><div class="kpi-lbl">Total Eligible</div><div class="kpi-val" id="kTotal">—</div><div class="kpi-sub">Unique members</div></div>
+        <div class="kpi c-b"><div class="kpi-lbl">Compliant</div><div class="kpi-val" id="kComp">—</div><div class="kpi-sub">Meeting measure</div></div>
+        <div class="kpi c-r"><div class="kpi-lbl">Non-Compliant</div><div class="kpi-val" id="kNon">—</div><div class="kpi-sub">With open gaps</div></div>
+        <div class="kpi c-o"><div class="kpi-lbl">Compliance Rate</div><div class="kpi-val" id="kRate">—</div><div class="kpi-sub">Of eligible</div></div>
+        <div class="kpi c-t"><div class="kpi-lbl">Open Gaps</div><div class="kpi-val" id="kGaps">—</div><div class="kpi-sub">Total care gaps</div></div>
+        <div class="kpi c-d"><div class="kpi-lbl">Data Gaps</div><div class="kpi-val" id="kDG">—</div><div class="kpi-sub">Chase records</div></div>
+        <div class="kpi c-p"><div class="kpi-lbl">True Care Gaps</div><div class="kpi-val" id="kTCG">—</div><div class="kpi-sub">Outreach needed</div></div>
+      </div>
+
+      <!-- ── Patient report card ─────────────────────────────────────────────── -->
+      <div class="sec" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> DataTable widget · AG Grid + badge/star/sparkline renderers</span>
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Patient Report Card</div>
+            <div class="sec-meta" id="secMeta">Click any row to open the Member 360 drawer</div>
+          </div>
+          <div class="srch-wrap">
+            <span class="srch-ico">🔍</span>
+            <input class="srch-inp" type="search" id="srch" placeholder="Search Member ID, HUM ID…">
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr id="thead"></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div class="empty" id="emptyEl" style="display:none">No members match the current filters</div>
+        </div>
+        <div class="pgn"><div class="pgi" id="pgi"></div><div class="pgbtns" id="pgbtns"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Member-360 drawer ───────────────────────────────────────────────────── -->
+<div class="ovl" id="ovl">
+  <div class="panel" data-cap data-status="gap">
+    <span class="cap-chip gap"><span class="tag">NEW</span> Member-360 drawer — DrillDownModal is a center modal today</span>
+    <div class="ph">
+      <div><div class="ph-title" id="ptitle">Member Details</div><div class="ph-sub" id="psub"></div></div>
+      <button class="ph-close" id="phClose">✕</button>
+    </div>
+    <div class="pb" id="pbody"></div>
+  </div>
+</div>
+
+<!-- ── Capability-map drawer ───────────────────────────────────────────────── -->
+<div class="cm-ovl" id="cmOvl">
+  <div class="cm-panel">
+    <div class="cm-head">
+      <div>
+        <h2>Capability Map — Humana dashboard → Posterra</h2>
+        <p>Every element of the source dashboard mapped to a current platform capability. Toggle "Capability overlay" on the page to see these in context.</p>
+      </div>
+      <button class="ph-close" id="cmClose" style="background:rgba(255,255,255,.15)">✕</button>
+    </div>
+    <div class="cm-body" id="cmBody"></div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   MOCK DATA  (source file had 5 rows for 1 member — synthesizing a realistic set)
+   Shape mirrors the Humana export columns exactly.
+   ════════════════════════════════════════════════════════════════════════════ */
+function lcg(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/4294967296;}}
+const rng=lcg(20260627);
+const pick=a=>a[Math.floor(rng()*a.length)];
+
+const PLANS=[
+  {nbr:'H5216',name:'HUMANA INSURANCE COMPANY',c:3.5,d:3,o:3.5},
+  {nbr:'H1036',name:'HUMANA MEDICAL PLAN INC',c:4,d:3.5,o:4},
+  {nbr:'H2649',name:'HUMANA HEALTH PLAN INC',c:4.5,d:4,o:4.5},
+  {nbr:'H0028',name:'HUMANA BENEFIT PLAN OF TEXAS',c:3,d:3.5,o:3},
+];
+const MEASURES=[
+  {cat:'KED',desc:'Kidney Health Evaluation for Patients With Diabetes'},
+  {cat:'EED',desc:'Eye Exam for Patients With Diabetes'},
+  {cat:'CBP',desc:'Controlling High Blood Pressure'},
+  {cat:'SUPD',desc:'Statin Use in Persons With Diabetes'},
+  {cat:'BCS',desc:'Breast Cancer Screening'},
+  {cat:'GSD',desc:'Glycemic Status Assessment for Patients With Diabetes'},
+  {cat:'COA',desc:'Care for Older Adults — Functional Status'},
+];
+const STATES=['KY','FL','TX','OH','GA','IN','TN','NC','IL','MI'];
+const MONTHS=[202601,202602,202603];
+const MONTH_LABELS={202601:'Jan',202602:'Feb',202603:'Mar',202604:'Apr',202605:'May',202606:'Jun',202607:'Jul',202608:'Aug',202609:'Sep',202610:'Oct',202611:'Nov',202612:'Dec'};
+
+// (reason, cta) pairs engineered to exercise the classifyGap() branches
+const TRUE_GAPS=[
+  ['Kidney filtration (blood eGFR) and damage (urine albumin and creatinine) tests outdated','Please consider a current eGFR and uACR test for the patient'],
+  ['Current kidney blood eGFR filtration test but no kidney damage (urine) testing in the measure year','Please consider a current uACR test for the patient'],
+  ['Diabetic member without a statin medication dispensed in the measure year','Please consider contacting the patient regarding statin therapy'],
+  ['Eye exam completed outside the required 30 day look-back window','Please consider a current retinal eye exam'],
+  ['Blood pressure reading more than 180 days old','Please consider a current in-office blood pressure reading'],
+  ['Urine tests not collected within 4 days apart as required by HEDIS','Please consider a current uACR test for the patient'],
+];
+const DATA_GAPS=[
+  ['Lab results unknown — claim received without a result value','Please provide the result via supplemental data feed'],
+  ['Specialist not verified in provider directory','No compliance action required — should show as compliant in a future report'],
+  ['Claim timing issue — service date precedes enrollment','No further action needed — should be excluded in a future report'],
+  ['Data connection issue with the lab vendor','Connection issue — please consider submitting supplemental data'],
+  ['Optional exclusion could not be validated from available data','No compliance action required'],
+];
+
+function humId(i){return 'HHHH'+(2116900+i);}
+const DATA=[];
+let mid=100000001;
+const N_MEMBERS=58;
+for(let i=0;i<N_MEMBERS;i++){
+  const plan=pick(PLANS), st=pick(STATES), gender=rng()<0.55?'F':'M';
+  const persKey=1035004228000+i;
+  const nMeas=1+Math.floor(rng()*3);
+  const memMeasures=[...MEASURES].sort(()=>rng()-0.5).slice(0,nMeas);
+  const flags={li:rng()<0.3?1:0,md:rng()<0.18?1:0,qd:rng()<0.15?1:0,srf:rng()<0.22?1:0};
+  const openGapsBase=Math.floor(rng()*7);
+  memMeasures.forEach((m,mi)=>{
+    // member-measure compliance trajectory across the 3 months
+    const baseCompliant=rng()<0.46;                 // some are fully compliant
+    const gapIsData=rng()<0.42;
+    const pair=gapIsData?pick(DATA_GAPS):pick(TRUE_GAPS);
+    const priA=!baseCompliant&&rng()<0.3, priB=!baseCompliant&&!priA&&rng()<0.35;
+    MONTHS.forEach((ym,moi)=>{
+      // late months sometimes resolve
+      const resolved=baseCompliant || (moi===2 && rng()<0.25);
+      const compliant=resolved?1:0;
+      DATA.push({
+        PROGRAM:'Upper', PERS_GEN_KEY:persKey, HUM_ID:humId(i*10+mi),
+        GENDER:gender, ST:st, MCO_CONTRACT_NBR:plan.nbr, CONTRACT_NAME:plan.name,
+        ORGANIZATION_MARKETING_NAME:'Humana', PARENT_ORGANIZATION:'Humana Inc',
+        MEASURE_TYPE:'HEDIS', MEASURE_DESC:m.desc, MEASURE_CAT:m.cat,
+        COMPLIANT_CNT:compliant, ELIGIBLE_CNT:1,
+        SUGGESTED_CALL_TO_ACTION:compliant?null:pair[1],
+        NON_COMPLIANCE_REASON:compliant?null:pair[0],
+        ADDITIONAL_GAP_INFORMATION:compliant?null:'Most Recent eGFR Test Date: 12/03/2025; Urine Lab Tests with Service Dates <= 4 Days Apart?: No;',
+        EVENT_SERVICE_DATE:compliant?('2025-12-0'+(1+Math.floor(rng()*8))):null,
+        LATEST_TEST_DATE:null,
+        PARTD_LOW_INCOME_IND:flags.li||null, MEDICAID_ELIGIBLE_IND:flags.md||null,
+        QUALIFIED_DISABLED_IND:flags.qd||null, SRF_IND:flags.srf||null,
+        OPEN_GAPS:openGapsBase, PRIORITY_A:priA?1:null, PRIORITY_B:priB?1:null,
+        SRC_MBR_ID:mid, YEAR_MONTH:ym,
+        PART_C_RATING:plan.c, PART_D_RATING:plan.d, OVERALL_RATING:plan.o,
+      });
+    });
+  });
+  mid++;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   APP LOGIC  (ported from the Humana file; same grouping + classifyGap rules)
+   ════════════════════════════════════════════════════════════════════════════ */
+let plan='',measure='',month='',search='',page=1,sortK=null,sortA=true,gapFilter='';
+const PG=15; let patients=[];
+
+const COLS=[
+  {k:'SRC_MBR_ID',h:'Member ID'},{k:'HUM_ID',h:'HUM ID'},{k:'GENDER',h:'Gender'},
+  {k:'ST',h:'State'},{k:'CONTRACT_NAME',h:'Plan'},{k:null,h:'Measure(s)'},
+  {k:null,h:'2026 Trend'},{k:'COMPLIANT',h:'Status'},{k:null,h:'Gap Type'},
+  {k:'OPEN_GAPS',h:'Open Gaps'},{k:'PRIORITY',h:'Priority'},{k:'EVENT_SERVICE_DATE',h:'Last Event'},
+];
+
+function classifyGap(r){
+  const cta=(r.SUGGESTED_CALL_TO_ACTION||'').toLowerCase();
+  const ncr=(r.NON_COMPLIANCE_REASON||'').toLowerCase();
+  if(r.COMPLIANT_CNT===1)return'No Gap';
+  if(ncr.includes('outside')&&ncr.includes('30')&&ncr.includes('day'))return'True Care Gap';
+  if(ncr.includes('more than 180 days'))return'True Care Gap';
+  if(ncr.includes('urine tests not')&&ncr.includes('4 days apart'))return'True Care Gap';
+  if(ncr.includes('no urine creatinine test')||ncr.includes('no urine albumin test')||
+    (ncr.includes('no kidney damage')&&ncr.includes('urine')&&ncr.includes('testing')))return'True Care Gap';
+  if(cta.includes('no further action needed')||(cta.includes('should show as compliant in')&&cta.includes('future report'))||
+    (cta.includes('should be excluded in')&&cta.includes('future report'))||cta.includes('please provide')||
+    cta.includes('connection issue')||cta.includes('no compliance action required')||cta.includes('please consider submitting')||
+    ncr.includes('results unknown')||ncr.includes('specialist not verified')||ncr.includes('could not be validated')||
+    ncr.includes('optional exclusion')||(ncr.includes('timing')&&ncr.includes('claim'))||ncr.includes('data connection'))return'Data Gap';
+  if(ncr.includes('no statin')||ncr.includes('without a statin')||(cta.includes('please consider')&&cta.includes('statin'))||
+    cta.includes('please consider contacting the patient')||cta.includes('please consider a current'))return'True Care Gap';
+  if(r.COMPLIANT_CNT===0)return'True Care Gap';
+  return'Unknown';
+}
+
+function buildPlanFilter(){
+  const m={}; DATA.forEach(r=>m[r.MCO_CONTRACT_NBR]=r.CONTRACT_NAME);
+  const sel=document.getElementById('planSel');
+  Object.keys(m).sort().forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' — '+m[k];sel.appendChild(o);});
+  sel.addEventListener('change',e=>{plan=e.target.value;page=1;buildMeasureFilter();filter();});
+}
+function buildMeasureFilter(){
+  const m={}; DATA.filter(r=>!plan||r.MCO_CONTRACT_NBR===plan).forEach(r=>m[r.MEASURE_CAT]=r.MEASURE_DESC);
+  const sel=document.getElementById('measSel');
+  sel.innerHTML='<option value="">All Measures</option>';
+  Object.keys(m).sort().forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' — '+m[k];sel.appendChild(o);});
+  if(!m[measure])measure=''; sel.value=measure;
+  sel.onchange=e=>{measure=e.target.value;page=1;filter();};
+}
+function buildMonthTabs(){
+  const months=[...new Set(DATA.map(r=>r.YEAR_MONTH))].sort();
+  const ct=document.getElementById('mtabs');
+  months.forEach(mm=>{const d=document.createElement('div');d.className='pill';d.dataset.m=mm;
+    d.textContent=(MONTH_LABELS[mm]||mm)+" '26";
+    d.onclick=()=>{month=String(mm);page=1;syncPills('mtabs',String(mm),'m');filter();};ct.appendChild(d);});
+  ct.querySelector('[data-m=""]').onclick=()=>{month='';page=1;syncPills('mtabs','','m');filter();};
+}
+function syncPills(id,val,attr){document.querySelectorAll('#'+id+' .pill').forEach(t=>t.classList.toggle('active',String(t.dataset[attr])===String(val)));}
+
+function filter(){
+  buildMeasureFilter();
+  const rows=DATA.filter(r=>{
+    if(plan&&r.MCO_CONTRACT_NBR!==plan)return false;
+    if(measure&&r.MEASURE_CAT!==measure)return false;
+    if(month&&String(r.YEAR_MONTH)!==String(month))return false;
+    return true;
+  });
+  const map={};
+  rows.forEach(r=>{
+    const k=String(r.SRC_MBR_ID);
+    if(!map[k])map[k]={SRC_MBR_ID:r.SRC_MBR_ID,HUM_ID:r.HUM_ID,PERS_GEN_KEY:r.PERS_GEN_KEY,GENDER:r.GENDER,ST:r.ST,
+      MCO_CONTRACT_NBR:r.MCO_CONTRACT_NBR,CONTRACT_NAME:r.CONTRACT_NAME,COMPLIANT:true,OPEN_GAPS:0,
+      PRIORITY_A:false,PRIORITY_B:false,MEASURES:new Set(),GAP_TYPES:new Set(),EVENT_SERVICE_DATE:null,_rows:[]};
+    const p=map[k]; p._rows.push(r); p.MEASURES.add(r.MEASURE_CAT);
+    if(r.COMPLIANT_CNT===0){p.COMPLIANT=false;p.GAP_TYPES.add(classifyGap(r));}
+    if((r.OPEN_GAPS||0)>p.OPEN_GAPS)p.OPEN_GAPS=r.OPEN_GAPS;
+    if(r.PRIORITY_A)p.PRIORITY_A=true; if(r.PRIORITY_B)p.PRIORITY_B=true;
+    if(r.EVENT_SERVICE_DATE&&(!p.EVENT_SERVICE_DATE||r.EVENT_SERVICE_DATE>p.EVENT_SERVICE_DATE))p.EVENT_SERVICE_DATE=r.EVENT_SERVICE_DATE;
+  });
+  patients=Object.values(map);
+  if(search)patients=patients.filter(p=>String(p.SRC_MBR_ID).includes(search)||String(p.HUM_ID||'').toLowerCase().includes(search)||String(p.PERS_GEN_KEY||'').includes(search));
+  if(gapFilter)patients=patients.filter(p=>!p.COMPLIANT&&p.GAP_TYPES.has(gapFilter));
+  updateKPIs();render();
+}
+
+function updateKPIs(){
+  const tot=patients.length, comp=patients.filter(p=>p.COMPLIANT).length, nc=tot-comp;
+  const rate=tot?((comp/tot)*100).toFixed(1):'0.0';
+  const gaps=patients.reduce((s,p)=>s+(p.OPEN_GAPS||0),0);
+  const dg=patients.filter(p=>!p.COMPLIANT&&p.GAP_TYPES.has('Data Gap')).length;
+  const tcg=patients.filter(p=>!p.COMPLIANT&&p.GAP_TYPES.has('True Care Gap')).length;
+  const set=(id,v)=>document.getElementById(id).textContent=v;
+  set('kTotal',tot.toLocaleString());set('kComp',comp.toLocaleString());set('kNon',nc.toLocaleString());
+  set('kRate',rate+'%');set('kGaps',gaps.toLocaleString());set('kDG',dg.toLocaleString());set('kTCG',tcg.toLocaleString());
+  document.getElementById('liveBadge').textContent=`${tot.toLocaleString()} Members · ${rate}% Compliant`;
+}
+
+function monthlyDots(p,small){
+  // overall member compliance per month (all measures compliant that month = ok)
+  const byMonth={};
+  p._rows.forEach(r=>{const k=r.YEAR_MONTH;if(!(k in byMonth))byMonth[k]=true;if(r.COMPLIANT_CNT===0)byMonth[k]=false;});
+  const cls=small?'dotstrip':'dotstrip lg';
+  return `<span class="${cls}">`+MONTHS.map(m=>{
+    const v=byMonth[m]; const c=v===undefined?'na':v?'ok':'bad';
+    return small?`<span class="dot ${c}" title="${MONTH_LABELS[m]}"></span>`:`<span class="dot ${c}">${MONTH_LABELS[m]}</span>`;
+  }).join('')+`</span>`;
+}
+
+function gapBadge(p){
+  const g=[...p.GAP_TYPES];
+  if(p.COMPLIANT)return '<span style="color:var(--muted)">—</span>';
+  if(g.includes('Data Gap')&&g.includes('True Care Gap'))return '<span class="bdg bdg-mixed">Mixed</span>';
+  if(g.includes('Data Gap'))return '<span class="bdg bdg-data">Data Gap</span>';
+  if(g.includes('True Care Gap'))return '<span class="bdg bdg-true">True Care Gap</span>';
+  return '<span style="color:var(--muted)">—</span>';
+}
+
+function render(){
+  // header
+  document.getElementById('thead').innerHTML=COLS.map(c=>{
+    const arr=sortK&&c.k===sortK?(sortA?' ▲':' ▼'):(c.k?' <span class="arr">⇅</span>':'');
+    return `<th data-k="${c.k||''}">${c.h}${arr}</th>`;
+  }).join('');
+  document.querySelectorAll('#thead th[data-k]').forEach(th=>{
+    if(!th.dataset.k)return;
+    th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortA=!sortA;else{sortK=k;sortA=true;}render();};
+  });
+
+  let ps=[...patients];
+  if(sortK)ps.sort((a,b)=>{let av=a[sortK]??'',bv=b[sortK]??'';if(typeof av==='boolean')av=av?1:0,bv=bv?1:0;
+    if(typeof av==='number')return sortA?av-bv:bv-av;return sortA?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));});
+  const tot=ps.length,pages=Math.max(1,Math.ceil(tot/PG));
+  if(page>pages)page=1;
+  const s=(page-1)*PG, pg=ps.slice(s,s+PG);
+  const tbody=document.getElementById('tbody'),empty=document.getElementById('emptyEl');
+  if(!pg.length){tbody.innerHTML='';empty.style.display='';}
+  else{empty.style.display='none';
+    tbody.innerHTML=pg.map(p=>{
+      const meas=[...p.MEASURES].join(', ');
+      const sb=p.COMPLIANT?'<span class="bdg bdg-ok">✓ Compliant</span>':'<span class="bdg bdg-bad">✗ Non-Compliant</span>';
+      const pb=p.PRIORITY_A?'<span class="bdg bdg-pa">Priority A</span>':p.PRIORITY_B?'<span class="bdg bdg-pb">Priority B</span>':'<span style="color:var(--muted)">—</span>';
+      const ed=p.EVENT_SERVICE_DATE?p.EVENT_SERVICE_DATE.slice(0,10):'—';
+      const gaps=p.OPEN_GAPS||0;
+      return `<tr data-id="${p.SRC_MBR_ID}">
+        <td><strong>${p.SRC_MBR_ID}</strong></td>
+        <td style="font-size:12px;color:var(--muted)">${p.HUM_ID||'—'}</td>
+        <td>${p.GENDER==='F'?'♀ F':'♂ M'}</td>
+        <td><strong>${p.ST}</strong></td>
+        <td style="font-size:12px">${(p.CONTRACT_NAME||'—').replace('HUMANA ','')}</td>
+        <td><span class="mcat">${meas}</span></td>
+        <td>${monthlyDots(p,true)}</td>
+        <td>${sb}</td>
+        <td>${gapBadge(p)}</td>
+        <td><strong style="color:${gaps>0?'#dc2626':'var(--muted)'};font-size:${gaps>0?'15':'13'}px">${gaps}</strong></td>
+        <td>${pb}</td>
+        <td style="font-size:12px;color:var(--muted)">${ed}</td>
+      </tr>`;
+    }).join('');
+    document.querySelectorAll('#tbody tr').forEach(tr=>tr.onclick=()=>openPat(tr.dataset.id));
+  }
+  document.getElementById('secMeta').textContent=tot?`${tot} member${tot!==1?'s':''} found · click a row for Member 360`:'No results';
+  document.getElementById('pgi').textContent=tot?`Showing ${s+1}–${Math.min(s+PG,tot)} of ${tot} members`:'';
+  let h=`<button class="pgb" ${page<=1?'disabled':''} data-p="${page-1}">‹</button>`;
+  let a=Math.max(1,page-3),b=Math.min(pages,a+6); if(b-a<6)a=Math.max(1,b-6);
+  for(let i=a;i<=b;i++)h+=`<button class="pgb ${i===page?'act':''}" data-p="${i}">${i}</button>`;
+  h+=`<button class="pgb" ${page>=pages?'disabled':''} data-p="${page+1}">›</button>`;
+  const pgb=document.getElementById('pgbtns');pgb.innerHTML=h;
+  pgb.querySelectorAll('.pgb').forEach(btn=>{if(!btn.disabled)btn.onclick=()=>{page=+btn.dataset.p;render();};});
+}
+
+/* ── Member-360 drawer ─────────────────────────────────────────────────────── */
+function star(v){if(!v)return'—';const f=Math.floor(v),h=v%1>=0.5?1:0;return'★'.repeat(f)+(h?'⯨':'')+'☆'.repeat(Math.max(0,5-f-h))+' '+v;}
+function flagPill(lbl,v){if(v===1)return`<div class="flag flag-y">✓ ${lbl}</div>`;return`<div class="flag flag-n">${lbl}: No</div>`;}
+
+function openPat(id){
+  const p=patients.find(x=>String(x.SRC_MBR_ID)===String(id)); if(!p)return;
+  document.querySelectorAll('#tbody tr').forEach(tr=>tr.classList.toggle('sel',tr.dataset.id===String(id)));
+  document.getElementById('ptitle').textContent='Member '+p.SRC_MBR_ID;
+  document.getElementById('psub').textContent=`${p.CONTRACT_NAME} · ${p.MCO_CONTRACT_NBR} · ${p.ST}`;
+  const r0=p._rows[0]||{};
+  const mg={}; p._rows.forEach(r=>{(mg[r.MEASURE_CAT]=mg[r.MEASURE_CAT]||[]).push(r);});
+  let html=`
+  <div class="ds"><div class="ds-title">Member Information</div><div class="dg">
+    <div><div class="di-lbl">Source Member ID</div><div class="di-val">${p.SRC_MBR_ID}</div></div>
+    <div><div class="di-lbl">HUM ID</div><div class="di-val">${p.HUM_ID||'—'}</div></div>
+    <div><div class="di-lbl">PERS GEN Key</div><div class="di-val" style="font-size:12px">${p.PERS_GEN_KEY}</div></div>
+    <div><div class="di-lbl">Gender</div><div class="di-val">${p.GENDER==='F'?'♀ Female':'♂ Male'}</div></div>
+    <div><div class="di-lbl">State</div><div class="di-val">${p.ST}</div></div>
+    <div><div class="di-lbl">Program</div><div class="di-val">${r0.PROGRAM||'—'}</div></div>
+  </div></div>
+  <div class="ds"><div class="ds-title">Plan Information</div><div class="dg">
+    <div><div class="di-lbl">Contract No.</div><div class="di-val">${p.MCO_CONTRACT_NBR}</div></div>
+    <div><div class="di-lbl">Plan Name</div><div class="di-val" style="font-size:12px">${p.CONTRACT_NAME}</div></div>
+    <div><div class="di-lbl">Organization</div><div class="di-val">${r0.ORGANIZATION_MARKETING_NAME}</div></div>
+    <div><div class="di-lbl">Parent Org</div><div class="di-val">${r0.PARENT_ORGANIZATION}</div></div>
+    <div><div class="di-lbl">Part C Rating</div><div class="di-val stars">${star(r0.PART_C_RATING)}</div></div>
+    <div><div class="di-lbl">Part D Rating</div><div class="di-val stars">${star(r0.PART_D_RATING)}</div></div>
+    <div><div class="di-lbl">Overall Rating</div><div class="di-val stars"><strong>${star(r0.OVERALL_RATING)}</strong></div></div>
+  </div></div>
+  <div class="ds"><div class="ds-title">Member Flags</div><div class="flags">
+    ${flagPill('Part D Low Income',r0.PARTD_LOW_INCOME_IND)}
+    ${flagPill('Medicaid Eligible',r0.MEDICAID_ELIGIBLE_IND)}
+    ${flagPill('Qualified Disabled',r0.QUALIFIED_DISABLED_IND)}
+    ${flagPill('SRF',r0.SRF_IND)}
+  </div></div>
+  <div class="ds"><div class="ds-title">Measures &amp; Gaps — 2026</div>
+  ${Object.entries(mg).map(([cat,crows])=>{
+    const allComp=crows.every(r=>r.COMPLIANT_CNT===1);
+    const maxGaps=Math.max(...crows.map(r=>r.OPEN_GAPS||0));
+    const nc=crows.find(r=>r.COMPLIANT_CNT===0)||crows[0];
+    const mm={}; crows.forEach(r=>{mm[r.YEAR_MONTH]=r.COMPLIANT_CNT===1;});
+    const dots=MONTHS.map(m=>{const v=mm[m];const c=v===undefined?'na':v?'ok':'bad';return `<span class="dot ${c}">${MONTH_LABELS[m]}</span>`;}).join('');
+    const pri=crows.find(r=>r.PRIORITY_A)?'Priority A':crows.find(r=>r.PRIORITY_B)?'Priority B':'';
+    return `<div class="mc">
+      <div class="mc-hdr"><span class="mc-cat">${cat}</span><div style="display:flex;gap:6px;align-items:center">
+        ${pri?`<span class="bdg ${pri==='Priority A'?'bdg-pa':'bdg-pb'}">${pri}</span>`:''}
+        <span class="bdg ${allComp?'bdg-ok':'bdg-bad'}">${allComp?'✓ Compliant':'✗ Non-Compliant'}</span></div></div>
+      <div class="mc-desc">${nc.MEASURE_DESC}</div>
+      ${maxGaps>0?`<div class="mc-detail" style="color:#dc2626">Open Gaps: <strong>${maxGaps}</strong></div>`:''}
+      <div class="dotstrip lg" style="margin:9px 0">${dots}</div>
+      ${nc.NON_COMPLIANCE_REASON?`<div class="alert alert-err"><div class="at">⚠ Non-Compliance Reason</div><div>${nc.NON_COMPLIANCE_REASON}</div></div>`:''}
+      ${nc.SUGGESTED_CALL_TO_ACTION?`<div class="alert alert-warn"><div class="at">📋 Recommended Action</div><div>${nc.SUGGESTED_CALL_TO_ACTION}</div></div>`:''}
+      ${nc.ADDITIONAL_GAP_INFORMATION&&!allComp?`<div class="mc-detail-muted">${nc.ADDITIONAL_GAP_INFORMATION}</div>`:''}
+    </div>`;
+  }).join('')}
+  </div>`;
+  document.getElementById('pbody').innerHTML=html;
+  document.getElementById('ovl').classList.add('show');
+}
+function closePanel(){document.getElementById('ovl').classList.remove('show');document.querySelectorAll('#tbody tr').forEach(t=>t.classList.remove('sel'));}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CAPABILITY MAP
+   ════════════════════════════════════════════════════════════════════════════ */
+const CAPMAP=[
+  {el:'App shell — sidebar nav, top header, page chrome',st:'ok',status:'EXISTS',
+   map:'Posterra portal layout. <b>dashboard.page</b> + nav, sticky white header, <b>#f8fafc</b> content. Config-driven per app/tenant.'},
+  {el:'Filter bar — Plan ▸ Measure cascade',st:'ok',status:'EXISTS',
+   map:'<b>dashboard.page.filter</b> records + <b>dashboard.filter.dependency</b> edges. Plan→Measure is a textbook cascade (source/target, resets_target).'},
+  {el:'Plan & Measure searchable dropdowns',st:'ok',status:'EXISTS',
+   map:'<b>SearchableSelect</b> / <b>MultiSelectDropdown</b>. include_all_option, multiselect CSV, default_strategy already supported.'},
+  {el:'Month + Gap Type pill-tabs',st:'partial',status:'DISPLAY GAP',
+   map:'Filter logic exists; today it renders as a dropdown. Pill-tab is a <b>new display variant</b> on the filter (a render flag), not new data plumbing.',
+   note:'Small front-end add: a "render_as: pills" flag on dashboard.page.filter → FilterBar branch.'},
+  {el:'7 KPI cards (Total/Compliant/Rate/Gaps…)',st:'ok',status:'EXISTS',
+   map:'<b>KPI Strip</b> widget (kpi_style = kpi_strip) — one SQL per KPI, accent border, sub-label. Click-to-filter optional.'},
+  {el:'Patient Report Card — table',st:'ok',status:'EXISTS',
+   map:'<b>DataTable</b> widget → AG Grid Community (themeQuartz). Sort, search, pagination, sticky header are built in.'},
+  {el:'Status / Priority / Gap-Type badges',st:'ok',status:'EXISTS',
+   map:'<b>badge</b> cell-renderer (renderers.jsx). cellClassRules map value→class. Mixed/Data/True styling = renderer params.'},
+  {el:'Star ratings (Part C/D/Overall)',st:'ok',status:'EXISTS',
+   map:'<b>starRating</b> cell-renderer — already shipped. Drop into the drawer / a plan column directly.'},
+  {el:'Gap-type classification (Data vs True Care)',st:'partial',status:'SQL DERIVED',
+   map:'<b>classifyGap()</b> text rules → a <b>CASE expression</b> in the widget SQL (or a derived column on the source). No hardcoding — fully config-driven.',
+   note:'Best as a materialized/derived column so KPIs, filter, and table all read one source of truth.'},
+  {el:'Monthly compliance dot-strip (Jan–Dec)',st:'partial',status:'RENDERER',
+   map:'Closest existing is the <b>sparkline</b> renderer. A <b>compliance dot-strip</b> is a new renderer variant (12 ok/bad/na cells) added to @posterra/grid-utils.',
+   note:'~1 new renderer in renderers.jsx; reused in table column AND drawer measure cards.'},
+  {el:'Member-360 slide-in drawer',st:'gap',status:'NEW',
+   map:'<b>DrillDownModal</b> exists but is a centered modal. The rich right-side drawer (Member/Plan/Flags/Measure cards) is <b>new UI</b> — driven by a per-row click action returning member detail SQL.',
+   note:'Biggest build item. Reuses the existing row click-action plumbing (Sprint 0 BD drill-down) for the data fetch.'},
+  {el:'Non-compliance reason / recommended action alerts',st:'ok',status:'EXISTS',
+   map:'Plain text fields from SQL rendered as alert blocks inside the drawer — same pattern as <b>InsightPanel</b> / Key Takeaways.'},
+  {el:'Live header badge (members · % compliant)',st:'ok',status:'EXISTS',
+   map:'<b>dashboard.page.badge</b> (get_value SQL) — page-level metric chip already supported.'},
+];
+
+function renderCapMap(){
+  const counts={ok:0,partial:0,gap:0}; CAPMAP.forEach(c=>counts[c.st]++);
+  const legend=`<div class="cm-legend">
+    <span><i style="background:#16a34a"></i> Exists (${counts.ok})</span>
+    <span><i style="background:var(--warn)"></i> Small add (${counts.partial})</span>
+    <span><i style="background:#dc2626"></i> New build (${counts.gap})</span></div>`;
+  const summary=`<div class="cm-summary"><b>Verdict:</b> ${counts.ok} of ${CAPMAP.length} elements are already shipped platform capabilities.
+    ${counts.partial} are small, config-driven additions (a filter render flag, a SQL CASE, one new cell-renderer).
+    Only <b>${counts.gap}</b> is genuinely new UI — the Member-360 drawer — and it reuses the existing row click-action plumbing.
+    This dashboard is buildable on the current system <b>with no new backend architecture</b>.</div>`;
+  const items=CAPMAP.map(c=>`<div class="cm-item ${c.st}"><div class="cm-top"><span class="cm-el">${c.el}</span>
+    <span class="cm-st">${c.status}</span></div><div class="cm-map">${c.map}</div>
+    ${c.note?`<div class="cm-note">↳ ${c.note}</div>`:''}</div>`).join('');
+  document.getElementById('cmBody').innerHTML=legend+summary
+    +`<div class="cm-phase">Element → capability</div>`+items
+    +`<div class="cm-phase">Suggested build order</div>
+      <div class="cm-item ok"><div class="cm-map"><b>Phase 1 (config only):</b> create the page, Plan▸Measure cascade filters, 7-KPI strip, DataTable with badge + starRating renderers, gap-type CASE column. → ~80% of the dashboard, zero new code.</div></div>
+      <div class="cm-item partial"><div class="cm-map"><b>Phase 2 (small front-end):</b> pill-tab filter render flag + compliance dot-strip renderer in @posterra/grid-utils (both apps rebuilt).</div></div>
+      <div class="cm-item gap"><div class="cm-map"><b>Phase 3 (new UI):</b> Member-360 right drawer wired to a per-row click action returning member-detail SQL.</div></div>`;
+}
+
+/* ── wire chrome ───────────────────────────────────────────────────────────── */
+document.getElementById('annotToggle').onclick=()=>document.body.classList.toggle('annot-on');
+document.getElementById('capmapBtn').onclick=()=>document.getElementById('cmOvl').classList.add('show');
+document.getElementById('cmClose').onclick=()=>document.getElementById('cmOvl').classList.remove('show');
+document.getElementById('cmOvl').onclick=e=>{if(e.target.id==='cmOvl')document.getElementById('cmOvl').classList.remove('show');};
+document.getElementById('phClose').onclick=closePanel;
+document.getElementById('ovl').onclick=e=>{if(e.target.id==='ovl')closePanel();};
+document.getElementById('srch').addEventListener('input',e=>{search=e.target.value.toLowerCase();page=1;filter();});
+document.querySelectorAll('#gtabs .pill').forEach(t=>t.onclick=()=>{gapFilter=t.dataset.g;page=1;syncPills('gtabs',t.dataset.g,'g');filter();});
+
+buildPlanFilter();buildMeasureFilter();buildMonthTabs();renderCapMap();filter();
+</script>
+</body>
+</html>

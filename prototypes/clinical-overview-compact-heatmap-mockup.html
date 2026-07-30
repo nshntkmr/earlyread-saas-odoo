@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clinical Overview Compact Heatmap Mockup</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --line: #dbe3ec;
+      --line-soft: #edf1f6;
+      --text: #0d1f34;
+      --muted: #607083;
+      --muted-2: #8a98aa;
+      --office: #4b5566;
+      --office-soft: #d7dce4;
+      --ip: #df3d66;
+      --ip-soft: #f9d7df;
+      --er: #e48920;
+      --er-soft: #f8dfbf;
+      --snf: #8652e6;
+      --snf-soft: #e4d8fb;
+      --active: #1f5fae;
+      --radius: 8px;
+      --shadow: 0 12px 30px rgba(20, 38, 61, .08);
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-width: 1024px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .page {
+      padding: 18px;
+    }
+
+    .widget {
+      max-width: 1380px;
+      margin: 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 58px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line-soft);
+      background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%);
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .legend-track {
+      display: grid;
+      grid-template-columns: repeat(4, 16px);
+      gap: 3px;
+      align-items: center;
+    }
+
+    .legend-track span {
+      height: 8px;
+      border-radius: 2px;
+      background: #e5e9ef;
+    }
+
+    .legend-track span:nth-child(2) {
+      background: #c7ced8;
+    }
+
+    .legend-track span:nth-child(3) {
+      background: #9fa8b5;
+    }
+
+    .legend-track span:nth-child(4) {
+      background: #657083;
+    }
+
+    .segmented {
+      display: inline-flex;
+      gap: 2px;
+      height: 32px;
+      padding: 3px;
+      border-radius: 9px;
+      background: #edf2f8;
+      box-shadow: inset 0 0 0 1px rgba(210, 219, 230, .75);
+    }
+
+    .segmented button {
+      height: 26px;
+      min-width: 66px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #3f4e63;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 1px 6px rgba(22, 38, 57, .12);
+    }
+
+    .table-wrap {
+      position: relative;
+      overflow-x: auto;
+      overflow-y: hidden;
+      background: #fff;
+    }
+
+    .compact-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    .compact-table th,
+    .compact-table td {
+      height: 34px;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 0 6px;
+      text-align: center;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .compact-table thead th {
+      height: 30px;
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 780;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .compact-table thead tr:first-child th {
+      height: 28px;
+      border-bottom: 0;
+    }
+
+    .compact-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .claim-head,
+    .claim-cell {
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      width: 142px;
+      min-width: 142px;
+      max-width: 142px;
+      border-right: 1px solid var(--line-soft);
+      background: #fff;
+      text-align: left;
+    }
+
+    .claim-head {
+      z-index: 6;
+      background: #fbfcfe;
+      padding-left: 14px;
+    }
+
+    .claim-cell {
+      padding-left: 14px;
+      font-weight: 760;
+    }
+
+    .claim-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .claim-accent {
+      display: inline-block;
+      width: 4px;
+      height: 20px;
+      border-radius: 99px;
+      background: var(--office);
+    }
+
+    .year-head {
+      border-left: 1px solid var(--line-soft);
+      background: #f7f9fc;
+      color: #344257;
+      font-size: 11px;
+    }
+
+    .month-head {
+      width: 46px;
+      min-width: 46px;
+      max-width: 46px;
+      color: var(--muted-2);
+      font-size: 10px;
+      font-weight: 740;
+    }
+
+    .year-start {
+      border-left: 1px solid var(--line-soft);
+    }
+
+    .value-cell {
+      width: 46px;
+      min-width: 46px;
+      max-width: 46px;
+    }
+
+    .heat-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 25px;
+      border-radius: 5px;
+      background: #f4f6f9;
+      color: #102033;
+      font-size: 11px;
+      font-weight: 760;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .heat-pill.empty {
+      width: 18px;
+      background: transparent;
+      color: transparent;
+    }
+
+    .heat-pill.empty::after {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #d1d8e2;
+    }
+
+    .heat-pill:hover {
+      outline: 2px solid rgba(31, 95, 174, .28);
+      outline-offset: 1px;
+    }
+
+    .total-head,
+    .total-cell {
+      position: sticky;
+      right: 0;
+      z-index: 4;
+      width: 74px;
+      min-width: 74px;
+      max-width: 74px;
+      border-left: 1px solid var(--line-soft);
+      background: #fcfdff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .total-head {
+      z-index: 7;
+      color: #344257;
+    }
+
+    .total-cell {
+      color: var(--text);
+      font-weight: 780;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .grid-table .heat-pill {
+      background: transparent !important;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 34px;
+      padding: 0 14px;
+      border-top: 1px solid var(--line-soft);
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .footer strong {
+      color: var(--text);
+    }
+
+    @media (max-width: 1120px) {
+      body {
+        min-width: 980px;
+      }
+
+      .legend {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="widget" aria-label="Clinical overview compact heatmap">
+      <header class="widget-header">
+        <div class="title-wrap">
+          <h1>Clinical Overview</h1>
+          <div class="subtitle">Monthly encounter counts - 2022 to present</div>
+        </div>
+        <div class="actions">
+          <div class="legend" aria-label="Heatmap intensity">
+            <span>Low</span>
+            <span class="legend-track" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </span>
+            <span>High</span>
+          </div>
+          <div class="segmented" aria-label="View selector">
+            <button type="button" data-view="heatmap" aria-pressed="true">Heatmap</button>
+            <button type="button" data-view="grid" aria-pressed="false">Grid</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="view active" id="heatmapView">
+        <div class="table-wrap">
+          <table class="compact-table" id="heatmapTable"></table>
+        </div>
+      </div>
+
+      <div class="view" id="gridView">
+        <div class="table-wrap">
+          <table class="compact-table grid-table" id="gridTable"></table>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <span><strong>4 rows</strong> only, with year-banded month columns from Jan 2022 through Jul 2026.</span>
+        <span>Hover any value for month detail.</span>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    const years = [2022, 2023, 2024, 2025, 2026];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const latestYear = 2026;
+    const latestMonthIndex = 6;
+
+    const claims = [
+      {
+        label: "Office Visit",
+        color: "#4b5566",
+        soft: "#d7dce4",
+        values: {
+          2022: [2, 3, 2, 2, 5, 2, 4, 4, 1, 4, 1, 5],
+          2023: [1, 2, 3, 7, 2, 4, 3, 5, 2, 5, 3, 6],
+          2024: [4, 5, 6, 3, 7, 5, 6, 8, 4, 6, 5, 7],
+          2025: [6, 5, 8, 7, 6, 9, 7, 8, 6, 9, 7, 10],
+          2026: [8, 9, 7, 10, 8, 11, 9, null, null, null, null, null]
+        }
+      },
+      {
+        label: "IP",
+        color: "#df3d66",
+        soft: "#f9d7df",
+        values: {
+          2022: [0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0],
+          2023: [0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1],
+          2024: [1, 0, 2, 0, 1, 1, 0, 2, 1, 0, 2, 1],
+          2025: [1, 2, 1, 0, 2, 1, 3, 1, 2, 1, 2, 1],
+          2026: [2, 1, 2, 1, 3, 2, 1, null, null, null, null, null]
+        }
+      },
+      {
+        label: "ER",
+        color: "#e48920",
+        soft: "#f8dfbf",
+        values: {
+          2022: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+          2023: [0, 1, 0, 0, 0, 2, 0, 1, 0, 0, 2, 0],
+          2024: [1, 0, 0, 1, 2, 0, 1, 1, 0, 2, 0, 1],
+          2025: [1, 2, 0, 1, 1, 3, 1, 2, 1, 3, 2, 1],
+          2026: [2, 1, 3, 2, 1, 2, 3, null, null, null, null, null]
+        }
+      },
+      {
+        label: "SNF",
+        color: "#8652e6",
+        soft: "#e4d8fb",
+        values: {
+          2022: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+          2023: [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+          2024: [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0],
+          2025: [1, 0, 1, 1, 0, 1, 0, 2, 1, 0, 1, 1],
+          2026: [1, 1, 0, 2, 1, 1, 2, null, null, null, null, null]
+        }
+      }
+    ];
+
+    function visibleEntries(claim) {
+      return years.flatMap(year => {
+        const maxMonth = year === latestYear ? latestMonthIndex : 11;
+        return claim.values[year].slice(0, maxMonth + 1);
+      }).filter(value => value !== null);
+    }
+
+    function totalForClaim(claim) {
+      return visibleEntries(claim).reduce((sum, value) => sum + value, 0);
+    }
+
+    function mix(hexA, hexB, amount) {
+      const a = hexA.replace("#", "").match(/.{2}/g).map(part => parseInt(part, 16));
+      const b = hexB.replace("#", "").match(/.{2}/g).map(part => parseInt(part, 16));
+      const result = a.map((channel, index) => Math.round(channel + (b[index] - channel) * amount));
+      return "#" + result.map(channel => channel.toString(16).padStart(2, "0")).join("");
+    }
+
+    function valueColor(claim, value) {
+      if (!value) return "transparent";
+      const max = Math.max(...visibleEntries(claim), 1);
+      const strength = Math.min(.92, .22 + (value / max) * .72);
+      return mix(claim.soft, claim.color, strength);
+    }
+
+    function buildColumns() {
+      return years.map(year => ({
+        year,
+        months: months.slice(0, year === latestYear ? latestMonthIndex + 1 : 12)
+      }));
+    }
+
+    function renderTable(targetId, mode) {
+      const table = document.getElementById(targetId);
+      const columns = buildColumns();
+      const yearHeader = columns.map(group => `<th class="year-head" colspan="${group.months.length}">${group.year}${group.year === latestYear ? " YTD" : ""}</th>`).join("");
+      const monthHeader = columns.map(group => group.months.map((month, index) => {
+        const start = index === 0 ? " year-start" : "";
+        return `<th class="month-head${start}">${month}</th>`;
+      }).join("")).join("");
+
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th class="claim-head" rowspan="2">Claim Type</th>
+            ${yearHeader}
+            <th class="total-head" rowspan="2">Total</th>
+          </tr>
+          <tr>${monthHeader}</tr>
+        </thead>
+        <tbody>
+          ${claims.map(claim => {
+            const cells = columns.map(group => group.months.map((month, index) => {
+              const originalMonthIndex = months.indexOf(month);
+              const value = claim.values[group.year][originalMonthIndex];
+              const start = index === 0 ? " year-start" : "";
+              const title = `${claim.label} - ${month} ${group.year} - ${value} encounters`;
+              const empty = !value;
+              if (mode === "grid") {
+                return `<td class="value-cell${start}" title="${title}">${value}</td>`;
+              }
+              return `
+                <td class="value-cell${start}">
+                  <span class="heat-pill${empty ? " empty" : ""}" style="background:${valueColor(claim, value)}" title="${title}">${value}</span>
+                </td>
+              `;
+            }).join("")).join("");
+
+            return `
+              <tr>
+                <td class="claim-cell">
+                  <span class="claim-name">
+                    <span class="claim-accent" style="background:${claim.color}"></span>
+                    ${claim.label}
+                  </span>
+                </td>
+                ${cells}
+                <td class="total-cell">${totalForClaim(claim)}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      `;
+    }
+
+    function switchView(view) {
+      document.querySelectorAll(".segmented button").forEach(button => {
+        button.setAttribute("aria-pressed", String(button.dataset.view === view));
+      });
+      document.querySelectorAll(".view").forEach(section => section.classList.remove("active"));
+      document.getElementById(`${view}View`).classList.add("active");
+    }
+
+    document.querySelectorAll(".segmented button").forEach(button => {
+      button.addEventListener("click", () => switchView(button.dataset.view));
+    });
+
+    renderTable("heatmapTable", "heatmap");
+    renderTable("gridTable", "grid");
+  </script>
+</body>
+</html>

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Incyte Market Insights — Prototype A (current Posterra capabilities)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="incyte-data.js"></script>
+<style>
+:root{
+  --pv-primary:#0066cc;--pv-primary-d:#004d99;--pv-primary-l:#e6f0fb;
+  --sb-bg:#1a1f2e;--sb-hover:#252b3d;--sb-text:#a0aec0;--content:#f8fafc;
+  --ink:#1a2332;--muted:#6b7280;--border:#e5e7eb;--card:#fff;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);--radius:10px;
+  --font:system-ui,'Segoe UI',Roboto,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--content);color:var(--ink);font-size:14px}
+.app{display:flex;min-height:100vh}
+.sidebar{width:226px;min-width:226px;background:var(--sb-bg);color:var(--sb-text);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.sb-brand{padding:18px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a3142}
+.sb-brand .logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#0066cc,#3b9aff);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff}
+.sb-brand .nm{font-weight:700;color:#fff;font-size:15px}
+.sb-brand .nm small{display:block;font-size:10px;font-weight:500;color:var(--sb-text)}
+.sb-sec{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#5a6478;padding:14px 20px 6px}
+.sb-item{display:flex;gap:11px;padding:9px 20px;font-size:13.5px;cursor:pointer;border-left:3px solid transparent;color:var(--sb-text)}
+.sb-item.active{background:var(--sb-hover);color:#fff;border-left-color:var(--pv-primary)}
+.sb-item:hover{background:var(--sb-hover);color:#fff}
+.sb-foot{margin-top:auto;padding:14px 20px;border-top:1px solid #2a3142;font-size:11px;color:#5a6478}
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:13px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:150;box-shadow:var(--shadow)}
+.tb-left .crumb{font-size:11px;color:var(--muted);margin-bottom:2px}
+.tb-left .crumb b{color:var(--pv-primary)}
+.tb-left .pg-title{font-size:19px;font-weight:800;letter-spacing:-.3px}
+.tb-left .pg-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.tb-right{display:flex;align-items:center;gap:10px}
+.annot-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;user-select:none;background:#fff}
+.annot-toggle .sw{width:30px;height:17px;border-radius:10px;background:#cbd5e1;position:relative;transition:.15s}
+.annot-toggle .sw::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:.15s}
+body.annot-on .annot-toggle{border-color:var(--pv-primary);color:var(--pv-primary)}
+body.annot-on .annot-toggle .sw{background:var(--pv-primary)}
+body.annot-on .annot-toggle .sw::after{left:15px}
+.capmap-btn{border:1px solid var(--pv-primary);background:var(--pv-primary);color:#fff;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
+.main{padding:18px 22px;max-width:1780px;margin:0 auto;width:100%}
+
+/* filter bar */
+.fbar{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:13px 16px;margin-bottom:16px;position:relative}
+.fbar-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.fg{display:flex;flex-direction:column;gap:4px}
+.flabel{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fctl{border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:13px;background:#fff;color:var(--ink);min-width:120px;font-family:var(--font);outline:none}
+.fctl:disabled{background:#f9fafb;color:#9ca3af}
+.fctl:focus{border-color:var(--pv-primary)}
+.fbar-actions{display:flex;gap:10px;align-items:center;margin-top:11px;padding-top:11px;border-top:1px solid #f1f3f6}
+.btn-ghost{display:flex;align-items:center;gap:6px;border:1px dashed var(--pv-primary);color:var(--pv-primary);background:var(--pv-primary-l);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:16px;padding:4px 11px;font-size:12px;font-weight:600;color:var(--ink);background:#fff}
+
+/* kpi */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:16px;position:relative}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;display:flex;align-items:center;gap:13px}
+.kpi .ic{width:38px;height:38px;border-radius:10px;background:var(--pv-primary-l);color:var(--pv-primary);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.kpi .lbl{font-size:11px;color:var(--muted);font-weight:600}
+.kpi .val{font-size:22px;font-weight:800;line-height:1.1}
+
+/* section card */
+.sec{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;position:relative}
+.sec-hd{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sec-title{font-size:15px;font-weight:700}
+.sec-sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+.tabs{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.tab{padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--muted);background:#fff;cursor:pointer;border-right:1px solid var(--border);white-space:nowrap}
+.tab:last-child{border-right:0}
+.tab.active{background:var(--pv-primary);color:#fff}
+.chart{width:100%}
+.legend-note{font-size:11px;color:var(--muted);padding:6px 18px 12px}
+.legend-note b{color:var(--ink)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:1100px){.two-col{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(3,1fr)}.sidebar{display:none}}
+
+/* cohort table */
+.cohort-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:13px 18px;border-bottom:1px solid var(--border)}
+.btn-primary{border:1px solid var(--pv-primary);background:var(--pv-primary);color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-out{border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px}
+.tbl-wrap{max-height:430px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{position:sticky;top:0;background:#f8fafc;z-index:2}
+th{padding:9px 14px;text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border);white-space:nowrap}
+th.num,td.num{text-align:right}
+td{padding:8px 14px;border-bottom:1px solid #f1f3f6}
+tbody tr:hover{background:var(--pv-primary-l)}
+.tbl-meta{font-size:11.5px;color:var(--muted);padding:9px 18px}
+
+/* annotations */
+.cap-chip{display:none}
+body.annot-on [data-cap]{outline:2px dashed transparent;outline-offset:3px;border-radius:var(--radius)}
+body.annot-on [data-status="ok"]{outline-color:#16a34a}
+body.annot-on [data-status="partial"]{outline-color:#f59e0b}
+body.annot-on [data-status="gap"]{outline-color:#dc2626}
+body.annot-on .cap-chip{display:inline-flex;align-items:center;gap:5px;position:absolute;z-index:120;top:-11px;left:14px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:2px 9px;font-size:10.5px;font-weight:700;box-shadow:var(--shadow);white-space:nowrap}
+.cap-chip .tag{font-size:9px;font-weight:800;padding:1px 5px;border-radius:7px}
+.cap-chip.ok .tag{background:#dcfce7;color:#166534}
+.cap-chip.partial .tag{background:#fef3c7;color:#92400e}
+.cap-chip.gap .tag{background:#fee2e2;color:#991b1b}
+
+/* capability map drawer */
+.cm-ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;justify-content:flex-end}
+.cm-ovl.show{display:flex}
+.cm-panel{background:#fff;width:640px;max-width:100vw;height:100vh;overflow-y:auto;box-shadow:-6px 0 30px rgba(0,0,0,.25)}
+.cm-head{background:#1a1f2e;color:#fff;padding:18px 22px;display:flex;justify-content:space-between;align-items:flex-start;position:sticky;top:0}
+.cm-head h2{font-size:16px}.cm-head p{font-size:12px;color:#a0aec0;margin-top:4px;max-width:470px;line-height:1.45}
+.cm-x{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:15px;cursor:pointer;width:30px;height:30px;border-radius:7px}
+.cm-body{padding:18px 22px}
+.cm-legend{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.cm-legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:600}
+.cm-legend i{width:12px;height:12px;border-radius:4px}
+.cm-sum{background:var(--pv-primary-l);border:1px solid #cfe2f7;border-radius:9px;padding:13px 15px;margin-bottom:16px;font-size:12.5px;line-height:1.5}
+.cm-item{border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:9px;border-left-width:4px}
+.cm-item.ok{border-left-color:#16a34a}.cm-item.partial{border-left-color:#f59e0b}.cm-item.gap{border-left-color:#dc2626}
+.cm-item .top{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px}
+.cm-item .el{font-size:13.5px;font-weight:700}
+.cm-item .st{font-size:9.5px;font-weight:800;text-transform:uppercase;padding:3px 8px;border-radius:8px;white-space:nowrap}
+.cm-item.ok .st{background:#dcfce7;color:#166534}.cm-item.partial .st{background:#fef3c7;color:#92400e}.cm-item.gap .st{background:#fee2e2;color:#991b1b}
+.cm-item .mp{font-size:12px;color:var(--ink);line-height:1.5}.cm-item .mp b{color:var(--pv-primary)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand"><div class="logo">P</div><div class="nm">Posterra<small>Incyte · Market Access</small></div></div>
+    <nav style="flex:1">
+      <div class="sb-sec">Analytics</div>
+      <div class="sb-item active"><span>◉</span> Market Insights</div>
+      <div class="sb-item"><span>🗺</span> Geography</div>
+      <div class="sb-item"><span>◇</span> Whitespace</div>
+      <div class="sb-item"><span>▤</span> Cohort Builder</div>
+      <div class="sb-sec">Admin</div>
+      <div class="sb-item"><span>⚙</span> Page Builder</div>
+      <div class="sb-item"><span>⛃</span> Data Sources</div>
+    </nav>
+    <div class="sb-foot">Prototype A · current capabilities<br>ClickHouse incyte.* · React · Odoo</div>
+  </aside>
+  <div class="content">
+    <header class="topbar">
+      <div class="tb-left">
+        <div class="crumb"><b>Incyte</b> ▸ Market Access ▸ Market Insights</div>
+        <div class="pg-title">Market Insights</div>
+        <div class="pg-sub">Medicaid TMSIS · 2022–2024 · Vitiligo / Atopic Dermatitis</div>
+      </div>
+      <div class="tb-right">
+        <div class="annot-toggle" id="annotToggle"><span class="sw"></span> Capability overlay</div>
+        <button class="capmap-btn" id="capmapBtn">Capability map ▸</button>
+      </div>
+    </header>
+    <div class="main">
+      <!-- Filter bar -->
+      <div class="fbar" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> dashboard.page.filter · cascade + multiselect + saved views</span>
+        <div class="fbar-row">
+          <div class="fg"><span class="flabel">Year</span><select class="fctl" style="min-width:90px"><option>2024</option><option>2023</option><option>2022</option></select></div>
+          <div class="fg"><span class="flabel">Half-year</span><select class="fctl" id="halfSel" style="min-width:90px"><option>H2</option><option>H1</option></select></div>
+          <div class="fg"><span class="flabel">State</span><select class="fctl"><option>All states</option></select></div>
+          <div class="fg"><span class="flabel">County</span><select class="fctl" disabled><option>County (pick 1 state first)</option></select></div>
+          <div class="fg"><span class="flabel">MCO plan</span><select class="fctl" style="min-width:160px"><option>All plans</option></select></div>
+          <div class="fg"><span class="flabel">Plan ID</span><select class="fctl"><option>All</option></select></div>
+          <div class="fg"><span class="flabel">ZIP</span><input class="fctl" placeholder="ZIP" style="min-width:90px"></div>
+          <div class="fg"><span class="flabel">Metric</span><select class="fctl" id="metricSel"><option>Total Rx Quantity</option><option>Total Beneficiaries</option><option>Total Claims</option></select></div>
+        </div>
+        <div class="fbar-actions">
+          <button class="btn-ghost">+ Save current filters</button>
+          <span style="color:var(--muted)">🗑</span>
+          <span class="chip">DC-GA-CA ⋮</span>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="kpi-row" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> KPI Strip widget (kpi_style=kpi_strip)</span>
+        <div class="kpi"><div class="ic">▦</div><div><div class="lbl">Total Rx Quantity</div><div class="val" id="kQty">—</div></div></div>
+        <div class="kpi"><div class="ic">▤</div><div><div class="lbl">Total Claims (approx, suppressed)</div><div class="val" id="kClaims">—</div></div></div>
+        <div class="kpi"><div class="ic">👤</div><div><div class="lbl">Total Beneficiaries (approx, suppressed)</div><div class="val" id="kBenes">—</div></div></div>
+        <div class="kpi"><div class="ic">🌐</div><div><div class="lbl">Treated States</div><div class="val" id="kStates">—</div></div></div>
+        <div class="kpi"><div class="ic">📍</div><div><div class="lbl">Treated Counties</div><div class="val" id="kCounties">—</div></div></div>
+      </div>
+
+      <!-- Market geography -->
+      <div class="sec" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> Map widget (MapLibre choropleth) — county tabs = county GeoJSON layer ⚠ small add</span>
+        <div class="sec-hd">
+          <div><div class="sec-title">Market geography</div><div class="sec-sub">Hover a region for details · scroll to zoom · drag to pan</div></div>
+          <div class="tabs" id="mapTabs">
+            <div class="tab" data-m="vol_state">VOLUME — STATE</div>
+            <div class="tab" data-m="vol_county">VOLUME — COUNTY</div>
+            <div class="tab" data-m="mkt_county">MARKET SIZE — COUNTY</div>
+            <div class="tab" data-m="pen_county">PENETRATION — COUNTY</div>
+            <div class="tab active" data-m="pen_state">PENETRATION — STATE</div>
+          </div>
+        </div>
+        <div id="mapChart" class="chart" style="height:440px"></div>
+        <div class="legend-note"><b>Penetration uses a static prevalence snapshot</b> — values are not per-year prevalence. Muted (lighter) regions have no data; grey regions have a value of zero. Suppressed beneficiary cells are excluded → values are a lower bound.</div>
+      </div>
+
+      <!-- Trend + Top plans -->
+      <div class="two-col">
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Line/Area chart widget (ECharts)</span>
+          <div class="sec-hd"><div class="sec-title">Year-over-year trend</div><div class="sec-sub">Total Rx Quantity</div></div>
+          <div id="trendChart" class="chart" style="height:300px"></div>
+        </div>
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Horizontal Bar chart widget (ECharts)</span>
+          <div class="sec-hd"><div class="sec-title">Top MCO plans</div><div class="sec-sub">Top 10 by Total Rx Quantity</div></div>
+          <div id="planChart" class="chart" style="height:300px"></div>
+        </div>
+      </div>
+
+      <!-- Whitespace -->
+      <div class="sec" data-cap data-status="partial">
+        <span class="cap-chip partial"><span class="tag">SMALL ADD</span> bars=existing; bubble=scatter widget (chart_type 'scatter' to add) + prevalence join</span>
+        <div class="sec-hd"><div><div class="sec-title">Whitespace — high prevalence, low penetration</div><div class="sec-sub">States ranked by prevalence with treated overlay (left) · per-state treated vs prevalent (right)</div></div></div>
+        <div class="two-col" style="padding:14px 18px">
+          <div id="wsBars" class="chart" style="height:360px"></div>
+          <div id="wsScatter" class="chart" style="height:360px"></div>
+        </div>
+      </div>
+
+      <!-- Custom cohort -->
+      <div class="sec" data-cap data-status="partial">
+        <span class="cap-chip partial"><span class="tag">SMALL ADD</span> DataTable widget + Custom-SQL; query-builder controls = small designer add; Excel export ⚠</span>
+        <div class="sec-hd"><div class="sec-title">Custom cohort</div></div>
+        <div class="cohort-controls">
+          <div class="fg"><span class="flabel">Group by</span><select class="fctl"><option>State, Plan</option><option>State</option><option>Plan</option></select></div>
+          <div class="fg"><span class="flabel">Metrics</span><select class="fctl" style="min-width:280px"><option>Total Rx Quantity, Total Claims, Total Beneficiaries</option></select></div>
+          <div class="fg"><span class="flabel">Sort field</span><select class="fctl"><option>Total Rx Quantity</option></select></div>
+          <div class="fg"><span class="flabel">Order</span><select class="fctl"><option>Descending</option><option>Ascending</option></select></div>
+          <div class="fg"><span class="flabel">Limit</span><input class="fctl" value="50" style="min-width:70px"></div>
+          <div class="fg"><span class="flabel">Prevalence</span><select class="fctl"><option>With prevalence</option></select></div>
+          <button class="btn-primary">Run query</button>
+          <button class="btn-out" style="margin-left:auto">⬇ Export</button>
+        </div>
+        <div class="tbl-meta" id="cohortMeta"></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>State</th><th>Plan</th><th class="num">Total Rx Quantity</th><th class="num">Total Claims</th><th class="num">Total Beneficiaries</th><th class="num">Prevalent</th></tr></thead>
+            <tbody id="cohortBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- capability map drawer -->
+<div class="cm-ovl" id="cmOvl"><div class="cm-panel">
+  <div class="cm-head"><div><h2>Capability Map — Incyte dashboard → Posterra (Prototype A)</h2><p>Every element mapped to a current platform capability. Toggle "Capability overlay" to see these in context.</p></div><button class="cm-x" id="cmX">✕</button></div>
+  <div class="cm-body" id="cmBody"></div>
+</div></div>
+
+<script>
+const D = window.INCYTE;
+const fmt = n => n==null?'—':(Math.abs(n)>=1e6?(n/1e6).toFixed(2)+'M':Math.abs(n)>=1e3?(n/1e3).toFixed(1)+'K':n.toLocaleString());
+const BLUE=['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#4292c6','#2171b5','#08519c','#08306b'];
+
+// KPIs (match the mockup labels)
+document.getElementById('kQty').textContent='6,842,448';
+document.getElementById('kClaims').textContent='21,688';
+document.getElementById('kBenes').textContent='8,462';
+document.getElementById('kStates').textContent='37';
+document.getElementById('kCounties').textContent='670';
+
+const realStates = D.states.filter(s=>s.cd!=='NATIONAL');
+
+// ---- charts ----
+let mapChart, metricMode='pen_state';
+const MAP_METRICS={
+  vol_state:{key:'qty',label:'VOLUME (STATE)',cap:300000,unit:''},
+  vol_county:{key:'qty',label:'VOLUME (COUNTY)',cap:300000,unit:'',county:true},
+  mkt_county:{key:'prev',label:'MARKET SIZE (COUNTY)',cap:8000,unit:'',county:true},
+  pen_county:{key:'pen',label:'PENETRATION / 1K (COUNTY)',cap:3000,unit:'/1k',county:true},
+  pen_state:{key:'pen',label:'PENETRATION / 1K (STATE)',cap:3000,unit:'/1k'},
+};
+
+function drawMap(){
+  const m=MAP_METRICS[metricMode];
+  const data=realStates.map(s=>({name:s.name, value:s[m.key], _s:s}));
+  mapChart.setOption({
+    tooltip:{trigger:'item',formatter:p=>{const s=(p.data&&p.data._s)||{};return `<b>${p.name}</b><br/>${m.label}: ${fmt(s[m.key])}${m.unit}<br/>Rx Qty: ${fmt(s.qty)} · Prevalent: ${fmt(s.prev)} · Pen/1k: ${s.pen}`;}},
+    visualMap:{min:0,max:m.cap,left:18,bottom:18,calculable:true,
+      inRange:{color:BLUE},text:[m.label,''],textStyle:{fontSize:10},itemWidth:14,itemHeight:120},
+    series:[{type:'map',map:'USA',roam:true,data,
+      itemStyle:{borderColor:'#fff',borderWidth:.6,areaColor:'#eef2f7'},
+      emphasis:{itemStyle:{areaColor:'#ffd166'},label:{show:false}},
+      select:{itemStyle:{areaColor:'#08519c'}}}]
+  },true);
+}
+function drawTrend(){
+  echarts.init(document.getElementById('trendChart')).setOption({
+    grid:{left:55,right:20,top:20,bottom:40},
+    tooltip:{trigger:'axis',valueFormatter:fmt},
+    xAxis:{type:'category',data:D.trend.map(t=>t.period),name:'Period',nameLocation:'middle',nameGap:28,axisLabel:{fontSize:11}},
+    yAxis:{type:'value',name:'Total Rx Quantity',axisLabel:{formatter:fmt,fontSize:11}},
+    series:[{type:'line',data:D.trend.map(t=>t.qty),smooth:false,symbolSize:7,
+      lineStyle:{color:'#0066cc',width:2.5},itemStyle:{color:'#0066cc'},
+      areaStyle:{color:'rgba(0,102,204,.12)'}}]
+  });
+}
+function drawPlans(){
+  const p=[...D.top_plans].reverse();
+  echarts.init(document.getElementById('planChart')).setOption({
+    grid:{left:230,right:30,top:10,bottom:40},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:fmt},
+    xAxis:{type:'value',name:'Total Rx Quantity',nameLocation:'middle',nameGap:28,axisLabel:{formatter:fmt,fontSize:10}},
+    yAxis:{type:'category',data:p.map(x=>x.plan),axisLabel:{fontSize:10.5,width:220,overflow:'truncate'}},
+    series:[{type:'bar',data:p.map(x=>x.qty),itemStyle:{color:'#6366f1',borderRadius:[0,3,3,0]},barWidth:'62%'}]
+  });
+}
+function drawWhitespace(){
+  // bars: states by prevalence with treated overlay (top 10 by prevalence)
+  const byPrev=[...realStates].filter(s=>s.prev>0).sort((a,b)=>a.prev-b.prev).slice(-10);
+  echarts.init(document.getElementById('wsBars')).setOption({
+    grid:{left:90,right:30,top:10,bottom:55},legend:{bottom:0,data:['Prevalent','Treated']},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:fmt},
+    xAxis:{type:'value',name:'Beneficiaries',nameLocation:'middle',nameGap:30,axisLabel:{formatter:fmt,fontSize:10}},
+    yAxis:{type:'category',data:byPrev.map(s=>s.name),axisLabel:{fontSize:11}},
+    series:[
+      {name:'Prevalent',type:'bar',data:byPrev.map(s=>s.prev),itemStyle:{color:'#6366f1'},barGap:'-100%',barWidth:'55%'},
+      {name:'Treated',type:'bar',data:byPrev.map(s=>s.benes),itemStyle:{color:'#c7d2fe'},barWidth:'55%'},
+    ]
+  });
+  // scatter: treated vs prevalent, color+size = penetration
+  const pts=realStates.filter(s=>s.prev>0).map(s=>({name:s.cd,value:[s.prev,s.benes,Math.min(s.pen,3000),s.name]}));
+  echarts.init(document.getElementById('wsScatter')).setOption({
+    grid:{left:60,right:30,top:20,bottom:50},
+    tooltip:{trigger:'item',formatter:p=>`<b>${p.value[3]}</b><br/>Prevalent: ${fmt(p.value[0])}<br/>Treated: ${fmt(p.value[1])}<br/>Pen/1k: ${p.value[2].toFixed(0)}`},
+    xAxis:{type:'value',name:'Prevalent beneficiaries',nameLocation:'middle',nameGap:30,axisLabel:{formatter:fmt,fontSize:10}},
+    yAxis:{type:'value',name:'Treated beneficiaries',axisLabel:{formatter:fmt,fontSize:10}},
+    visualMap:{min:0,max:3000,dimension:2,right:0,top:20,text:['Pen/1k',''],calculable:true,inRange:{color:['#e6f0fb','#6366f1','#312e81'],symbolSize:[8,42]}},
+    series:[{type:'scatter',data:pts,label:{show:true,formatter:p=>p.name,position:'top',fontSize:9,color:'#475569'}}]
+  });
+}
+function drawCohort(){
+  document.getElementById('cohortMeta').textContent=`${D.cohort.length} groups · showing ${D.cohort.length}`;
+  document.getElementById('cohortBody').innerHTML=D.cohort.map(r=>`<tr>
+    <td><strong>${r.state}</strong></td><td style="font-size:12px">${r.plan}</td>
+    <td class="num">${r.qty.toLocaleString()}</td><td class="num">${r.claims.toLocaleString()}</td>
+    <td class="num">${r.benes.toLocaleString()}</td><td class="num" style="color:var(--muted)">${r.prev?r.prev.toLocaleString():'—'}</td></tr>`).join('');
+}
+
+// map tabs
+document.querySelectorAll('#mapTabs .tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('#mapTabs .tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); metricMode=t.dataset.m; drawMap();
+});
+
+// boot
+fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+  .then(r=>r.json()).then(geo=>{
+    echarts.registerMap('USA',geo,{Alaska:{left:-131,top:25,width:15},Hawaii:{left:-110,top:28,width:5},'Puerto Rico':{left:-76,top:26,width:3}});
+    mapChart=echarts.init(document.getElementById('mapChart')); drawMap();
+  }).catch(()=>{document.getElementById('mapChart').innerHTML='<div style="padding:40px;color:#9ca3af;text-align:center">Map geography unavailable (offline?)</div>';});
+drawTrend();drawPlans();drawWhitespace();drawCohort();
+window.addEventListener('resize',()=>{[mapChart].forEach(c=>c&&c.resize());});
+
+// chrome
+document.getElementById('annotToggle').onclick=()=>document.body.classList.toggle('annot-on');
+document.getElementById('capmapBtn').onclick=()=>document.getElementById('cmOvl').classList.add('show');
+document.getElementById('cmX').onclick=()=>document.getElementById('cmOvl').classList.remove('show');
+document.getElementById('cmOvl').onclick=e=>{if(e.target.id==='cmOvl')e.currentTarget.classList.remove('show');};
+
+const CAP=[
+  {el:'Header + filter bar (Year/Half/State/County/MCO/Plan/ZIP/Metric + saved views)',st:'ok',status:'EXISTS',mp:'<b>dashboard.page.filter</b> + <b>dashboard.filter.dependency</b> cascade (County depends on State); multiselect; saved-filter chips. Metric is an inline selector.'},
+  {el:'5 KPI cards (Rx / Claims / Benes / States / Counties)',st:'ok',status:'EXISTS',mp:'<b>KPI Strip</b> widget. Suppressed Claims/Benes show as "approx" — one SQL each over the CH source.'},
+  {el:'Market geography choropleth (state)',st:'ok',status:'EXISTS',mp:'<b>Map widget</b> (MapLibre choropleth, us-states.json join on STUSPS). Metric tabs = a small per-widget metric toggle.'},
+  {el:'County-level choropleth tabs',st:'partial',status:'SMALL ADD',mp:'Add a <b>county GeoJSON layer</b> to the map widget (already designed-for: choropleth_level=county). Click a state to drill.'},
+  {el:'Year-over-year trend (area/line)',st:'ok',status:'EXISTS',mp:'<b>Line / Area chart</b> widget over PERIOD — standard ECharts widget.'},
+  {el:'Top MCO plans (horizontal bar, top 10)',st:'ok',status:'EXISTS',mp:'<b>Bar chart</b> widget, horizontal, limit 10, ordered by Total Rx Quantity.'},
+  {el:'Whitespace — prevalent vs treated bars',st:'ok',status:'EXISTS',mp:'<b>Bar chart</b> widget with two series (Prevalent / Treated) — a prevalence-joined SQL.'},
+  {el:'Whitespace — treated vs prevalent bubble scatter',st:'partial',status:'SMALL ADD',mp:'Bubble/scatter is the one <b>new chart_type</b> (scatter) to register (3-file widget add). Penetration drives size + color.'},
+  {el:'Custom cohort — group-by / metrics / sort query builder',st:'partial',status:'SMALL ADD',mp:'<b>Custom-SQL DataTable</b> powers it today; the visual group-by/metrics controls are a small designer add over the AI/Custom-SQL builder.'},
+  {el:'Data table + sortable columns',st:'ok',status:'EXISTS',mp:'<b>DataTable</b> widget (AG Grid) — sort, search, pagination built in; formatter renderers for the numeric columns.'},
+  {el:'Excel / CSV export',st:'partial',status:'SMALL ADD',mp:'AG Grid Community has CSV export; an <b>Excel</b> export button is a small toolbar add on the DataTable widget.'},
+  {el:'Suppression handling (lower-bound notes)',st:'ok',status:'EXISTS',mp:'CH source exposes suppressed cells as NULL/flag; widget SQL excludes them and the note is a static caption — config, no code.'},
+];
+function renderCap(){
+  const c={ok:0,partial:0,gap:0};CAP.forEach(x=>c[x.st]++);
+  document.getElementById('cmBody').innerHTML=
+   `<div class="cm-legend"><span><i style="background:#16a34a"></i>Exists (${c.ok})</span><span><i style="background:#f59e0b"></i>Small add (${c.partial})</span><span><i style="background:#dc2626"></i>New build (${c.gap})</span></div>`+
+   `<div class="cm-sum"><b>Verdict:</b> ${c.ok}/${CAP.length} elements are already shipped Posterra capabilities. ${c.partial} are small, config-driven additions (a county map layer, a scatter chart type, query-builder controls, an Excel button). <b>Zero net-new backend architecture</b> — the whole dashboard is buildable on the current system against the ClickHouse incyte.* source.</div>`+
+   CAP.map(x=>`<div class="cm-item ${x.st}"><div class="top"><span class="el">${x.el}</span><span class="st">${x.status}</span></div><div class="mp">${x.mp}</div></div>`).join('');
+}
+renderCap();
+</script>
+</body>
+</html>

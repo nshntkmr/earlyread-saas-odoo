@@ -14,6 +14,7 @@
                 <field name="definition_id" optional="show"/>
                 <field name="page_id"/>
                 <field name="tab_id"/>
+                <field name="render_region" optional="show"/>
                 <field name="chart_type"/>
                 <field name="col_span"/>
                 <field name="color_palette"/>
@@ -56,9 +57,11 @@
                                    placeholder="Pick from library to auto-fill..."
                                    options="{'no_create': True}"/>
                             <field name="page_id"/>
+                            <field name="render_region"/>
                             <field name="tab_id"
                                    domain="[('page_id','=',page_id)]"
-                                   placeholder="All tabs"/>
+                                   readonly="render_region == 'page_summary'"
+                                   placeholder="All tabs — below the tab bar"/>
                             <field name="sequence"/>
                             <field name="is_active"/>
                         </group>

@@ -16,6 +16,7 @@ import logging
 import re
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -130,10 +131,28 @@ class DashboardPageTemplate(models.Model):
                 'default_strategy': f.default_strategy or 'static',
                 'placeholder': f.placeholder or '',
                 'display_template': f.display_template or '',
+                'display_template_source': f.display_template_source or '',
+                'option_sort': f.option_sort or '',
                 'manual_options': f.manual_options or '',
+                # D1/D2: placement + apply behavior + remote-search config.
+                'ui_type': f.ui_type or 'default',
+                'display_region': f.display_region or '',
+                'apply_behavior': f.apply_behavior or 'manual',
+                'search_page_size': f.search_page_size or 0,
+                'search_min_chars': f.search_min_chars or 0,
+                'control_width_px': f.control_width_px or 0,
+                'search_column_names': f.search_column_ids.mapped('column_name'),
                 # Portable schema references (table_name + column_name instead of IDs)
                 'schema_source_table': f.schema_source_id.table_name if f.schema_source_id else '',
                 'schema_column_name': f.schema_column_id.column_name if f.schema_column_id else '',
+                # Portable Schema-Source IDENTITY — the same table name can exist
+                # on several connections, so table_name alone is ambiguous. Carry
+                # the connection name (or an explicit local-PG marker) + engine.
+                'schema_source_engine': f.schema_source_id.engine if f.schema_source_id else '',
+                'schema_source_connection': (
+                    f.schema_source_id.connection_id.name
+                    if f.schema_source_id and f.schema_source_id.connection_id
+                    else ('__local_pg__' if f.schema_source_id else '')),
                 # ORM references (model + field names instead of IDs)
                 'model_name': f.model_name or '',
                 'field_name': f.field_name or '',
@@ -169,6 +188,7 @@ class DashboardPageTemplate(models.Model):
                 'width_pct': w.width_pct,
                 'max_width_pct': w.max_width_pct,
                 'chart_height': w.chart_height,
+                'render_region': w.render_region or 'tab_content',
                 'display_mode': w.display_mode or 'standard',
                 'kpi_layout': w.kpi_layout or 'vertical',
                 'text_align': w.text_align or 'center',
@@ -457,15 +477,129 @@ class DashboardPageTemplate(models.Model):
             'context': {'default_template_id': self.id},
         }
 
+    def _resolve_template_source(self, fdict):
+        """Resolve a serialized Schema-Source reference to its record.
+
+        Uses the portable connector IDENTITY (connection name + table) when the
+        template carries it; falls back to a table-only lookup for legacy
+        (pre-identity) templates — but ONLY when exactly one source matches.
+        Raises ValidationError (never picks arbitrarily) so a restore can't
+        silently bind to the wrong tenant's table. Returns the source recordset
+        (empty if the filter has no schema source at all).
+        """
+        table = fdict.get('schema_source_table', '')
+        if not table:
+            return self.env['dashboard.schema.source'].sudo().browse()
+        Source = self.env['dashboard.schema.source'].sudo()
+        conn_name = fdict.get('schema_source_connection', '')
+        if conn_name == '__local_pg__':
+            src = Source.search(
+                [('table_name', '=', table), ('connection_id', '=', False)], limit=2)
+            where = "local Postgres"
+        elif conn_name:
+            conn = self.env['dashboard.connection'].sudo().search(
+                [('name', '=', conn_name)], limit=1)
+            if not conn:
+                raise ValidationError(
+                    "Template references connection '%s' which does not exist in "
+                    "this environment." % conn_name)
+            src = Source.search(
+                [('table_name', '=', table), ('connection_id', '=', conn.id)], limit=2)
+            where = "connection '%s'" % conn_name
+        else:
+            # Legacy template: table only. Accept ONLY when unambiguous.
+            src = Source.search([('table_name', '=', table)], limit=2)
+            where = "any connection"
+        if not src:
+            raise ValidationError(
+                "Template references Schema Source table '%s' (%s) which does "
+                "not exist in this environment." % (table, where))
+        if len(src) > 1:
+            raise ValidationError(
+                "Template references table '%s' which exists on multiple "
+                "connections and the template predates connector identity; "
+                "resolve the ambiguity manually before applying." % table)
+        return src[:1]
+
+    def _preflight_filters(self, filters_cfg):
+        """Resolve + validate every filter's schema references BEFORE any record
+        is created, so a restore never yields a partial page or a Remote Search
+        filter silently downgraded to a plain dropdown.
+
+        Returns {index: {source_id, column_id, search_column_ids,
+        hha_scope_column_id}}. Raises ValidationError on any unresolved
+        reference.
+        """
+        resolved = {}
+        for i, f in enumerate(filters_cfg):
+            r = {}
+            source = self._resolve_template_source(f)
+            if source:
+                r['source_id'] = source.id
+                src_cols = {c.column_name: c.id for c in source.column_ids}
+
+                def _need(col_name, kind):
+                    if col_name not in src_cols:
+                        raise ValidationError(
+                            "Template filter '%s' references %s '%s' which is not "
+                            "a column of Schema Source '%s'." % (
+                                f.get('param_name') or f.get('label') or '?',
+                                kind, col_name, source.table_name))
+                    return src_cols[col_name]
+
+                col_name = f.get('schema_column_name', '')
+                if col_name:
+                    r['column_id'] = _need(col_name, 'value column')
+                for sc in f.get('search_column_names') or []:
+                    _need(sc, 'search column')
+                r['search_column_ids'] = [src_cols[sc] for sc in (f.get('search_column_names') or [])]
+                scope_name = f.get('hha_scope_column_name', '')
+                if scope_name:
+                    r['hha_scope_column_id'] = _need(scope_name, 'HHA scope column')
+                # Display-Template placeholders must all exist in the source.
+                missing = set(re.findall(r'\{(\w+)\}', f.get('display_template', '') or '')) - set(src_cols)
+                if missing:
+                    raise ValidationError(
+                        "Template filter '%s' Display Template references columns "
+                        "not in Schema Source '%s': %s" % (
+                            f.get('param_name') or '?', source.table_name,
+                            ', '.join(sorted(missing))))
+            # Remote Search invariants — validate here so Filter.create's
+            # @api.constrains can't fail mid-restore (partial page) and so the
+            # filter is never silently downgraded to a plain preloading dropdown.
+            if f.get('ui_type') == 'remote_autocomplete':
+                param = f.get('param_name') or f.get('label') or '?'
+                if not source:
+                    raise ValidationError("Remote Search filter '%s' requires a Schema Source." % param)
+                if not f.get('schema_column_name'):
+                    raise ValidationError("Remote Search filter '%s' requires a Value Column." % param)
+                if not (f.get('search_column_names') or []):
+                    raise ValidationError("Remote Search filter '%s' requires at least one Search Column." % param)
+                if f.get('is_multiselect'):
+                    raise ValidationError("Remote Search filter '%s' cannot be multi-select." % param)
+                if f.get('default_strategy') in ('all_values', 'first', 'latest'):
+                    raise ValidationError("Remote Search filter '%s' requires a Static default." % param)
+                if f.get('scope_to_user_hha') and not f.get('hha_scope_column_name'):
+                    raise ValidationError(
+                        "Remote Search filter '%s' with HHA scoping requires an HHA Scope Column." % param)
+            resolved[i] = r
+        return resolved
+
     def create_page_from_template(self, app_id, nav_section_id, name_override=None, key_override=None):
         """Create a new page with all children from this template's page_config.
 
-        Returns the created dashboard.page record.
+        Returns the created dashboard.page record. Preflight-first + a savepoint
+        make it atomic: a failed reference resolution leaves NO new page, tab,
+        filter or other child record.
         """
         self.ensure_one()
         cfg = json.loads(self.page_config or '{}')
         if not cfg:
             raise ValueError('Template has no page configuration.')
+
+        # Resolve + validate all filter schema references up front — raises
+        # before anything is created if a source/column/template is unresolvable.
+        filter_resolutions = self._preflight_filters(cfg.get('filters', []))
 
         Page = self.env['dashboard.page'].sudo()
         Tab = self.env['dashboard.page.tab'].sudo()
@@ -505,7 +639,7 @@ class DashboardPageTemplate(models.Model):
 
         # ── Create filters (map param_name → new filter ID) ───────
         filter_map = {}  # param_name → new_filter_id
-        for f in cfg.get('filters', []):
+        for i, f in enumerate(cfg.get('filters', [])):
             fvals = {
                 'page_id': page.id,
                 'param_name': f.get('param_name', ''),
@@ -526,18 +660,40 @@ class DashboardPageTemplate(models.Model):
                 'placeholder': f.get('placeholder', ''),
                 'display_template': f.get('display_template', ''),
                 'manual_options': f.get('manual_options', ''),
+                # D1/D2: placement + apply behavior + remote-search config.
+                'ui_type': f.get('ui_type', 'default'),
+                'apply_behavior': f.get('apply_behavior', 'manual'),
+                'search_page_size': f.get('search_page_size') or 50,
+                'search_min_chars': f.get('search_min_chars', 2),
+                'control_width_px': f.get('control_width_px') or 0,
             }
-            # Resolve schema source by table name
-            table_name = f.get('schema_source_table', '')
-            if table_name:
-                source = Source.search([('table_name', '=', table_name)], limit=1)
-                if source:
-                    fvals['schema_source_id'] = source.id
-                    col_name = f.get('schema_column_name', '')
-                    if col_name:
-                        col = source.column_ids.filtered(lambda c: c.column_name == col_name)
-                        if col:
-                            fvals['schema_column_id'] = col[0].id
+            # display_region is nullable → set only when present (else the model
+            # default_get normalizes to 'filter_bar'). Same for the two optional
+            # template/source-source selectors.
+            if f.get('display_region'):
+                fvals['display_region'] = f['display_region']
+            if f.get('display_template_source'):
+                fvals['display_template_source'] = f['display_template_source']
+            if f.get('option_sort'):
+                fvals['option_sort'] = f['option_sort']
+            # Remote Search always resolves labels via the schema template path
+            # and is single-select (mirrors _onchange_ui_type_remote, which does
+            # not fire on programmatic create) — guarantees the model constraint
+            # passes even for a hand-edited template.
+            if fvals['ui_type'] == 'remote_autocomplete':
+                fvals['display_template_source'] = 'schema'
+                fvals['is_multiselect'] = False
+            # Schema source + columns — resolved AND validated in preflight, so
+            # this binds by connector identity (never an arbitrary table match).
+            r = filter_resolutions.get(i, {})
+            if r.get('source_id'):
+                fvals['schema_source_id'] = r['source_id']
+            if r.get('column_id'):
+                fvals['schema_column_id'] = r['column_id']
+            if r.get('search_column_ids'):
+                fvals['search_column_ids'] = [(6, 0, r['search_column_ids'])]
+            if r.get('hha_scope_column_id'):
+                fvals['hha_scope_column_id'] = r['hha_scope_column_id']
             # Resolve ORM model by name
             model_name = f.get('model_name', '')
             if model_name:
@@ -636,6 +792,7 @@ class DashboardPageTemplate(models.Model):
                 'annotation_type': w.get('annotation_type', 'none'),
                 'annotation_text': w.get('annotation_text', ''),
                 'annotation_position': w.get('annotation_position', 'top_right'),
+                'render_region': w.get('render_region', 'tab_content'),
             }
             # Resolve tab reference
             tab_key = w.get('tab_key', '')

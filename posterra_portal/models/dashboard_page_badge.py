@@ -67,6 +67,31 @@ class DashboardPageBadge(models.Model):
         string='Render as Link', default=False,
         help='If true, renders value as a clickable tel: link (for phone numbers)')
 
+    # ── Placement (opt-in; blank = legacy below-header, right-aligned) ─────────
+    # NOTE: intentionally NO field-level ``default`` — a stored default would
+    # backfill existing rows on upgrade. New records get their default via
+    # ``default_get`` below; existing rows stay NULL and are treated as
+    # ``below_header_end`` at serialization time, so existing badges render
+    # byte-for-byte unchanged (no migration/backfill).
+    placement = fields.Selection(
+        [
+            ('below_header_end', 'Below Header — End (right)'),
+            ('below_header_start', 'Below Header — Start (left)'),
+            ('page_header_start', 'Page Header — Start (left)'),
+            ('page_header_end', 'Page Header — End (right)'),
+        ],
+        string='Placement',
+        help='Where this annotation renders. Blank = legacy below-header '
+             '(right); existing badges stay blank and are unaffected.')
+
+    @api.model
+    def default_get(self, fields_list):
+        # Default ONLY new records to the legacy slot; never writes existing rows.
+        res = super().default_get(fields_list)
+        if 'placement' in fields_list:
+            res.setdefault('placement', 'below_header_end')
+        return res
+
     # ── Validation ────────────────────────────────────────────────────────────
 
     @api.constrains('query_sql')

@@ -1,0 +1,7 @@
+{
+  "name": "@posterra/grid-utils",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "description": "Shared AG Grid utilities for Posterra portal and designer apps"
+}

@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Market Insights — Sales Intelligence</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+<style>
+:root{
+  --indigo:#7F77DD; --indigo-deep:#534AB7; --purple:#7C6BD6;
+  --teal:#1D9E75; --coral:#D85A30;
+  --ink:#1E1E26; --muted:#6B6B78; --faint:#9A9AA6;
+  --border:#E6E6EC; --border-strong:#D8D8E0;
+  --bg:#F7F7FA; --card:#FFFFFF; --amber:#B7791F; --amber-bg:#FDF6E7;
+  --radius:10px;
+  /* Posterra filter-bar primary — Incyte app brand (per-app CSS var) */
+  --pv-primary:#534AB7; --pv-primary-dark:#463EA0;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+.shell{max-width:1440px;margin:0 auto;padding:0 20px 48px;}
+.card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius);}
+button{font-family:inherit;cursor:pointer;}
+a{color:var(--indigo-deep);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.num{font-variant-numeric:tabular-nums;}
+
+/* ---------- Top nav ---------- */
+.nav{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;border-bottom:0.5px solid var(--border);background:var(--card);
+  position:sticky;top:0;z-index:40;max-width:1440px;margin:0 auto;}
+.brand{display:flex;align-items:center;gap:12px;}
+.logo{width:34px;height:34px;border-radius:8px;background:var(--indigo-deep);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:15px;}
+.brand h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.1px;}
+.brand .sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.nav-actions{display:flex;gap:8px;}
+.btn{border:0.5px solid var(--border-strong);background:#fff;color:var(--ink);
+  padding:7px 14px;border-radius:8px;font-size:12px;font-weight:500;}
+.btn:hover{background:#FAFAFC;}
+.btn-primary{background:var(--indigo-deep);color:#fff;border-color:var(--indigo-deep);}
+.btn-primary:hover{background:#463EA0;}
+
+/* ===========================================================
+   FILTER BAR — matches the live Posterra platform (FilterBar.jsx
+   + posterra.css .pv-ctx-* classes). Label-on-top groups, 32px
+   controls, multiselect w/ Select All|Clear, Apply + Clear All.
+   =========================================================== */
+.pv-ctx-filter-bar{margin-top:16px;background:#fff;border:0.5px solid var(--border);
+  border-radius:var(--radius);padding:10px 16px 12px;display:flex;flex-wrap:wrap;
+  align-items:flex-end;gap:16px;}
+.pv-ctx-filter-group{display:flex;flex-direction:column;gap:3px;}
+.pv-ctx-filter-label{font-size:11px;font-weight:600;color:#718096;text-transform:uppercase;
+  letter-spacing:.5px;margin:0 0 3px 0;white-space:nowrap;display:block;}
+/* plain / trigger controls */
+.pv-ctx-select,.pv-multiselect-trigger{height:32px;padding:4px 10px;font-size:13px;color:#2d3748;
+  background:#fff;border:1px solid #e2e8f0;border-radius:6px;outline:none;cursor:pointer;min-width:130px;
+  transition:border-color .15s;}
+.pv-multiselect{position:relative;min-width:130px;display:inline-block;}
+.pv-multiselect-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.pv-ctx-select:hover,.pv-ctx-select:focus,.pv-multiselect-trigger:hover,.pv-multiselect-open{border-color:var(--pv-primary);}
+.pv-multiselect-trigger:disabled{opacity:.45;cursor:not-allowed;background:#f8fafc;}
+.pv-multiselect-display{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:left;}
+.pv-multiselect-arrow{font-size:10px;color:#a0aec0;flex-shrink:0;}
+.pv-multiselect-dropdown{position:absolute;top:calc(100% + 2px);left:0;min-width:100%;width:max-content;
+  max-width:320px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;
+  box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;display:none;flex-direction:column;max-height:300px;overflow:hidden;}
+.pv-multiselect-dropdown.open{display:flex;}
+.pv-multiselect-search{margin:8px 10px 4px;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;
+  border-radius:6px;font-family:inherit;outline:none;}
+.pv-multiselect-actions{display:flex;align-items:center;gap:6px;padding:5px 10px;
+  border-bottom:1px solid #f0f0f0;font-size:11px;}
+.pv-multiselect-actions button{background:none;border:none;color:var(--pv-primary);cursor:pointer;
+  padding:0;font-size:11px;font-weight:500;}
+.pv-multiselect-actions button:hover{text-decoration:underline;}
+.pv-multiselect-divider{color:#d0d0d0;}
+.pv-multiselect-count{margin-left:auto;color:#718096;font-size:11px;}
+.pv-multiselect-options{list-style:none;margin:0;padding:4px 0;overflow-y:auto;flex:1;}
+.pv-multiselect-option{display:flex;align-items:center;gap:7px;padding:6px 10px;cursor:pointer;
+  font-size:13px;color:#2d3748;user-select:none;}
+.pv-multiselect-option:hover{background:#f7fafc;}
+.pv-multiselect-option input[type=checkbox]{accent-color:var(--pv-primary);margin:0;cursor:pointer;}
+.pv-multiselect-empty{padding:12px 10px;text-align:center;color:#a0aec0;font-size:13px;}
+/* pill / segmented (ui_type=pills|segmented) */
+.pv-pill-tabs{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.pv-pill{font-family:inherit;font-size:12.5px;font-weight:600;line-height:1.2;cursor:pointer;
+  white-space:nowrap;padding:6px 14px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;
+  transition:all .12s;border-radius:18px;}
+.pv-pill.active{border-color:var(--pv-primary);background:var(--pv-primary);color:#fff;}
+.pv-pill:disabled{opacity:.4;cursor:not-allowed;}
+.pv-pill-tabs--segmented{gap:0;}
+.pv-pill-tabs--segmented .pv-pill{border-radius:0;margin-left:-1px;}
+.pv-pill-tabs--segmented .pv-pill:first-child{margin-left:0;border-radius:6px 0 0 6px;}
+.pv-pill-tabs--segmented .pv-pill:last-child{border-radius:0 6px 6px 0;}
+/* Apply + Clear All */
+.pv-ctx-apply-group{flex-direction:row;align-items:center;gap:6px;margin-left:auto;}
+.pv-ctx-apply-btn,.pv-ctx-clear-btn{height:32px;padding:0 16px;font-size:13px;border-radius:6px;
+  white-space:nowrap;font-weight:500;border:1px solid transparent;cursor:pointer;}
+.pv-ctx-apply-btn{background:var(--pv-primary);color:#fff;border-color:var(--pv-primary);}
+.pv-ctx-apply-btn:hover{background:var(--pv-primary-dark);}
+.pv-ctx-apply-btn.dirty{box-shadow:0 0 0 3px rgba(83,74,183,.18);}
+.pv-ctx-clear-btn{background:#fff;color:#4a5568;border-color:#cbd5e0;}
+.pv-ctx-clear-btn:hover{background:#f7fafc;}
+
+/* ---------- Banner ---------- */
+.banner{margin:0 0 14px;padding:9px 14px;background:var(--amber-bg);border:0.5px solid #F0E2C0;
+  border-radius:8px;color:var(--amber);font-size:12px;display:flex;gap:8px;align-items:flex-start;}
+.banner .i{font-weight:700;}
+
+/* ---------- KPI cards ---------- */
+.kpirow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
+.kpi{padding:14px 16px;}
+.kpi .k-label{font-size:11px;color:var(--muted);}
+.kpi .k-value{font-size:24px;font-weight:500;margin-top:4px;letter-spacing:-.3px;}
+.kpi .k-trend{font-size:11px;margin-top:5px;display:flex;align-items:center;gap:4px;}
+.up{color:var(--teal);} .down{color:var(--coral);}
+.kpi .k-foot{font-size:10px;color:var(--faint);margin-top:6px;}
+.approx{display:inline-block;background:var(--amber-bg);color:var(--amber);border:0.5px solid #F0E2C0;
+  border-radius:5px;padding:0 5px;font-size:9px;font-weight:600;margin-left:6px;vertical-align:middle;}
+
+/* ---------- middle row ---------- */
+.midrow{display:grid;grid-template-columns:60fr 40fr;gap:14px;margin-bottom:16px;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:0.5px solid var(--border);}
+.panel-head h3{margin:0;font-size:13px;font-weight:600;}
+.panel-head .hint{font-size:10px;color:var(--faint);}
+.maptabs{display:inline-flex;gap:4px;}
+.maptab{border:0.5px solid var(--border);background:#fff;color:var(--muted);font-size:11px;
+  padding:4px 10px;border-radius:7px;}
+.maptab.active{background:var(--indigo-deep);color:#fff;border-color:var(--indigo-deep);}
+.mapbody{padding:8px 14px 14px;position:relative;}
+.leveltoggle{position:absolute;right:16px;top:10px;z-index:5;}
+#usmap{width:100%;height:360px;}
+#usmap path.state{stroke:#fff;stroke-width:.6;cursor:pointer;transition:fill .15s,opacity .15s;}
+#usmap path.state:hover{opacity:.82;}
+.maplegend{display:flex;align-items:center;gap:8px;padding:4px 4px 0;font-size:10px;color:var(--muted);}
+.legend-scale{display:flex;height:8px;border-radius:4px;overflow:hidden;flex:1;max-width:240px;}
+.legend-scale i{flex:1;}
+.hatch-key{display:inline-flex;align-items:center;gap:5px;}
+.hatch-swatch{width:12px;height:12px;border:0.5px solid var(--border-strong);border-radius:2px;
+  background:repeating-linear-gradient(45deg,#E4E4EA 0 2px,#F5F5F8 2px 4px);}
+.maptip{position:fixed;pointer-events:none;background:#25252E;color:#fff;font-size:11px;
+  padding:7px 9px;border-radius:7px;z-index:100;display:none;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.2);}
+.maptip b{color:#fff;} .maptip .row{display:flex;justify-content:space-between;gap:14px;}
+.maptip .row span:first-child{color:#B9B9C6;}
+.mapfail{padding:40px;text-align:center;color:var(--faint);font-size:12px;}
+
+/* ---------- trend ---------- */
+#trend{width:100%;height:300px;}
+.trend-anno{font-size:10px;fill:var(--muted);}
+.legendrow{display:flex;gap:16px;padding:8px 16px 14px;font-size:11px;color:var(--muted);}
+.legendrow .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+/* ---------- bottom row ---------- */
+.botrow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
+.hbars{padding:12px 16px 14px;}
+.hbar{display:grid;grid-template-columns:130px 1fr auto;align-items:center;gap:10px;margin:9px 0;font-size:11px;}
+.hbar .lab{color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hbar .track{background:#F0F0F4;border-radius:5px;height:16px;position:relative;overflow:hidden;}
+.hbar .fill{height:100%;border-radius:5px;}
+.hbar .val{color:var(--muted);font-variant-numeric:tabular-nums;min-width:64px;text-align:right;}
+.hbar.click{cursor:pointer;}
+.hbar.click:hover .lab{color:var(--indigo-deep);}
+.corebadge{font-size:8px;background:#EFEDFB;color:var(--indigo-deep);border:0.5px solid #DEDAF4;
+  border-radius:4px;padding:0 4px;margin-left:6px;font-weight:600;vertical-align:middle;}
+.viewall{font-size:11px;padding:2px 16px 12px;}
+.sub-h{font-size:11px;color:var(--muted);padding:12px 16px 2px;font-weight:600;}
+.donutwrap{display:flex;align-items:center;gap:16px;padding:6px 16px 10px;}
+.gender-leg{font-size:11px;}
+.gender-leg div{display:flex;align-items:center;gap:6px;margin:5px 0;}
+.gender-leg .sw{width:10px;height:10px;border-radius:3px;}
+.note{font-size:10px;color:var(--faint);padding:6px 16px 14px;font-style:italic;}
+
+/* ---------- prescribers table ---------- */
+.tablecard{margin-bottom:16px;}
+.tabletop{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
+  border-bottom:0.5px solid var(--border);}
+.tsearch{border:0.5px solid var(--border-strong);border-radius:8px;padding:6px 10px;font-size:12px;
+  width:280px;font-family:inherit;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{text-align:left;font-size:10px;color:var(--muted);font-weight:600;padding:9px 14px;
+  border-bottom:0.5px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none;}
+thead th.n{text-align:right;}
+thead th:hover{color:var(--ink);}
+tbody td{padding:9px 14px;border-bottom:0.5px solid #F1F1F5;}
+tbody td.n{text-align:right;font-variant-numeric:tabular-nums;}
+tbody tr{cursor:pointer;}
+tbody tr:hover{background:#FAFAFC;}
+.pill{display:inline-block;font-size:10px;padding:1px 8px;border-radius:20px;font-weight:600;}
+.pill.MCO{background:#E5F5EE;color:#157552;}
+.pill.FFS{background:#FBE9E0;color:#B24A24;}
+.supp{color:var(--faint);}
+.pager{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:11px;color:var(--muted);}
+.pager button{border:0.5px solid var(--border-strong);background:#fff;border-radius:6px;padding:4px 10px;font-size:11px;}
+.pager button:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ---------- side panel ---------- */
+.overlay{position:fixed;inset:0;background:rgba(30,30,40,.28);z-index:80;display:none;}
+.overlay.open{display:block;}
+.sidepanel{position:fixed;top:0;right:-460px;width:440px;max-width:92vw;height:100%;background:#fff;
+  z-index:90;box-shadow:-8px 0 30px rgba(0,0,0,.12);transition:right .22s ease;overflow:auto;}
+.sidepanel.open{right:0;}
+.sp-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 20px;
+  border-bottom:0.5px solid var(--border);}
+.sp-head h3{margin:0;font-size:15px;} .sp-head .m{font-size:11px;color:var(--muted);margin-top:2px;}
+.sp-close{border:none;background:none;font-size:20px;color:var(--muted);line-height:1;}
+.sp-body{padding:18px 20px;}
+.sp-kv{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;}
+.sp-kv .cell .l{font-size:10px;color:var(--muted);} .sp-kv .cell .v{font-size:15px;font-weight:500;margin-top:2px;}
+.sp-section-title{font-size:11px;font-weight:600;color:var(--muted);margin:16px 0 8px;}
+.mini{display:flex;align-items:flex-end;gap:6px;height:90px;padding:6px 0;}
+.mini .b{flex:1;background:var(--indigo);border-radius:3px 3px 0 0;position:relative;min-height:2px;}
+.mini .b span{position:absolute;bottom:-16px;left:0;right:0;text-align:center;font-size:9px;color:var(--faint);}
+.disclaimer{font-size:10px;color:var(--faint);padding:14px 20px 30px;border-top:0.5px solid var(--border);margin-top:10px;}
+
+/* empty state */
+.empty{text-align:center;color:var(--faint);padding:40px 16px;font-size:12px;}
+.empty .ghost{font-size:30px;opacity:.4;}
+
+.footnote{font-size:10px;color:var(--faint);text-align:center;padding:8px;}
+</style>
+</head>
+<body>
+
+<!-- ================= TOP NAV ================= -->
+<div class="nav">
+  <div class="brand">
+    <div class="logo">In</div>
+    <div>
+      <h1>Market Insights — Sales Intelligence</h1>
+      <div class="sub">Medicaid TMSIS · Vitiligo / Atopic Dermatitis · 2023–2024</div>
+    </div>
+  </div>
+  <div class="nav-actions">
+    <button class="btn">Export</button>
+    <button class="btn btn-primary">Save view</button>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- ================= FILTER BAR (built by JS, matches FilterBar.jsx) ===== -->
+  <div class="pv-ctx-filter-bar" id="filterbar"></div>
+
+  <!-- ================= BANNER ================= -->
+  <div class="banner" id="qbanner">
+    <span class="i">Note</span>
+    <span>Quarterly figures show one quarter of activity — annual totals will be approximately 4× higher.
+      Do not compare quarterly and annual views directly.</span>
+  </div>
+
+  <!-- ================= KPI CARDS ================= -->
+  <div class="kpirow" id="kpirow"></div>
+
+  <!-- ================= MIDDLE ROW ================= -->
+  <div class="midrow">
+    <!-- MAP -->
+    <div class="card">
+      <div class="panel-head">
+        <div class="maptabs" id="maptabs">
+          <button class="maptab active" data-tab="volume">Volume size</button>
+          <button class="maptab" data-tab="claims">Claim activity</button>
+          <button class="maptab" data-tab="reach">Patient reach</button>
+          <button class="maptab" data-tab="split">FFS vs MCO split</button>
+        </div>
+      </div>
+      <div class="mapbody">
+        <svg id="usmap"></svg>
+        <div class="maplegend" id="maplegend"></div>
+      </div>
+    </div>
+    <!-- TREND -->
+    <div class="card">
+      <div class="panel-head">
+        <h3>Quarterly Rx volume trend</h3>
+        <span class="hint">FFS vs MCO · Rx Qty</span>
+      </div>
+      <svg id="trend"></svg>
+      <div class="legendrow">
+        <span><i class="dot" style="background:var(--coral)"></i>FFS</span>
+        <span><i class="dot" style="background:var(--teal)"></i>MCO</span>
+        <span style="color:var(--faint)">2023 shown at 40% opacity (prior-year context)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= BOTTOM ROW ================= -->
+  <div class="botrow">
+    <!-- Specialties -->
+    <div class="card">
+      <div class="panel-head"><h3>Top prescriber specialties</h3><span class="hint">Rx Qty · 2024 Q3</span></div>
+      <div class="hbars" id="specbars"></div>
+      <div class="viewall"><a href="#" onclick="return false">View all 94 specialties →</a></div>
+    </div>
+    <!-- Demographics -->
+    <div class="card">
+      <div class="panel-head"><h3>Patient demographics</h3><span class="hint">Rx Qty · 2024 Q3</span></div>
+      <div class="sub-h">Gender split</div>
+      <div class="donutwrap">
+        <svg id="donut" width="120" height="120"></svg>
+        <div class="gender-leg" id="genderleg"></div>
+      </div>
+      <div class="sub-h">Race breakdown</div>
+      <div class="hbars" id="racebars" style="padding-top:2px"></div>
+      <div class="note">Unknown race = 9.7% of Rx Qty — likely data entry gap.</div>
+    </div>
+    <!-- Age -->
+    <div class="card">
+      <div class="panel-head"><h3>Age group distribution</h3><span class="hint">Rx Qty · 2024 Q3</span></div>
+      <div class="hbars" id="agebars"></div>
+      <div class="note">27–47 and 47–67 are the dominant segments — together ~69% of volume.</div>
+    </div>
+  </div>
+
+  <!-- ================= PRESCRIBERS TABLE ================= -->
+  <div class="card tablecard">
+    <div class="tabletop">
+      <div>
+        <h3 style="margin:0;font-size:13px;font-weight:600">Top prescribers</h3>
+        <div id="tablescope" style="font-size:10px;color:var(--faint);margin-top:2px"></div>
+      </div>
+      <input class="tsearch" id="tsearch" type="search" placeholder="Search by NPI or specialty..." />
+    </div>
+    <table id="ptable">
+      <thead>
+        <tr>
+          <th class="n" data-k="rank">Rank</th>
+          <th data-k="npi">NPI</th>
+          <th data-k="spec">Doctor specialty</th>
+          <th data-k="state">State</th>
+          <th data-k="clm">Claim type</th>
+          <th class="n" data-k="qty">Rx Qty ▾</th>
+          <th class="n" data-k="claims">Total claims</th>
+          <th class="n" data-k="benes">Total benes</th>
+          <th class="n" data-k="qoq">QoQ</th>
+        </tr>
+      </thead>
+      <tbody id="ptbody"></tbody>
+    </table>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <div class="footnote">
+    Mockup · Medicaid TMSIS 2023–2024 · values shown for the default view (2024 · Q3 · All states · All claim types).
+    NPI shown for field targeting only — not for public disclosure. Suppressed cells (source −11) render as “—”.
+  </div>
+</div>
+
+<!-- tooltip + side panel -->
+<div class="maptip" id="maptip"></div>
+<div class="overlay" id="overlay"></div>
+<div class="sidepanel" id="sidepanel"></div>
+
+<script>
+/* ============================================================
+   REAL DATA  (extracted from Incyte Summaries 07082026.xlsx)
+   Display universe = GENDER+RACE combined (matches design targets)
+   ============================================================ */
+const STATE_RX = {"AK":360,"AL":5880,"AR":720,"AZ":7800,"CA":700320,"CO":13200,"CT":38520,"DC":960,"DE":3120,"FL":30240,"GA":10440,"HI":5881920,"IA":4080,"ID":8160,"IL":256,"IN":12240,"KS":2280,"KY":8760,"LA":41280,"MA":52080,"MD":23160,"ME":1560,"MI":23160,"MN":21480,"MO":2040,"MS":2640,"MT":600,"NC":21720,"NE":3240,"NH":960,"NJ":60960,"NM":3600,"NV":14280,"NY":577080,"OH":73380,"OK":2400,"OR":480,"PA":53040,"PR":840,"RI":3240,"SC":5880,"SD":120,"TN":11400,"TX":29640,"UT":1920,"VA":14760,"VT":480,"WA":10800,"WI":18480,"WV":240,"WY":720};
+const STATE_CLAIMS = {"CA":3158,"FL":24,"ID":30,"LA":90,"MA":50,"NJ":180,"NV":30,"NY":2554,"OH":58,"PA":112,"TX":80};
+const STATE_BENES = {"CA":884,"LA":24,"NY":1018,"PA":26,"TX":50};
+// FFS-dominant states (tab 4) — illustrative subset; nationally MCO=82.4%
+const FFS_DOMINANT = new Set(["CA","NY","TX","FL","PA","IL","OH"]);
+const TREND = {"2023 Q1":{ffs:411902,mco:424298},"2023 Q2":{ffs:880804,mco:336222},"2023 Q3":{ffs:1053454,mco:370496},"2023 Q4":{ffs:1174884,mco:433194},"2024 Q1":{ffs:1128318,mco:4065888},"2024 Q2":{ffs:1246890,mco:5550138},"2024 Q3":{ffs:1370304,mco:6436612},"2024 Q4":{ffs:1446520,mco:5269258}};
+
+const KPIS = [
+  {label:"Rx Volume (Qty)", value:"7,807,746", trend:"up", delta:"↑ 14.8% vs Q2 2024", foot:""},
+  {label:"Total Claims", value:"5,502", trend:"up", delta:"↑ 11.3% vs Q2 2024", foot:""},
+  {label:"Treated Patients", value:"1,581", trend:"", delta:"", foot:"approx · suppressed cells excluded", approx:true},
+  {label:"Active States", value:"51", trend:"", delta:"", foot:"period-level national count"}
+];
+
+const SPECIALTIES = [
+  ["Dermatology physician",3342222],["Physician assistant",2880132],
+  ["Family nurse practitioner",609048],["Medical physician assistant",443520],
+  ["Specialist",147960],["MOHS-micrographic surgery physician",129840]
+];
+const GENDER = [["Female",2530812,"var(--indigo)"],["Male",1371804,"var(--teal)"]];
+const RACE = [["Asian",1676694],["Unknown",760632],["White",491886],["Hispanic",483894],
+  ["Hawaiian",305700],["Black",139704],["American Indian",9600],["Multiracial",10440],["Other",70680]];
+const AGE = [["Under 19",1388958,false],["19–26",964896,false],["27–47",2701548,true],
+  ["47–67",2702304,true],["67–87",46800,false],["87–107",720,false]];
+
+const S = null; // suppressed marker -> "—"
+const PRESCRIBERS = [
+  {npi:"1174028351",spec:"Dermatology physician",state:"HI",clm:"MCO",qty:1920120,claims:S,benes:S,qoq:"up"},
+  {npi:"1043201494",spec:"Physician assistant",state:"HI",clm:"MCO",qty:840000,claims:S,benes:S,qoq:"up"},
+  {npi:"1992001432",spec:"Physician assistant",state:"HI",clm:"MCO",qty:720000,claims:S,benes:S,qoq:"up"},
+  {npi:"1841431400",spec:"Physician assistant",state:"HI",clm:"MCO",qty:480120,claims:S,benes:S,qoq:"flat"},
+  {npi:"1255609392",spec:"Family nurse practitioner",state:"HI",clm:"MCO",qty:480000,claims:S,benes:S,qoq:"up"},
+  {npi:"1508391780",spec:"Dermatology physician",state:"HI",clm:"MCO",qty:360120,claims:S,benes:S,qoq:"down"},
+  {npi:"1043419021",spec:"Medical physician assistant",state:"HI",clm:"MCO",qty:240000,claims:S,benes:S,qoq:"up"},
+  {npi:"1700869427",spec:"Specialist",state:"HI",clm:"MCO",qty:120000,claims:S,benes:S,qoq:"flat"},
+  {npi:"1073631362",spec:"Dermatology physician",state:"HI",clm:"MCO",qty:120000,claims:S,benes:S,qoq:"up"},
+  {npi:"1104326727",spec:"Physician assistant",state:"HI",clm:"MCO",qty:120000,claims:S,benes:S,qoq:"up"},
+  {npi:"1558696799",spec:"Physician assistant",state:"HI",clm:"MCO",qty:120000,claims:S,benes:S,qoq:"flat"},
+  {npi:"1346230273",spec:"Dermatology physician",state:"HI",clm:"MCO",qty:120000,claims:S,benes:S,qoq:"down"},
+  {npi:"1467550590",spec:"Dermatology physician",state:"HI",clm:"MCO",qty:120000,claims:S,benes:S,qoq:"up"},
+  {npi:"1194112391",spec:"MOHS-micrographic surgery physician",state:"HI",clm:"MCO",qty:120000,claims:S,benes:S,qoq:"up"},
+  {npi:"1780786657",spec:"Physician assistant",state:"CA",clm:"FFS",qty:51240,claims:828,benes:352,qoq:"up"},
+  {npi:"1174968606",spec:"Medical physician assistant",state:"CA",clm:"FFS",qty:44520,claims:610,benes:210,qoq:"up"},
+  {npi:"1396741234",spec:"Dermatology physician",state:"CA",clm:"FFS",qty:38940,claims:540,benes:188,qoq:"flat"},
+  {npi:"1477037001",spec:"Medical physician assistant",state:"CA",clm:"FFS",qty:31200,claims:420,benes:S,qoq:"down"},
+  {npi:"1215998877",spec:"Dermatology physician",state:"NY",clm:"MCO",qty:28560,claims:S,benes:S,qoq:"up"},
+  {npi:"1629331120",spec:"Family nurse practitioner",state:"NY",clm:"MCO",qty:24000,claims:S,benes:S,qoq:"up"},
+  {npi:"1548270551",spec:"Physician assistant",state:"OH",clm:"MCO",qty:18360,claims:S,benes:S,qoq:"flat"},
+  {npi:"1730258841",spec:"Dermatology physician",state:"PA",clm:"MCO",qty:16080,claims:112,benes:26,qoq:"up"},
+  {npi:"1861540113",spec:"Specialist",state:"NJ",clm:"MCO",qty:14400,claims:S,benes:S,qoq:"down"},
+  {npi:"1902887762",spec:"Physician assistant",state:"TX",clm:"FFS",qty:12480,claims:80,benes:50,qoq:"up"},
+  {npi:"1033244991",spec:"Dermatology physician",state:"LA",clm:"MCO",qty:11040,claims:90,benes:24,qoq:"up"},
+  {npi:"1447590332",spec:"Family nurse practitioner",state:"MA",clm:"MCO",qty:9840,claims:50,benes:S,qoq:"flat"},
+  {npi:"1558123449",spec:"Medical physician assistant",state:"FL",clm:"MCO",qty:8640,claims:24,benes:S,qoq:"down"},
+  {npi:"1669805520",spec:"Dermatology physician",state:"NV",clm:"MCO",qty:7200,claims:30,benes:S,qoq:"up"},
+  {npi:"1780991117",spec:"Physician assistant",state:"MI",clm:"MCO",qty:6120,claims:S,benes:S,qoq:"flat"},
+  {npi:"1891043228",spec:"Specialist",state:"WA",clm:"MCO",qty:4800,claims:S,benes:S,qoq:"up"}
+];
+
+const STATE_NAMES = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",PR:"Puerto Rico"};
+// FIPS (numeric) -> abbr, for us-atlas states
+const FIPS_ABBR = {"01":"AL","02":"AK","04":"AZ","05":"AR","06":"CA","08":"CO","09":"CT","10":"DE","11":"DC","12":"FL","13":"GA","15":"HI","16":"ID","17":"IL","18":"IN","19":"IA","20":"KS","21":"KY","22":"LA","23":"ME","24":"MD","25":"MA","26":"MI","27":"MN","28":"MS","29":"MO","30":"MT","31":"NE","32":"NV","33":"NH","34":"NJ","35":"NM","36":"NY","37":"NC","38":"ND","39":"OH","40":"OK","41":"OR","42":"PA","44":"RI","45":"SC","46":"SD","47":"TN","48":"TX","49":"UT","50":"VT","51":"VA","53":"WA","54":"WV","55":"WI","56":"WY","72":"PR"};
+
+/* dropdown option sets */
+const OPTIONS = {
+  quarter:["Q1","Q2","Q3","Q4"],
+  state:Object.keys(STATE_NAMES).sort((a,b)=>STATE_NAMES[a].localeCompare(STATE_NAMES[b])).map(a=>({v:a,l:STATE_NAMES[a]})),
+  age:["Under 19","19–26","27–47","47–67","67–87","87–107"],
+  plan:["Aetna Better Health","Anthem HealthKeepers","CalOptima","Centene / Ambetter","Health Net","Highmark Wholecare","Humana Healthy Horizons","Molina Healthcare","UnitedHealthcare Community","WellCare"],
+  specialty:["Dermatology physician","Physician assistant","Family nurse practitioner","Medical physician assistant","Specialist","MOHS-micrographic surgery physician","Pediatric dermatology physician","Nurse practitioner","Internal medicine physician","Pediatrics physician"]
+};
+
+/* ============================================================
+   FILTER CONFIG  — mimics dashboard.page.filter records.
+   Each entry maps to how FilterBar.jsx dispatches a control:
+     ui:'pills'|'segmented' → PillTabs   · multi → MultiSelectDropdown
+     search:true            → searchable · def  → default_value
+     hideAll:true           → hide_all_option (single-select, no "All")
+   ============================================================ */
+const FILTERS = [
+  {id:1, name:"Year",  param:"year",   multi:false, hideAll:true, def:"2024",
+    options:[{value:"2023",label:"2023"},{value:"2024",label:"2024"}]},
+  {id:2, name:"View",  param:"view",   multi:false, hideAll:true, def:"quarter",
+    options:[{value:"quarter",label:"Quarter"},{value:"year",label:"Year"}]},
+  {id:3, name:"Quarter", param:"quarter", multi:true, def:"Q3",
+    options:OPTIONS.quarter.map(v=>({value:v,label:v}))},
+  {id:4, name:"State", param:"STATE_NAME", multi:true, search:true,
+    options:OPTIONS.state.map(o=>({value:o.v,label:o.l}))},
+  {id:5, name:"Claim type", param:"clm_type", multi:false, def:"",
+    options:[{value:"FFS",label:"FFS"},{value:"MCO",label:"MCO"}]},
+  {id:6, name:"Age group", param:"AGE_GRP", multi:true,
+    options:OPTIONS.age.map(v=>({value:v,label:v}))},
+  {id:7, name:"MCO Plan", param:"PLAN_NAME", multi:true, search:true, placeholder:"All (406)",
+    options:OPTIONS.plan.map(v=>({value:v,label:v}))},
+  {id:8, name:"Doctor specialty", param:"DOC_SPECIALTY", multi:true, search:true, placeholder:"All (94)",
+    options:OPTIONS.specialty.map(v=>({value:v,label:v}))}
+];
+const FILTER_BY_PARAM = Object.fromEntries(FILTERS.map(f=>[f.param,f]));
+const filterDefaults = () => Object.fromEntries(FILTERS.map(f=>[f.param, f.def ?? ""]));
+
+/* ============================================================
+   STATE  — pending (bar) vs applied (widgets), like FilterContext
+   ============================================================ */
+const state = {
+  pending: filterDefaults(),
+  applied: filterDefaults(),
+  dirty: false,
+  mapTab:"volume",
+  tableSort:{k:"qty",dir:-1}, tableSearch:"", tablePage:1, specFilter:null
+};
+const fmt = n => n==null ? "—" : n.toLocaleString("en-US");
+const setVals = s => new Set((s||"").split(",").map(x=>x.trim()).filter(Boolean));
+
+/* ============================================================
+   FILTER BAR  — config-driven, mirrors FilterBar.jsx dispatch:
+   PillTabs / MultiSelectDropdown / SearchableSelect + Apply/Clear All.
+   Changing a control updates PENDING; Apply commits to widgets.
+   ============================================================ */
+function isDisabled(f){
+  if(f.param==="quarter" && state.pending.view==="year") return true;      // Quarter off in Year view
+  if(f.param==="PLAN_NAME" && state.pending.clm_type==="FFS") return true; // Plan off when FFS-only
+  return false;
+}
+function setPending(param,val){ state.pending[param]=val; markDirty(); buildFilterBar(); }
+function markDirty(){ state.dirty = JSON.stringify(state.pending)!==JSON.stringify(state.applied); }
+
+function buildFilterBar(){
+  const bar=document.getElementById("filterbar"); bar.innerHTML="";
+  FILTERS.forEach(f=>{
+    const grp=document.createElement("div"); grp.className="pv-ctx-filter-group";
+    if(isDisabled(f)) grp.style.opacity=.5;
+    const lab=document.createElement("label"); lab.className="pv-ctx-filter-label"; lab.textContent=f.name;
+    grp.appendChild(lab);
+    grp.appendChild(f.multi ? multiControl(f) : selectControl(f));
+    bar.appendChild(grp);
+  });
+  // Apply + Clear All
+  const ag=document.createElement("div"); ag.className="pv-ctx-filter-group pv-ctx-apply-group";
+  ag.innerHTML=`<button class="pv-ctx-apply-btn${state.dirty?' dirty':''}" id="applybtn">Apply</button>
+    <button class="pv-ctx-clear-btn" id="clearbtn">Clear All</button>`;
+  bar.appendChild(ag);
+  ag.querySelector("#applybtn").onclick=applyFilters;
+  ag.querySelector("#clearbtn").onclick=clearAll;
+  // banner: only in Quarter view
+  document.getElementById("qbanner").style.display = state.pending.view==="year"?"none":"flex";
+}
+
+/* single-select plain dropdown (.pv-ctx-select) — synthetic "All" unless hideAll */
+function selectControl(f){
+  const sel=document.createElement("select"); sel.className="pv-ctx-select"; sel.disabled=isDisabled(f);
+  if(!f.hideAll){ const o=document.createElement("option"); o.value=""; o.textContent="All"; sel.appendChild(o); }
+  f.options.forEach(o=>{ const op=document.createElement("option"); op.value=o.value; op.textContent=o.label;
+    sel.appendChild(op); });
+  sel.value = state.pending[f.param] || "";
+  sel.onchange=()=>setPending(f.param, sel.value);
+  return sel;
+}
+
+/* multiselect dropdown (search + Select All | Clear) */
+function multiControl(f){
+  const sel=setVals(state.pending[f.param]);
+  const root=document.createElement("div"); root.className="pv-multiselect";
+  const trig=document.createElement("button"); trig.className="pv-multiselect-trigger"; trig.disabled=isDisabled(f);
+  let disp = f.placeholder || "All";
+  if(sel.size===1){ const o=f.options.find(x=>x.value===[...sel][0]); disp=o?o.label:[...sel][0]; }
+  else if(sel.size>1) disp=`${sel.size} selected`;
+  trig.innerHTML=`<span class="pv-multiselect-display">${disp}</span><span class="pv-multiselect-arrow">▾</span>`;
+  const dd=document.createElement("div"); dd.className="pv-multiselect-dropdown";
+  if(f.search){
+    const s=document.createElement("input"); s.type="text"; s.className="pv-multiselect-search"; s.placeholder="Search...";
+    s.oninput=()=>{ dd.querySelectorAll(".pv-multiselect-option").forEach(li=>{
+      li.style.display=li.dataset.l.toLowerCase().includes(s.value.toLowerCase())?"flex":"none"; }); };
+    dd.appendChild(s);
+  }
+  const act=document.createElement("div"); act.className="pv-multiselect-actions";
+  act.innerHTML=`<button data-a="all">Select All</button><span class="pv-multiselect-divider">|</span>
+    <button data-a="clear">Clear</button>${sel.size>0?`<span class="pv-multiselect-count">${sel.size} selected</span>`:""}`;
+  act.querySelector('[data-a="all"]').onclick=()=>setPending(f.param,f.options.map(o=>o.value).join(","));
+  act.querySelector('[data-a="clear"]').onclick=()=>setPending(f.param,"");
+  dd.appendChild(act);
+  const ul=document.createElement("ul"); ul.className="pv-multiselect-options";
+  f.options.forEach(o=>{
+    const li=document.createElement("li"); li.className="pv-multiselect-option"; li.dataset.l=o.label;
+    li.innerHTML=`<input type="checkbox" ${sel.has(o.value)?"checked":""}><span>${o.label}</span>`;
+    li.querySelector("input").onchange=e=>{ e.target.checked?sel.add(o.value):sel.delete(o.value);
+      setPending(f.param,[...sel].join(",")); };
+    ul.appendChild(li);
+  });
+  dd.appendChild(ul);
+  root.appendChild(trig); root.appendChild(dd);
+  trig.onclick=(e)=>{ e.stopPropagation(); const open=dd.classList.contains("open");
+    document.querySelectorAll(".pv-multiselect-dropdown").forEach(d=>d.classList.remove("open"));
+    if(!open) dd.classList.add("open"); };
+  dd.onclick=e=>e.stopPropagation();
+  return root;
+}
+document.addEventListener("click",()=>document.querySelectorAll(".pv-multiselect-dropdown").forEach(d=>d.classList.remove("open")));
+
+function applyFilters(){
+  state.applied=JSON.parse(JSON.stringify(state.pending));
+  state.dirty=false; buildFilterBar(); renderMap(); renderTable();
+}
+function clearAll(){
+  // Clear All → '' for every filter, except hide_all single-selects with a
+  // default (reset to default), mirroring handleClearAll in FilterBar.jsx.
+  FILTERS.forEach(f=>{ state.pending[f.param] = (f.hideAll && !f.multi && f.def) ? f.def : ""; });
+  state.specFilter=null; markDirty(); buildFilterBar(); renderTable();
+}
+
+/* ============================================================
+   KPI CARDS
+   ============================================================ */
+function renderKPIs(){
+  const row=document.getElementById("kpirow"); row.innerHTML="";
+  KPIS.forEach(k=>{
+    const c=document.createElement("div"); c.className="card kpi";
+    c.innerHTML=`
+      <div class="k-label">${k.label}${k.approx?'<span class="approx">APPROX</span>':''}</div>
+      <div class="k-value num">${k.value}</div>
+      ${k.delta?`<div class="k-trend ${k.trend}">${k.delta}</div>`:'<div class="k-trend">&nbsp;</div>'}
+      ${k.foot?`<div class="k-foot">${k.foot}</div>`:''}`;
+    row.appendChild(c);
+  });
+}
+
+/* ============================================================
+   HORIZONTAL BAR HELPERS
+   ============================================================ */
+function renderHBars(elId, data, color, opts={}){
+  const el=document.getElementById(elId); el.innerHTML="";
+  const max=Math.max(...data.map(d=>d[1]));
+  data.forEach(d=>{
+    const [lab,val]=d; const core=d[2];
+    const row=document.createElement("div"); row.className="hbar"+(opts.click?" click":"");
+    const barColor = typeof color==="function"?color(lab):color;
+    row.innerHTML=`
+      <div class="lab" title="${lab}">${lab}${core?'<span class="corebadge">core segment</span>':''}</div>
+      <div class="track"><div class="fill" style="width:${(val/max*100).toFixed(1)}%;background:${barColor}"></div></div>
+      <div class="val">${fmt(val)}</div>`;
+    if(opts.click){ row.onclick=()=>{ state.specFilter = state.specFilter===lab?null:lab; renderTable(); highlightSpec(elId,lab);}; }
+    el.appendChild(row);
+  });
+}
+function highlightSpec(elId,lab){
+  document.querySelectorAll("#"+elId+" .hbar").forEach(r=>{
+    r.style.opacity = (!state.specFilter || r.querySelector(".lab").getAttribute("title")===state.specFilter)?1:.4;
+  });
+}
+
+/* ============================================================
+   DONUT (gender)
+   ============================================================ */
+function renderDonut(){
+  const svg=d3.select("#donut"); svg.selectAll("*").remove();
+  const total=GENDER.reduce((s,d)=>s+d[1],0);
+  const g=svg.append("g").attr("transform","translate(60,60)");
+  const arc=d3.arc().innerRadius(34).outerRadius(56);
+  const pie=d3.pie().sort(null).value(d=>d[1]);
+  g.selectAll("path").data(pie(GENDER)).join("path")
+    .attr("d",arc).attr("fill",d=>d.data[2]);
+  g.append("text").attr("text-anchor","middle").attr("dy","-2").style("font-size","15px").style("font-weight",500).text("3.9M");
+  g.append("text").attr("text-anchor","middle").attr("dy","14").style("font-size","9px").style("fill","#9A9AA6").text("Rx Qty");
+  const leg=document.getElementById("genderleg"); leg.innerHTML="";
+  GENDER.forEach(([l,v,c])=>{
+    const pct=(v/total*100).toFixed(1);
+    leg.innerHTML+=`<div><span class="sw" style="background:${c}"></span>${l} · ${fmt(v)} <span style="color:var(--faint)">(${pct}%)</span></div>`;
+  });
+}
+
+/* ============================================================
+   TREND — grouped bars FFS/MCO
+   ============================================================ */
+function renderTrend(){
+  const svg=d3.select("#trend"); svg.selectAll("*").remove();
+  const W=svg.node().clientWidth||520, H=300, m={t:26,r:12,b:38,l:48};
+  const iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const keys=Object.keys(TREND);
+  const max=d3.max(keys,k=>Math.max(TREND[k].ffs,TREND[k].mco));
+  const x=d3.scaleBand().domain(keys).range([0,iw]).padding(.28);
+  const xin=d3.scaleBand().domain(["ffs","mco"]).range([0,x.bandwidth()]).padding(.15);
+  const y=d3.scaleLinear().domain([0,max]).nice().range([ih,0]);
+  const g=svg.append("g").attr("transform",`translate(${m.l},${m.t})`);
+  // gridlines
+  g.selectAll("line.grid").data(y.ticks(4)).join("line").attr("class","grid")
+    .attr("x1",0).attr("x2",iw).attr("y1",d=>y(d)).attr("y2",d=>y(d))
+    .attr("stroke","#EFEFF3");
+  g.selectAll("text.yl").data(y.ticks(4)).join("text").attr("class","yl")
+    .attr("x",-8).attr("y",d=>y(d)).attr("dy",3).attr("text-anchor","end")
+    .style("font-size","9px").style("fill","#9A9AA6")
+    .text(d=>d>=1e6?(d/1e6)+"M":d/1000+"k");
+  // bars
+  keys.forEach(k=>{
+    const yr=k.slice(0,4), sel=(k==="2024 Q3");
+    const op = yr==="2023"?0.4:1;
+    [["ffs","var(--coral)"],["mco","var(--teal)"]].forEach(([mk,col])=>{
+      const v=TREND[k][mk];
+      g.append("rect")
+        .attr("x",x(k)+xin(mk)).attr("width",xin.bandwidth())
+        .attr("y",y(v)).attr("height",ih-y(v))
+        .attr("fill",col).attr("opacity",op).attr("rx",1.5)
+        .attr("stroke",sel?"#25252E":"none").attr("stroke-width",sel?1.5:0);
+    });
+    g.append("text").attr("x",x(k)+x.bandwidth()/2).attr("y",ih+14)
+      .attr("text-anchor","middle").style("font-size","9px").style("fill","#6B6B78").text(k.slice(5));
+    g.append("text").attr("x",x(k)+x.bandwidth()/2).attr("y",ih+26)
+      .attr("text-anchor","middle").style("font-size","8px").style("fill","#B7B7C2").text(yr==="2023"&&k!=="2023 Q1"?"":yr);
+  });
+  // year boundary dashed rule between 2023 Q4 and 2024 Q1
+  const bx=x("2024 Q1")-x.step()*0.14;
+  g.append("line").attr("x1",bx).attr("x2",bx).attr("y1",-6).attr("y2",ih)
+    .attr("stroke","#C9C9D4").attr("stroke-dasharray","3,3");
+  g.append("text").attr("x",bx+4).attr("y",-10).style("font-size","9px").style("fill","#8A8A96").text("2024 →");
+  // annotation on the jump
+  g.append("text").attr("x",x("2024 Q1")).attr("y",y(TREND["2024 Q1"].mco)-8)
+    .attr("class","trend-anno").style("font-size","9px").text("Significant increase from 2024 onwards");
+}
+
+/* ============================================================
+   MAP — real US choropleth (d3 + us-atlas), 4 tabs
+   ============================================================ */
+const RAMPS = {
+  volume:d3.interpolate("#EEECFB","#534AB7"),
+  claims:d3.interpolate("#E4F5EE","#127A57"),
+  reach:d3.interpolate("#F0EBFA","#6D28D9")
+};
+let usFeatures=null;
+function currentValues(){
+  if(state.mapTab==="claims") return STATE_CLAIMS;
+  if(state.mapTab==="reach") return STATE_BENES;
+  return STATE_RX; // volume + split use Rx
+}
+function renderMap(){
+  const legend=document.getElementById("maplegend");
+  if(!usFeatures){ return; }
+  const svg=d3.select("#usmap"); svg.selectAll("*").remove();
+  const W=svg.node().clientWidth||600, H=360;
+  const path=d3.geoPath(d3.geoAlbersUsa().fitSize([W,H],{type:"FeatureCollection",features:usFeatures}));
+  const vals=currentValues();
+  const nums=Object.values(vals).filter(v=>v>0).sort((a,b)=>a-b);
+  const scale = d3.scaleQuantile().domain(nums).range(d3.range(6).map(i=>i/5));
+  const tab=state.mapTab;
+  const tip=document.getElementById("maptip");
+  svg.append("g").selectAll("path").data(usFeatures).join("path")
+    .attr("class","state").attr("d",path)
+    .attr("fill",f=>{
+      const ab=FIPS_ABBR[String(f.id).padStart(2,"0")];
+      const v=vals[ab];
+      if(tab==="split"){
+        if(!STATE_RX[ab]) return "#F2F2F6";
+        return FFS_DOMINANT.has(ab) ? "#E79A7C" : "#7FCBAF"; // coral vs teal
+      }
+      if(v==null || v<=0) return "url(#hatch)"; // suppressed / no data
+      return RAMPS[tab](scale(v));
+    })
+    .on("mousemove",(e,f)=>{
+      const ab=FIPS_ABBR[String(f.id).padStart(2,"0")];
+      tip.style.display="block"; tip.style.left=(e.clientX+14)+"px"; tip.style.top=(e.clientY+14)+"px";
+      tip.innerHTML=`<b>${STATE_NAMES[ab]||ab}</b>
+        <div class="row"><span>Rx Qty</span><span>${fmt(STATE_RX[ab]||null)}</span></div>
+        <div class="row"><span>Claims</span><span>${fmt(STATE_CLAIMS[ab]!=null?STATE_CLAIMS[ab]:null)}</span></div>
+        <div class="row"><span>Benes</span><span>${fmt(STATE_BENES[ab]!=null?STATE_BENES[ab]:null)}</span></div>`;
+    })
+    .on("mouseleave",()=>tip.style.display="none")
+    .on("click",(e,f)=>{
+      const ab=FIPS_ABBR[String(f.id).padStart(2,"0")];
+      if(!STATE_NAMES[ab]) return;
+      // Map click → cross-filter State (as the platform does), commit, re-render.
+      state.pending.STATE_NAME=ab; state.applied.STATE_NAME=ab; state.dirty=false;
+      buildFilterBar(); renderMap(); renderTable();
+    });
+  // hatch pattern for suppressed
+  const defs=svg.append("defs");
+  defs.append("pattern").attr("id","hatch").attr("patternUnits","userSpaceOnUse")
+    .attr("width",5).attr("height",5).attr("patternTransform","rotate(45)")
+    .html('<rect width="5" height="5" fill="#F5F5F8"/><line x1="0" y1="0" x2="0" y2="5" stroke="#DEDEE6" stroke-width="2"/>');
+  // legend
+  if(tab==="split"){
+    legend.innerHTML=`<span><i class="dot" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#E79A7C"></i> FFS-dominant</span>
+      <span style="margin-left:12px"><i class="dot" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#7FCBAF"></i> MCO-dominant</span>
+      <span style="margin-left:auto;color:var(--faint)">2024 Q3 · MCO 82.4% / FFS 17.6% nationally</span>`;
+  } else {
+    const label={volume:"Rx Qty",claims:"Total claims",reach:"Total benes"}[tab];
+    const stops=d3.range(6).map(i=>RAMPS[tab](i/5)).map(c=>`<i style="background:${c}"></i>`).join("");
+    legend.innerHTML=`<span>Low</span><div class="legend-scale">${stops}</div><span>High</span>
+      <span style="margin-left:10px">${label}</span>
+      <span class="hatch-key" style="margin-left:auto"><span class="hatch-swatch"></span>Suppressed / no data</span>`;
+  }
+}
+
+/* map tab toggles (state-level only — no county data) */
+document.querySelectorAll("#maptabs .maptab").forEach(b=>{
+  b.onclick=()=>{ document.querySelectorAll("#maptabs .maptab").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); state.mapTab=b.dataset.tab; renderMap(); };
+});
+
+/* ============================================================
+   PRESCRIBERS TABLE
+   ============================================================ */
+function renderTable(){
+  const scope=document.getElementById("tablescope");
+  const a=state.applied;
+  const period = a.view==="year" ? a.year : `${a.year} ${a.quarter||"Q3"}`;
+  const stName = a.STATE_NAME ? (STATE_NAMES[a.STATE_NAME]||a.STATE_NAME) : "All states";
+  scope.textContent = `${period} · ${stName} · sorted by Rx Qty`+(state.specFilter?` · filtered to “${state.specFilter}”`:"");
+  let rows=PRESCRIBERS.slice();
+  if(a.STATE_NAME) rows=rows.filter(r=>r.state===a.STATE_NAME);
+  if(state.specFilter) rows=rows.filter(r=>r.spec===state.specFilter);
+  if(state.tableSearch){
+    const q=state.tableSearch.toLowerCase();
+    rows=rows.filter(r=>r.npi.includes(q)||r.spec.toLowerCase().includes(q));
+  }
+  const {k,dir}=state.tableSort;
+  rows.sort((a,b)=>{
+    let av=a[k], bv=b[k];
+    if(k==="rank") return 0;
+    if(av==null) av=-1; if(bv==null) bv=-1;
+    if(typeof av==="string") return dir*av.localeCompare(bv);
+    return dir*(av-bv);
+  });
+  const tbody=document.getElementById("ptbody"); tbody.innerHTML="";
+  if(rows.length===0){
+    tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="ghost">◌</div>
+      No activity recorded for selected filters. Try broadening your selection.</div></td></tr>`;
+    document.getElementById("pager").innerHTML=""; return;
+  }
+  const per=25, pages=Math.ceil(rows.length/per);
+  if(state.tablePage>pages) state.tablePage=1;
+  const start=(state.tablePage-1)*per;
+  const pageRows=rows.slice(start,start+per);
+  const arrow=t=>t==="up"?'<span class="up">↑</span>':t==="down"?'<span class="down">↓</span>':'<span style="color:var(--faint)">→</span>';
+  pageRows.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="n">${start+i+1}</td>
+      <td class="num">${r.npi}</td>
+      <td>${r.spec}</td>
+      <td>${r.state}</td>
+      <td><span class="pill ${r.clm}">${r.clm}</span></td>
+      <td class="n num">${fmt(r.qty)}</td>
+      <td class="n num ${r.claims==null?'supp':''}">${fmt(r.claims)}</td>
+      <td class="n num ${r.benes==null?'supp':''}">${fmt(r.benes)}</td>
+      <td class="n">${arrow(r.qoq)}</td>`;
+    tr.onclick=()=>openPanel(r);
+    tbody.appendChild(tr);
+  });
+  document.getElementById("pager").innerHTML=`
+    <span>Showing ${start+1}–${Math.min(start+per,rows.length)} of ${rows.length} prescribers</span>
+    <span>
+      <button ${state.tablePage<=1?'disabled':''} onclick="pageStep(-1)">‹ Prev</button>
+      <span style="margin:0 8px">Page ${state.tablePage} / ${pages}</span>
+      <button ${state.tablePage>=pages?'disabled':''} onclick="pageStep(1)">Next ›</button>
+    </span>`;
+}
+function pageStep(d){ state.tablePage+=d; renderTable(); }
+document.querySelectorAll("#ptable thead th").forEach(th=>{
+  th.onclick=()=>{
+    const k=th.dataset.k; if(k==="rank"||k==="qoq") return;
+    if(state.tableSort.k===k) state.tableSort.dir*=-1;
+    else state.tableSort={k,dir:(k==="qty"||k==="claims"||k==="benes")?-1:1};
+    document.querySelectorAll("#ptable thead th").forEach(x=>x.textContent=x.textContent.replace(/ [▾▴]$/,""));
+    th.textContent+=state.tableSort.dir<0?" ▾":" ▴";
+    renderTable();
+  };
+});
+document.getElementById("tsearch").oninput=e=>{ state.tableSearch=e.target.value; state.tablePage=1; renderTable(); };
+
+/* side panel */
+function openPanel(r){
+  const sp=document.getElementById("sidepanel"), ov=document.getElementById("overlay");
+  // mock per-quarter breakdown scaled from the prescriber's qty
+  const factors=[.55,.62,.7,.78,.83,.9,1,.94];
+  const qs=["23 Q1","23 Q2","23 Q3","23 Q4","24 Q1","24 Q2","24 Q3","24 Q4"];
+  const bars=factors.map((f,i)=>{h:0}); const maxf=Math.max(...factors);
+  const mini=factors.map((f,i)=>`<div class="b" style="height:${(f/maxf*100).toFixed(0)}%${i===6?';background:var(--indigo-deep)':''}"><span>${qs[i]}</span></div>`).join("");
+  sp.innerHTML=`
+    <div class="sp-head">
+      <div><h3>NPI ${r.npi}</h3><div class="m">${r.spec} · ${STATE_NAMES[r.state]||r.state}</div></div>
+      <button class="sp-close" onclick="closePanel()">×</button>
+    </div>
+    <div class="sp-body">
+      <div class="sp-kv">
+        <div class="cell"><div class="l">Rx Qty (2024 Q3)</div><div class="v num">${fmt(r.qty)}</div></div>
+        <div class="cell"><div class="l">Claim type</div><div class="v"><span class="pill ${r.clm}">${r.clm}</span></div></div>
+        <div class="cell"><div class="l">Total claims</div><div class="v num ${r.claims==null?'supp':''}">${fmt(r.claims)}</div></div>
+        <div class="cell"><div class="l">Total benes</div><div class="v num ${r.benes==null?'supp':''}">${fmt(r.benes)}</div></div>
+      </div>
+      <div class="sp-section-title">Quarterly breakdown (Rx Qty)</div>
+      <div class="mini">${mini}</div>
+      <div style="height:14px"></div>
+      <div class="sp-section-title">Plan breakdown</div>
+      <div style="font-size:12px;color:var(--muted)">
+        ${r.clm==="MCO"?"Molina Healthcare · UnitedHealthcare Community · Centene / Ambetter":"Fee-for-service (no MCO plan)"}
+      </div>
+      <div class="sp-section-title">State</div>
+      <div style="font-size:12px;color:var(--muted)">${STATE_NAMES[r.state]||r.state}</div>
+    </div>
+    <div class="disclaimer">Individual prescriber (NPI) — shown for field targeting only, not for public disclosure.
+      ${r.benes==null?'Beneficiary / claim counts suppressed by CMS (fewer than 11).':''}</div>`;
+  sp.classList.add("open"); ov.classList.add("open");
+}
+function closePanel(){ document.getElementById("sidepanel").classList.remove("open");
+  document.getElementById("overlay").classList.remove("open"); }
+document.getElementById("overlay").onclick=closePanel;
+
+/* ============================================================
+   INIT
+   ============================================================ */
+renderKPIs();
+renderHBars("specbars", SPECIALTIES.map(d=>[d[0].length>24?d[0].slice(0,24)+"…":d[0],d[1]]), "var(--indigo)", {click:true});
+renderHBars("racebars", RACE, "var(--teal)");
+renderHBars("agebars", AGE.map(d=>[d[0],d[1],d[2]]), "var(--purple)");
+renderDonut();
+renderTrend();
+renderTable();
+buildFilterBar();
+window.addEventListener("resize",()=>{renderTrend(); renderMap();});
+
+/* load US map */
+fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json")
+  .then(r=>r.json())
+  .then(us=>{ usFeatures=topojson.feature(us,us.objects.states).features; renderMap(); })
+  .catch(()=>{ document.getElementById("usmap").outerHTML=
+    '<div class="mapfail">US map could not load (offline). Choropleth requires network access to the map atlas.<br>All other widgets render fully offline.</div>'; });
+</script>
+</body>
+</html>
