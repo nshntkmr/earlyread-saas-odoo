@@ -269,10 +269,34 @@ Shipped in this branch:
   tests/__init__.py) with `execute_preview` mocked — guard matrix,
   scope payload, probe rejections, rewritten-SQL/row-cap assertions.
 
+### Round-4 hardening (three P1 + one P2, all probes confirmed + fixed)
+
+- **Bare-table `IN` rejected** — CH treats `x IN table` as
+  `x IN (SELECT * FROM table)`; parses as a Column so scope traversal
+  can't see it. Any `exp.In` with a `field` arg is refused; explicit
+  subqueries go through the normal allowlist (hidden-subquery probe
+  rejected, allowed-subquery passes).
+- **Tableless invariant confirmed present** (reviewer read the plan, the
+  code kept it) + **infra-disclosure functions denied**: hostName,
+  currentUser, getSetting, getServerSetting, getMacro, FQDN, tcpPort,
+  currentDatabase, currentRoles.
+- **OFFSET rejected (nonzero)** — `LIMIT 1 OFFSET 1e9` and the
+  `LIMIT n,m` comma form both survive `.limit()` rewrites; this is not a
+  pagination surface. OFFSET 0 allowed.
+- **`LIMIT ... BY` / `WITH TIES` rejected** — the global-LIMIT rewrite
+  silently DROPS them (verified); reject rather than mangle semantics.
+- **Audit stores both `requested_sql` and executed `sql`** (the policy
+  rewrites SQL, so both matter).
+- Documented correction: the outer LIMIT bounds the RESULT, not
+  warehouse work — the CH executor's per-query max_execution_time /
+  max_memory_usage / max_rows_to_read remain the workload bound;
+  AI-specific tighter executor caps are a follow-up (touching the shared
+  executor affects widgets).
+
 Not yet done (M3): embedded React panel, `ai.provider` + adapter, agent
-loop, conversation store, OAuth 2.1 for remote MCP; known gap —
-`models/res_users.py` exists on main but is NOT imported in
-`models/__init__.py` (dead code; left untouched).
+loop, conversation store, OAuth 2.1 for remote MCP, AI-specific CH
+executor caps; known gap — `models/res_users.py` exists on main but is
+NOT imported in `models/__init__.py` (dead code; left untouched).
 
 ## 5. Branch state
 

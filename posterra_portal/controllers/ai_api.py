@@ -146,7 +146,7 @@ def _check_rate_limit(user):
 
 
 def _log_query(user, app, source, mode, question, sql, row_count,
-               duration_ms, status, error=None):
+               duration_ms, status, error=None, requested_sql=None):
     try:
         request.env['ai.query.log'].sudo().create({
             'user_id': user.id,
@@ -156,6 +156,7 @@ def _log_query(user, app, source, mode, question, sql, row_count,
             'channel': 'mcp',
             'mode': mode,
             'question': question or False,
+            'requested_sql': requested_sql or False,
             'sql': sql or False,
             'row_count': row_count or 0,
             'duration_ms': duration_ms or 0,
@@ -370,13 +371,15 @@ class AiAssistAPI(http.Controller):
         same_conn = visible.filtered(
             lambda s: s.connection_id.id == src.connection_id.id)
         allowed = build_allowed_tables(same_conn.mapped('table_name'))
+        requested_sql = sql
         try:
             sql = validate_and_rewrite_ai_sql(
                 sql, src.engine, allowed, limit, MAX_ROW_LIMIT)
         except ValueError as e:
             _log_query(user, app, src, mode, question, sql, 0,
                        int((time.monotonic() - started) * 1000),
-                       'validation_error', str(e))
+                       'validation_error', str(e),
+                       requested_sql=requested_sql)
             return _json_error(400, f'SQL rejected: {e}')
 
         ok, err = qb.validate_query(sql)
@@ -394,7 +397,7 @@ class AiAssistAPI(http.Controller):
             duration = int((time.monotonic() - started) * 1000)
             msg = _sanitize_error(e)
             _log_query(user, app, src, mode, question, sql, 0, duration,
-                       'exec_error', msg)
+                       'exec_error', msg, requested_sql=requested_sql)
             return _json_error(400, f'Query failed: {msg}')
 
         # Hard cap regardless of what the SQL's own LIMIT allowed through.
@@ -402,7 +405,7 @@ class AiAssistAPI(http.Controller):
         rows = rows[:limit]
         duration = int((time.monotonic() - started) * 1000)
         _log_query(user, app, src, mode, question, sql, len(rows), duration,
-                   'ok')
+                   'ok', requested_sql=requested_sql)
         return _json_response({
             'sql': sql,
             'columns': columns,

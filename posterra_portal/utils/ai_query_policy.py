@@ -75,6 +75,9 @@ _DENIED_FUNCS = (
     'iceberg', 'deltalake', 'hudi', 'input', 'merge',
     'cluster*', 'executable', 'dictionary', 'numbers', 'zeros',
     'generaterandom', 'fuzzjson', 'format', 'loop', 'view',
+    # Infrastructure disclosure — reveal host/user/server config.
+    'hostname', 'currentuser', 'getsetting', 'getserversetting',
+    'getmacro', 'fqdn', 'tcpport', 'currentdatabase', 'currentroles',
 )
 
 # Keyword backstop — parser check on function nodes is primary.
@@ -184,9 +187,36 @@ def validate_and_rewrite_ai_sql(sql, engine, allowed_tables,
             raise ValueError(
                 f'Function {fn.this!r} is not permitted in AI Assist SQL.')
 
-    # LIMIT literals: integer ≤ cap everywhere (bounds inner-query work
-    # and kills LIMIT NULL / expressions before the outer rewrite).
+    # Bare-table IN: ClickHouse treats ``x IN table_name`` as
+    # ``x IN (SELECT * FROM table_name)`` — an unauthorized-read path the
+    # scope traversal cannot see (the name parses as a Column, not a
+    # Table). Require the explicit subquery form; its tables then go
+    # through the normal scope-aware allowlist below.
+    for in_node in tree.find_all(_exp.In):
+        if in_node.args.get('field') is not None:
+            raise ValueError(
+                'Bare-table IN is not permitted — use an explicit '
+                'subquery: x IN (SELECT col FROM table).')
+
+    # LIMIT literals: integer ≤ cap everywhere (kills LIMIT NULL /
+    # expressions before the outer rewrite). NOTE: this bounds the result
+    # set, NOT warehouse work — ClickHouse may scan/sort/aggregate the
+    # full input before applying LIMIT; the executor's per-query
+    # max_execution_time / max_memory_usage / max_rows_to_read settings
+    # are the workload bound.
     for lim in tree.find_all(_exp.Limit):
+        # LIMIT ... BY <cols> is per-group and WITH TIES / percent
+        # options change semantics — a global-LIMIT rewrite would
+        # silently DROP them (verified against the pinned sqlglot).
+        # Reject rather than mangle.
+        if lim.args.get('expressions'):
+            raise ValueError(
+                'LIMIT ... BY is not supported in AI Assist SQL — '
+                'aggregate per group instead.')
+        if lim.args.get('limit_options'):
+            raise ValueError(
+                'LIMIT options (WITH TIES / percent) are not supported '
+                'in AI Assist SQL.')
         expr = lim.expression
         if not (isinstance(expr, _exp.Literal) and not expr.is_string
                 and str(expr.this).isdigit()):
@@ -197,6 +227,18 @@ def validate_and_rewrite_ai_sql(sql, engine, allowed_tables,
             raise ValueError(
                 f'LIMIT {expr.this} exceeds the maximum of {max_limit} '
                 'rows — lower the LIMIT and retry.')
+
+    # OFFSET: an unbounded-workload bypass (LIMIT 1 OFFSET 1e9 — and the
+    # ``LIMIT 1e9, 1`` comma form parses to the same Offset node). This
+    # is a chatbot, not a pagination surface: reject any nonzero offset.
+    for off in tree.find_all(_exp.Offset):
+        expr = off.expression
+        is_zero = (isinstance(expr, _exp.Literal) and not expr.is_string
+                   and str(expr.this).isdigit() and int(expr.this) == 0)
+        if not is_zero:
+            raise ValueError(
+                'OFFSET is not supported in AI Assist SQL — use ORDER BY '
+                'with a WHERE bound instead of paginating.')
 
     # Scope-aware base-table resolution: CTE/subquery sources resolve to
     # Scopes and are excluded per their ACTUAL scope — a CTE named like an

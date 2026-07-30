@@ -284,6 +284,45 @@ class TestAiQueryPolicy(TransactionCase):
         self._rejects('SELECT * FROM mer_data LIMIT 1000000')
         self._rejects('SELECT * FROM mer_data LIMIT 1+1')
 
+    # ── round-4 probes ──────────────────────────────────────────────────
+
+    def test_bare_table_in_rejected(self):
+        # ClickHouse: `x IN table` == `x IN (SELECT * FROM table)` — an
+        # unauthorized-read path invisible to scope traversal.
+        self._rejects('SELECT * FROM mer_data WHERE id IN hidden')
+        self._rejects('SELECT * FROM mer_data WHERE id GLOBAL IN hidden')
+
+    def test_in_subquery_forms(self):
+        # Explicit subquery: allowed table passes, hidden table rejected
+        # (its table goes through the normal scope-aware allowlist).
+        self._run('SELECT * FROM mer_data WHERE id IN '
+                  '(SELECT id FROM gold.allowed)')
+        self._rejects('SELECT * FROM mer_data WHERE id IN '
+                      '(SELECT id FROM hidden_t)')
+
+    def test_tableless_queries_rejected(self):
+        self._rejects('SELECT 1')
+        self._rejects('SELECT hostName(), currentUser(), version()')
+        self._rejects('SELECT arrayJoin(range(1000000000))')
+
+    def test_infra_disclosure_functions_rejected(self):
+        self._rejects('SELECT hostName() FROM mer_data')
+        self._rejects("SELECT getSetting('SQL_tenant_id') FROM mer_data")
+        self._rejects('SELECT currentUser() FROM mer_data')
+
+    def test_offset_rejected(self):
+        self._rejects('SELECT * FROM mer_data LIMIT 1 OFFSET 1000000000')
+        self._rejects('SELECT * FROM mer_data LIMIT 100, 1')  # comma form
+        # OFFSET 0 is a no-op — allowed.
+        self._run('SELECT * FROM mer_data LIMIT 10 OFFSET 0')
+
+    def test_limit_by_and_with_ties_rejected(self):
+        # A global-LIMIT rewrite would silently DROP these modifiers —
+        # reject rather than mangle semantics.
+        self._rejects('SELECT * FROM mer_data LIMIT 1 BY market')
+        self._rejects('SELECT * FROM mer_data ORDER BY x '
+                      'LIMIT 1 WITH TIES')
+
     def test_multi_statement_rejected(self):
         self._rejects('SELECT 1 FROM mer_data; SELECT 2 FROM mer_data')
 

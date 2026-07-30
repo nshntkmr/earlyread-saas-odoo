@@ -90,6 +90,7 @@
                     </group>
                     <group>
                         <field name="question"/>
+                        <field name="requested_sql" widget="text"/>
                         <field name="sql" widget="text"/>
                         <field name="error"/>
                     </group>

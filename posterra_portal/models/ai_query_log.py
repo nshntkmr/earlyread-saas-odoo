@@ -48,7 +48,10 @@ class AiQueryLog(models.Model):
     ], readonly=True)
 
     question = fields.Text(readonly=True)  # null in sql mode
-    sql = fields.Text(readonly=True)
+    # What the caller submitted vs. what actually ran — the policy layer
+    # REWRITES SQL (outer LIMIT enforcement), so both matter for audit.
+    requested_sql = fields.Text(readonly=True)
+    sql = fields.Text(readonly=True, string='Executed SQL')
     row_count = fields.Integer(readonly=True)
     duration_ms = fields.Integer(readonly=True)
     status = fields.Selection([
