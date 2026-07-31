@@ -400,8 +400,14 @@ class DashboardPageFilter(models.Model):
         (param_name or field_name), so two filters on one page cannot both
         own e.g. 'year' — a tab filter needing independence uses its own
         name (encounter_year). Fires on create/write/import/reactivation
-        only — untouched pre-existing rows never break a module upgrade
-        (audit those with the rollout report before relying on scoping)."""
+        only. Skipped during data-file import (install_mode): seed XML
+        re-writes filter rows on every upgrade, and legacy data carries known
+        collisions (e.g. the historical duplicate hha_city filters that
+        _cleanup_duplicate_filters exists for) — enforcement during import
+        would brick the upgrade before the cleanup hook could run. The
+        post-init audit logs remaining collisions instead (rollout gate)."""
+        if self.env.context.get('install_mode'):
+            return
         for rec in self:
             if not rec.is_active:
                 continue

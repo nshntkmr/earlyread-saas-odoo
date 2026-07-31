@@ -176,6 +176,35 @@ def _ensure_app_access_groups(env):
             app._ensure_access_group()
 
 
+def _audit_runtime_key_collisions(env):
+    """Phase T rollout gate: report (never fix) active filters sharing a
+    runtime key (param_name or field_name) on one page. Tab scoping keys
+    URL/state/SQL on that key, so collisions make it ambiguous. The
+    interactive constraint blocks NEW collisions; legacy ones surface here
+    for the admin to resolve deliberately."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    Filter = env['dashboard.page.filter'].sudo()
+    by_page_key = {}
+    for f in Filter.search([('is_active', '=', True)]):
+        key = f.param_name or f.field_name
+        if not key:
+            continue
+        by_page_key.setdefault((f.page_id.id, key), []).append(f)
+    collisions = {k: v for k, v in by_page_key.items() if len(v) > 1}
+    if not collisions:
+        return
+    for (page_id, key), filters in sorted(collisions.items()):
+        page = filters[0].page_id
+        _logger.warning(
+            "Runtime-key collision on page '%s' (id=%d): key '%s' is owned "
+            "by %d active filters: %s. Tab-scoped filtering relies on unique "
+            "keys — rename or deactivate the duplicates.",
+            page.name, page_id, key, len(filters),
+            ', '.join('%s (id=%d)' % (f.display_name, f.id) for f in filters),
+        )
+
+
 def post_init_hook(env):
     """Post-install/upgrade hook for posterra_portal.
 
@@ -206,6 +235,9 @@ def post_init_hook(env):
 
     # Auto-create security groups for group-based apps missing their group
     _ensure_app_access_groups(env)
+
+    # Phase T rollout gate: log (never fix) runtime-key collisions
+    _audit_runtime_key_collisions(env)
 
     # Load ZIP centroid data for map widgets
     from .data.load_zip_centroids import load_zip_centroids
