@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MCO Geographic Map Widget — Prototype</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  /* ── Design tokens (mirror posterra.css / MapWidget.jsx aesthetic) ───────── */
+  :root{
+    --blue:#3b82f6; --blue-700:#1d4ed8; --blue-50:#eff6ff;
+    --ink:#111827; --gray-900:#111827; --gray-700:#374151; --gray-500:#6b7280;
+    --gray-400:#9ca3af; --gray-200:#e5e7eb; --gray-100:#f3f4f6; --gray-50:#f9fafb;
+    --shadow:0 4px 14px rgba(0,0,0,.10); --shadow-sm:0 2px 6px rgba(0,0,0,.08);
+    --radius:14px;
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#f1f3f6;font-family:var(--font);color:var(--ink);
+       padding:24px;display:flex;justify-content:center;}
+  .page{width:100%;max-width:1180px;}
+  .page-title{font-size:13px;font-weight:600;color:var(--gray-500);
+       letter-spacing:.04em;text-transform:uppercase;margin:0 0 10px 2px;}
+
+  /* ── Widget card ─────────────────────────────────────────────────────────── */
+  .widget{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);
+       overflow:hidden;border:1px solid var(--gray-100);}
+
+  /* KPI strip (page-level metrics — independent of the map metric) */
+  .kpi-strip{display:flex;gap:0;border-bottom:1px solid var(--gray-100);}
+  .kpi{flex:1;padding:14px 18px;border-right:1px solid var(--gray-100);}
+  .kpi:last-child{border-right:0}
+  .kpi .lbl{font-size:11px;font-weight:600;color:var(--gray-400);
+       text-transform:uppercase;letter-spacing:.04em;}
+  .kpi .val{font-size:22px;font-weight:700;color:var(--gray-900);margin-top:3px;}
+  .kpi .sub{font-size:11px;color:var(--gray-400);margin-top:1px;}
+
+  /* Widget header + filter bar */
+  .whead{display:flex;align-items:center;justify-content:space-between;
+       padding:12px 18px;gap:16px;flex-wrap:wrap;}
+  .whead .title{font-size:15px;font-weight:700;color:var(--gray-900);display:flex;align-items:center;gap:8px;}
+  .whead .title .dot{width:8px;height:8px;border-radius:50%;background:var(--blue);}
+  .filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:10px;font-weight:600;color:var(--gray-400);
+       text-transform:uppercase;letter-spacing:.03em;padding-left:2px;}
+  select,.typeahead input{font-family:var(--font);font-size:13px;font-weight:500;
+       color:var(--gray-700);background:#fff;border:1.5px solid var(--gray-200);
+       border-radius:9px;padding:7px 11px;outline:none;transition:border-color .15s;
+       min-width:120px;}
+  select:focus,.typeahead input:focus{border-color:var(--blue);}
+  select:disabled{background:var(--gray-50);color:var(--gray-400);cursor:not-allowed;}
+  .field.disabled label{color:var(--gray-300);}
+  .field .lock-note{font-size:10px;color:var(--blue-700);padding-left:2px;}
+
+  /* MCO typeahead */
+  .typeahead{position:relative;}
+  .typeahead input{min-width:190px;padding-right:28px;}
+  .typeahead .clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+       width:16px;height:16px;border-radius:50%;background:var(--gray-200);color:var(--gray-600);
+       border:0;cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .ta-menu{position:absolute;z-index:40;top:calc(100% + 4px);left:0;right:0;background:#fff;
+       border:1px solid var(--gray-200);border-radius:10px;box-shadow:var(--shadow);
+       max-height:240px;overflow:auto;}
+  .ta-item{padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--gray-50);}
+  .ta-item:last-child{border-bottom:0}
+  .ta-item:hover,.ta-item.active{background:var(--blue-50);}
+  .ta-item .meta{font-size:11px;color:var(--gray-400);margin-top:1px;}
+  .ta-empty{padding:10px 12px;font-size:12px;color:var(--gray-400);}
+
+  /* ── Map area ────────────────────────────────────────────────────────────── */
+  .map-wrap{position:relative;height:560px;width:100%;}
+  #map{position:absolute;inset:0;}
+  .maplibregl-popup{display:none;} /* using custom tooltip */
+
+  .float{position:absolute;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);
+       border:1px solid var(--gray-100);border-radius:11px;box-shadow:var(--shadow-sm);}
+
+  /* Breadcrumb + reset (top-left) */
+  .breadcrumb{top:12px;left:12px;z-index:12;display:flex;align-items:center;gap:8px;
+       padding:8px 12px;font-size:13px;font-weight:600;color:var(--gray-700);}
+  .breadcrumb .crumb.link{color:var(--blue);cursor:pointer;}
+  .breadcrumb .sep{color:var(--gray-300);}
+  .breadcrumb .reset{margin-left:6px;border:1px solid var(--gray-200);background:#fff;
+       border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;color:var(--gray-600);
+       cursor:pointer;display:flex;align-items:center;gap:5px;}
+  .breadcrumb .reset:hover{border-color:var(--blue);color:var(--blue);}
+  .breadcrumb .level-pill{font-size:10px;font-weight:700;text-transform:uppercase;
+       letter-spacing:.04em;color:var(--blue-700);background:var(--blue-50);
+       border-radius:6px;padding:2px 7px;}
+
+  /* Metric toggle (top-center floating pill bar — sits above legend conceptually) */
+  .metric-toggle{top:12px;left:50%;transform:translateX(-50%);z-index:12;
+       display:flex;gap:2px;padding:4px;}
+  .metric-toggle .mt-label{display:none;}
+  .pill{border:0;background:transparent;border-radius:8px;padding:7px 12px;
+       font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--gray-500);
+       cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:all .12s;}
+  .pill:hover{background:var(--gray-50);color:var(--gray-700);}
+  .pill.active{background:var(--blue);color:#fff;box-shadow:0 1px 4px rgba(59,130,246,.4);}
+  .pill .badge2024{font-size:9px;font-weight:700;background:rgba(255,255,255,.25);
+       border-radius:4px;padding:1px 4px;}
+  .pill.active .badge2024{background:rgba(255,255,255,.3);}
+  .pill:not(.active) .badge2024{background:var(--gray-100);color:var(--gray-500);}
+
+  /* Style switcher (bottom-left, vertical) — mirrors current widget */
+  .style-switcher{bottom:12px;left:12px;z-index:10;display:flex;flex-direction:column;overflow:hidden;padding:0;}
+  .style-switcher button{border:0;background:transparent;padding:8px 14px;font-size:12px;
+       font-family:var(--font);color:var(--gray-600);cursor:pointer;text-align:left;
+       display:flex;align-items:center;gap:8px;}
+  .style-switcher button.active{background:var(--blue-50);color:var(--blue-700);font-weight:700;}
+  .style-switcher button:hover:not(.active){background:var(--gray-50);}
+
+  /* Legend (bottom-right) */
+  .legend{bottom:12px;right:12px;z-index:10;padding:11px 13px;min-width:188px;max-width:230px;}
+  .legend .lg-title{font-size:12px;font-weight:700;color:var(--gray-900);margin-bottom:2px;
+       display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .legend .lg-sub{font-size:10px;color:var(--gray-400);margin-bottom:8px;}
+  .legend .lg-row{display:flex;align-items:center;gap:8px;padding:1.5px 0;font-size:11.5px;color:var(--gray-600);}
+  .legend .lg-row .sw{width:22px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.05);}
+  .legend .lg-row.blank .sw{background:repeating-linear-gradient(45deg,#e5e7eb,#e5e7eb 3px,#f3f4f6 3px,#f3f4f6 6px);}
+  .legend .lg-note{margin-top:9px;padding-top:8px;border-top:1px solid var(--gray-100);
+       font-size:10.5px;color:var(--gray-500);line-height:1.4;display:flex;gap:6px;}
+  .legend .lg-note .ic{flex-shrink:0;}
+
+  /* Hover tooltip */
+  .tip{position:absolute;z-index:30;pointer-events:none;background:#fff;border-radius:10px;
+       box-shadow:var(--shadow);border:1px solid var(--gray-100);padding:0;min-width:180px;
+       max-width:250px;font-size:12px;display:none;overflow:hidden;}
+  .tip .t-head{background:var(--gray-50);border-bottom:1px solid var(--gray-100);
+       padding:8px 11px;font-weight:700;color:var(--gray-900);font-size:13px;}
+  .tip .t-head .t-sub{font-weight:500;color:var(--gray-400);font-size:11px;}
+  .tip .t-body{padding:8px 11px;}
+  .tip .t-row{display:flex;justify-content:space-between;gap:14px;padding:2px 0;}
+  .tip .t-row .k{color:var(--gray-500);}
+  .tip .t-row .v{font-weight:700;color:var(--gray-900);}
+  .tip .t-flag{margin-top:6px;padding-top:6px;border-top:1px dashed var(--gray-200);
+       font-size:10.5px;color:#b45309;display:flex;gap:5px;}
+  .tip .t-hint{padding:6px 11px;background:var(--blue-50);font-size:10.5px;color:var(--blue-700);
+       border-top:1px solid var(--gray-100);}
+
+  /* loading */
+  .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+       z-index:20;color:var(--gray-400);font-size:13px;background:rgba(255,255,255,.7);}
+  .footnote{font-size:11px;color:var(--gray-400);margin-top:10px;padding-left:2px;line-height:1.5;}
+  .footnote b{color:var(--gray-500);}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Prototype · MCO Geographic Map Widget</div>
+  <div class="widget">
+
+    <!-- KPI strip: always all four, independent of the map's metric -->
+    <div class="kpi-strip" id="kpiStrip"></div>
+
+    <!-- Header + map-level filters -->
+    <div class="whead">
+      <div class="title"><span class="dot"></span> Geographic Distribution</div>
+      <div class="filters">
+        <div class="field" id="yearField">
+          <label>Year</label>
+          <select id="yearSel">
+            <option value="2022">2022</option>
+            <option value="2023">2023</option>
+            <option value="2024" selected>2024</option>
+          </select>
+        </div>
+        <div class="field" id="halfField">
+          <label>Half-year</label>
+          <select id="halfSel">
+            <option value="H1">H1</option>
+            <option value="H2">H2</option>
+            <option value="FY" selected>Full Year</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>MCO Plan</label>
+          <div class="typeahead">
+            <input id="planInput" type="text" placeholder="All plans (search…)" autocomplete="off" />
+            <button class="clr" id="planClear" title="Clear" style="display:none">✕</button>
+            <div class="ta-menu" id="planMenu" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="loading" id="loading">Loading geography…</div>
+
+      <!-- breadcrumb / drill -->
+      <div class="float breadcrumb" id="breadcrumb"></div>
+
+      <!-- metric toggle -->
+      <div class="float metric-toggle" id="metricToggle"></div>
+
+      <!-- style switcher -->
+      <div class="float style-switcher" id="styleSwitcher"></div>
+
+      <!-- legend -->
+      <div class="float legend" id="legend"></div>
+
+      <!-- tooltip -->
+      <div class="tip" id="tip"></div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <b>Prototype notes.</b> Geography from public Census GeoJSON (states + counties). All metric
+    values are <b>deterministic mock data</b> generated client-side — not real claims data — so the
+    drill, metric-context, filtering, legend rescaling, suppression and unmatched-county behaviors are
+    fully interactive. Level 3 (ZIP) is reserved in the drill model but not wired (no data yet).
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   STATE REFERENCE TABLE  (name → postal abbr → FIPS)
+   Used to (a) label tooltips, (b) drill states geojson into county geojson by FIPS.
+   ════════════════════════════════════════════════════════════════════════════ */
+const STATES = [
+  ['Alabama','AL','01'],['Alaska','AK','02'],['Arizona','AZ','04'],['Arkansas','AR','05'],
+  ['California','CA','06'],['Colorado','CO','08'],['Connecticut','CT','09'],['Delaware','DE','10'],
+  ['District of Columbia','DC','11'],['Florida','FL','12'],['Georgia','GA','13'],['Hawaii','HI','15'],
+  ['Idaho','ID','16'],['Illinois','IL','17'],['Indiana','IN','18'],['Iowa','IA','19'],
+  ['Kansas','KS','20'],['Kentucky','KY','21'],['Louisiana','LA','22'],['Maine','ME','23'],
+  ['Maryland','MD','24'],['Massachusetts','MA','25'],['Michigan','MI','26'],['Minnesota','MN','27'],
+  ['Mississippi','MS','28'],['Missouri','MO','29'],['Montana','MT','30'],['Nebraska','NE','31'],
+  ['Nevada','NV','32'],['New Hampshire','NH','33'],['New Jersey','NJ','34'],['New Mexico','NM','35'],
+  ['New York','NY','36'],['North Carolina','NC','37'],['North Dakota','ND','38'],['Ohio','OH','39'],
+  ['Oklahoma','OK','40'],['Oregon','OR','41'],['Pennsylvania','PA','42'],['Rhode Island','RI','44'],
+  ['South Carolina','SC','45'],['South Dakota','SD','46'],['Tennessee','TN','47'],['Texas','TX','48'],
+  ['Utah','UT','49'],['Vermont','VT','50'],['Virginia','VA','51'],['Washington','WA','53'],
+  ['West Virginia','WV','54'],['Wisconsin','WI','55'],['Wyoming','WY','56'],
+];
+const STATE_BY_NAME = {}, STATE_BY_FIPS = {};
+STATES.forEach(([name,abbr,fips])=>{ const o={name,abbr,fips}; STATE_BY_NAME[name]=o; STATE_BY_FIPS[fips]=o; });
+
+/* ── Palette: matches CHOROPLETH_SEQ in MapWidget.jsx ───────────────────────── */
+const SEQ = ['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#4292c6','#2171b5','#08519c','#08306b'];
+const BLANK_COLOR = '#e5e7eb';
+
+const BASEMAPS = {
+  light:  { url:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',   label:'Light',   icon:'☀' },
+  streets:{ url:'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',    label:'Streets', icon:'🗺' },
+  dark:   { url:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',label:'Dark',    icon:'🌙' },
+};
+
+/* ════════════════════════════════════════════════════════════════════════════
+   METRIC DEFINITIONS
+   ════════════════════════════════════════════════════════════════════════════ */
+const METRICS = {
+  rx:          { key:'rx',          label:'Total Rx Quantity',        short:'Rx Qty',        annualOnly:false, unit:'' },
+  benes:       { key:'benes',       label:'Total Beneficiaries',      short:'Benes',         annualOnly:false, unit:'' },
+  claims:      { key:'claims',      label:'Total Claims',             short:'Claims',        annualOnly:false, unit:'' },
+  penetration: { key:'penetration', label:'Penetration per 1k',       short:'Pen/1k',        annualOnly:true,  unit:'/1k' },
+  market:      { key:'market',      label:'Market Size (Prev. Benes)',short:'Market Size',   annualOnly:true,  unit:'' },
+};
+// metrics where suppressed rows (qty>0 but benes/claims=0) become invisible
+const SUPPRESSION_BLIND = new Set(['benes','claims','penetration']);
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DETERMINISTIC MOCK DATA MODEL
+   ════════════════════════════════════════════════════════════════════════════ */
+function hash(str){ let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return (h>>>0); }
+function rnd(str){ return (hash(str)%100000)/100000; }          // 0..1
+function rndBetween(str,a,b){ return a+(b-a)*rnd(str); }
+
+const YEAR_FACTOR = { '2022':0.82, '2023':0.91, '2024':1.0 };
+
+// MCO plans (for typeahead). Plan -> set of state factors so footprints differ.
+const PLANS = (()=>{
+  const stems=['Aetna','Anthem','Humana','Centene','Molina','UnitedHealthcare','WellCare','Cigna',
+    'BlueCross','Amerigroup','CareSource','Optum','Kaiser','Highmark','Oscar','Bright','Devoted',
+    'Clover','Alignment','SCAN'];
+  const suffix=['MA','HMO','PPO','Complete','Choice','Gold','Silver','Plus','Value','Premier','Select','Care'];
+  const out=[]; let i=0;
+  for(const s of stems){ for(let j=0;j<3;j++){ out.push(`${s} ${suffix[(i+j)%suffix.length]}`); i++; } }
+  return out; // 60 plans
+})();
+
+/* Returns {excluded:bool, suppressed:bool, blank:bool(penetration unmatched),
+            rx, benes, claims, market, penetration}  for one geo at current ctx. */
+function metricsFor(geoId, level, ctx){
+  const { plan } = ctx;
+  // Penetration & Market Size are annual 2024 snapshots regardless of UI year/half.
+  // For volume metrics, apply year + half.
+  const year = ctx.year, half = ctx.half;
+
+  // MCO plan footprint: a selected plan does not operate everywhere.
+  let excluded=false, planMul=1;
+  if(plan){
+    const p = rnd(plan+'|'+geoId);
+    if(p < 0.28) excluded=true;            // plan absent from this geography
+    planMul = 0.18 + 0.62*rnd(plan+'#'+geoId);
+  }
+
+  // Suppression: a small share of geos report qty>0 but benes/claims=0.
+  const suppressed = (level==='county') && rnd(geoId+'|sup') < 0.07;
+  // Unmatched prevalence (penetration blank): county only, name mismatch between files.
+  const blank = (level==='county') && rnd(geoId+'|match') < 0.045;
+
+  const scale = level==='state' ? 1 : 0.06;  // counties smaller than states
+  const baseRx = rndBetween(geoId+'|rx', 40000, 1200000) * scale * YEAR_FACTOR[year] * planMul;
+
+  // half-year split
+  const h1Share = 0.42 + 0.16*rnd(geoId+'|split');
+  const halfMul = half==='H1' ? h1Share : half==='H2' ? (1-h1Share) : 1;
+  const rx = excluded ? 0 : Math.round(baseRx * halfMul);
+
+  const claims = (excluded||suppressed) ? 0 : Math.round(rx * rndBetween(geoId+'|cl',0.55,0.85));
+  const benes  = (excluded||suppressed) ? 0 : Math.round(claims * rndBetween(geoId+'|bn',0.40,0.70));
+
+  // Market size = prevalent beneficiaries (annual snapshot, 2024 reference population)
+  const market = excluded ? 0 : Math.round(rndBetween(geoId+'|mkt', 800, 90000) * scale*4);
+
+  // Penetration per 1k = annual treated benes / prevalent benes * 1000
+  let penetration = null;
+  if(!excluded && !blank && market>0){
+    const annualBenes = Math.round(claims * rndBetween(geoId+'|bn',0.40,0.70)); // FY-ish
+    penetration = +(annualBenes / market * 1000).toFixed(1);
+    if(penetration > 950) penetration = +(rndBetween(geoId+'|pcap',120,780)).toFixed(1);
+  }
+
+  return { excluded, suppressed, blank, rx, benes, claims, market, penetration };
+}
+
+function metricValue(m, metricKey){
+  if(m.excluded) return null;
+  if(metricKey==='penetration') return m.blank ? null : m.penetration;
+  if(SUPPRESSION_BLIND.has(metricKey) && m.suppressed) return null; // invisible on these views
+  return m[metricKey];
+}
+
+/* ── number formatting (mirrors fmt() in MapWidget.jsx) ─────────────────────── */
+function fmtNum(v, metricKey){
+  if(v==null) return '—';
+  if(metricKey==='penetration') return v.toLocaleString(undefined,{maximumFractionDigits:1});
+  const n=Number(v);
+  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M';
+  if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K';
+  return n.toLocaleString();
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   APP STATE
+   ════════════════════════════════════════════════════════════════════════════ */
+const APP = {
+  level:'national',          // 'national' | 'state'
+  activeState:null,          // {name,abbr,fips}
+  metric:'rx',
+  year:'2024', half:'FY', plan:'',
+  basemap:'light',
+  statesGeo:null, countiesGeo:null,
+  bins:[],                   // legend bins for current render
+};
+
+let map, hoveredId=null;
+
+/* ════════════════════════════════════════════════════════════════════════════
+   BOOT
+   ════════════════════════════════════════════════════════════════════════════ */
+(async function init(){
+  renderMetricToggle(); renderStyleSwitcher(); renderFilters(); renderKpi();
+  buildPlanMenuData();
+
+  map = new maplibregl.Map({
+    container:'map',
+    style:BASEMAPS[APP.basemap].url,
+    center:[-98.58,39.83], zoom:3.4, attributionControl:false,
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
+
+  // fetch geography
+  try{
+    const [states, counties] = await Promise.all([
+      fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json').then(r=>r.json()),
+      fetch('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json').then(r=>r.json()),
+    ]);
+    APP.statesGeo = states; APP.countiesGeo = counties;
+  }catch(e){
+    document.getElementById('loading').textContent = 'Could not load geography (offline?). '+e;
+    return;
+  }
+
+  map.on('load', ()=>{
+    map.addSource('regions',{ type:'geojson', data:emptyFC(), promoteId:'_id' });
+    map.addLayer({ id:'region-fill', type:'fill', source:'regions',
+      paint:{ 'fill-color': '#ccc',
+        'fill-opacity':['case',['boolean',['feature-state','hover'],false],0.92,0.78] }});
+    map.addLayer({ id:'region-line', type:'line', source:'regions',
+      paint:{ 'line-color':'#ffffff', 'line-width':['case',['boolean',['feature-state','hover'],false],2.2,0.7] }});
+    wireMapEvents();
+    document.getElementById('loading').style.display='none';
+    renderLevel('national');
+  });
+})();
+
+const emptyFC = ()=>({type:'FeatureCollection',features:[]});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   RENDER A LEVEL (national states  OR  one state's counties)
+   ════════════════════════════════════════════════════════════════════════════ */
+function ctx(){ return { year:APP.year, half:APP.half, plan:APP.plan }; }
+
+function buildFeatureCollection(){
+  const level = APP.level;
+  const c = ctx();
+  let feats;
+  if(level==='national'){
+    feats = APP.statesGeo.features.map(f=>{
+      const name = f.properties.name;
+      const ref = STATE_BY_NAME[name];
+      const id = 'S:'+(ref?ref.fips:name);
+      const m = metricsFor(id, 'state', c);
+      const val = metricValue(m, APP.metric);
+      return wrap(f, id, name, ref?ref.abbr:'', m, val);
+    });
+  } else {
+    const fips = APP.activeState.fips;
+    feats = APP.countiesGeo.features
+      .filter(f=> (f.properties.STATE || String(f.id).slice(0,2)) === fips)
+      .map(f=>{
+        const id = 'C:'+f.id;
+        const name = f.properties.NAME;
+        const m = metricsFor(id, 'county', c);
+        const val = metricValue(m, APP.metric);
+        return wrap(f, id, name, APP.activeState.abbr, m, val);
+      });
+  }
+  return { type:'FeatureCollection', features:feats };
+}
+
+function wrap(f, id, name, abbr, m, val){
+  return { type:'Feature', geometry:f.geometry,
+    properties:{ _id:id, _name:name, _abbr:abbr, _val:(val==null?null:val),
+      _blank:(val==null), _suppressed:m.suppressed, _excluded:m.excluded,
+      _pen:(m.blank?null:m.penetration), _raw:JSON.stringify(m) } };
+}
+
+function renderLevel(level, stateRef){
+  APP.level = level;
+  if(level==='state') APP.activeState = stateRef;
+  if(level==='national') APP.activeState = null;
+  redraw(true);
+  renderBreadcrumb();
+}
+
+/* recompute metric values, colors, legend, source data */
+function redraw(fit){
+  if(!map.getSource('regions')) return;
+  const fc = buildFeatureCollection();
+
+  // values present (exclude blanks/excluded for the scale)
+  const vals = fc.features.map(f=>f.properties._val).filter(v=>v!=null && v>0).sort((a,b)=>a-b);
+  let bins=[];
+  if(vals.length){
+    // 6 quantile-ish breakpoints → 6 buckets using SEQ ramp
+    const N=6;
+    for(let i=1;i<N;i++){ bins.push(vals[Math.floor(vals.length*i/N)]); }
+    bins = Array.from(new Set(bins)).filter(v=>v>0);
+  }
+  APP.bins = bins;
+
+  // color expression: blanks → hatch gray; else step over bins on SEQ
+  const ramp = pickRamp(bins.length+1);
+  const stepExpr = ['step',['to-number',['coalesce',['get','_val'],0]], ramp[0]];
+  bins.forEach((bp,i)=> stepExpr.push(bp, ramp[Math.min(i+1,ramp.length-1)]));
+  const colorExpr = ['case',['get','_blank'], BLANK_COLOR, stepExpr];
+
+  map.getSource('regions').setData(fc);
+  map.setPaintProperty('region-fill','fill-color', colorExpr);
+
+  renderLegend(bins, ramp, fc);
+  renderKpi();
+
+  if(fit) fitTo(fc);
+}
+
+function pickRamp(n){
+  // sample SEQ down to n colors (skip the near-white first ones for small n)
+  const start = n<=4 ? 1 : 0;
+  const usable = SEQ.slice(start);
+  const out=[];
+  for(let i=0;i<n;i++){ out.push(usable[Math.round(i*(usable.length-1)/Math.max(1,n-1))]); }
+  return out;
+}
+
+function fitTo(fc){
+  let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
+  const eat=(x,y)=>{ if(x<a)a=x; if(x>c)c=x; if(y<b)b=y; if(y>d)d=y; };
+  const walk=(g)=>{ if(!g)return;
+    if(g.type==='Polygon') g.coordinates.forEach(r=>r.forEach(p=>eat(p[0],p[1])));
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(poly=>poly.forEach(r=>r.forEach(p=>eat(p[0],p[1]))));
+  };
+  fc.features.forEach(f=>walk(f.geometry));
+  if(a===Infinity) return;
+  map.fitBounds([[a,b],[c,d]],{padding:APP.level==='national'?30:50,maxZoom:8,duration:700});
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MAP INTERACTION
+   ════════════════════════════════════════════════════════════════════════════ */
+function wireMapEvents(){
+  const tip=document.getElementById('tip');
+
+  map.on('mousemove','region-fill',(e)=>{
+    map.getCanvas().style.cursor = APP.level==='national' ? 'pointer' : 'default';
+    const f=e.features[0]; if(!f) return;
+    if(hoveredId!==null) map.setFeatureState({source:'regions',id:hoveredId},{hover:false});
+    hoveredId=f.id; map.setFeatureState({source:'regions',id:hoveredId},{hover:true});
+    showTip(e, f.properties);
+  });
+  map.on('mouseleave','region-fill',()=>{
+    map.getCanvas().style.cursor='';
+    if(hoveredId!==null) map.setFeatureState({source:'regions',id:hoveredId},{hover:false});
+    hoveredId=null; tip.style.display='none';
+  });
+  map.on('click','region-fill',(e)=>{
+    const f=e.features[0]; if(!f) return;
+    if(APP.level==='national'){
+      const ref = STATE_BY_NAME[f.properties._name];
+      if(ref){ renderLevel('state', ref); }
+    }
+    // county click → Level 3 (ZIP) reserved; no-op in prototype
+  });
+}
+
+function showTip(e, p){
+  const tip=document.getElementById('tip');
+  const M=METRICS[APP.metric];
+  const fc = map.getSource('regions')._data;
+  const total = fc.features.reduce((s,ff)=> s + (ff.properties._val||0), 0);
+  const share = (p._val && total) ? (p._val/total*100) : null;
+  const isCounty = APP.level==='state';
+  const shareLabel = isCounty ? '% of state total' : '% of national total';
+
+  let html = `<div class="t-head">${p._name||'—'}${isCounty?` <span class="t-sub">${p._abbr}</span>`:''}</div><div class="t-body">`;
+  html += row(M.label, p._blank ? '—' : fmtNum(p._val,APP.metric)+(M.unit||''));
+  if(share!=null) html += row(shareLabel, share.toFixed(1)+'%');
+  if(APP.year==='2024' && APP.metric!=='penetration')
+    html += row('Penetration /1k', p._pen==null?'—':p._pen.toLocaleString(undefined,{maximumFractionDigits:1}));
+  html += `</div>`;
+
+  if(p._excluded)
+    html += `<div class="t-flag"><span>⊘</span> Plan does not operate here</div>`;
+  else if(p._blank && APP.metric==='penetration')
+    html += `<div class="t-flag"><span>⚠</span> No prevalence match — county name differs between files</div>`;
+  else if(p._suppressed && SUPPRESSION_BLIND.has(APP.metric))
+    html += `<div class="t-flag"><span>⚠</span> Suppressed: Rx&nbsp;qty&nbsp;&gt;&nbsp;0 but benes/claims&nbsp;=&nbsp;0</div>`;
+
+  if(APP.level==='national')
+    html = html.replace('<div class="t-body">','<div class="t-hint">Click to drill into counties</div><div class="t-body">');
+
+  tip.innerHTML=html;
+  tip.style.display='block';
+  const wrap=document.querySelector('.map-wrap').getBoundingClientRect();
+  let x=e.point.x+16, y=e.point.y+16;
+  if(x+250>wrap.width) x=e.point.x-250-16;
+  if(y+160>wrap.height) y=e.point.y-160;
+  tip.style.left=Math.max(6,x)+'px'; tip.style.top=Math.max(6,y)+'px';
+}
+const row=(k,v)=>`<div class="t-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UI: METRIC TOGGLE
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderMetricToggle(){
+  const el=document.getElementById('metricToggle'); el.innerHTML='';
+  Object.values(METRICS).forEach(m=>{
+    const b=document.createElement('button');
+    b.className='pill'+(APP.metric===m.key?' active':'');
+    b.innerHTML = m.short + (m.annualOnly?` <span class="badge2024">2024</span>`:'');
+    b.title = m.label + (m.annualOnly?' — available for 2024 only':'');
+    b.onclick=()=>setMetric(m.key);
+    el.appendChild(b);
+  });
+}
+function setMetric(key){
+  APP.metric=key;
+  const m=METRICS[key];
+  if(m.annualOnly){           // lock to 2024 + Full Year annual snapshot
+    APP.year='2024'; APP.half='FY';
+  }
+  renderMetricToggle(); renderFilters();
+  redraw(false);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UI: STYLE SWITCHER
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderStyleSwitcher(){
+  const el=document.getElementById('styleSwitcher'); el.innerHTML='';
+  Object.entries(BASEMAPS).forEach(([k,v])=>{
+    const b=document.createElement('button');
+    b.className=(APP.basemap===k?'active':'');
+    b.innerHTML=`<span>${v.icon}</span><span>${v.label}</span>`;
+    b.onclick=()=>{ APP.basemap=k; map.setStyle(v.url); map.once('styledata',()=>{
+      // re-add our source/layers after basemap swap
+      if(!map.getSource('regions')){
+        map.addSource('regions',{type:'geojson',data:emptyFC(),promoteId:'_id'});
+        map.addLayer({id:'region-fill',type:'fill',source:'regions',
+          paint:{'fill-color':'#ccc','fill-opacity':['case',['boolean',['feature-state','hover'],false],0.92,0.78]}});
+        map.addLayer({id:'region-line',type:'line',source:'regions',
+          paint:{'line-color':'#fff','line-width':['case',['boolean',['feature-state','hover'],false],2.2,0.7]}});
+      }
+      redraw(false);
+    }); renderStyleSwitcher(); };
+    el.appendChild(b);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UI: FILTERS (year, half, plan) + lock states
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderFilters(){
+  const m=METRICS[APP.metric];
+  const yearSel=document.getElementById('yearSel');
+  const halfSel=document.getElementById('halfSel');
+  const yearField=document.getElementById('yearField');
+  const halfField=document.getElementById('halfField');
+
+  yearSel.value=APP.year; halfSel.value=APP.half;
+
+  // lock year + half for annual-only metrics
+  const lock=m.annualOnly;
+  yearSel.disabled=lock; halfSel.disabled=lock;
+  yearField.classList.toggle('disabled',lock);
+  halfField.classList.toggle('disabled',lock);
+
+  // lock note
+  let note=yearField.querySelector('.lock-note');
+  if(lock){
+    if(!note){ note=document.createElement('span'); note.className='lock-note'; yearField.appendChild(note); }
+    note.textContent='🔒 2024 only';
+    yearSel.title='Prevalence data available for 2024 only';
+  } else if(note){ note.remove(); yearSel.title=''; }
+}
+document.getElementById('yearSel').onchange=e=>{ APP.year=e.target.value; redraw(false); };
+document.getElementById('halfSel').onchange=e=>{ APP.half=e.target.value; redraw(false); };
+
+/* ── MCO plan typeahead ─────────────────────────────────────────────────────── */
+function buildPlanMenuData(){
+  const input=document.getElementById('planInput');
+  const menu=document.getElementById('planMenu');
+  const clr=document.getElementById('planClear');
+  let active=-1, results=[];
+
+  function open(q){
+    const ql=q.trim().toLowerCase();
+    results = ql ? PLANS.filter(p=>p.toLowerCase().includes(ql)).slice(0,20) : PLANS.slice(0,20);
+    if(!results.length){ menu.innerHTML='<div class="ta-empty">No matching plan</div>'; menu.style.display='block'; return; }
+    menu.innerHTML = results.map((p,i)=>{
+      const states = STATES.filter(s=>!(rnd(p+'|S:'+s[2])<0.28)).length;
+      return `<div class="ta-item${i===active?' active':''}" data-i="${i}">${p}<div class="meta">operates in ~${states} states</div></div>`;
+    }).join('');
+    menu.style.display='block';
+    menu.querySelectorAll('.ta-item').forEach(el=>{
+      el.onclick=()=>choose(results[+el.dataset.i]);
+    });
+  }
+  function choose(plan){
+    APP.plan=plan; input.value=plan; menu.style.display='none';
+    clr.style.display='flex'; redraw(true);
+  }
+  input.addEventListener('focus',()=>open(input.value));
+  input.addEventListener('input',()=>{ active=-1; open(input.value); if(!input.value){ APP.plan=''; clr.style.display='none'; redraw(true);} });
+  input.addEventListener('keydown',e=>{
+    if(menu.style.display==='none') return;
+    if(e.key==='ArrowDown'){ active=Math.min(active+1,results.length-1); open(input.value); e.preventDefault(); }
+    else if(e.key==='ArrowUp'){ active=Math.max(active-1,0); open(input.value); e.preventDefault(); }
+    else if(e.key==='Enter'){ if(active>=0&&results[active]) choose(results[active]); }
+    else if(e.key==='Escape'){ menu.style.display='none'; }
+  });
+  clr.onclick=()=>{ APP.plan=''; input.value=''; clr.style.display='none'; menu.style.display='none'; redraw(true); };
+  document.addEventListener('click',e=>{ if(!e.target.closest('.typeahead')) menu.style.display='none'; });
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UI: BREADCRUMB / DRILL
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderBreadcrumb(){
+  const el=document.getElementById('breadcrumb');
+  if(APP.level==='national'){
+    el.innerHTML=`<span class="level-pill">National</span><span class="crumb">United States</span>`;
+  } else {
+    el.innerHTML=`<span class="level-pill">County</span>`
+      +`<span class="crumb link" id="crumbHome">United States</span>`
+      +`<span class="sep">▸</span><span class="crumb">${APP.activeState.name}</span>`
+      +`<button class="reset" id="resetZoom">⟲ Reset zoom</button>`;
+    el.querySelector('#crumbHome').onclick=()=>renderLevel('national');
+    el.querySelector('#resetZoom').onclick=()=>renderLevel('national');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UI: LEGEND  (rescales to the *currently filtered* dataset)
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderLegend(bins, ramp, fc){
+  const el=document.getElementById('legend');
+  const M=METRICS[APP.metric];
+  const scopeLabel = APP.level==='national' ? '51 states' : `${APP.activeState.name} counties`;
+
+  let rows='';
+  if(bins.length){
+    const labels=[];
+    labels.push({c:ramp[0], t:`< ${fmtNum(bins[0],APP.metric)}`});
+    for(let i=0;i<bins.length;i++){
+      const next=bins[i+1];
+      labels.push({c:ramp[Math.min(i+1,ramp.length-1)],
+        t: next? `${fmtNum(bins[i],APP.metric)} – ${fmtNum(next,APP.metric)}` : `${fmtNum(bins[i],APP.metric)}+`});
+    }
+    rows = labels.map(l=>`<div class="lg-row"><span class="sw" style="background:${l.c}"></span><span>${l.t}</span></div>`).join('');
+  } else {
+    rows = `<div class="lg-row"><span>No data for this selection</span></div>`;
+  }
+
+  // blank + suppression accounting for the current metric/level
+  const blanks = fc.features.filter(f=>f.properties._blank && !f.properties._excluded).length;
+  const suppressed = fc.features.filter(f=>f.properties._suppressed).length;
+  const excluded = fc.features.filter(f=>f.properties._excluded).length;
+
+  let blankRow='';
+  if(blanks>0 && APP.metric==='penetration')
+    blankRow=`<div class="lg-row blank"><span class="sw"></span><span>No prevalence match (${blanks})</span></div>`;
+
+  let note='';
+  const notes=[];
+  if(APP.metric==='penetration' && blanks>0)
+    notes.push(`${blanks} counties have no prevalence match — penetration blank (data team to reconcile names).`);
+  if(SUPPRESSION_BLIND.has(APP.metric) && suppressed>0)
+    notes.push(`${suppressed} areas suppressed (Rx&nbsp;qty&nbsp;&gt;&nbsp;0, benes/claims&nbsp;=&nbsp;0) — not shown on this view.`);
+  if(APP.plan && excluded>0)
+    notes.push(`${excluded} areas dropped — ${APP.plan} doesn't operate there. Scale rescaled to filtered set.`);
+  if(notes.length) note=`<div class="lg-note"><span class="ic">ⓘ</span><span>${notes.join('<br><br>')}</span></div>`;
+
+  el.innerHTML =
+    `<div class="lg-title"><span>${M.label}</span></div>`+
+    `<div class="lg-sub">${APP.year}${M.annualOnly?' · annual':' · '+halfLabel(APP.half)}${APP.plan?' · '+APP.plan:''} · ${scopeLabel}</div>`+
+    rows + blankRow + note;
+}
+const halfLabel=h=> h==='FY'?'Full Year':h;
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UI: KPI STRIP (national totals, all four — independent of map metric)
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderKpi(){
+  const el=document.getElementById('kpiStrip');
+  // always national totals, current year/half/plan, regardless of drill or map metric
+  const c = ctx();
+  let rx=0,benes=0,claims=0,market=0;
+  (APP.statesGeo?.features||[]).forEach(f=>{
+    const ref=STATE_BY_NAME[f.properties.name];
+    const id='S:'+(ref?ref.fips:f.properties.name);
+    const m=metricsFor(id,'state',c);
+    if(m.excluded) return;
+    rx+=m.rx; claims+=m.claims; benes+=m.benes; market+=m.market;
+  });
+  const cards=[
+    ['Total Rx Quantity', fmtNum(rx,'rx'), 'rx'],
+    ['Total Beneficiaries', fmtNum(benes,'benes'), 'benes'],
+    ['Total Claims', fmtNum(claims,'claims'), 'claims'],
+    ['Market Size (Prev. Benes)', fmtNum(market,'market'), 'market'],
+  ];
+  el.innerHTML=cards.map(([l,v,k])=>{
+    const isMapMetric = (k===APP.metric) || (APP.metric==='penetration' && k==='market');
+    return `<div class="kpi"><div class="lbl">${l}</div><div class="val">${v}</div>`+
+           `<div class="sub">${isMapMetric?'● shown on map':'&nbsp;'}</div></div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

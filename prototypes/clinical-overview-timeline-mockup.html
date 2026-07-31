@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clinical Overview Timeline Mockup</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --panel-subtle: #f7f9fc;
+      --line: #dbe3ec;
+      --line-soft: #edf1f6;
+      --text: #0e1f33;
+      --muted: #65758a;
+      --muted-2: #8b98a9;
+      --office: #44546a;
+      --office-soft: #d7dce4;
+      --ip: #e23b66;
+      --ip-soft: #f9d6df;
+      --er: #e58a20;
+      --er-soft: #f8dfbf;
+      --snf: #8752e8;
+      --snf-soft: #e4d8fb;
+      --blue: #2268c8;
+      --green: #17866b;
+      --radius: 8px;
+      --shadow: 0 14px 36px rgba(20, 38, 61, .08);
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-width: 1040px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    button,
+    select {
+      font: inherit;
+    }
+
+    .page {
+      padding: 18px;
+    }
+
+    .dashboard-shell {
+      max-width: 1480px;
+      margin: 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 16px 18px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+    }
+
+    .title-group {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      min-width: 320px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 720;
+      letter-spacing: 0;
+    }
+
+    .period {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .control select {
+      height: 30px;
+      min-width: 128px;
+      padding: 0 30px 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    .segmented {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      height: 32px;
+      padding: 3px;
+      border-radius: 9px;
+      background: #edf2f8;
+      box-shadow: inset 0 0 0 1px rgba(210, 219, 230, .7);
+    }
+
+    .segmented button {
+      height: 26px;
+      min-width: 72px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #415066;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 650;
+      transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: 0 1px 6px rgba(22, 38, 57, .12);
+    }
+
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--line-soft);
+    }
+
+    .metric-card {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 82px;
+      padding: 14px 16px;
+      background: #fbfcfe;
+    }
+
+    .metric-dot {
+      width: 12px;
+      height: 42px;
+      border-radius: 99px;
+      background: var(--office);
+    }
+
+    .metric-title {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 760;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .metric-value strong {
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .metric-value span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric-side {
+      display: grid;
+      gap: 4px;
+      justify-items: end;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .change {
+      padding: 3px 7px;
+      border-radius: 99px;
+      background: #e8f6f1;
+      color: var(--green);
+      font-weight: 760;
+    }
+
+    .change.down {
+      background: #fff1e5;
+      color: #a75612;
+    }
+
+    .content {
+      padding: 14px;
+      background: #f8fafc;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 46px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #ffffff;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-swatch {
+      width: 26px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #e8edf3, #7c8796);
+    }
+
+    .legend-swatch.ip {
+      background: linear-gradient(90deg, var(--ip-soft), var(--ip));
+    }
+
+    .legend-swatch.er {
+      background: linear-gradient(90deg, var(--er-soft), var(--er));
+    }
+
+    .legend-swatch.snf {
+      background: linear-gradient(90deg, var(--snf-soft), var(--snf));
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: 138px repeat(5, minmax(180px, 1fr));
+      overflow-x: auto;
+      background: var(--panel);
+    }
+
+    .timeline-header,
+    .claim-label,
+    .year-cell {
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .timeline-header {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 12px;
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 780;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    .timeline-header.first,
+    .claim-label {
+      position: sticky;
+      left: 0;
+      z-index: 5;
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .claim-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 74px;
+      padding: 12px;
+      background: var(--panel);
+      font-weight: 760;
+    }
+
+    .claim-pill {
+      width: 4px;
+      height: 34px;
+      border-radius: 99px;
+      background: var(--office);
+    }
+
+    .year-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 8px;
+    }
+
+    .year-total {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .year-cell {
+      min-height: 74px;
+      padding: 10px 12px;
+      background: #fff;
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(10px, 1fr));
+      gap: 5px;
+      align-items: center;
+      min-width: 156px;
+    }
+
+    .month-cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 34px;
+      min-width: 10px;
+      border: 0;
+      border-radius: 5px;
+      background: #edf1f6;
+      color: #0b1727;
+      font-size: 10px;
+      font-weight: 760;
+      cursor: default;
+    }
+
+    .month-cell.zero {
+      background: #f4f6f9;
+      color: transparent;
+    }
+
+    .month-cell.zero::after {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 99px;
+      background: #cfd7e2;
+    }
+
+    .month-cell.future {
+      background: repeating-linear-gradient(135deg, #f7f9fc, #f7f9fc 3px, #eef2f7 3px, #eef2f7 6px);
+      color: transparent;
+      opacity: .65;
+    }
+
+    .month-cell[data-count="0"] {
+      font-size: 0;
+    }
+
+    .month-cell[data-count="0"]::after {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 99px;
+      background: #cfd7e2;
+    }
+
+    .month-cell:hover {
+      outline: 2px solid rgba(34, 104, 200, .35);
+      outline-offset: 1px;
+      z-index: 2;
+    }
+
+    .month-axis {
+      display: grid;
+      grid-template-columns: 138px repeat(5, minmax(180px, 1fr));
+      border-bottom: 1px solid var(--line-soft);
+      background: #fbfcfe;
+    }
+
+    .month-axis .spacer {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      min-height: 28px;
+      border-right: 1px solid var(--line-soft);
+      background: #fbfcfe;
+    }
+
+    .months {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(10px, 1fr));
+      gap: 5px;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 12px;
+      border-right: 1px solid var(--line-soft);
+      color: var(--muted-2);
+      font-size: 9px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .trend-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .trend-card {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: #fff;
+      padding: 12px;
+    }
+
+    .trend-card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .trend-card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 760;
+    }
+
+    .trend-value {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .sparkline {
+      width: 100%;
+      height: 112px;
+      overflow: visible;
+    }
+
+    .sparkline .grid-line {
+      stroke: #edf1f6;
+      stroke-width: 1;
+    }
+
+    .sparkline path {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .sparkline circle {
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .heatmap-wide {
+      overflow: auto;
+    }
+
+    .heatmap-table,
+    .grid-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .heatmap-table th,
+    .heatmap-table td,
+    .grid-table th,
+    .grid-table td {
+      height: 38px;
+      border-bottom: 1px solid var(--line-soft);
+      border-right: 1px solid var(--line-soft);
+      padding: 0 8px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .heatmap-table th,
+    .grid-table th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 760;
+    }
+
+    .heatmap-table th:first-child,
+    .heatmap-table td:first-child,
+    .grid-table th:first-child,
+    .grid-table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      min-width: 138px;
+      background: #fff;
+      text-align: left;
+      font-weight: 760;
+    }
+
+    .heatmap-table th:first-child,
+    .grid-table th:first-child {
+      background: #fbfcfe;
+    }
+
+    .heat-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 26px;
+      border-radius: 5px;
+      color: #0b1727;
+      font-size: 11px;
+      font-weight: 760;
+    }
+
+    .heat-chip.zero {
+      width: 18px;
+      background: #f4f6f9;
+      color: transparent;
+    }
+
+    .grid-table td {
+      min-width: 76px;
+      color: #203148;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .view-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 38px;
+      padding: 0 14px;
+      border-top: 1px solid var(--line-soft);
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .month-key {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .mini-months {
+      display: flex;
+      gap: 8px;
+      color: var(--muted-2);
+      font-size: 10px;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 1180px) {
+      body {
+        min-width: 980px;
+      }
+
+      .summary-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .toolbar {
+        flex-wrap: wrap;
+      }
+
+      .segmented button {
+        min-width: 64px;
+      }
+
+      .trend-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="dashboard-shell" aria-label="Clinical overview mockup">
+      <header class="topbar">
+        <div class="title-group">
+          <h1>Clinical Overview</h1>
+          <div class="period">Monthly encounter counts - Jan 2022 - Jul 2026</div>
+        </div>
+        <div class="toolbar">
+          <label class="control">
+            Claim set
+            <select aria-label="Claim set">
+              <option>All claim types</option>
+              <option>Utilization only</option>
+              <option>Facility claims</option>
+            </select>
+          </label>
+          <div class="segmented" aria-label="View selector">
+            <button type="button" data-view="timeline" aria-pressed="true">Timeline</button>
+            <button type="button" data-view="trend" aria-pressed="false">Trend</button>
+            <button type="button" data-view="heatmap" aria-pressed="false">Heatmap</button>
+            <button type="button" data-view="grid" aria-pressed="false">Grid</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="summary-strip" id="summaryStrip" aria-label="YTD claim summary"></section>
+
+      <section class="content">
+        <article class="panel">
+          <div class="panel-head">
+            <h2 id="viewTitle">Yearly Monthly Timeline</h2>
+            <div class="legend" aria-label="Legend">
+              <span class="legend-item"><span class="legend-swatch"></span>Office Visit</span>
+              <span class="legend-item"><span class="legend-swatch ip"></span>IP</span>
+              <span class="legend-item"><span class="legend-swatch er"></span>ER</span>
+              <span class="legend-item"><span class="legend-swatch snf"></span>SNF</span>
+            </div>
+          </div>
+
+          <div class="view active" id="timelineView">
+            <div class="timeline" id="timelineHeader" aria-hidden="true"></div>
+            <div class="month-axis" id="monthAxis" aria-hidden="true"></div>
+            <div class="timeline" id="timelineGrid"></div>
+          </div>
+
+          <div class="view" id="trendView">
+            <div class="trend-list" id="trendList"></div>
+          </div>
+
+          <div class="view" id="heatmapView">
+            <div class="heatmap-wide">
+              <table class="heatmap-table" id="heatmapTable"></table>
+            </div>
+          </div>
+
+          <div class="view" id="gridView">
+            <div class="heatmap-wide">
+              <table class="grid-table" id="gridTable"></table>
+            </div>
+          </div>
+
+          <footer class="view-foot">
+            <div class="month-key">
+              <span>Months</span>
+              <span class="mini-months">J F M A M J J A S O N D</span>
+            </div>
+            <span>Values shown are mock encounter counts for layout review.</span>
+          </footer>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const years = [2022, 2023, 2024, 2025, 2026];
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const latestYear = 2026;
+    const latestMonthIndex = 6;
+
+    const claims = [
+      {
+        key: "office",
+        label: "Office Visit",
+        color: "#44546a",
+        soft: "#d7dce4",
+        values: {
+          2022: [2, 3, 2, 2, 5, 2, 4, 4, 1, 4, 1, 5],
+          2023: [1, 2, 3, 7, 2, 4, 3, 5, 2, 5, 3, 6],
+          2024: [4, 5, 6, 3, 7, 5, 6, 8, 4, 6, 5, 7],
+          2025: [6, 5, 8, 7, 6, 9, 7, 8, 6, 9, 7, 10],
+          2026: [8, 9, 7, 10, 8, 11, 9, null, null, null, null, null]
+        }
+      },
+      {
+        key: "ip",
+        label: "IP",
+        color: "#e23b66",
+        soft: "#f9d6df",
+        values: {
+          2022: [0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0],
+          2023: [0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1],
+          2024: [1, 0, 2, 0, 1, 1, 0, 2, 1, 0, 2, 1],
+          2025: [1, 2, 1, 0, 2, 1, 3, 1, 2, 1, 2, 1],
+          2026: [2, 1, 2, 1, 3, 2, 1, null, null, null, null, null]
+        }
+      },
+      {
+        key: "er",
+        label: "ER",
+        color: "#e58a20",
+        soft: "#f8dfbf",
+        values: {
+          2022: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+          2023: [0, 1, 0, 0, 0, 2, 0, 1, 0, 0, 2, 0],
+          2024: [1, 0, 0, 1, 2, 0, 1, 1, 0, 2, 0, 1],
+          2025: [1, 2, 0, 1, 1, 3, 1, 2, 1, 3, 2, 1],
+          2026: [2, 1, 3, 2, 1, 2, 3, null, null, null, null, null]
+        }
+      },
+      {
+        key: "snf",
+        label: "SNF",
+        color: "#8752e8",
+        soft: "#e4d8fb",
+        values: {
+          2022: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+          2023: [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+          2024: [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0],
+          2025: [1, 0, 1, 1, 0, 1, 0, 2, 1, 0, 1, 1],
+          2026: [1, 1, 0, 2, 1, 1, 2, null, null, null, null, null]
+        }
+      }
+    ];
+
+    function isFuture(year, index) {
+      return year === latestYear && index > latestMonthIndex;
+    }
+
+    function yearValues(claim, year) {
+      return claim.values[year].filter((value, index) => value !== null && !isFuture(year, index));
+    }
+
+    function yearTotal(claim, year) {
+      return yearValues(claim, year).reduce((sum, value) => sum + value, 0);
+    }
+
+    function allValues(claim) {
+      return years.flatMap(year => yearValues(claim, year));
+    }
+
+    function totalThroughLatest(claim, year) {
+      const maxMonth = year === latestYear ? latestMonthIndex + 1 : 12;
+      return claim.values[year].slice(0, maxMonth).filter(value => value !== null).reduce((sum, value) => sum + value, 0);
+    }
+
+    function ytdChange(claim) {
+      const current = totalThroughLatest(claim, latestYear);
+      const previous = claim.values[latestYear - 1].slice(0, latestMonthIndex + 1).reduce((sum, value) => sum + value, 0);
+      if (!previous) return 0;
+      return Math.round(((current - previous) / previous) * 100);
+    }
+
+    function mix(hexA, hexB, amount) {
+      const a = hexA.replace("#", "").match(/.{2}/g).map(x => parseInt(x, 16));
+      const b = hexB.replace("#", "").match(/.{2}/g).map(x => parseInt(x, 16));
+      const mixed = a.map((channel, index) => Math.round(channel + (b[index] - channel) * amount));
+      return "#" + mixed.map(channel => channel.toString(16).padStart(2, "0")).join("");
+    }
+
+    function valueColor(claim, value) {
+      if (!value) return "#f4f6f9";
+      const max = Math.max(...allValues(claim), 1);
+      const strength = Math.min(.92, .22 + (value / max) * .72);
+      return mix(claim.soft, claim.color, strength);
+    }
+
+    function renderSummary() {
+      const summary = document.getElementById("summaryStrip");
+      summary.innerHTML = claims.map(claim => {
+        const ytd = totalThroughLatest(claim, latestYear);
+        const change = ytdChange(claim);
+        const changeClass = change < 0 ? "change down" : "change";
+        const changeLabel = `${change > 0 ? "+" : ""}${change}%`;
+        return `
+          <article class="metric-card">
+            <span class="metric-dot" style="background:${claim.color}"></span>
+            <div>
+              <p class="metric-title">${claim.label}</p>
+              <div class="metric-value">
+                <strong>${ytd}</strong>
+                <span>2026 YTD</span>
+              </div>
+            </div>
+            <div class="metric-side">
+              <span class="${changeClass}">${changeLabel}</span>
+              <span>vs same period 2025</span>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderTimeline() {
+      const header = document.getElementById("timelineHeader");
+      const axis = document.getElementById("monthAxis");
+      const grid = document.getElementById("timelineGrid");
+
+      header.innerHTML = `
+        <div class="timeline-header first">Claim Type</div>
+        ${years.map(year => `
+          <div class="timeline-header">
+            <div class="year-head">
+              <span>${year}${year === latestYear ? " YTD" : ""}</span>
+              <span class="year-total">Total</span>
+            </div>
+          </div>
+        `).join("")}
+      `;
+
+      axis.innerHTML = `
+        <div class="spacer"></div>
+        ${years.map(() => `
+          <div class="months">
+            ${monthNames.map(month => `<span>${month.charAt(0)}</span>`).join("")}
+          </div>
+        `).join("")}
+      `;
+
+      grid.innerHTML = claims.map(claim => {
+        const label = `
+          <div class="claim-label">
+            <span class="claim-pill" style="background:${claim.color}"></span>
+            <span>${claim.label}</span>
+          </div>
+        `;
+        const cells = years.map(year => {
+          const total = yearTotal(claim, year);
+          return `
+            <div class="year-cell">
+              <div class="month-grid" aria-label="${claim.label} ${year}, total ${total}">
+                ${claim.values[year].map((value, index) => {
+                  const future = value === null || isFuture(year, index);
+                  const className = future ? "month-cell future" : `month-cell${value === 0 ? " zero" : ""}`;
+                  const title = future
+                    ? `${claim.label} - ${monthNames[index]} ${year} - not available`
+                    : `${claim.label} - ${monthNames[index]} ${year} - ${value} encounters`;
+                  const count = future ? "" : value;
+                  return `<span class="${className}" style="background:${future ? "" : valueColor(claim, value)}" data-count="${count}" title="${title}">${count}</span>`;
+                }).join("")}
+              </div>
+              <div style="margin-top:7px;color:#65758a;font-size:11px;font-weight:700;">${total} encounters</div>
+            </div>
+          `;
+        }).join("");
+        return label + cells;
+      }).join("");
+    }
+
+    function sparkPath(values, width, height, padding) {
+      const max = Math.max(...values, 1);
+      const min = Math.min(...values, 0);
+      const range = Math.max(max - min, 1);
+      const step = (width - padding * 2) / (values.length - 1);
+      return values.map((value, index) => {
+        const x = padding + index * step;
+        const y = height - padding - ((value - min) / range) * (height - padding * 2);
+        return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      }).join(" ");
+    }
+
+    function renderTrend() {
+      const trendList = document.getElementById("trendList");
+      trendList.innerHTML = claims.map(claim => {
+        const values = years.flatMap(year => claim.values[year]).filter(value => value !== null);
+        const path = sparkPath(values, 520, 112, 12);
+        const points = values.map((value, index) => {
+          const max = Math.max(...values, 1);
+          const min = Math.min(...values, 0);
+          const range = Math.max(max - min, 1);
+          const step = (520 - 24) / (values.length - 1);
+          const x = 12 + index * step;
+          const y = 100 - ((value - min) / range) * 88;
+          if (index % 6 !== 0 && index !== values.length - 1) return "";
+          return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.6" fill="${claim.color}"></circle>`;
+        }).join("");
+        return `
+          <article class="trend-card">
+            <div class="trend-card-head">
+              <div class="trend-card-title">
+                <span class="claim-pill" style="background:${claim.color};height:24px"></span>
+                <span>${claim.label}</span>
+              </div>
+              <div class="trend-value">${values.reduce((sum, value) => sum + value, 0)} encounters - Jan 2022-Jul 2026</div>
+            </div>
+            <svg class="sparkline" viewBox="0 0 520 112" preserveAspectRatio="none" role="img" aria-label="${claim.label} trend">
+              <line class="grid-line" x1="12" y1="16" x2="508" y2="16"></line>
+              <line class="grid-line" x1="12" y1="56" x2="508" y2="56"></line>
+              <line class="grid-line" x1="12" y1="96" x2="508" y2="96"></line>
+              <path d="${path}" stroke="${claim.color}"></path>
+              ${points}
+            </svg>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function monthColumns() {
+      return years.flatMap(year => claimMonthNames(year));
+    }
+
+    function claimMonthNames(year) {
+      const end = year === latestYear ? latestMonthIndex : 11;
+      return monthNames.slice(0, end + 1).map(month => `${year}-${month}`);
+    }
+
+    function renderHeatmapTable() {
+      const table = document.getElementById("heatmapTable");
+      const columns = monthColumns();
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Claim Type</th>
+            ${columns.map(col => `<th>${col}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${claims.map(claim => {
+            const values = years.flatMap(year => claim.values[year].slice(0, year === latestYear ? latestMonthIndex + 1 : 12));
+            return `
+              <tr>
+                <td><span class="claim-pill" style="display:inline-block;vertical-align:middle;background:${claim.color};height:22px;margin-right:8px"></span>${claim.label}</td>
+                ${values.map(value => `
+                  <td>
+                    <span class="heat-chip${value === 0 ? " zero" : ""}" style="background:${valueColor(claim, value)}" title="${claim.label} - ${value} encounters">${value}</span>
+                  </td>
+                `).join("")}
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      `;
+    }
+
+    function renderGridTable() {
+      const table = document.getElementById("gridTable");
+      const columns = monthColumns();
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Claim Type</th>
+            ${columns.map(col => `<th>${col}</th>`).join("")}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${claims.map(claim => {
+            const values = years.flatMap(year => claim.values[year].slice(0, year === latestYear ? latestMonthIndex + 1 : 12));
+            return `
+              <tr>
+                <td><span class="claim-pill" style="display:inline-block;vertical-align:middle;background:${claim.color};height:22px;margin-right:8px"></span>${claim.label}</td>
+                ${values.map(value => `<td>${value}</td>`).join("")}
+                <td><strong>${values.reduce((sum, value) => sum + value, 0)}</strong></td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      `;
+    }
+
+    function switchView(view) {
+      const titles = {
+        timeline: "Yearly Monthly Timeline",
+        trend: "Claim Type Trends",
+        heatmap: "Monthly Heatmap",
+        grid: "Raw Monthly Values"
+      };
+
+      document.querySelectorAll(".segmented button").forEach(button => {
+        button.setAttribute("aria-pressed", String(button.dataset.view === view));
+      });
+      document.querySelectorAll(".view").forEach(section => section.classList.remove("active"));
+      document.getElementById(`${view}View`).classList.add("active");
+      document.getElementById("viewTitle").textContent = titles[view];
+    }
+
+    document.querySelectorAll(".segmented button").forEach(button => {
+      button.addEventListener("click", () => switchView(button.dataset.view));
+    });
+
+    renderSummary();
+    renderTimeline();
+    renderTrend();
+    renderHeatmapTable();
+    renderGridTable();
+  </script>
+</body>
+</html>

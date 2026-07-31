@@ -1,0 +1,17 @@
+Template audit for Posterra Azure management deck
+
+Source template: default_codex.pptx
+Inspection date: 2026-06-23
+Slide count: 23
+Primary usable style: clean white canvas, Helvetica Neue, large left-aligned titles, light-gray rounded content blocks, small lower-right slide number.
+
+Selected source slides:
+- Source slide 15: four-column metric layout. Used for Azure dev cost estimate because it has four prominent editable metric cards plus a top-right explanatory text slot.
+- Source slide 11: three-point layout. Used for product strengths because it gives three executive benefit statements without making the slide dense.
+
+Placeholder handling:
+- Rewrite all visible placeholder text on selected slides.
+- Rewrite copied slide-number placeholders to match the final two-slide deck.
+- Preserve the template's simple white background, gray blocks, typography, and spacing.
+
+No app source code was modified. Generated presentation artifacts live under work/presentations and outputs.

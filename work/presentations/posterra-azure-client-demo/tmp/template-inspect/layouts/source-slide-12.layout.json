@@ -1,0 +1,2135 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/4fu18jqh",
+    "id": "4fu18jqh",
+    "slide": 12,
+    "layoutId": "/ppt/slideLayouts/slideLayout6.xml",
+    "layoutName": "Title Only",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "Office",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "fontScheme": {
+      "name": "Helvetica Neue",
+      "majorFont": {
+        "latinTypeface": "Helvetica Neue"
+      },
+      "minorFont": {
+        "latinTypeface": "Helvetica Neue"
+      }
+    },
+    "typefaces": [
+      "Helvetica Neue",
+      "Helvetica Neue Medium"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout6.xml",
+      "name": "Title Only",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": [
+        {
+          "order": 1,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout6.xml/8",
+          "id": "8",
+          "name": "Footer Placeholder 4",
+          "bbox": [
+            41.33,
+            659.31,
+            374.67,
+            25.33
+          ],
+          "geometry": "rect",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          }
+        },
+        {
+          "order": 2,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout6.xml/9",
+          "id": "9",
+          "name": "Slide Number Placeholder 5",
+          "bbox": [
+            1184.18,
+            659.24,
+            54.48,
+            25.33
+          ],
+          "geometry": "rect",
+          "text": "‹#›",
+          "textPreview": "‹#›",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "‹#›",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "‹#›"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout6.xml/2",
+          "id": "2",
+          "name": "Title Placeholder 1",
+          "bbox": [
+            41.33,
+            36.12,
+            1197.33,
+            109.97
+          ],
+          "geometry": "rect",
+          "text": "Click to edit Master title style",
+          "textPreview": "Click to edit Master title style",
+          "resolvedTextStyle": {
+            "anchor": 1,
+            "vertical": 1,
+            "verticalAlignment": "top",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Click to edit Master title style",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Click to edit Master title style"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "elements": [
+        {
+          "order": 1,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/2",
+          "id": "2",
+          "name": "Title Placeholder 1",
+          "bbox": [
+            41.33,
+            36.12,
+            1197.33,
+            109.97
+          ],
+          "geometry": "rect",
+          "text": "Click to edit Master title style",
+          "textPreview": "Click to edit Master title style",
+          "resolvedTextStyle": {
+            "anchor": 1,
+            "vertical": 1,
+            "verticalAlignment": "top",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Click to edit Master title style",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Click to edit Master title style"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/3",
+          "id": "3",
+          "name": "Text Placeholder 2",
+          "bbox": [
+            41.33,
+            213.33,
+            1197.33,
+            416
+          ],
+          "geometry": "rect",
+          "text": "Click to edit Master text styles\nSecond level\nThird level\nFourth level\nFifth level",
+          "textPreview": "Click to edit Master text styles | Second level | Third level | Fourth level | Fifth level",
+          "resolvedTextStyle": {
+            "vertical": 1,
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Click to edit Master text styles",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Click to edit Master text styles"
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "text": "Second level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Second level"
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "text": "Third level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Third level"
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "text": "Fourth level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Fourth level"
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "text": "Fifth level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Fifth level"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/5",
+          "id": "5",
+          "name": "Footer Placeholder 4",
+          "bbox": [
+            41.33,
+            659.31,
+            374.67,
+            25.33
+          ],
+          "geometry": "rect",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          }
+        },
+        {
+          "order": 4,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/6",
+          "id": "6",
+          "name": "Slide Number Placeholder 5",
+          "bbox": [
+            1184.18,
+            659.24,
+            54.48,
+            25.33
+          ],
+          "geometry": "rect",
+          "text": "‹#›",
+          "textPreview": "‹#›",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "‹#›",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "‹#›"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4r65wjud",
+      "id": "532",
+      "name": "Google Shape;532;p58",
+      "bbox": [
+        1184.18,
+        659.24,
+        54.48,
+        25.33
+      ],
+      "geometry": "rect",
+      "text": "12",
+      "textPreview": "12",
+      "resolvedFontSize": 14.67,
+      "resolvedTextStyle": {
+        "anchor": 2,
+        "vertical": 1,
+        "fontSize": 14.67,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "right",
+        "verticalAlignment": "middle",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "useParagraphSpacing": true
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "12"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "12",
+          "runs": [
+            {
+              "index": 1,
+              "text": "12"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/xc3ylc7u",
+      "id": "533",
+      "name": "Google Shape;533;p58",
+      "bbox": [
+        41.33,
+        36.12,
+        374.67,
+        109.97
+      ],
+      "geometry": "rect",
+      "text": "Two column layout",
+      "textPreview": "Two column layout",
+      "resolvedFontSize": 38.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "vertical": 1,
+        "fontSize": 38.67,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "useParagraphSpacing": true
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Two column layout"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Two column layout",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Two column layout"
+            }
+          ],
+          "bulletCharacter": "",
+          "lineSpacingPercent": 90000,
+          "spaceBefore": 0
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/z61032ls",
+      "id": "10",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        660.62,
+        41.33,
+        578.04,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus.",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+          },
+          {
+            "index": 3,
+            "text": "Pellentesque ultricies quam ut massa luctus."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 21,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/s72x4nap",
+      "id": "2",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        452.62,
+        41.33,
+        187.38,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Title goes here",
+      "textPreview": "Title goes here",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Title goes here"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Title goes here",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Title goes here",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue Medium",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/h4byhgn2",
+      "id": "7",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        660.62,
+        146.67,
+        578.04,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus.",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+          },
+          {
+            "index": 3,
+            "text": "Pellentesque ultricies quam ut massa luctus."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 21,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/za1gvy90",
+      "id": "9",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        452.62,
+        146.67,
+        187.38,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Title goes here",
+      "textPreview": "Title goes here",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Title goes here"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Title goes here",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Title goes here",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue Medium",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hcrmhk3q",
+      "id": "12",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        660.62,
+        249.33,
+        578.04,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus.",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+          },
+          {
+            "index": 3,
+            "text": "Pellentesque ultricies quam ut massa luctus."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 21,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/a9w3m94f",
+      "id": "15",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        452.62,
+        249.33,
+        187.38,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Title goes here",
+      "textPreview": "Title goes here",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Title goes here"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Title goes here",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Title goes here",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue Medium",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/h0fepkzu",
+      "id": "16",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        660.62,
+        353.33,
+        578.04,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus.",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+          },
+          {
+            "index": 3,
+            "text": "Pellentesque ultricies quam ut massa luctus."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 21,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sfil0rqd",
+      "id": "17",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        452.62,
+        353.33,
+        187.38,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Title goes here",
+      "textPreview": "Title goes here",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Title goes here"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Title goes here",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Title goes here",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue Medium",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zqtcj6to",
+      "id": "18",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        660.62,
+        457.33,
+        578.04,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus.",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+          },
+          {
+            "index": 3,
+            "text": "Pellentesque ultricies quam ut massa luctus."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 21,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/65wjudg7",
+      "id": "19",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        452.62,
+        457.33,
+        187.38,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Title goes here",
+      "textPreview": "Title goes here",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Title goes here"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Title goes here",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Title goes here",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue Medium",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ed8bat47",
+      "id": "20",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        660.62,
+        562.67,
+        578.04,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus.",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+          },
+          {
+            "index": 3,
+            "text": "Pellentesque ultricies quam ut massa luctus."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus. ",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            },
+            {
+              "index": 21,
+              "text": ". ",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7u54zido",
+      "id": "21",
+      "name": "Content Placeholder 10",
+      "bbox": [
+        452.62,
+        562.67,
+        187.38,
+        68
+      ],
+      "geometry": "rect",
+      "text": "Title goes here",
+      "textPreview": "Title goes here",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "tx1",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          },
+          {
+            "index": 2,
+            "text": "Title goes here"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Title goes here",
+          "marginLeft": 0,
+          "indent": 0,
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1300,
+          "spaceAfter": 1300,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Title goes here",
+              "fontSize": 21.33,
+              "typeface": "Helvetica Neue Medium",
+              "color": "#000000"
+            }
+          ],
+          "bulletCharacter": "•"
+        }
+      ]
+    }
+  ],
+  "composeRuns": []
+}

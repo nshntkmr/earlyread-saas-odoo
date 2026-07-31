@@ -51,6 +51,7 @@ class DashboardWidgetDefinition(models.Model):
         ('map',           'Map'),
         ('albers_choropleth', 'US Choropleth'),
         ('ranked_detail_list', 'Ranked Detail List'),
+        ('record_header', 'Record Header'),
         ('composite',     'Composite (Multi-section)'),
     ], required=True, default='bar')
     chart_height      = fields.Integer(default=350, string='Default Height (px)')
@@ -78,6 +79,13 @@ class DashboardWidgetDefinition(models.Model):
         default=1, string='Default Row Span',
         help='How many grid rows this widget spans by default. '
              'Use 2+ for tall widgets like maps.')
+
+    @api.constrains('default_width_pct')
+    def _check_default_width_pct(self):
+        for rec in self:
+            if rec.default_width_pct and not (1 <= rec.default_width_pct <= 100):
+                raise models.ValidationError(
+                    'Default Width (%) must be 0 (use preset) or 1–100.')
 
     # ── Data Source ──────────────────────────────────────────────────────────
     data_mode = fields.Selection([

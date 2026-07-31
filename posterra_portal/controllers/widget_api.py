@@ -46,6 +46,12 @@ _logger = logging.getLogger(__name__)
 # posterra_portal/static/src/react/src/components/FilterBar.jsx — keep in sync.
 AUTO_SELECT_ALL_MAX_CHARS = 1500
 
+# Remote-search input bounds. The typed term is short; a huge OFFSET is an
+# arbitrarily expensive warehouse scan, so cap it (page size ≤ 1000 → this is
+# ~100 pages deep, far past any typeahead need). Value/query length capped too.
+_REMOTE_SEARCH_MAX_QUERY_LEN = 200
+_REMOTE_SEARCH_MAX_OFFSET = 100000
+
 # ── Widget download serialization helpers ────────────────────────────────────
 
 # Strings starting with these characters can be interpreted as formulas by
@@ -138,6 +144,28 @@ def _download_response(payload, fmt, filename, truncated):
     if truncated:
         headers.append(('X-Download-Truncated', '1'))
     return request.make_response(payload, headers=headers)
+
+
+def _remote_search_response(data, status=200):
+    """JSON response for the remote-search endpoint (PHI-grade).
+
+    ``no-store`` on EVERY response (success and error) so a patient roster / a
+    resolved patient label is never cached by a proxy or the browser, and
+    ``Vary: Authorization`` so a response for one bearer token is never reused
+    for another. Mirrors the CORS shape of the other JSON endpoints.
+    """
+    headers = [
+        ('Content-Type', 'application/json; charset=utf-8'),
+        ('Cache-Control', 'private, no-store'),
+        ('Pragma', 'no-cache'),
+        ('Vary', 'Authorization'),
+        ('X-Content-Type-Options', 'nosniff'),
+        ('Access-Control-Allow-Origin', '*'),
+        ('Access-Control-Allow-Headers', 'Authorization, Content-Type'),
+        ('Access-Control-Allow-Methods', 'POST, OPTIONS'),
+    ]
+    return request.make_response(json.dumps(data, default=str),
+                                 headers=headers, status=status)
 
 
 # ── JWT validation helper ─────────────────────────────────────────────────────
@@ -495,9 +523,13 @@ class PosterraWidgetAPI(http.Controller):
         for f in page_filters:
             eff_param = f.param_name or f.field_name or ''
 
-            # Initial filter options — use new dependency graph for constraints
+            # Initial filter options — use new dependency graph for constraints.
+            # remote_autocomplete carries NO roster (server search only); skip
+            # get_options() entirely so no full-table SELECT runs on config load.
             options = []
-            if f.manual_options or (f.model_id and f.field_id) or (f.schema_source_id and f.schema_column_id):
+            if (f.ui_type != 'remote_autocomplete') and (
+                    f.manual_options or (f.model_id and f.field_id)
+                    or (f.schema_source_id and f.schema_column_id)):
                 # Build constraint_values from incoming dependencies with defaults
                 constraint_values = {}
                 for d in dep_records:
@@ -542,6 +574,15 @@ class PosterraWidgetAPI(http.Controller):
                 'is_visible':            f.is_visible,
                 'include_all_option':    f.include_all_option,
                 'hide_all_option':       f.hide_all_option,
+                # ui_type drives React's renderer dispatch (was missing on this
+                # API path; browser path already sends it). D1 placement + D2
+                # remote-search config follow — additive for existing filters.
+                'ui_type':               f.ui_type or 'default',
+                'display_region':        f.display_region or 'filter_bar',
+                'apply_behavior':        f.apply_behavior or 'manual',
+                'search_page_size':      f.search_page_size or 50,
+                'search_min_chars':      f.search_min_chars or 0,
+                'control_width_px':      f.control_width_px or 0,
             })
 
         # ── Widgets (metadata only) ───────────────────────────────────────
@@ -565,6 +606,7 @@ class PosterraWidgetAPI(http.Controller):
                 'chart_height': w.chart_height,
                 'tab_id':       w.tab_id.id if w.tab_id else None,
                 'tab_key':      tab_key,
+                'render_region': w.render_region or 'tab_content',
                 'sequence':     w.sequence,
             }
             if typo:
@@ -1393,6 +1435,8 @@ class PosterraWidgetAPI(http.Controller):
                 'text_color': badge.text_color or '',
                 'icon_color': badge.icon_color or '',
                 'is_link': badge.is_link,
+                'placement': badge.placement or 'below_header_end',
+                'sequence': badge.sequence,
             })
 
         return _json_response({'badges': badges})
@@ -1645,6 +1689,63 @@ class PosterraWidgetAPI(http.Controller):
                     accessible = _get_providers_for_user(user)
                     provider_ids = accessible.ids or None
 
+                # ── Remote-autocomplete target: NEVER enumerate the roster. ──
+                # resets_target=True → clear the value (no options). Otherwise
+                # re-hydrate the current value under the NEW constraints: keep
+                # it (with just its hydrated label as options) if still
+                # valid/authorised, else clear. A transient hydrate error keeps
+                # the current selection rather than dropping it on a blip.
+                if target_filter.ui_type == 'remote_autocomplete':
+                    old_value = snapshot.get(target_param, '')
+                    options = []
+                    new_value = old_value
+                    value_changed = False
+                    if edge['resets_target']:
+                        new_value = ''
+                        value_changed = (new_value != old_value)
+                    elif old_value:
+                        # search/hydrate key constraints on the filter RECORD
+                        # (not the int id get_options' constraint_values uses).
+                        rec_constraints = {}
+                        for src in target_to_sources.get(tid, []):
+                            src_rec = filters_on_page.get(src['source_id'])
+                            sval = snapshot.get(src['source_param'], '')
+                            if src_rec and sval and sval != 'all':
+                                rec_constraints[src_rec] = sval
+                        try:
+                            hydrated = target_filter.hydrate_options(
+                                [old_value],
+                                constraints=rec_constraints,
+                                provider_ids=provider_ids,
+                                all_filter_values=all_filter_values,
+                            )
+                            if hydrated:
+                                options = hydrated          # keep value + label
+                            else:
+                                new_value = ''              # no longer valid
+                                value_changed = True
+                        except Exception as exc:
+                            # Can't confirm the selection is still in scope under
+                            # the new constraints → fail CLOSED (clear it) rather
+                            # than keep an unverified patient across a
+                            # Provider/constraint change.
+                            _logger.warning(
+                                '[RESOLVE] remote hydrate error filter=%s(id=%s): %s → clearing',
+                                target_param, tid, exc.__class__.__name__,
+                            )
+                            new_value = ''
+                            value_changed = (old_value != '')
+                            options = []
+                    snapshot[target_param] = new_value
+                    updated_filters[str(tid)] = {
+                        'param_name':    target_param,
+                        'options':       options,
+                        'new_value':     new_value,
+                        'value_changed': value_changed,
+                    }
+                    queue.append(tid)
+                    continue
+
                 # Fetch options
                 try:
                     options = target_filter.get_options(
@@ -1720,6 +1821,184 @@ class PosterraWidgetAPI(http.Controller):
         )
 
         return _json_response({'updated_filters': updated_filters})
+
+    # ------------------------------------------------------------------ #
+    # POST /api/v1/filters/<id>/search  (remote_autocomplete)            #
+    # ------------------------------------------------------------------ #
+    @http.route(
+        '/api/v1/filters/<int:filter_id>/search',
+        type='http',
+        auth='none',
+        methods=['POST', 'OPTIONS'],
+        csrf=False,
+        readonly=True,
+    )
+    def api_filter_search(self, filter_id, **kw):
+        """Server-side PAGED search / hydration for a remote_autocomplete filter.
+
+        POST body — two mutually-exclusive shapes:
+          Search:    {"query","limit","offset","current_values"}
+                     → {"options":[{value,label}], "has_more": bool}
+          Hydration: {"values":[...], "current_values"}
+                     → {"options":[{value,label}]}   (single-select: >1 → 400)
+
+        POST (not GET) so the typed term never enters a URL / access log. Every
+        response is no-store + Vary: Authorization; the raw query is never logged.
+        """
+        if request.httprequest.method == 'OPTIONS':
+            return _remote_search_response({})
+
+        try:
+            user, app = _get_api_user()
+        except ValueError as exc:
+            return _remote_search_response({'error': str(exc), 'status': 401}, status=401)
+
+        try:
+            body = json.loads(request.httprequest.get_data(as_text=True) or '{}')
+        except json.JSONDecodeError:
+            return _remote_search_response({'error': 'Invalid JSON body', 'status': 400}, status=400)
+        if not isinstance(body, dict):
+            return _remote_search_response({'error': 'Body must be a JSON object', 'status': 400}, status=400)
+
+        # ── Load + validate the filter (belongs to app, active, remote, visible) ──
+        f = request.env['dashboard.page.filter'].sudo().browse(filter_id)
+        if (not f.exists() or not f.is_active
+                or f.page_id.app_id.id != app.id or not f.page_id.is_active):
+            return _remote_search_response({'error': 'Filter not found', 'status': 404}, status=404)
+        if f.ui_type != 'remote_autocomplete' or not f.is_visible:
+            return _remote_search_response(
+                {'error': 'Filter is not a remote search', 'status': 400}, status=400)
+
+        page = f.page_id
+
+        # ── Scope: provider_ids for scoped filters (model fails closed) ──────
+        accessible = _get_providers_for_user(user)
+        provider_ids = (accessible.ids or None) if f.scope_to_user_hha else None
+
+        # ── Body shape: search XOR hydration (mutually exclusive) ─────────
+        is_hydration = 'values' in body
+        if is_hydration and any(k in body for k in ('query', 'limit', 'offset')):
+            return _remote_search_response(
+                {'error': 'Provide either a search (query/limit/offset) or a '
+                          'hydration (values), not both', 'status': 400}, status=400)
+
+        # ── current_values → constraints (dependency + same-source siblings) ──
+        raw_cv = body.get('current_values')
+        if raw_cv is None:
+            raw_cv = {}
+        if not isinstance(raw_cv, dict):
+            try:
+                raw_cv = dict(raw_cv)
+            except (TypeError, ValueError):
+                return _remote_search_response(
+                    {'error': 'current_values must be an object', 'status': 400}, status=400)
+        # Every current_values key MUST be a param of an ACTIVE filter on THIS
+        # page — reject unknown/cross-page params (surfaces stale clients / config
+        # drift) rather than silently changing query semantics. The remote
+        # filter's OWN param is accepted but never constrains itself.
+        own_param = f.param_name or f.field_name or ''
+        valid_params = {
+            (pf.param_name or pf.field_name or '')
+            for pf in page.filter_ids if pf.is_active
+        }
+        current_values = {}
+        for k, v in raw_cv.items():
+            k = str(k)
+            if k not in valid_params:
+                return _remote_search_response(
+                    {'error': f"Unknown current_values param '{k}'", 'status': 400}, status=400)
+            if k == own_param:
+                continue
+            current_values[k] = '' if v is None else str(v)
+
+        # Forgery validation for provider-scoped values (same as the cascade).
+        from ..utils.access import (
+            ForgedProviderValueError, assert_provider_url_values_authorised,
+        )
+        from .portal import _is_dashboard_admin
+        is_superadmin = _is_dashboard_admin(user)
+        try:
+            if current_values:
+                assert_provider_url_values_authorised(
+                    current_values, page.filter_ids, app, accessible, is_superadmin)
+        except ForgedProviderValueError as exc:
+            return _remote_search_response({'error': str(exc), 'status': 403}, status=403)
+
+        # Record-keyed dependency constraints (search/hydrate → _build_schema_where).
+        deps = request.env['dashboard.filter.dependency'].sudo().search([
+            ('page_id', '=', page.id), ('target_filter_id', '=', f.id),
+        ])
+        constraints = {}
+        for d in deps:
+            src = d.source_filter_id
+            src_param = (d.source_param or src.param_name or src.field_name or '') if src else ''
+            val = current_values.get(src_param, '')
+            if src and val and val != 'all':
+                constraints[src] = val
+        all_filter_values = {k: v for k, v in current_values.items() if v and v != 'all'}
+
+        # ── Validate the shape's own inputs (reject malformed types — the
+        #    values flow straight into a PG/Snowflake/ClickHouse query) ──────
+        if is_hydration:
+            values = body.get('values')
+            if not isinstance(values, list):
+                return _remote_search_response(
+                    {'error': 'values must be a list', 'status': 400}, status=400)
+            values = [str(v) for v in values if str(v).strip()]
+            if len(values) > 1:      # single-select this phase
+                return _remote_search_response(
+                    {'error': 'Only one value may be hydrated', 'status': 400}, status=400)
+            if any(len(v) > _REMOTE_SEARCH_MAX_QUERY_LEN for v in values):
+                return _remote_search_response(
+                    {'error': 'value too long', 'status': 400}, status=400)
+        else:
+            query = body.get('query', '')
+            if not isinstance(query, str):
+                return _remote_search_response(
+                    {'error': 'query must be a string', 'status': 400}, status=400)
+            if len(query) > _REMOTE_SEARCH_MAX_QUERY_LEN:
+                return _remote_search_response(
+                    {'error': 'query too long', 'status': 400}, status=400)
+            limit = body.get('limit')
+            if limit is not None:
+                try:
+                    limit = int(limit)
+                except (ValueError, TypeError):
+                    return _remote_search_response(
+                        {'error': 'limit must be an integer', 'status': 400}, status=400)
+                if limit < 0:
+                    return _remote_search_response(
+                        {'error': 'limit must be >= 0', 'status': 400}, status=400)
+            raw_off = body.get('offset', 0)
+            if raw_off is None:
+                raw_off = 0
+            try:
+                offset = int(raw_off)
+            except (ValueError, TypeError):
+                return _remote_search_response(
+                    {'error': 'offset must be an integer', 'status': 400}, status=400)
+            if offset < 0 or offset > _REMOTE_SEARCH_MAX_OFFSET:
+                return _remote_search_response(
+                    {'error': 'offset out of range', 'status': 400}, status=400)
+
+        # ── Execute (only the model call can raise here) ──────────────────
+        try:
+            if is_hydration:
+                opts = f.hydrate_options(
+                    values, constraints=constraints, provider_ids=provider_ids,
+                    all_filter_values=all_filter_values)
+                return _remote_search_response({'options': opts})
+            res = f.search_options_page(
+                query=query, limit=limit, offset=offset,
+                constraints=constraints, provider_ids=provider_ids,
+                all_filter_values=all_filter_values)
+            return _remote_search_response(res)
+        except Exception as exc:
+            # Model already sanitises (UserError). Never leak SQL / the raw query.
+            _logger.warning('api_filter_search: filter=%s error (%s)',
+                            filter_id, exc.__class__.__name__)
+            return _remote_search_response(
+                {'error': 'Search is temporarily unavailable.', 'status': 503}, status=503)
 
     # ------------------------------------------------------------------ #
     # POST /api/v1/filter-state/save                                      #

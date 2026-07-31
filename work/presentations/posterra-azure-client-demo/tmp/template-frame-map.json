@@ -1,0 +1,59 @@
+{
+  "outputSlides": [
+    {
+      "outputSlide": 1,
+      "sourceSlide": 15,
+      "narrativeRole": "Azure dev environment cost estimate",
+      "reuseMode": "duplicate-slide",
+      "editTargets": [
+        { "sourceElementId": "sh/g7adsji5", "action": "rewrite", "reason": "final slide number" },
+        { "sourceElementId": "sh/cvixczed", "action": "rewrite", "reason": "slide title" },
+        { "sourceElementId": "sh/nap4r65w", "action": "rewrite", "reason": "metric value" },
+        { "sourceElementId": "sh/nyd0z610", "action": "rewrite", "reason": "metric label" },
+        { "sourceElementId": "sh/itgfmlkj", "action": "rewrite", "reason": "metric value" },
+        { "sourceElementId": "sh/pkzupwb2", "action": "rewrite", "reason": "metric label" },
+        { "sourceElementId": "sh/7qpg3ex0", "action": "rewrite", "reason": "metric value" },
+        { "sourceElementId": "sh/i5sneloj", "action": "rewrite", "reason": "metric label" },
+        { "sourceElementId": "sh/32lszqtc", "action": "rewrite", "reason": "metric value" },
+        { "sourceElementId": "sh/sneloj2t", "action": "rewrite", "reason": "metric label" },
+        { "sourceElementId": "sh/l87ed8ba", "action": "rewrite", "reason": "executive summary and assumptions" }
+      ]
+    },
+    {
+      "outputSlide": 2,
+      "sourceSlide": 11,
+      "narrativeRole": "Product demo strengths",
+      "reuseMode": "duplicate-slide",
+      "editTargets": [
+        { "sourceElementId": "sh/6tovahoz", "action": "rewrite", "reason": "final slide number" },
+        { "sourceElementId": "sh/vahoza1g", "action": "rewrite", "reason": "slide title" },
+        { "sourceElementId": "sh/sji5snel", "action": "rewrite", "reason": "benefit card 1" },
+        { "sourceElementId": "sh/oj2t83it", "action": "rewrite", "reason": "benefit card 2" },
+        { "sourceElementId": "sh/d4vmtwra", "action": "rewrite", "reason": "benefit card 3" }
+      ]
+    }
+  ],
+  "omittedSourceSlides": [
+    { "sourceSlide": 1, "reason": "title slide not needed for requested two-page content" },
+    { "sourceSlide": 2, "reason": "section divider not needed" },
+    { "sourceSlide": 3, "reason": "two-card layout less suitable than selected metric/product layouts" },
+    { "sourceSlide": 4, "reason": "visual layout not needed" },
+    { "sourceSlide": 5, "reason": "image-heavy layout not needed" },
+    { "sourceSlide": 6, "reason": "process layout not needed" },
+    { "sourceSlide": 7, "reason": "table layout too dense for non-technical audience" },
+    { "sourceSlide": 8, "reason": "text-only layout less suitable than selected layouts" },
+    { "sourceSlide": 9, "reason": "two-card text layout not selected" },
+    { "sourceSlide": 10, "reason": "large table layout too dense" },
+    { "sourceSlide": 12, "reason": "two-column list less suitable than three benefit cards" },
+    { "sourceSlide": 13, "reason": "text-heavy slide not needed" },
+    { "sourceSlide": 14, "reason": "timeline not needed" },
+    { "sourceSlide": 16, "reason": "alternate column layout not selected" },
+    { "sourceSlide": 17, "reason": "not needed for two-slide story" },
+    { "sourceSlide": 18, "reason": "not needed for two-slide story" },
+    { "sourceSlide": 19, "reason": "not needed for two-slide story" },
+    { "sourceSlide": 20, "reason": "not needed for two-slide story" },
+    { "sourceSlide": 21, "reason": "not needed for two-slide story" },
+    { "sourceSlide": 22, "reason": "not needed for two-slide story" },
+    { "sourceSlide": 23, "reason": "closing slide not requested" }
+  ]
+}

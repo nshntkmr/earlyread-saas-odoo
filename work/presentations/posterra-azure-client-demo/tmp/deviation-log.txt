@@ -1,0 +1,5 @@
+Deviation log
+
+- The deck uses source slide 15 and source slide 11 only; the remaining template slides are omitted because a two-page executive deck was requested.
+- Content is rewritten for a management/client-demo audience and intentionally avoids naming the underlying ERP/framework brand.
+- Azure estimates are rounded monthly ranges, not a formal quote, because final spend depends on uptime, autoscale, logs, traffic, backups, and reserved/commitment discounts.

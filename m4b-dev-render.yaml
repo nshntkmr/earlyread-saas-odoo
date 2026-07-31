@@ -1,0 +1,687 @@
+﻿---
+# Source: posterra/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: posterra
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+
+---
+# Source: posterra/templates/configmap-nginx.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: posterra-nginx
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+data:
+  # nginx.conf is authored at infra/helm/posterra/files/nginx.conf and pulled
+  # in here so the sidecar config lives in one place. Mounted into the nginx
+  # container at /etc/nginx/nginx.conf.
+  nginx.conf: |-
+    # ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # NGINX sidecar config ΓÇö earlyread-saas Odoo pods
+    #
+    # Runs as a sidecar container alongside Odoo in every pod. Serves the React
+    # static bundles directly off a shared emptyDir volume (an initContainer copies
+    # the addon static/ trees there at pod start), and proxies everything else to
+    # Odoo on 127.0.0.1:8069. Frees Odoo's Python workers from static-file serving.
+    #
+    # Mounted into the nginx container at /etc/nginx/nginx.conf via a ConfigMap.
+    # ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+    
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        access_log    /dev/stdout;
+    
+        sendfile      on;
+        tcp_nopush    on;
+        keepalive_timeout 65;
+        # Odoo file uploads (logos, data imports).
+        client_max_body_size 100m;
+    
+        # Temp paths under /tmp so nginx can run without writing to /var.
+        client_body_temp_path /tmp/nginx-client-body;
+        proxy_temp_path       /tmp/nginx-proxy;
+        fastcgi_temp_path     /tmp/nginx-fastcgi;
+        uwsgi_temp_path       /tmp/nginx-uwsgi;
+        scgi_temp_path        /tmp/nginx-scgi;
+    
+        upstream odoo {
+            server 127.0.0.1:8069;
+        }
+        upstream odoo_longpolling {
+            server 127.0.0.1:8072;
+        }
+    
+        server {
+            listen 8080;
+            server_name _;
+    
+            # ΓöÇΓöÇ Content-hashed Vite/Rollup chunks ΓåÆ immutable (1y) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            # Hash suffix before the extension (base64-url-safe alphabet).
+            location ~* "^/(posterra_portal/static/src/react|dashboard_builder/static/src/designer)/dist/.+-[A-Za-z0-9_-]{8,}\.(js|css)$" {
+                root /usr/share/nginx/static;
+                add_header Cache-Control "public, max-age=31536000, immutable" always;
+                expires 1y;
+                try_files $uri @odoo;
+            }
+    
+            # ΓöÇΓöÇ Fixed-name dist assets (portal.js, designer.js, main.css) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            # Short cache + must-revalidate so rolling deploys propagate.
+            location ~* "^/(posterra_portal/static/src/react|dashboard_builder/static/src/designer)/dist/" {
+                root /usr/share/nginx/static;
+                add_header Cache-Control "public, max-age=300, must-revalidate" always;
+                expires 5m;
+                try_files $uri @odoo;
+            }
+    
+            # ΓöÇΓöÇ All other addon static assets ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            location ~* "^/(posterra_portal|dashboard_builder)/static/" {
+                root /usr/share/nginx/static;
+                try_files $uri @odoo;
+            }
+    
+            # ΓöÇΓöÇ Odoo websocket / longpolling ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            location /websocket {
+                proxy_pass http://odoo_longpolling;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_read_timeout 600s;
+            }
+            location /longpolling {
+                proxy_pass http://odoo_longpolling;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_read_timeout 600s;
+            }
+    
+            # ΓöÇΓöÇ Everything else ΓåÆ Odoo ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            location / {
+                proxy_pass http://odoo;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_redirect off;
+                proxy_connect_timeout 30s;
+                proxy_read_timeout 300s;
+            }
+    
+            # Named fallback ΓÇö static-file locations fall through here when the
+            # file isn't on the shared volume (lets Odoo serve it instead of 404).
+            location @odoo {
+                proxy_pass http://odoo;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+        }
+    }
+    
+
+---
+# Source: posterra/templates/pv-filestore.yaml
+# Static PersistentVolume for the EXISTING Azure Files share (created in M2 ΓÇö
+# we are NOT dynamically provisioning a new share). The Azure Files CSI driver
+# mounts it using credentials from the azure-files-secret (ESO-synced from KV).
+#
+# PV is cluster-scoped, so the name carries the namespace to keep dev/staging
+# from colliding on one cluster.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: posterra-filestore-odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteMany
+  # Static binding ΓÇö no dynamic provisioning, so no storage class.
+  storageClassName: ""
+  # Keep the share's data if the PV/PVC is deleted.
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - dir_mode=0770
+    - file_mode=0770
+    - uid=101
+    - gid=101
+    - mfsymlinks
+    - nobrl
+    - cache=strict
+  csi:
+    driver: file.csi.azure.com
+    # Unique per share. Format: <resourceGroup>#<account>#<share>
+    volumeHandle: "earlyread-saas-dev-rg#earlyreaddevfseread#odoo-filestore"
+    volumeAttributes:
+      resourceGroup: earlyread-saas-dev-rg
+      storageAccount: earlyreaddevfseread
+      shareName: odoo-filestore
+    nodeStageSecretRef:
+      name: azure-files-secret
+      namespace: odoo-dev
+
+---
+# Source: posterra/templates/pvc-filestore.yaml
+# PVC bound to the static Azure Files PV above. The Odoo containers mount this
+# at /var/lib/odoo (the filestore ΓÇö logos, favicons, widget previews).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: posterra-filestore
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  # Bind explicitly to the static PV (no dynamic provisioning).
+  volumeName: posterra-filestore-odoo-dev
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# Source: posterra/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: posterra-combined
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+    posterra.io/role: combined
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    posterra.io/role: combined
+  ports:
+    - name: web
+      port: 8080
+      targetPort: web
+
+---
+# Source: posterra/templates/deployment-combined.yaml
+# Combined deployment ΓÇö one pod runs portal + admin + cron (dev). It owns cron
+# (max_cron_threads > 0) because there's no separate cron workload in this mode.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: posterra-combined
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+    posterra.io/role: combined
+spec:
+  replicas: 1
+  # Recreate ΓÇö never run two combined pods at once (they'd both run cron).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: posterra
+      app.kubernetes.io/instance: posterra
+      posterra.io/role: combined
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: posterra
+        app.kubernetes.io/instance: posterra
+        posterra.io/role: combined
+    spec:
+      serviceAccountName: posterra
+      initContainers:
+        - name: copy-static
+          image: "earlyreadsaasacreread.azurecr.io/odoo:31cc311"
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              mkdir -p /shared/posterra_portal /shared/dashboard_builder
+              cp -r /mnt/extra-addons/posterra_portal/static   /shared/posterra_portal/
+              cp -r /mnt/extra-addons/dashboard_builder/static /shared/dashboard_builder/
+          volumeMounts:
+            - name: shared-static
+              mountPath: /shared
+      containers:
+        - name: odoo
+          image: "earlyreadsaasacreread.azurecr.io/odoo:31cc311"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8069
+            - name: longpoll
+              containerPort: 8072
+          env:
+            - name: DB_HOST
+              value: "earlyread-saas-dev-pg.postgres.database.azure.com"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "psadmin"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: PG_PASSWORD
+            - name: ODOO_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: ODOO_ADMIN_PASSWORD
+            - name: POSTERRA_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_JWT_SECRET
+            - name: POSTERRA_CH_PASSWORD_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_CH_PASSWORD_PROD
+            - name: POSTERRA_AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_AI_API_KEY
+            - name: POSTERRA_AI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_AI_ENDPOINT
+            - name: POSTERRA_AI_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_AI_MODEL
+            - name: ODOO_WORKERS
+              value: "2"
+            - name: ODOO_MAX_CRON_THREADS
+              value: "2"
+          volumeMounts:
+            - name: filestore
+              mountPath: /var/lib/odoo
+          livenessProbe:
+            httpGet:
+              path: /web/login
+              port: 8069
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /web/login
+              port: 8069
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 1500m
+              memory: 3Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+        - name: nginx
+          image: "nginx:1.27-alpine"
+          ports:
+            - name: web
+              containerPort: 8080
+          volumeMounts:
+            - name: shared-static
+              mountPath: /usr/share/nginx/static
+              readOnly: true
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: shared-static
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: posterra-nginx
+        - name: filestore
+          persistentVolumeClaim:
+            claimName: posterra-filestore
+
+---
+# Source: posterra/templates/ingress.yaml
+# Ingress ΓÇö fronted by Azure Application Gateway via AGIC.
+#
+#   combined mode (dev):  one rule ΓÇö *.<baseDomain> ΓåÆ posterra-combined
+#   split mode (staging): admin.<baseDomain> ΓåÆ posterra-admin  (specific wins)
+#                         *.<baseDomain>     ΓåÆ posterra-portal (all other tenants)
+#
+# TLS: a single wildcard cert (*.<baseDomain>) covers every tenant subdomain
+# AND the admin host ΓÇö both are single-label children of <baseDomain>.
+# cert-manager's ingress-shim sees the tls block + the cluster-issuer
+# annotation and provisions the cert into the posterra-wildcard-tls secret via
+# DNS-01 (wildcard names cannot use the HTTP-01 challenge).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: posterra
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/health-probe-path: /web/login
+spec:
+  tls:
+    - hosts:
+        - "*.dev.earlyread.ai"
+      secretName: posterra-wildcard-tls
+  rules:
+    - host: "*.dev.earlyread.ai"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: posterra-combined
+                port:
+                  number: 8080
+
+---
+# Source: posterra/templates/hpa.yaml
+# HorizontalPodAutoscalers ΓÇö emitted for any deployment entry with
+# hpa.enabled=true. Split mode (staging) scales portal 2-5 and admin 1-2 on
+# CPU utilization; combined mode (dev) has no hpa block, so this file renders
+# empty.
+
+---
+# Source: posterra/templates/pdb.yaml
+# PodDisruptionBudgets ΓÇö emitted for any deployment entry with pdb.enabled=true.
+# Split mode (staging) sets one on portal so a node drain / cluster upgrade
+# never takes the last tenant-traffic pod down. Combined mode (dev, replicas=1)
+# has no pdb block, so this file renders empty ΓÇö a single-replica dev pod is
+# expected to blip on node churn.
+
+---
+# Source: posterra/templates/service.yaml
+# Services ΓÇö one per HTTP-serving workload. Ranges over .Values.deployments,
+# which holds exactly the roles that serve traffic:
+#   combined mode ΓåÆ { combined }       ΓåÆ posterra-combined
+#   split mode    ΓåÆ { portal, admin }  ΓåÆ posterra-portal, posterra-admin
+# The cron workload (.Values.cron) has no HTTP surface, so it gets no Service.
+# Each Service targets the NGINX sidecar's "web" port (8080) ΓÇö nginx serves
+# static assets directly and proxies everything else to Odoo (127.0.0.1:8069,
+# and :8072 for longpolling/websocket).
+---
+# Source: posterra/templates/externalsecret-files.yaml
+# ExternalSecret ΓÇö pulls the Azure Files storage account name + key from Key
+# Vault into a K8s Secret named "azure-files-secret". The static
+# PersistentVolume's csi.nodeStageSecretRef points at this Secret; the Azure
+# Files CSI driver reads BOTH keys from it to mount the SMB share.
+#
+# The CSI driver requires these exact K8s secret key names:
+#   azurestorageaccountname
+#   azurestorageaccountkey
+#
+# In Key Vault:
+#   filestore-account-name ΓÇö the storage account name (non-secret; seeded by
+#                            Terraform from var.filestore_storage_name)
+#   filestore-account-key  ΓÇö the storage account key (seeded as REPLACE_ME by
+#                            Terraform; you set the real value via
+#                            `az keyvault secret set` so it never lands in
+#                            Terraform state)
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: azure-files-secret
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: dev-kv-store
+    kind: ClusterSecretStore
+  target:
+    name: azure-files-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: azurestorageaccountname
+      remoteRef:
+        key: filestore-account-name
+    - secretKey: azurestorageaccountkey
+      remoteRef:
+        key: filestore-account-key
+
+---
+# Source: posterra/templates/externalsecret-odoo.yaml
+# ExternalSecret ΓÇö pulls the Odoo app secrets from Key Vault (via the
+# ClusterSecretStore that M3's services layer created) into a K8s Secret
+# named "odoo-secrets". The pod env vars reference this Secret by key.
+#
+# Key names on the K8s side MUST match what the Phase 0 code reads:
+#   POSTERRA_JWT_SECRET            ΓÇö _get_jwt_secret()
+#   POSTERRA_AI_API_KEY/ENDPOINT/MODEL ΓÇö AiSqlGenerator
+#   POSTERRA_CH_PASSWORD_PROD     ΓÇö clickhouse._get_password() (the env var
+#                                   named by connection.password_param_key)
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: odoo-secrets
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: dev-kv-store
+    kind: ClusterSecretStore
+  target:
+    name: odoo-secrets
+    creationPolicy: Owner
+  data:
+    - secretKey: PG_PASSWORD
+      remoteRef:
+        key: pg-admin-password
+    - secretKey: ODOO_ADMIN_PASSWORD
+      remoteRef:
+        key: odoo-admin-password
+    - secretKey: POSTERRA_JWT_SECRET
+      remoteRef:
+        key: jwt-secret
+    - secretKey: POSTERRA_CH_PASSWORD_PROD
+      remoteRef:
+        key: ch-password-prod
+    - secretKey: POSTERRA_AI_API_KEY
+      remoteRef:
+        key: ai-api-key
+    - secretKey: POSTERRA_AI_ENDPOINT
+      remoteRef:
+        key: ai-endpoint
+    - secretKey: POSTERRA_AI_MODEL
+      remoteRef:
+        key: ai-model
+---
+# Source: posterra/templates/job-init.yaml
+# Init Job ΓÇö runs Odoo schema install/upgrade.
+#
+# Helm hook annotation: post-install,pre-upgrade
+#   - First install: post-install runs AFTER regular resources (SA, ESO-
+#     synced odoo-secrets, azure-files-secret, PVC, Deployments) exist.
+#     Init can't fire pre-install because it depends on those chart-managed
+#     resources, which Helm hasn't created yet at pre-install time.
+#   - Subsequent deploys: pre-upgrade runs BEFORE the new pods roll, so
+#     schema migrations land before any serving pod sees the new image.
+#
+# The entrypoint waits for PG, renders odoo.conf, then exec's:
+#   odoo -c /tmp/odoo.conf -d <db> -i|-u posterra_portal,dashboard_builder --stop-after-init
+#
+# `-i` (install) on first deploy creates the DB + installs the addons; `-u`
+# (upgrade) on subsequent deploys runs migrations. Controlled by .Values.init.mode.
+#
+# Trade-offs to be aware of (handled in the M5 runbook, not the chart):
+#   - First-install crash-loop. Until this Job completes, serving Deployments
+#     restart on missing-schema errors. The livenessProbe's 90s initialDelay
+#     + 5x30s failureThreshold gives ~240s grace per cycle ΓÇö fits the typical
+#     2-5 min fresh schema install.
+#   - ESO sync race. The Job pod sits in CreateContainerConfigError until
+#     ESO syncs odoo-secrets / azure-files-secret from Key Vault. With a
+#     healthy ClusterSecretStore this is single-digit seconds. Pre-flight
+#     `kubectl get clustersecretstore <name>` and use `helm install
+#     --timeout 10m` so Helm waits long enough.
+#
+# NOTE (Phase 2): consider replacing with a two-step deploy (replicas=0 ΓåÆ
+# init Job ΓåÆ upgrade replicas) OR an initContainer in serving pods that
+# gates on a Job-written `init-complete` ConfigMap. Either eliminates the
+# crash-loop above.
+#
+# No NGINX sidecar / no static-copy initContainer ΓÇö this Job just runs Odoo
+# once and exits. backoffLimit 0 surfaces failures instead of silently retrying.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: posterra-init-1
+  namespace: odoo-dev
+  labels:
+    app.kubernetes.io/name: posterra
+    app.kubernetes.io/instance: posterra
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: posterra-0.1.0
+  annotations:
+    "helm.sh/hook": post-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 0
+  # Auto-clean finished init Jobs after 1h.
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: posterra
+        app.kubernetes.io/instance: posterra
+        posterra.io/role: init
+    spec:
+      serviceAccountName: posterra
+      restartPolicy: Never
+      containers:
+        - name: odoo-init
+          image: "earlyreadsaasacreread.azurecr.io/odoo:31cc311"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DB_HOST
+              value: "earlyread-saas-dev-pg.postgres.database.azure.com"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "psadmin"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: PG_PASSWORD
+            - name: ODOO_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: ODOO_ADMIN_PASSWORD
+            - name: POSTERRA_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_JWT_SECRET
+            - name: POSTERRA_CH_PASSWORD_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_CH_PASSWORD_PROD
+            - name: POSTERRA_AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_AI_API_KEY
+            - name: POSTERRA_AI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_AI_ENDPOINT
+            - name: POSTERRA_AI_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_AI_MODEL
+            - name: ODOO_WORKERS
+              value: "0"
+            - name: ODOO_MAX_CRON_THREADS
+              value: "0"
+            - name: ODOO_EXTRA_ARGS
+              value: >-
+                -d posterra_dev
+                -i posterra_portal,dashboard_builder
+                --stop-after-init
+          volumeMounts:
+            - name: filestore
+              mountPath: /var/lib/odoo
+      volumes:
+        - name: filestore
+          persistentVolumeClaim:
+            claimName: posterra-filestore
+

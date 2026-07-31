@@ -92,6 +92,14 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
                 'body': (config or {}).get('text_note_body', ''),
                 'icon_name': 'none'}
 
+    if chart_type == 'record_header':
+        # Same pure formatter the portal runtime uses → preview == portal.
+        from .record_header_formatter import format_record_header
+        cfg = dict(visual_config or {})
+        cfg['x_column'] = (config or {}).get('x_column', '')
+        cfg['y_columns'] = (config or {}).get('y_columns', '')
+        return format_record_header(columns, rows, cfg)
+
     # Fallback — return raw data as-is
     return {}
 

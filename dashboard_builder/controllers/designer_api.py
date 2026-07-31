@@ -1312,6 +1312,7 @@ class DesignerAPI(http.Controller):
                 'data_mode': mode,
                 'category': body.get('category', 'chart'),
                 'default_col_span': str(body.get('col_span', 6)),
+                'default_width_pct': int(body.get('width_pct', 0) or 0),
                 'default_row_span': int(body.get('row_span', 1)),
                 'chart_height': body.get('chart_height', 350),
                 'color_palette': body.get('color_palette', 'healthcare'),
@@ -1593,6 +1594,8 @@ class DesignerAPI(http.Controller):
 
         if 'col_span' in body:
             update_vals['default_col_span'] = str(body['col_span'])
+        if 'width_pct' in body:
+            update_vals['default_width_pct'] = int(body['width_pct'] or 0)
         if 'row_span' in body:
             update_vals['default_row_span'] = int(body['row_span'])
 
@@ -2142,8 +2145,26 @@ class DesignerAPI(http.Controller):
                 if hasattr(defn, fld):
                     vals[fld] = getattr(defn, fld) or (False if fld == 'search_enabled' else '')
 
-            if body.get('tab_id'):
-                vals['tab_id'] = body['tab_id']
+            # ── Placement write contract (render_region + tab_id) ──────────
+            _region = body.get('render_region')
+            if _region is not None and _region not in ('tab_content', 'page_summary'):
+                return _json_error(400, 'Invalid render_region')
+            if _region in ('tab_content', 'page_summary'):
+                # Added to the shared vals only when explicit+valid: on create the
+                # model default_get supplies 'tab_content'; on dedup an ABSENT
+                # region is preserved (write only touches keys present in vals).
+                vals['render_region'] = _region
+            # tab_id: absent → preserve; null/'' → clear; valid → set after
+            # verifying it belongs to the page; page_summary ignores tab.
+            if 'tab_id' in body and _region != 'page_summary':
+                _tab = body.get('tab_id')
+                if _tab in (None, False, ''):
+                    vals['tab_id'] = False
+                else:
+                    _tab_rec = request.env['dashboard.page.tab'].sudo().browse(int(_tab))
+                    if not _tab_rec.exists() or _tab_rec.page_id.id != page_id:
+                        return _json_error(400, 'tab_id does not belong to the page')
+                    vals['tab_id'] = int(_tab)
 
             # KPI fields
             if defn.chart_type in ('kpi', 'status_kpi'):
@@ -2169,6 +2190,10 @@ class DesignerAPI(http.Controller):
                 )
                 return _json_response({'widget_id': existing.id, 'name': existing.name, 'updated': True})
 
+            # New instance only: seed width from the definition's default (the
+            # dedup path above deliberately preserves the existing instance's
+            # customized width_pct).
+            vals['width_pct'] = defn.default_width_pct or 0
             widget = Widget.create(vals)
 
             # Composite: materialize child records from the definition's

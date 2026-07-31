@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clinical Overview Ledger Mockup</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --panel-soft: #f7f9fc;
+      --line: #dbe3ec;
+      --line-soft: #edf1f6;
+      --text: #0e1f33;
+      --muted: #65758a;
+      --muted-2: #8b98a9;
+      --office: #455365;
+      --office-soft: #d8dde5;
+      --ip: #df3c66;
+      --ip-soft: #f9d6df;
+      --er: #df8823;
+      --er-soft: #f8dfbf;
+      --snf: #8552e6;
+      --snf-soft: #e4d8fb;
+      --blue: #2469c9;
+      --green: #16806a;
+      --radius: 8px;
+      --shadow: 0 12px 32px rgba(20, 38, 61, .08);
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-width: 1080px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    button,
+    select {
+      font: inherit;
+    }
+
+    .page {
+      padding: 18px;
+    }
+
+    .shell {
+      max-width: 1480px;
+      margin: 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+    }
+
+    .title-block {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 760;
+    }
+
+    .period {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .control select {
+      height: 30px;
+      min-width: 126px;
+      padding: 0 30px 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .segmented {
+      display: inline-flex;
+      gap: 2px;
+      height: 32px;
+      padding: 3px;
+      border-radius: 9px;
+      background: #edf2f8;
+      box-shadow: inset 0 0 0 1px rgba(210, 219, 230, .75);
+    }
+
+    .segmented button {
+      height: 26px;
+      min-width: 86px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #415066;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 1px 6px rgba(22, 38, 57, .12);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--line-soft);
+    }
+
+    .summary-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      min-height: 76px;
+      padding: 13px 16px;
+      background: #fbfcfe;
+    }
+
+    .accent {
+      width: 5px;
+      border-radius: 99px;
+      background: var(--office);
+    }
+
+    .summary-label {
+      margin: 0 0 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 780;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .summary-value {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+    }
+
+    .summary-value strong {
+      font-size: 23px;
+      line-height: 1;
+    }
+
+    .summary-value span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .summary-meta {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .content {
+      padding: 14px;
+      background: #f8fafc;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 46px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #fff;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 99px;
+      background: #d8dde5;
+      border: 1px solid #c9d2de;
+    }
+
+    .legend-dot.mid {
+      background: #aeb6c2;
+    }
+
+    .legend-dot.high {
+      background: #455365;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .ledger {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .claim-block {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .claim-head {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 44px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #fbfcfe;
+    }
+
+    .claim-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-weight: 760;
+    }
+
+    .claim-color {
+      width: 5px;
+      height: 26px;
+      border-radius: 99px;
+      background: var(--office);
+    }
+
+    .claim-stat {
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .claim-stat strong {
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .ledger-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    .ledger-table th,
+    .ledger-table td {
+      border-bottom: 1px solid var(--line-soft);
+      border-right: 1px solid var(--line-soft);
+      height: 39px;
+      padding: 0 7px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .ledger-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .ledger-table th {
+      height: 31px;
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 780;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .ledger-table th:first-child,
+    .ledger-table td:first-child {
+      width: 64px;
+      text-align: left;
+      font-weight: 760;
+    }
+
+    .ledger-table th:nth-last-child(-n+3),
+    .ledger-table td:nth-last-child(-n+3) {
+      width: 72px;
+      background: #fcfdff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .month-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 31px;
+      height: 24px;
+      border-radius: 5px;
+      background: #f4f6f9;
+      color: #102033;
+      font-size: 11px;
+      font-weight: 760;
+    }
+
+    .month-pill.zero {
+      width: 18px;
+      background: transparent;
+      color: transparent;
+    }
+
+    .month-pill.zero::after {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 99px;
+      background: #cfd7e2;
+    }
+
+    .month-pill.future {
+      width: 31px;
+      background: repeating-linear-gradient(135deg, #f7f9fc, #f7f9fc 3px, #eef2f7 3px, #eef2f7 6px);
+      color: transparent;
+      opacity: .7;
+    }
+
+    .month-pill:hover {
+      outline: 2px solid rgba(36, 105, 201, .35);
+      outline-offset: 1px;
+    }
+
+    .total-cell {
+      color: var(--text);
+      font-weight: 780;
+    }
+
+    .peak-cell {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .year-board {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(180px, 1fr));
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .year-card {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .year-card h3 {
+      margin: 0;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #fbfcfe;
+      font-size: 13px;
+    }
+
+    .year-list {
+      display: grid;
+    }
+
+    .year-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 42px;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .year-row:last-child {
+      border-bottom: 0;
+    }
+
+    .year-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 720;
+    }
+
+    .tiny-accent {
+      width: 4px;
+      height: 20px;
+      border-radius: 99px;
+      background: var(--office);
+    }
+
+    .year-total {
+      color: var(--text);
+      font-weight: 780;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .month-board {
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .month-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .month-table th,
+    .month-table td {
+      min-width: 76px;
+      height: 38px;
+      border-bottom: 1px solid var(--line-soft);
+      border-right: 1px solid var(--line-soft);
+      padding: 0 8px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .month-table th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 780;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .month-table th:first-child,
+    .month-table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      min-width: 138px;
+      background: #fff;
+      text-align: left;
+      font-weight: 760;
+    }
+
+    .month-table th:first-child {
+      background: #fbfcfe;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 38px;
+      padding: 0 14px;
+      border-top: 1px solid var(--line-soft);
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    @media (max-width: 1180px) {
+      body {
+        min-width: 1020px;
+      }
+
+      .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .year-board {
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="shell" aria-label="Clinical overview ledger mockup">
+      <header class="topbar">
+        <div class="title-block">
+          <h1>Clinical Overview</h1>
+          <div class="period">Monthly encounter counts - Jan 2022 through Jul 2026</div>
+        </div>
+        <div class="toolbar">
+          <label class="control">
+            Period
+            <select aria-label="Period">
+              <option>2022 - Present</option>
+              <option>2026 YTD</option>
+              <option>Last 24 months</option>
+            </select>
+          </label>
+          <div class="segmented" aria-label="View selector">
+            <button type="button" data-view="ledger" aria-pressed="true">Ledger</button>
+            <button type="button" data-view="years" aria-pressed="false">Years</button>
+            <button type="button" data-view="months" aria-pressed="false">Months</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="summary" id="summary"></section>
+
+      <section class="content">
+        <article class="panel">
+          <div class="panel-head">
+            <h2 id="viewTitle">Claim Type Ledger</h2>
+            <div class="legend" aria-label="Scale legend">
+              <span class="legend-item"><span class="legend-dot"></span>Low</span>
+              <span class="legend-item"><span class="legend-dot mid"></span>Medium</span>
+              <span class="legend-item"><span class="legend-dot high"></span>High</span>
+              <span class="legend-item"><span class="legend-dot" style="background: repeating-linear-gradient(135deg, #f7f9fc, #f7f9fc 3px, #eef2f7 3px, #eef2f7 6px);"></span>Future</span>
+            </div>
+          </div>
+
+          <div class="view active" id="ledgerView">
+            <div class="ledger" id="ledger"></div>
+          </div>
+
+          <div class="view" id="yearsView">
+            <div class="year-board" id="yearBoard"></div>
+          </div>
+
+          <div class="view" id="monthsView">
+            <div class="month-board">
+              <table class="month-table" id="monthTable"></table>
+            </div>
+          </div>
+
+          <footer class="footer">
+            <span>Designed to fit inside the existing dashboard widget card without line or bar charts.</span>
+            <span>Click or hover cells in implementation to show claim type, month, year, and count.</span>
+          </footer>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const years = [2022, 2023, 2024, 2025, 2026];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const latestYear = 2026;
+    const latestMonthIndex = 6;
+
+    const claims = [
+      {
+        key: "office",
+        label: "Office Visit",
+        color: "#455365",
+        soft: "#d8dde5",
+        values: {
+          2022: [2, 3, 2, 2, 5, 2, 4, 4, 1, 4, 1, 5],
+          2023: [1, 2, 3, 7, 2, 4, 3, 5, 2, 5, 3, 6],
+          2024: [4, 5, 6, 3, 7, 5, 6, 8, 4, 6, 5, 7],
+          2025: [6, 5, 8, 7, 6, 9, 7, 8, 6, 9, 7, 10],
+          2026: [8, 9, 7, 10, 8, 11, 9, null, null, null, null, null]
+        }
+      },
+      {
+        key: "ip",
+        label: "IP",
+        color: "#df3c66",
+        soft: "#f9d6df",
+        values: {
+          2022: [0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0],
+          2023: [0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1],
+          2024: [1, 0, 2, 0, 1, 1, 0, 2, 1, 0, 2, 1],
+          2025: [1, 2, 1, 0, 2, 1, 3, 1, 2, 1, 2, 1],
+          2026: [2, 1, 2, 1, 3, 2, 1, null, null, null, null, null]
+        }
+      },
+      {
+        key: "er",
+        label: "ER",
+        color: "#df8823",
+        soft: "#f8dfbf",
+        values: {
+          2022: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+          2023: [0, 1, 0, 0, 0, 2, 0, 1, 0, 0, 2, 0],
+          2024: [1, 0, 0, 1, 2, 0, 1, 1, 0, 2, 0, 1],
+          2025: [1, 2, 0, 1, 1, 3, 1, 2, 1, 3, 2, 1],
+          2026: [2, 1, 3, 2, 1, 2, 3, null, null, null, null, null]
+        }
+      },
+      {
+        key: "snf",
+        label: "SNF",
+        color: "#8552e6",
+        soft: "#e4d8fb",
+        values: {
+          2022: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+          2023: [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+          2024: [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0],
+          2025: [1, 0, 1, 1, 0, 1, 0, 2, 1, 0, 1, 1],
+          2026: [1, 1, 0, 2, 1, 1, 2, null, null, null, null, null]
+        }
+      }
+    ];
+
+    function visibleValuesForYear(claim, year) {
+      const maxMonth = year === latestYear ? latestMonthIndex + 1 : 12;
+      return claim.values[year].slice(0, maxMonth).filter(value => value !== null);
+    }
+
+    function allVisibleValues(claim) {
+      return years.flatMap(year => visibleValuesForYear(claim, year));
+    }
+
+    function totalForYear(claim, year) {
+      return visibleValuesForYear(claim, year).reduce((sum, value) => sum + value, 0);
+    }
+
+    function totalAll(claim) {
+      return years.reduce((sum, year) => sum + totalForYear(claim, year), 0);
+    }
+
+    function avgForYear(claim, year) {
+      const values = visibleValuesForYear(claim, year);
+      if (!values.length) return 0;
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function peakForYear(claim, year) {
+      const values = visibleValuesForYear(claim, year);
+      if (!values.length) return "-";
+      const max = Math.max(...values);
+      const monthIndex = claim.values[year].indexOf(max);
+      return `${months[monthIndex]} ${max}`;
+    }
+
+    function mix(hexA, hexB, amount) {
+      const a = hexA.replace("#", "").match(/.{2}/g).map(value => parseInt(value, 16));
+      const b = hexB.replace("#", "").match(/.{2}/g).map(value => parseInt(value, 16));
+      const mixed = a.map((channel, index) => Math.round(channel + (b[index] - channel) * amount));
+      return "#" + mixed.map(channel => channel.toString(16).padStart(2, "0")).join("");
+    }
+
+    function valueColor(claim, value) {
+      if (!value) return "#f4f6f9";
+      const max = Math.max(...allVisibleValues(claim), 1);
+      const strength = Math.min(.9, .2 + (value / max) * .72);
+      return mix(claim.soft, claim.color, strength);
+    }
+
+    function monthPill(claim, year, value, index) {
+      const future = value === null || (year === latestYear && index > latestMonthIndex);
+      if (future) {
+        return `<span class="month-pill future" title="${claim.label} - ${months[index]} ${year} - not available"></span>`;
+      }
+      const className = value === 0 ? "month-pill zero" : "month-pill";
+      return `<span class="${className}" style="background:${valueColor(claim, value)}" title="${claim.label} - ${months[index]} ${year} - ${value} encounters">${value}</span>`;
+    }
+
+    function renderSummary() {
+      const target = document.getElementById("summary");
+      target.innerHTML = claims.map(claim => {
+        const ytd = totalForYear(claim, latestYear);
+        const total = totalAll(claim);
+        return `
+          <article class="summary-card">
+            <span class="accent" style="background:${claim.color}"></span>
+            <div>
+              <p class="summary-label">${claim.label}</p>
+              <div class="summary-value">
+                <strong>${ytd}</strong>
+                <span>2026 YTD</span>
+              </div>
+              <div class="summary-meta">${total} total from 2022 to present</div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderLedger() {
+      const target = document.getElementById("ledger");
+      target.innerHTML = claims.map(claim => `
+        <section class="claim-block">
+          <header class="claim-head">
+            <div class="claim-title">
+              <span class="claim-color" style="background:${claim.color}"></span>
+              <span>${claim.label}</span>
+            </div>
+            <div class="claim-stat"><strong>${totalAll(claim)}</strong> encounters from 2022-present</div>
+            <div class="claim-stat"><strong>${peakForYear(claim, latestYear)}</strong> peak this year</div>
+          </header>
+          <table class="ledger-table">
+            <thead>
+              <tr>
+                <th>Year</th>
+                ${months.map(month => `<th>${month}</th>`).join("")}
+                <th>Total</th>
+                <th>Avg</th>
+                <th>Peak</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${years.map(year => `
+                <tr>
+                  <td>${year}${year === latestYear ? " YTD" : ""}</td>
+                  ${claim.values[year].map((value, index) => `<td>${monthPill(claim, year, value, index)}</td>`).join("")}
+                  <td class="total-cell">${totalForYear(claim, year)}</td>
+                  <td>${avgForYear(claim, year).toFixed(1)}</td>
+                  <td class="peak-cell">${peakForYear(claim, year)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>
+      `).join("");
+    }
+
+    function renderYears() {
+      const target = document.getElementById("yearBoard");
+      target.innerHTML = years.map(year => `
+        <article class="year-card">
+          <h3>${year}${year === latestYear ? " YTD" : ""}</h3>
+          <div class="year-list">
+            ${claims.map(claim => `
+              <div class="year-row">
+                <div class="year-label">
+                  <span class="tiny-accent" style="background:${claim.color}"></span>
+                  <span>${claim.label}</span>
+                </div>
+                <span class="year-total">${totalForYear(claim, year)}</span>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function monthColumns() {
+      return years.flatMap(year => {
+        const end = year === latestYear ? latestMonthIndex : 11;
+        return months.slice(0, end + 1).map(month => `${year}-${month}`);
+      });
+    }
+
+    function renderMonths() {
+      const table = document.getElementById("monthTable");
+      const columns = monthColumns();
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Claim Type</th>
+            ${columns.map(column => `<th>${column}</th>`).join("")}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${claims.map(claim => {
+            const values = years.flatMap(year => claim.values[year].slice(0, year === latestYear ? latestMonthIndex + 1 : 12));
+            return `
+              <tr>
+                <td><span class="tiny-accent" style="display:inline-block;vertical-align:middle;background:${claim.color};margin-right:8px"></span>${claim.label}</td>
+                ${values.map(value => `<td><span class="${value === 0 ? "month-pill zero" : "month-pill"}" style="background:${valueColor(claim, value)}">${value}</span></td>`).join("")}
+                <td class="total-cell">${values.reduce((sum, value) => sum + value, 0)}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      `;
+    }
+
+    function switchView(view) {
+      const titles = {
+        ledger: "Claim Type Ledger",
+        years: "Year Snapshot",
+        months: "Month-by-Month Grid"
+      };
+
+      document.querySelectorAll(".segmented button").forEach(button => {
+        button.setAttribute("aria-pressed", String(button.dataset.view === view));
+      });
+      document.querySelectorAll(".view").forEach(section => section.classList.remove("active"));
+      document.getElementById(`${view}View`).classList.add("active");
+      document.getElementById("viewTitle").textContent = titles[view];
+    }
+
+    document.querySelectorAll(".segmented button").forEach(button => {
+      button.addEventListener("click", () => switchView(button.dataset.view));
+    });
+
+    renderSummary();
+    renderLedger();
+    renderYears();
+    renderMonths();
+  </script>
+</body>
+</html>

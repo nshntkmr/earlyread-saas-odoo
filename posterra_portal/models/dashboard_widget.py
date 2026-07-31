@@ -130,6 +130,17 @@ class DashboardWidget(models.Model):
         domain="[('page_id','=',page_id)]",
         ondelete='set null',
         help='Leave empty to show this widget on ALL tabs of the page.')
+    # Page-level placement region. Nullable + NO field-level default so a module
+    # upgrade never backfills existing rows; new records default via default_get()
+    # below and every read normalizes NULL → 'tab_content'. Orthogonal to tab_id
+    # (empty tab_id = all tabs, but still BELOW the bar; page_summary lifts the
+    # widget ABOVE the tab bar, persistent across tabs).
+    render_region = fields.Selection([
+        ('tab_content', 'Tab Content (below tabs)'),
+        ('page_summary', 'Page Summary (above tabs)'),
+    ], string='Render Region',
+        help='Blank legacy value behaves as Tab Content. Page Summary renders '
+             'the widget above the tab bar, persistent across all tabs.')
     sequence = fields.Integer(default=10)
     is_active = fields.Boolean(default=True)
 
@@ -156,6 +167,22 @@ class DashboardWidget(models.Model):
         help='How many grid rows this widget spans. '
              'Use 2+ for tall widgets (e.g., maps) that should have '
              'smaller widgets stacked beside them.')
+
+    @api.model
+    def default_get(self, fields_list):
+        # Default ONLY new records to the legacy region; never writes existing
+        # rows (a field-level default would backfill the column on upgrade).
+        res = super().default_get(fields_list)
+        if 'render_region' in fields_list:
+            res.setdefault('render_region', 'tab_content')
+        return res
+
+    @api.constrains('width_pct')
+    def _check_width_pct(self):
+        for rec in self:
+            if rec.width_pct and not (1 <= rec.width_pct <= 100):
+                raise models.ValidationError(
+                    'Widget Width (%) must be 0 (use preset) or 1–100.')
 
     # ── Widget-Scoped Controls ────────────────────────────────────────────
     scope_mode = fields.Selection([
@@ -257,6 +284,7 @@ class DashboardWidget(models.Model):
         ('smart_table',  'Smart Table'),
         ('sankey',       'Sankey (Flow Diagram)'),
         ('sankey_member_flow', 'Sankey Member Flow'),
+        ('record_header', 'Record Header'),
         ('composite',    'Composite (Multi-section)'),
     ], required=True, default='bar', string='Chart Type')
 
@@ -1090,6 +1118,8 @@ class DashboardWidget(models.Model):
             result = self._build_smart_table_data(cols, rows)
         elif ct == 'sankey_member_flow':
             result = self._build_member_flow_data(cols, rows)
+        elif ct == 'record_header':
+            result = self._build_record_header_data(cols, rows)
         else:
             # Default: ECharts (bar/line/pie/donut/radar/scatter/heatmap)
             # Run annotation query once and pass to chart builder
@@ -1249,6 +1279,22 @@ class DashboardWidget(models.Model):
             })
 
         return {'type': 'composite', 'children': children}
+
+    def _build_record_header_data(self, cols, rows):
+        """Portal wrapper for the shared record_header formatter.
+
+        Merges visual_config + column mappings, then delegates to the pure
+        formatter (dashboard_builder.services.record_header_formatter) so the
+        portal runtime and the designer preview stay byte-for-byte identical.
+        Read-only / transient-safe: reads only from ``self``.
+        """
+        from odoo.addons.dashboard_builder.services.record_header_formatter import (
+            format_record_header,
+        )
+        config = dict(self._merged_visual_config())
+        config['x_column'] = self.x_column or ''
+        config['y_columns'] = self.y_columns or ''
+        return format_record_header(cols, rows, config)
 
     def _build_legend_list_data(self, cols, rows):
         """Rows of {label, value, pct} for a colored-dot list.

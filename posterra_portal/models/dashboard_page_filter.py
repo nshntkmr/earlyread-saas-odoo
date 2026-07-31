@@ -3,8 +3,8 @@
 import logging
 import re
 
-from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 
 from ..utils.sql_idents import (
     IDENT_RE as _SQL_IDENT_RE,
@@ -298,6 +298,7 @@ class DashboardPageFilter(models.Model):
             ('hha_comparison', 'HHA Comparison Picker (chips, max 4)'),
             ('pills',          'Pill tabs (inline buttons)'),
             ('segmented',      'Segmented buttons (joined)'),
+            ('remote_autocomplete', 'Remote Search (server, paged)'),
         ],
         string='UI Type',
         default='default',
@@ -355,6 +356,134 @@ class DashboardPageFilter(models.Model):
              'is sortable but the display label is formatted text, e.g. YEAR_MONTH '
              'shown as "Apr 2026".',
     )
+
+    # ── Part D: header placement + Apply behavior ──────────────────────────────
+    display_region = fields.Selection(
+        [
+            ('filter_bar',        'Filter Bar (below header)'),
+            ('page_header_start', 'Page Header — Start (left of title)'),
+            ('page_header_end',   'Page Header — End (right)'),
+        ],
+        string='Display Region',
+        help='Where this filter renders. Blank/legacy = Filter Bar. '
+             'Page Header End places it in the page header alongside badges.')
+    apply_behavior = fields.Selection(
+        [('manual', 'Manual (Apply button)'), ('immediate', 'Immediate (apply on change)')],
+        string='Apply Behavior', default='manual',
+        help="Manual: value applies on the Apply button (today's behavior). "
+             "Immediate: applies as soon as the user picks a value.")
+    control_width_px = fields.Integer(
+        string='Control Width (px)', default=0,
+        help='Optional fixed width for the control (e.g. a header search box). '
+             '0 = responsive default. Validated 160–560.')
+
+    # ── Part D: remote autocomplete (server-side paged search) ─────────────────
+    search_column_ids = fields.Many2many(
+        'dashboard.schema.column', 'dashboard_filter_search_column_rel',
+        'filter_id', 'column_id', string='Search Columns',
+        domain="[('source_id', '=', schema_source_id)]",
+        help='Columns matched (ILIKE) by Remote Search. May include columns '
+             'not shown in the Display Template.')
+    search_page_size = fields.Integer(
+        string='Search Page Size', default=50,
+        help='Rows fetched per page by Remote Search (10–1000).')
+    search_min_chars = fields.Integer(
+        string='Min Search Chars', default=2,
+        help='Minimum characters before a non-empty query runs (0–20). '
+             'An empty query still browses the first page.')
+
+    @api.model
+    def default_get(self, fields_list):
+        # New filters default to the Filter Bar; existing NULL rows normalize at
+        # read time (f.display_region or 'filter_bar') — no backfill.
+        res = super().default_get(fields_list)
+        if 'display_region' in fields_list:
+            res.setdefault('display_region', 'filter_bar')
+        return res
+
+    @api.constrains('ui_type', 'is_multiselect', 'schema_source_id',
+                    'search_column_ids', 'search_min_chars', 'search_page_size',
+                    'schema_column_id', 'display_template', 'default_strategy',
+                    'display_template_source', 'scope_to_user_hha',
+                    'hha_scope_column_id')
+    def _check_remote_autocomplete(self):
+        for rec in self:
+            if rec.ui_type != 'remote_autocomplete':
+                continue
+            if rec.is_multiselect:
+                raise ValidationError('Remote Search does not support multi-select in this phase.')
+            if not rec.schema_source_id:
+                raise ValidationError('Remote Search requires a Schema Source.')
+            if not rec.schema_column_id:
+                raise ValidationError('Remote Search requires a Value Column.')
+            if rec.display_template_source != 'schema':
+                raise ValidationError(
+                    "Remote Search must use Template Source = 'Schema Source'.")
+            if rec.default_strategy in ('all_values', 'first', 'latest'):
+                raise ValidationError(
+                    'Remote Search requires a Static (blank/explicit) default — '
+                    'all_values/first/latest would load the whole roster.')
+            if not rec.search_column_ids:
+                raise ValidationError('Remote Search requires at least one Search Column.')
+            if not (0 <= (rec.search_min_chars or 0) <= 20):
+                raise ValidationError('Min Search Chars must be 0–20.')
+            if not (10 <= (rec.search_page_size or 0) <= 1000):
+                raise ValidationError('Search Page Size must be 10–1000.')
+            src = rec.schema_source_id
+            if rec.schema_column_id and rec.schema_column_id.source_id != src:
+                raise ValidationError('The Value Column must belong to the Schema Source.')
+            if rec.search_column_ids.filtered(lambda c: c.source_id != src):
+                raise ValidationError('All Search Columns must belong to the Schema Source.')
+            # Scope fail-safe: a scoped remote filter with no valid HHA Scope
+            # Column would silently drop its tenant WHERE clause at runtime
+            # (fail OPEN). Require the column here so the misconfig can't be
+            # saved; the runtime methods additionally fail CLOSED (defence in
+            # depth). See _build_schema_where step 2 + search/hydrate guards.
+            if rec.scope_to_user_hha and not rec.hha_scope_column_id:
+                raise ValidationError(
+                    'Remote Search with "Scope to User\'s HHAs" requires an '
+                    'HHA Scope Column (the column holding CCN values).')
+            if rec.hha_scope_column_id and rec.hha_scope_column_id.source_id != src:
+                raise ValidationError('The HHA Scope Column must belong to the Schema Source.')
+            src_cols = set(src.column_ids.mapped('column_name'))
+            missing = set(re.findall(r'\{(\w+)\}', rec.display_template or '')) - src_cols
+            if missing:
+                raise ValidationError(
+                    'Display Template references columns not in the Schema Source: %s'
+                    % ', '.join(sorted(missing)))
+
+    @api.constrains('control_width_px')
+    def _check_control_width(self):
+        for rec in self:
+            if rec.control_width_px and not (160 <= rec.control_width_px <= 560):
+                raise ValidationError('Control Width must be 0 or 160–560 px.')
+
+    @api.onchange('ui_type')
+    def _onchange_ui_type_remote(self):
+        # Remote search resolves labels via the Schema-Source template path.
+        if self.ui_type == 'remote_autocomplete':
+            self.display_template_source = 'schema'
+            self.is_multiselect = False
+
+    def action_open_filter_configuration(self):
+        """Open this filter's full sectioned configuration form in a dialog.
+
+        The Context Filters list is editable in place, so a button (not a row
+        click) is needed to reach the form that holds the fields which don't fit
+        an inline row — Remote Search columns, placement, apply behavior, scope.
+        Enabled only for saved rows (create the filter inline first).
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Configure Filter'),
+            'res_model': 'dashboard.page.filter',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(self.env.ref(
+                'posterra_portal.view_dashboard_page_filter_config_form').id, 'form')],
+            'target': 'new',
+        }
 
     # ── "All" option ─────────────────────────────────────────────────────────
     # When ON, the dropdown prepends an "All" option (value='') at the top.
@@ -633,6 +762,12 @@ class DashboardPageFilter(models.Model):
             same schema_source/model, not just explicit dependency edges.
         """
         self.ensure_one()
+        # Part D central no-preload invariant: a remote_autocomplete filter
+        # NEVER enumerates its roster through the generic options path. Only
+        # search_options_page() / hydrate_options() return its options — this
+        # protects EVERY caller (page-config, cascade, /filter_options, future).
+        if self.ui_type == 'remote_autocomplete':
+            return []
         # Manual options take priority — no DB query needed.
         if self.manual_options:
             return self.get_manual_options_list()
@@ -992,6 +1127,228 @@ class DashboardPageFilter(models.Model):
         if self.option_sort != 'value':
             options = sorted(options, key=lambda o: o['label'].lower())
         return self._prepend_all_option(options)
+
+    # ── Part D: remote autocomplete (server-side PAGED search) ─────────────────
+    def _rows_to_options(self, rows, select_cols, value_col, template, template_fields):
+        """Shared row → {value,label} formatter for remote search/hydrate.
+
+        Emits one option per distinct output value. Uses ``'' if v is None``
+        (NOT ``v or ''``) so a legitimate ``0``/``False`` value column renders
+        its label instead of being dropped, and dedups on the final emitted
+        value so whitespace-variant source keys (dedup partitions on the raw
+        column) don't surface as duplicate options.
+        """
+        options = []
+        seen = set()
+        for row in rows:
+            row_dict = dict(zip(select_cols, row))
+            raw_val = row_dict.get(value_col)
+            if raw_val is None or raw_val == '':
+                continue
+            label = template
+            for tf in template_fields:
+                tv = row_dict.get(tf)
+                label = label.replace('{' + tf + '}', ('' if tv is None else str(tv)).strip())
+            label = label.strip()
+            value = str(raw_val).strip()
+            if value and label and value not in seen:
+                seen.add(value)
+                options.append({'value': value, 'label': label})
+        return options
+
+    def _remote_meta(self):
+        """Resolve (table, value_col, template, template_fields, select_cols,
+        search_cols, engine) for a remote filter — or None if misconfigured."""
+        self.ensure_one()
+        if self.ui_type != 'remote_autocomplete' or not self.schema_source_id:
+            return None
+        table = self.schema_source_id.table_name
+        value_col = self.schema_column_id.column_name if self.schema_column_id else self.schema_column_name
+        if not table or not value_col or not self._TABLE_RE.match(table):
+            return None
+        template = self.display_template or ('{' + value_col + '}')
+        template_fields = re.findall(r'\{(\w+)\}', template)
+        select_cols = list(dict.fromkeys([value_col] + template_fields))
+        search_cols = [c.column_name for c in self.search_column_ids]
+        # Validate identifier syntax AND that each column still EXISTS in the
+        # source. A free-text display_template placeholder can reference a
+        # column later renamed/dropped on the schema source — @api.constrains
+        # on this filter can't re-fire for a change on another model — so guard
+        # here and fail closed (→ empty) rather than emit SELECT of a missing
+        # column (which would surface as "Search temporarily unavailable").
+        src_cols = set(self.schema_source_id.column_ids.mapped('column_name'))
+        for col in set(select_cols) | set(search_cols):
+            if not self._IDENT_RE.match(col) or col not in src_cols:
+                return None
+        return {
+            'table': table, 'value_col': value_col, 'template': template,
+            'template_fields': template_fields, 'select_cols': select_cols,
+            'search_cols': search_cols, 'engine': self.schema_source_id.engine or 'postgres',
+        }
+
+    @staticmethod
+    def _remote_value_expr(engine, col):
+        """Normalized (trimmed, text) SQL expression for a value/key column.
+
+        Used IDENTICALLY for PARTITION BY, blank rejection, and hydration
+        equality so whitespace-variant source keys ('E1' vs ' E1 ') collapse to
+        a single logical value that matches the Python ``str().strip()`` output.
+        Without this, SQL dedup partitions on the raw value → the variants take
+        separate rows before LIMIT/OFFSET (short pages, values repeated across
+        pages, wrong has_more), and hydration equality misses a padded stored
+        key. TRIM strips only leading/trailing whitespace — same as str.strip()
+        — so genuinely distinct keys are never merged.
+        """
+        if engine == 'clickhouse':
+            return f'trimBoth(toString("{col}"))'
+        cast = 'VARCHAR' if engine == 'snowflake' else 'TEXT'
+        return f'TRIM(CAST("{col}" AS {cast}))'
+
+    def search_options_page(self, query='', limit=None, offset=0,
+                            constraints=None, provider_ids=None,
+                            all_filter_values=None):
+        """Server-side PAGED search for a remote_autocomplete filter.
+
+        SEPARATE from get_options() (which returns [] for these). Matches the
+        configured search columns case-insensitively, **dedups by value in SQL
+        BEFORE OFFSET/LIMIT**, and returns ONE bounded page.
+        Returns {'options': [{value,label}], 'has_more': bool}.
+        """
+        empty = {'options': [], 'has_more': False}
+        m = self._remote_meta()
+        if not m or not m['search_cols']:
+            return empty
+        if self.scope_to_user_hha and not provider_ids:
+            return empty  # scoped filter, no authorized providers → fail closed
+        value_col, select_cols = m['value_col'], m['select_cols']
+        engine = m['engine']
+
+        configured = self.search_page_size or 50
+        requested = int(limit) if limit else configured
+        # Effective page = min(requested, configured page size, absolute max); floor 10.
+        page = max(10, min(requested, configured, 1000))
+        try:
+            offset = max(0, int(offset))
+        except (ValueError, TypeError):
+            offset = 0
+
+        where_parts, params = self._build_schema_where(
+            constraints or {}, provider_ids, all_filter_values=all_filter_values)
+
+        # Fail CLOSED: a scoped remote filter MUST emit its tenant predicate.
+        # _build_schema_where sets 'hha_ccn_list' ONLY when it actually appended
+        # the scope clause (valid scope column + resolvable CCNs). Its absence
+        # means scoping was requested but silently not applied — never run an
+        # unscoped roster query. Covers a missing/invalid scope column and the
+        # zero-CCN edge that the empty-provider_ids guard above does not.
+        if self.scope_to_user_hha and 'hha_ccn_list' not in params:
+            return empty
+
+        q = (query or '').strip()
+        # Non-empty query below the configured minimum → no results (an empty
+        # query still browses the first page). The endpoint validates too.
+        if q and len(q) < (self.search_min_chars or 0):
+            return empty
+        if q:
+            if engine == 'clickhouse':
+                params['_qraw'] = q
+                search = ' OR '.join(
+                    f'positionCaseInsensitive(toString("{c}"), %(_qraw)s) > 0' for c in m['search_cols'])
+            else:
+                # ILIKE with a PORTABLE escape char ('!', not backslash). On
+                # Snowflake backslash is the string-escape char, so `ESCAPE '\'`
+                # is a syntax error that failed EVERY search ("Search is
+                # temporarily unavailable"). '!' is an ordinary character on both
+                # Postgres and Snowflake; escape it FIRST, then the LIKE
+                # wildcards, so the typed term matches literally on both engines.
+                esc = q.replace('!', '!!').replace('%', '!%').replace('_', '!_')
+                params['_q'] = '%' + esc + '%'
+                cast = 'VARCHAR' if engine == 'snowflake' else 'TEXT'
+                search = ' OR '.join(
+                    f"CAST(\"{c}\" AS {cast}) ILIKE %(_q)s ESCAPE '!'" for c in m['search_cols'])
+            where_parts.append('(' + search + ')')
+
+        # Reject blank AND whitespace-only value columns IN SQL, using the same
+        # normalized expression the PARTITION BY uses, so a padded value can't
+        # survive SQL only to be dropped in Python (→ short page).
+        _norm_val = self._remote_value_expr(engine, value_col)
+        where_parts.append(f'"{value_col}" IS NOT NULL AND {_norm_val} <> \'\'')
+
+        where_clause = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
+        cols_sql = ', '.join(f'"{c}"' for c in select_cols)
+        order_sql = ', '.join(f'"{c}"' for c in (m['template_fields'] or [value_col])) + f', "{value_col}"'
+        params['_limit'] = page + 1  # +1 row → has_more
+        params['_offset'] = offset
+        # Dedup on the NORMALIZED value so whitespace-variant keys occupy one
+        # row before LIMIT/OFFSET (correct pages / has_more, no cross-page dupes).
+        sql = (
+            f'SELECT {cols_sql} FROM ('
+            f'SELECT {cols_sql}, ROW_NUMBER() OVER (PARTITION BY {_norm_val} '
+            f'ORDER BY {order_sql}) AS _rn FROM {_quote_table(m["table"])} {where_clause}'
+            f') _d WHERE _rn = 1 ORDER BY {order_sql} LIMIT %(_limit)s OFFSET %(_offset)s'
+        )
+        try:
+            from ..utils.query_executors import get_executor
+            _cols, rows = get_executor(self.env, self.schema_source_id).execute(sql, params)
+        except Exception as exc:
+            _logger.warning('dashboard.page.filter %s: remote search SQL error (%s)',
+                            self.id, exc.__class__.__name__)
+            _logger.debug('remote search error: %s | SQL: %s', exc, sql)
+            raise UserError(_('Search is temporarily unavailable.')) from exc
+        has_more = len(rows) > page
+        return {
+            'options': self._rows_to_options(rows[:page], select_cols, value_col, m['template'], m['template_fields']),
+            'has_more': has_more,
+        }
+
+    def hydrate_options(self, values, constraints=None, provider_ids=None,
+                        all_filter_values=None):
+        """Return [{value,label}] for the currently-selected value(s) — EQUALITY
+        on the value column (not a search). For deep links / Back-Forward.
+
+        Applies the SAME scope as search (dependency constraints, same-source
+        filter values, provider_ids, scope_to_user_hha) and fails CLOSED for a
+        scoped filter with no authorized providers — so a forged value can't
+        hydrate an out-of-scope label.
+        """
+        m = self._remote_meta()
+        vals = [str(v).strip() for v in (values or []) if str(v).strip()]
+        if not m or not vals:
+            return []
+        if self.scope_to_user_hha and not provider_ids:
+            return []  # scoped filter, no authorized providers → fail closed
+        value_col, select_cols, engine = m['value_col'], m['select_cols'], m['engine']
+        where_parts, params = self._build_schema_where(
+            constraints or {}, provider_ids, all_filter_values=all_filter_values)
+        # Fail CLOSED (see search_options_page): scope requested but no tenant
+        # predicate emitted → don't hydrate a possibly out-of-scope label.
+        if self.scope_to_user_hha and 'hha_ccn_list' not in params:
+            return []
+        params['_vals'] = tuple(vals)
+        # Match on the NORMALIZED value (vals are already str().strip()ed) so a
+        # whitespace-padded stored key still hydrates its label.
+        _norm_val = self._remote_value_expr(engine, value_col)
+        where_parts.append(f'{_norm_val} IN %(_vals)s')
+        where_parts.append(f'"{value_col}" IS NOT NULL')
+        where_clause = 'WHERE ' + ' AND '.join(where_parts)
+        cols_sql = ', '.join(f'"{c}"' for c in select_cols)
+        order_sql = ', '.join(f'"{c}"' for c in (m['template_fields'] or [value_col])) + f', "{value_col}"'
+        # One row per NORMALIZED value (a value may map to multiple label combos)
+        # — dedup deterministically instead of SELECT DISTINCT.
+        sql = (
+            f'SELECT {cols_sql} FROM ('
+            f'SELECT {cols_sql}, ROW_NUMBER() OVER (PARTITION BY {_norm_val} '
+            f'ORDER BY {order_sql}) AS _rn FROM {_quote_table(m["table"])} {where_clause}'
+            f') _d WHERE _rn = 1'
+        )
+        try:
+            from ..utils.query_executors import get_executor
+            _cols, rows = get_executor(self.env, self.schema_source_id).execute(sql, params)
+        except Exception as exc:
+            _logger.warning('dashboard.page.filter %s: hydrate SQL error (%s)', self.id, exc.__class__.__name__)
+            _logger.debug('hydrate error: %s | SQL: %s', exc, sql)
+            raise UserError(_('Search is temporarily unavailable.')) from exc
+        return self._rows_to_options(rows, select_cols, value_col, m['template'], m['template_fields'])
 
     # ── Template-based options ───────────────────────────────────────────────
     def _get_options_with_template(self, Model, domain):

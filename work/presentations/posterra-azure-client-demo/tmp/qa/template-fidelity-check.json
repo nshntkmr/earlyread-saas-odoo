@@ -1,0 +1,13 @@
+{
+  "status": "pass",
+  "checkedAt": "2026-06-23T07:08:44.144Z",
+  "workspace": "C:\\Users\\nisha\\Odoo_Dev\\work\\presentations\\posterra-azure-client-demo\\tmp",
+  "finalPptx": "C:\\Users\\nisha\\Odoo_Dev\\outputs\\posterra_azure_cost_and_product_demo.pptx",
+  "starterPptx": "C:\\Users\\nisha\\Odoo_Dev\\work\\presentations\\posterra-azure-client-demo\\tmp\\template-starter.pptx",
+  "mapPath": "C:\\Users\\nisha\\Odoo_Dev\\work\\presentations\\posterra-azure-client-demo\\tmp\\template-frame-map.json",
+  "starterLayoutDir": "C:\\Users\\nisha\\Odoo_Dev\\work\\presentations\\posterra-azure-client-demo\\tmp\\template-starter-layout",
+  "finalLayoutDir": "C:\\Users\\nisha\\Odoo_Dev\\work\\presentations\\posterra-azure-client-demo\\tmp\\layout\\final",
+  "editDir": "C:\\Users\\nisha\\Odoo_Dev\\work\\presentations\\posterra-azure-client-demo\\tmp",
+  "issueCount": 0,
+  "issues": []
+}

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Incyte Market Insights — Prototype C (opportunity, zero new widgets)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="incyte-data.js"></script>
+<style>
+:root{
+  --pv-primary:#0066cc;--pv-primary-d:#004d99;--pv-primary-l:#e6f0fb;
+  --sb-bg:#1a1f2e;--sb-hover:#252b3d;--sb-text:#a0aec0;--content:#f8fafc;
+  --ink:#1a2332;--muted:#6b7280;--border:#e5e7eb;--card:#fff;
+  --go:#16a34a;--go-l:#dcfce7;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);--radius:10px;
+  --font:system-ui,'Segoe UI',Roboto,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--content);color:var(--ink);font-size:14px}
+.app{display:flex;min-height:100vh}
+.sidebar{width:226px;min-width:226px;background:var(--sb-bg);color:var(--sb-text);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.sb-brand{padding:18px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a3142}
+.sb-brand .logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#0066cc,#3b9aff);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff}
+.sb-brand .nm{font-weight:700;color:#fff;font-size:15px}
+.sb-brand .nm small{display:block;font-size:10px;font-weight:500;color:var(--sb-text)}
+.sb-sec{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#5a6478;padding:14px 20px 6px}
+.sb-item{display:flex;gap:11px;padding:9px 20px;font-size:13.5px;cursor:pointer;border-left:3px solid transparent;color:var(--sb-text)}
+.sb-item.active{background:var(--sb-hover);color:#fff;border-left-color:var(--pv-primary)}
+.sb-item:hover{background:var(--sb-hover);color:#fff}
+.sb-foot{margin-top:auto;padding:14px 20px;border-top:1px solid #2a3142;font-size:11px;color:#5a6478}
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:13px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:150;box-shadow:var(--shadow)}
+.tb-left .crumb{font-size:11px;color:var(--muted);margin-bottom:2px}.tb-left .crumb b{color:var(--pv-primary)}
+.tb-left .pg-title{font-size:19px;font-weight:800;letter-spacing:-.3px}
+.tb-left .pg-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.tb-right{display:flex;align-items:center;gap:10px}
+.annot-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;user-select:none;background:#fff}
+.annot-toggle .sw{width:30px;height:17px;border-radius:10px;background:#cbd5e1;position:relative;transition:.15s}
+.annot-toggle .sw::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:.15s}
+body.annot-on .annot-toggle{border-color:var(--pv-primary);color:var(--pv-primary)}
+body.annot-on .annot-toggle .sw{background:var(--pv-primary)}
+body.annot-on .annot-toggle .sw::after{left:15px}
+.capmap-btn{border:1px solid var(--pv-primary);background:var(--pv-primary);color:#fff;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
+.main{padding:16px 22px;max-width:1780px;margin:0 auto;width:100%}
+
+.fpills{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:14px;position:relative}
+.fpg{display:flex;align-items:center;gap:6px}.fpg .lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase}
+.pill{border:1.5px solid var(--border);border-radius:16px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:var(--muted)}
+.pill.active{background:var(--pv-primary);border-color:var(--pv-primary);color:#fff}
+.fsel{border:1.5px solid var(--border);border-radius:16px;padding:5px 12px;font-size:12px;font-weight:600;background:#fff;color:var(--ink);outline:none}
+
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:16px;position:relative}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:13px 15px;display:flex;align-items:center;gap:12px}
+.kpi .ic{width:36px;height:36px;border-radius:9px;background:var(--pv-primary-l);color:var(--pv-primary);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.kpi.go .ic{background:var(--go-l);color:var(--go)}
+.kpi .lbl{font-size:10.5px;color:var(--muted);font-weight:600}
+.kpi .val{font-size:21px;font-weight:800;line-height:1.1}
+
+.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;margin-bottom:16px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.sec{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);position:relative}
+.sec-hd{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sec-title{font-size:15px;font-weight:700}.sec-title .pin{color:var(--go);font-weight:800}
+.sec-sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+.tabs{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.tab{padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--muted);background:#fff;cursor:pointer;border-right:1px solid var(--border);white-space:nowrap}
+.tab:last-child{border-right:0}.tab.active{background:var(--pv-primary);color:#fff}
+.chart{width:100%}
+.legend-note{font-size:11px;color:var(--muted);padding:6px 18px 12px}.legend-note b{color:var(--ink)}
+@media(max-width:1150px){.hero,.two-col{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(3,1fr)}.sidebar{display:none}}
+
+/* leaderboard = Ranked Detail List */
+.tlist{max-height:470px;overflow:auto}
+.titem{display:flex;align-items:center;gap:11px;padding:11px 16px;border-bottom:1px solid #f1f3f6;cursor:pointer;transition:background .1s}
+.titem:hover{background:var(--pv-primary-l)}
+.titem .rank{width:24px;height:24px;border-radius:7px;background:var(--go-l);color:var(--go);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.titem .nm{font-weight:700;font-size:13.5px;flex:1;min-width:0}
+.titem .nm small{display:block;font-weight:500;color:var(--muted);font-size:11px;margin-top:1px}
+.titem .score{text-align:right}.titem .score .s{font-weight:800;font-size:15px;color:var(--go)}.titem .score .s-sub{font-size:10.5px;color:var(--muted)}
+.titem .arrow{color:#cbd5e1;font-size:16px}
+.scorebar{height:5px;border-radius:3px;background:#eef2f7;overflow:hidden;margin-top:5px}
+.scorebar i{display:block;height:100%;background:linear-gradient(90deg,#16a34a,#0066cc)}
+
+/* cohort table */
+.cohort-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:13px 18px;border-bottom:1px solid var(--border)}
+.fctl{border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:13px;background:#fff;color:var(--ink);min-width:120px;outline:none}
+.btn-primary{border:1px solid var(--pv-primary);background:var(--pv-primary);color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-out{border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.flabel{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase}
+.fg{display:flex;flex-direction:column;gap:4px}
+.tbl-wrap{max-height:380px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{position:sticky;top:0;background:#f8fafc;z-index:2}
+th{padding:9px 14px;text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border);white-space:nowrap}
+th.num,td.num{text-align:right}
+td{padding:8px 14px;border-bottom:1px solid #f1f3f6}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--pv-primary-l)}
+.tbl-meta{font-size:11.5px;color:var(--muted);padding:9px 18px}
+
+/* detail drawer (reused, built) */
+.ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:400;justify-content:flex-end}
+.ovl.show{display:flex}
+.drawer{background:#fff;width:560px;max-width:100vw;height:100vh;overflow-y:auto;box-shadow:-6px 0 30px rgba(0,0,0,.25);animation:slide .24s ease}
+@keyframes slide{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.dh{background:linear-gradient(135deg,var(--pv-primary-d),var(--pv-primary));color:#fff;padding:18px 20px;display:flex;justify-content:space-between;align-items:flex-start;position:sticky;top:0;z-index:5}
+.dh .t{font-size:18px;font-weight:800}.dh .s{font-size:12px;opacity:.85;margin-top:3px}
+.dh .x{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:15px;cursor:pointer;width:30px;height:30px;border-radius:7px}
+.db{padding:18px 20px}
+.ds-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--pv-primary);margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--pv-primary-l)}.ds-title:first-child{margin-top:0}
+.dkpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.dkpi{border:1px solid var(--border);border-radius:9px;padding:11px 12px}
+.dkpi .l{font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600}.dkpi .v{font-size:18px;font-weight:800;margin-top:2px}
+.opp-banner{background:var(--go-l);border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;line-height:1.5;color:#14532d}.opp-banner b{color:#166534}
+.planrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f3f6;font-size:13px}.planrow .pn{flex:1;min-width:0;font-weight:600}.planrow .pv{font-weight:700}
+.tag-go{display:inline-block;background:var(--go);color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:7px;text-transform:uppercase}
+
+/* annotations */
+.cap-chip{display:none}
+body.annot-on [data-cap]{outline:2px dashed transparent;outline-offset:3px;border-radius:var(--radius)}
+body.annot-on [data-status="ok"]{outline-color:#16a34a}
+body.annot-on [data-status="partial"]{outline-color:#f59e0b}
+body.annot-on [data-status="gap"]{outline-color:#dc2626}
+body.annot-on .cap-chip{display:inline-flex;align-items:center;gap:5px;position:absolute;z-index:120;top:-11px;left:14px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:2px 9px;font-size:10.5px;font-weight:700;box-shadow:var(--shadow);white-space:nowrap}
+.cap-chip .tag{font-size:9px;font-weight:800;padding:1px 5px;border-radius:7px}
+.cap-chip.ok .tag{background:#dcfce7;color:#166534}
+.cap-chip.partial .tag{background:#fef3c7;color:#92400e}
+.cap-chip.gap .tag{background:#fee2e2;color:#991b1b}
+
+/* capability map */
+.cm-ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;justify-content:flex-end}
+.cm-ovl.show{display:flex}
+.cm-panel{background:#fff;width:640px;max-width:100vw;height:100vh;overflow-y:auto;box-shadow:-6px 0 30px rgba(0,0,0,.25)}
+.cm-head{background:#1a1f2e;color:#fff;padding:18px 22px;display:flex;justify-content:space-between;align-items:flex-start;position:sticky;top:0}
+.cm-head h2{font-size:16px}.cm-head p{font-size:12px;color:#a0aec0;margin-top:4px;max-width:470px;line-height:1.45}
+.cm-x{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:15px;cursor:pointer;width:30px;height:30px;border-radius:7px}
+.cm-body{padding:18px 22px}
+.cm-legend{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}.cm-legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:600}.cm-legend i{width:12px;height:12px;border-radius:4px}
+.cm-sum{background:var(--go-l);border:1px solid #bbf7d0;border-radius:9px;padding:13px 15px;margin-bottom:16px;font-size:12.5px;line-height:1.5}.cm-sum b{color:#166534}
+.cm-item{border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:9px;border-left-width:4px}
+.cm-item.ok{border-left-color:#16a34a}.cm-item.partial{border-left-color:#f59e0b}
+.cm-item .top{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px}
+.cm-item .el{font-size:13.5px;font-weight:700}
+.cm-item .st{font-size:9.5px;font-weight:800;text-transform:uppercase;padding:3px 8px;border-radius:8px;white-space:nowrap}
+.cm-item.ok .st{background:#dcfce7;color:#166534}.cm-item.partial .st{background:#fef3c7;color:#92400e}
+.cm-item .mp{font-size:12px;color:var(--ink);line-height:1.5}.cm-item .mp b{color:var(--pv-primary)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand"><div class="logo">P</div><div class="nm">Posterra<small>Incyte · Market Access</small></div></div>
+    <nav style="flex:1">
+      <div class="sb-sec">Analytics</div>
+      <div class="sb-item active"><span>◎</span> Opportunity Finder</div>
+      <div class="sb-item"><span>🗺</span> Geography</div>
+      <div class="sb-item"><span>▤</span> Cohort Builder</div>
+      <div class="sb-sec">Admin</div>
+      <div class="sb-item"><span>⚙</span> Page Builder</div>
+      <div class="sb-item"><span>⛃</span> Data Sources</div>
+    </nav>
+    <div class="sb-foot">Prototype C · opportunity-first<br><b style="color:#16a34a">zero new widget types</b></div>
+  </aside>
+  <div class="content">
+    <header class="topbar">
+      <div class="tb-left">
+        <div class="crumb"><b>Incyte</b> ▸ Market Access ▸ Opportunity Finder</div>
+        <div class="pg-title">Opportunity Finder <span style="font-size:12px;font-weight:600;color:#16a34a;background:#dcfce7;padding:3px 9px;border-radius:7px;vertical-align:middle">ships on current widgets</span></div>
+        <div class="pg-sub">Medicaid TMSIS · 2022–2024 · Vitiligo / Atopic Dermatitis · high prevalence + low penetration = go-after</div>
+      </div>
+      <div class="tb-right">
+        <div class="annot-toggle" id="annotToggle"><span class="sw"></span> Capability overlay</div>
+        <button class="capmap-btn" id="capmapBtn">Capability map ▸</button>
+      </div>
+    </header>
+    <div class="main">
+
+      <div class="fpills" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> dashboard.page.filter (ui_type=pills, just shipped)</span>
+        <div class="fpg"><span class="lbl">Year</span><div class="pill">2024</div></div>
+        <div class="fpg"><span class="lbl">Half</span><div class="pill active">H2</div><div class="pill">H1</div></div>
+        <div class="fpg"><span class="lbl">State</span><select class="fsel"><option>All states</option></select></div>
+        <div class="fpg"><span class="lbl">MCO plan</span><select class="fsel"><option>All plans</option></select></div>
+        <div style="margin-left:auto" class="fpg"><span class="pill" style="border-style:dashed;color:var(--pv-primary);border-color:var(--pv-primary)">★ Saved: DC-GA-CA</span></div>
+      </div>
+
+      <!-- KPI strip (existing) — opportunity KPI added as a derived measure -->
+      <div class="kpi-row" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> KPI Strip widget — "Whitespace states" is a derived-column KPI</span>
+        <div class="kpi"><div class="ic">▦</div><div><div class="lbl">Total Rx Quantity</div><div class="val">6,842,448</div></div></div>
+        <div class="kpi"><div class="ic">👤</div><div><div class="lbl">Beneficiaries (approx)</div><div class="val">8,462</div></div></div>
+        <div class="kpi"><div class="ic">🌐</div><div><div class="lbl">Treated States</div><div class="val">37</div></div></div>
+        <div class="kpi"><div class="ic">◷</div><div><div class="lbl">Avg Penetration / 1k</div><div class="val" id="kAvgPen">—</div></div></div>
+        <div class="kpi go"><div class="ic">◎</div><div><div class="lbl">Whitespace States</div><div class="val" id="kWs" style="color:var(--go)">—</div></div></div>
+      </div>
+
+      <!-- HERO: opportunity-shaded MAP + leaderboard (both existing widgets) -->
+      <div class="hero">
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Map widget (choropleth) — shaded by the opportunity-score derived column</span>
+          <div class="sec-hd">
+            <div><div class="sec-title">Opportunity map <span class="pin">— darker = bigger whitespace</span></div>
+              <div class="sec-sub">Existing choropleth widget; the metric is a derived column. Click a state to open its detail.</div></div>
+            <div class="tabs" id="mapTabs">
+              <div class="tab active" data-m="opp">OPPORTUNITY</div>
+              <div class="tab" data-m="pen">PENETRATION /1K</div>
+              <div class="tab" data-m="qty">VOLUME</div>
+              <div class="tab" data-m="prev">MARKET SIZE</div>
+            </div>
+          </div>
+          <div id="mapChart" class="chart" style="height:420px"></div>
+          <div class="legend-note"><b>Opportunity = market size × under-penetration</b> — a derived column in the ClickHouse view. Penetration uses a static prevalence snapshot; suppressed cells excluded (lower bound).</div>
+        </div>
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Ranked Detail List widget (score bar = inline-bar renderer) → Detail Drawer</span>
+          <div class="sec-hd"><div><div class="sec-title">Opportunity leaderboard</div>
+            <div class="sec-sub">Best whitespace first · click a row for state detail</div></div></div>
+          <div class="tlist" id="targetList"></div>
+        </div>
+      </div>
+
+      <!-- supporting: whitespace bars + top plans (both existing bar widgets) -->
+      <div class="two-col">
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Bar chart widget (two series, prevalence-joined SQL)</span>
+          <div class="sec-hd"><div><div class="sec-title">Prevalent vs treated</div><div class="sec-sub">Top states by prevalence with treated overlay</div></div></div>
+          <div id="wsBars" class="chart" style="height:300px"></div>
+        </div>
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Bar chart + Line chart widgets</span>
+          <div class="sec-hd"><div><div class="sec-title">Top MCO plans &amp; momentum</div></div></div>
+          <div id="planChart" class="chart" style="height:150px"></div>
+          <div id="trendChart" class="chart" style="height:130px"></div>
+        </div>
+      </div>
+
+      <!-- cohort table (existing DataTable) -->
+      <div class="sec" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> DataTable widget (Custom-SQL) + per-row Detail Drawer; CSV export built-in</span>
+        <div class="sec-hd"><div class="sec-title">Cohort — state × plan</div></div>
+        <div class="cohort-controls">
+          <div class="fg"><span class="flabel">Group by</span><select class="fctl"><option>State, Plan</option></select></div>
+          <div class="fg"><span class="flabel">Sort field</span><select class="fctl"><option>Opportunity</option><option>Total Rx Quantity</option></select></div>
+          <div class="fg"><span class="flabel">Limit</span><input class="fctl" value="50" style="min-width:70px"></div>
+          <button class="btn-primary">Run query</button>
+          <button class="btn-out" style="margin-left:auto">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-meta" id="cohortMeta"></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>State</th><th>Plan</th><th class="num">Rx Quantity</th><th class="num">Benes</th><th class="num">Prevalent</th></tr></thead>
+          <tbody id="cohortBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- detail drawer (the one we already built) -->
+<div class="ovl" id="ovl"><div class="drawer" data-cap data-status="ok">
+  <span class="cap-chip ok"><span class="tag">BUILT</span> Detail Drawer (already implemented) — State-360 is one config preset</span>
+  <div class="dh"><div><div class="t" id="dT">State</div><div class="s" id="dS"></div></div><button class="x" id="dX">✕</button></div>
+  <div class="db" id="dBody"></div>
+</div></div>
+
+<div class="cm-ovl" id="cmOvl"><div class="cm-panel">
+  <div class="cm-head"><div><h2>Capability Map — Prototype C (minimum code change)</h2><p>The opportunity-first value delivered with ONLY existing widgets + the Detail Drawer already built + SQL-derived columns. No net-new chart type.</p></div><button class="cm-x" id="cmX">✕</button></div>
+  <div class="cm-body" id="cmBody"></div>
+</div></div>
+
+<script>
+const D=window.INCYTE;
+const fmt=n=>n==null?'—':(Math.abs(n)>=1e6?(n/1e6).toFixed(2)+'M':Math.abs(n)>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString());
+const BLUE=['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#4292c6','#2171b5','#08519c','#08306b'];
+const GREEN=['#f0fdf4','#dcfce7','#bbf7d0','#86efac','#4ade80','#22c55e','#16a34a','#15803d','#166534'];
+const states=D.states.filter(s=>s.cd!=='NATIONAL'&&s.prev>0);
+const PEN_BENCH=800;
+states.forEach(s=>{s.opp=Math.round(s.prev*Math.max(0,1-Math.min(s.pen,PEN_BENCH)/PEN_BENCH));});
+const ranked=[...states].sort((a,b)=>b.opp-a.opp);
+const maxOpp=ranked[0].opp||1;
+const medPrev=[...states].map(s=>s.prev).sort((a,b)=>a-b)[Math.floor(states.length/2)];
+document.getElementById('kAvgPen').textContent=Math.round(states.reduce((a,x)=>a+x.pen,0)/states.length);
+document.getElementById('kWs').textContent=states.filter(s=>s.prev>=medPrev&&s.pen<PEN_BENCH).length;
+
+let mapChart, mapMetric='opp';
+const MM={opp:{key:'opp',cap:maxOpp,label:'OPPORTUNITY',ramp:GREEN},pen:{key:'pen',cap:3000,label:'PENETRATION /1K',ramp:BLUE},qty:{key:'qty',cap:300000,label:'VOLUME',ramp:BLUE},prev:{key:'prev',cap:8000,label:'MARKET SIZE',ramp:BLUE}};
+function drawMap(){
+  const m=MM[mapMetric];
+  mapChart.setOption({
+    tooltip:{trigger:'item',formatter:p=>{const s=(p.data&&p.data._s)||{};return `<b>${p.name}</b><br/>Opportunity: ${fmt(s.opp)}<br/>Prevalent: ${fmt(s.prev)} · Pen/1k: ${s.pen} · Rx: ${fmt(s.qty)}<br/><span style="color:#6b7280">click for detail</span>`;}},
+    visualMap:{min:0,max:m.cap,left:18,bottom:18,calculable:true,inRange:{color:m.ramp},text:[m.label,''],textStyle:{fontSize:10},itemWidth:14,itemHeight:120},
+    series:[{type:'map',map:'USA',roam:true,data:states.map(s=>({name:s.name,value:s[m.key],_s:s})),
+      itemStyle:{borderColor:'#fff',borderWidth:.6,areaColor:'#eef2f7'},emphasis:{itemStyle:{areaColor:'#ffd166'},label:{show:false}}}]
+  },true);
+}
+document.querySelectorAll('#mapTabs .tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('#mapTabs .tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');mapMetric=t.dataset.m;drawMap();});
+
+function drawList(){
+  document.getElementById('targetList').innerHTML=ranked.slice(0,12).map((s,i)=>`
+    <div class="titem" data-state="${s.name}"><div class="rank">${i+1}</div>
+      <div class="nm">${s.name}<small>${fmt(s.prev)} prevalent · ${s.pen.toFixed(0)}/1k · ${fmt(s.qty)} Rx</small>
+        <div class="scorebar"><i style="width:${Math.max(4,s.opp/maxOpp*100)}%"></i></div></div>
+      <div class="score"><div class="s">${fmt(s.opp)}</div><div class="s-sub">opp.</div></div><div class="arrow">›</div></div>`).join('');
+  document.querySelectorAll('#targetList .titem').forEach(el=>el.onclick=()=>openState(el.dataset.state));
+}
+function drawWs(){
+  const byPrev=[...states].sort((a,b)=>a.prev-b.prev).slice(-8);
+  echarts.init(document.getElementById('wsBars')).setOption({
+    grid:{left:90,right:25,top:10,bottom:50},legend:{bottom:0,data:['Prevalent','Treated']},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:fmt},
+    xAxis:{type:'value',axisLabel:{formatter:fmt,fontSize:10}},
+    yAxis:{type:'category',data:byPrev.map(s=>s.name),axisLabel:{fontSize:11}},
+    series:[{name:'Prevalent',type:'bar',data:byPrev.map(s=>s.prev),itemStyle:{color:'#6366f1'},barGap:'-100%',barWidth:'55%'},
+      {name:'Treated',type:'bar',data:byPrev.map(s=>s.benes),itemStyle:{color:'#c7d2fe'},barWidth:'55%'}]
+  });
+}
+function drawPlans(){
+  const p=[...D.top_plans].slice(0,6).reverse();
+  echarts.init(document.getElementById('planChart')).setOption({
+    grid:{left:170,right:20,top:5,bottom:20},tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:fmt},
+    xAxis:{type:'value',axisLabel:{formatter:fmt,fontSize:9}},
+    yAxis:{type:'category',data:p.map(x=>x.plan),axisLabel:{fontSize:9.5,width:160,overflow:'truncate'}},
+    series:[{type:'bar',data:p.map(x=>x.qty),itemStyle:{color:'#6366f1',borderRadius:[0,3,3,0]},barWidth:'60%'}]
+  });
+}
+function drawTrend(){
+  echarts.init(document.getElementById('trendChart')).setOption({
+    grid:{left:45,right:15,top:8,bottom:22},tooltip:{trigger:'axis',valueFormatter:fmt},
+    xAxis:{type:'category',data:D.trend.map(t=>t.period),axisLabel:{fontSize:9}},
+    yAxis:{type:'value',axisLabel:{formatter:fmt,fontSize:9}},
+    series:[{type:'line',data:D.trend.map(t=>t.qty),smooth:false,symbolSize:5,lineStyle:{color:'#0066cc',width:2},itemStyle:{color:'#0066cc'},areaStyle:{color:'rgba(0,102,204,.1)'}}]
+  });
+}
+function drawCohort(){
+  const rows=D.cohort.map(r=>({...r,opp:(states.find(s=>s.cd===r.state)||{}).opp||0})).sort((a,b)=>b.opp-a.opp);
+  document.getElementById('cohortMeta').textContent=`${rows.length} groups · showing ${rows.length} · click a row for detail`;
+  document.getElementById('cohortBody').innerHTML=rows.map(r=>`<tr data-state="${r.state}">
+    <td><strong>${r.state}</strong></td><td style="font-size:12px">${r.plan}</td>
+    <td class="num">${r.qty.toLocaleString()}</td><td class="num">${r.benes.toLocaleString()}</td>
+    <td class="num" style="color:var(--muted)">${r.prev?r.prev.toLocaleString():'—'}</td></tr>`).join('');
+  document.querySelectorAll('#cohortBody tr').forEach(tr=>tr.onclick=()=>{const s=states.find(x=>x.cd===tr.dataset.state);if(s)openState(s.name);});
+}
+
+// state-360 detail drawer (the built Detail Drawer; State-360 = one preset)
+function openState(name){
+  const s=states.find(x=>x.name===name)||D.states.find(x=>x.name===name);if(!s)return;
+  const plans=D.cohort.filter(c=>c.state===s.cd).sort((a,b)=>b.qty-a.qty).slice(0,6);
+  const under=Math.max(0,1-Math.min(s.pen,PEN_BENCH)/PEN_BENCH);
+  const ws=s.prev>=medPrev&&s.pen<PEN_BENCH;
+  document.getElementById('dT').textContent=s.name;
+  document.getElementById('dS').textContent=`${s.cd} · ${s.counties} treated counties · opportunity ${fmt(s.opp)}`;
+  document.getElementById('dBody').innerHTML=`
+    ${ws?`<div class="opp-banner"><span class="tag-go">Whitespace</span> &nbsp;<b>High prevalence, low penetration.</b> ~${fmt(s.prev)} prevalent with ${s.pen.toFixed(0)}/1k penetrated — about <b>${Math.round(under*100)}% of the market is untreated</b>.</div>`:`<div class="opp-banner" style="background:#eff6ff;border-color:#cfe2f7;color:#1e3a8a"><b>Context state.</b> Penetration ${s.pen.toFixed(0)}/1k vs ${PEN_BENCH} benchmark.</div>`}
+    <div class="ds-title">Market snapshot</div>
+    <div class="dkpis">
+      <div class="dkpi"><div class="l">Rx Quantity</div><div class="v">${fmt(s.qty)}</div></div>
+      <div class="dkpi"><div class="l">Treated benes*</div><div class="v">${fmt(s.benes)}</div></div>
+      <div class="dkpi"><div class="l">Prevalent</div><div class="v">${fmt(s.prev)}</div></div>
+      <div class="dkpi"><div class="l">Pen / 1k</div><div class="v">${s.pen.toFixed(0)}</div></div>
+      <div class="dkpi"><div class="l">Claims*</div><div class="v">${fmt(s.claims)}</div></div>
+      <div class="dkpi"><div class="l">Counties</div><div class="v">${s.counties}</div></div>
+    </div>
+    <div class="ds-title">Top MCO plans in ${s.cd}</div>
+    ${plans.length?plans.map(p=>`<div class="planrow"><span class="pn">${p.plan}</span><span class="pv">${fmt(p.qty)}</span></div>`).join(''):'<div style="color:#9ca3af;font-size:13px">No plan-level rows for this state in the current cut.</div>'}
+    <div class="ds-title">Suggested action</div>
+    <div style="font-size:13px;line-height:1.55">${ws?'Prioritize the top plans above — large prevalent-but-untreated pool.':'Maintain coverage; limited incremental whitespace at the benchmark.'}</div>`;
+  document.getElementById('ovl').classList.add('show');document.body.style.overflow='hidden';
+}
+function closeDrawer(){document.getElementById('ovl').classList.remove('show');document.body.style.overflow='';}
+
+fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+  .then(r=>r.json()).then(geo=>{echarts.registerMap('USA',geo,{Alaska:{left:-131,top:25,width:15},Hawaii:{left:-110,top:28,width:5},'Puerto Rico':{left:-76,top:26,width:3}});
+    mapChart=echarts.init(document.getElementById('mapChart'));drawMap();mapChart.on('click',p=>{if(p.data&&p.data._s)openState(p.name);});})
+  .catch(()=>{document.getElementById('mapChart').innerHTML='<div style="padding:40px;color:#9ca3af;text-align:center">Map unavailable (offline?)</div>';});
+drawList();drawWs();drawPlans();drawTrend();drawCohort();
+window.addEventListener('resize',()=>{mapChart&&mapChart.resize();});
+
+document.getElementById('dX').onclick=closeDrawer;
+document.getElementById('ovl').onclick=e=>{if(e.target.id==='ovl')closeDrawer();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+document.getElementById('annotToggle').onclick=()=>document.body.classList.toggle('annot-on');
+document.getElementById('capmapBtn').onclick=()=>document.getElementById('cmOvl').classList.add('show');
+document.getElementById('cmX').onclick=()=>document.getElementById('cmOvl').classList.remove('show');
+document.getElementById('cmOvl').onclick=e=>{if(e.target.id==='cmOvl')e.currentTarget.classList.remove('show');};
+
+const CAP=[
+  {el:'Pill filters + saved targets',st:'ok',status:'EXISTS',mp:'<b>dashboard.page.filter</b> with <code>ui_type=pills</code> (just shipped) + saved-filter chips. No code.'},
+  {el:'KPI strip incl. "Whitespace states"',st:'ok',status:'EXISTS',mp:'<b>KPI Strip</b> widget. Avg penetration + whitespace count are <b>derived-column</b> KPIs (SQL), not platform code.'},
+  {el:'Opportunity map (choropleth shaded by opportunity)',st:'ok',status:'EXISTS',mp:'<b>Map widget</b> exactly as today — the only change is the <b>metric column</b> it shades (opportunity, a derived column). Tabs = the per-widget metric toggle.'},
+  {el:'Opportunity score + whitespace flag',st:'partial',status:'SQL DERIVED',mp:'Two <b>derived columns</b> in the ClickHouse view: <code>opp = prev × (1 − least(pen,bench)/bench)</code> and <code>whitespace = prev ≥ median AND pen < bench</code>. Config/data-layer, <b>no platform code</b>.'},
+  {el:'Opportunity leaderboard → detail',st:'ok',status:'EXISTS',mp:'<b>Ranked Detail List</b> widget, ranked by the opportunity column; score bar = the <b>inline-bar</b> cell renderer; row click → the <b>Detail Drawer</b> already built.'},
+  {el:'State-360 detail drawer',st:'ok',status:'BUILT',mp:'The generic <b>Detail Drawer</b> we just implemented — State-360 is one <code>detail_drawer_config</code> preset (field_grid + plan list + alert). Already shipped.'},
+  {el:'Prevalent vs treated bars',st:'ok',status:'EXISTS',mp:'<b>Bar chart</b> widget, two series, prevalence-joined SQL.'},
+  {el:'Top MCO plans + momentum trend',st:'ok',status:'EXISTS',mp:'<b>Bar chart</b> + <b>Line chart</b> widgets — unchanged.'},
+  {el:'Cohort table → detail + CSV export',st:'ok',status:'EXISTS',mp:'<b>DataTable</b> widget (Custom-SQL), per-row Detail Drawer, AG Grid CSV export built in.'},
+];
+function renderCap(){
+  const c={ok:0,partial:0,gap:0};CAP.forEach(x=>c[x.st]++);
+  document.getElementById('cmBody').innerHTML=
+   `<div class="cm-legend"><span><i style="background:#16a34a"></i>Exists / built (${c.ok})</span><span><i style="background:#f59e0b"></i>SQL-derived (config) (${c.partial})</span></div>`+
+   `<div class="cm-sum"><b>Minimum code change:</b> this whole opportunity-first dashboard is built from <b>widgets that exist today</b> (map, KPI strip, Ranked Detail List, bar, line, DataTable, pill filters) + the <b>Detail Drawer already implemented</b>. The only net-new work is <b>two SQL-derived columns</b> (opportunity score + whitespace flag) in the ClickHouse view — <b>zero new platform/widget code</b>. Contrast with Prototype B, which added a new scatter chart type.</div>`+
+   CAP.map(x=>`<div class="cm-item ${x.st}"><div class="top"><span class="el">${x.el}</span><span class="st">${x.status}</span></div><div class="mp">${x.mp}</div></div>`).join('');
+}
+renderCap();
+</script>
+</body>
+</html>

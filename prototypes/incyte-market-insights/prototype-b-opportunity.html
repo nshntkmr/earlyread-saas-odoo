@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Incyte Market Insights — Prototype B (opportunity-targeting)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="incyte-data.js"></script>
+<style>
+:root{
+  --pv-primary:#0066cc;--pv-primary-d:#004d99;--pv-primary-l:#e6f0fb;
+  --sb-bg:#1a1f2e;--sb-hover:#252b3d;--sb-text:#a0aec0;--content:#f8fafc;
+  --ink:#1a2332;--muted:#6b7280;--border:#e5e7eb;--card:#fff;
+  --go:#16a34a;--go-l:#dcfce7;--warn:#f59e0b;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);--radius:10px;
+  --font:system-ui,'Segoe UI',Roboto,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--content);color:var(--ink);font-size:14px}
+.app{display:flex;min-height:100vh}
+.sidebar{width:226px;min-width:226px;background:var(--sb-bg);color:var(--sb-text);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.sb-brand{padding:18px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a3142}
+.sb-brand .logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#0066cc,#3b9aff);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff}
+.sb-brand .nm{font-weight:700;color:#fff;font-size:15px}
+.sb-brand .nm small{display:block;font-size:10px;font-weight:500;color:var(--sb-text)}
+.sb-sec{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#5a6478;padding:14px 20px 6px}
+.sb-item{display:flex;gap:11px;padding:9px 20px;font-size:13.5px;cursor:pointer;border-left:3px solid transparent;color:var(--sb-text)}
+.sb-item.active{background:var(--sb-hover);color:#fff;border-left-color:var(--pv-primary)}
+.sb-item:hover{background:var(--sb-hover);color:#fff}
+.sb-foot{margin-top:auto;padding:14px 20px;border-top:1px solid #2a3142;font-size:11px;color:#5a6478}
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:13px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:150;box-shadow:var(--shadow)}
+.tb-left .crumb{font-size:11px;color:var(--muted);margin-bottom:2px}.tb-left .crumb b{color:var(--pv-primary)}
+.tb-left .pg-title{font-size:19px;font-weight:800;letter-spacing:-.3px}
+.tb-left .pg-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.tb-right{display:flex;align-items:center;gap:10px}
+.annot-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;user-select:none;background:#fff}
+.annot-toggle .sw{width:30px;height:17px;border-radius:10px;background:#cbd5e1;position:relative;transition:.15s}
+.annot-toggle .sw::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:.15s}
+body.annot-on .annot-toggle{border-color:var(--pv-primary);color:var(--pv-primary)}
+body.annot-on .annot-toggle .sw{background:var(--pv-primary)}
+body.annot-on .annot-toggle .sw::after{left:15px}
+.capmap-btn{border:1px solid var(--pv-primary);background:var(--pv-primary);color:#fff;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
+.main{padding:16px 22px;max-width:1780px;margin:0 auto;width:100%}
+
+/* filter pills (compact) */
+.fpills{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:14px;position:relative}
+.fpg{display:flex;align-items:center;gap:6px}
+.fpg .lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase}
+.pill{border:1.5px solid var(--border);border-radius:16px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:var(--muted)}
+.pill.active{background:var(--pv-primary);border-color:var(--pv-primary);color:#fff}
+.fsel{border:1.5px solid var(--border);border-radius:16px;padding:5px 12px;font-size:12px;font-weight:600;background:#fff;color:var(--ink);outline:none}
+
+/* context strip: mini KPIs + mini map */
+.ctx-strip{display:grid;grid-template-columns:repeat(5,1fr) 1.4fr;gap:11px;margin-bottom:16px;position:relative}
+.mini-kpi{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:11px 13px}
+.mini-kpi .lbl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.mini-kpi .val{font-size:19px;font-weight:800;margin-top:3px}
+.mini-map{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.mini-map .cap-lbl{position:absolute;top:8px;left:12px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;z-index:2}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-bottom:16px}
+.sec{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);position:relative}
+.sec-hd{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sec-title{font-size:15px;font-weight:700}
+.sec-title .pin{color:var(--go);font-weight:800}
+.sec-sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+
+/* ranked target list */
+.tlist{max-height:520px;overflow:auto}
+.titem{display:flex;align-items:center;gap:11px;padding:11px 16px;border-bottom:1px solid #f1f3f6;cursor:pointer;transition:background .1s}
+.titem:hover{background:var(--pv-primary-l)}
+.titem .rank{width:24px;height:24px;border-radius:7px;background:var(--go-l);color:var(--go);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.titem .nm{font-weight:700;font-size:13.5px;flex:1;min-width:0}
+.titem .nm small{display:block;font-weight:500;color:var(--muted);font-size:11px;margin-top:1px}
+.titem .score{text-align:right}
+.titem .score .s{font-weight:800;font-size:15px}
+.titem .score .s-sub{font-size:10.5px;color:var(--muted)}
+.titem .arrow{color:#cbd5e1;font-size:16px}
+.scorebar{height:5px;border-radius:3px;background:#eef2f7;overflow:hidden;margin-top:5px}
+.scorebar i{display:block;height:100%;background:linear-gradient(90deg,#16a34a,#0066cc)}
+
+/* secondary row */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.chart{width:100%}
+@media(max-width:1150px){.hero,.two-col{grid-template-columns:1fr}.ctx-strip{grid-template-columns:repeat(3,1fr)}.sidebar{display:none}}
+
+/* detail drawer */
+.ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:400;justify-content:flex-end}
+.ovl.show{display:flex}
+.drawer{background:#fff;width:560px;max-width:100vw;height:100vh;overflow-y:auto;box-shadow:-6px 0 30px rgba(0,0,0,.25);animation:slide .24s ease}
+@keyframes slide{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.dh{background:linear-gradient(135deg,var(--pv-primary-d),var(--pv-primary));color:#fff;padding:18px 20px;display:flex;justify-content:space-between;align-items:flex-start;position:sticky;top:0;z-index:5}
+.dh .t{font-size:18px;font-weight:800}.dh .s{font-size:12px;opacity:.85;margin-top:3px}
+.dh .x{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:15px;cursor:pointer;width:30px;height:30px;border-radius:7px}
+.db{padding:18px 20px}
+.ds-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--pv-primary);margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--pv-primary-l)}
+.ds-title:first-child{margin-top:0}
+.dkpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.dkpi{border:1px solid var(--border);border-radius:9px;padding:11px 12px}
+.dkpi .l{font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600}
+.dkpi .v{font-size:18px;font-weight:800;margin-top:2px}
+.opp-banner{background:var(--go-l);border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;line-height:1.5;color:#14532d}
+.opp-banner b{color:#166534}
+.planrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f3f6;font-size:13px}
+.planrow .pn{flex:1;min-width:0;font-weight:600}
+.planrow .pv{font-weight:700}
+.tag-go{display:inline-block;background:var(--go);color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:7px;text-transform:uppercase;letter-spacing:.04em}
+
+/* annotations */
+.cap-chip{display:none}
+body.annot-on [data-cap]{outline:2px dashed transparent;outline-offset:3px;border-radius:var(--radius)}
+body.annot-on [data-status="ok"]{outline-color:#16a34a}
+body.annot-on [data-status="partial"]{outline-color:#f59e0b}
+body.annot-on [data-status="gap"]{outline-color:#dc2626}
+body.annot-on .cap-chip{display:inline-flex;align-items:center;gap:5px;position:absolute;z-index:120;top:-11px;left:14px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:2px 9px;font-size:10.5px;font-weight:700;box-shadow:var(--shadow);white-space:nowrap}
+.cap-chip .tag{font-size:9px;font-weight:800;padding:1px 5px;border-radius:7px}
+.cap-chip.ok .tag{background:#dcfce7;color:#166534}
+.cap-chip.partial .tag{background:#fef3c7;color:#92400e}
+.cap-chip.gap .tag{background:#fee2e2;color:#991b1b}
+
+/* capability map drawer */
+.cm-ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;justify-content:flex-end}
+.cm-ovl.show{display:flex}
+.cm-panel{background:#fff;width:640px;max-width:100vw;height:100vh;overflow-y:auto;box-shadow:-6px 0 30px rgba(0,0,0,.25)}
+.cm-head{background:#1a1f2e;color:#fff;padding:18px 22px;display:flex;justify-content:space-between;align-items:flex-start;position:sticky;top:0}
+.cm-head h2{font-size:16px}.cm-head p{font-size:12px;color:#a0aec0;margin-top:4px;max-width:470px;line-height:1.45}
+.cm-x{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:15px;cursor:pointer;width:30px;height:30px;border-radius:7px}
+.cm-body{padding:18px 22px}
+.cm-legend{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.cm-legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:600}.cm-legend i{width:12px;height:12px;border-radius:4px}
+.cm-sum{background:var(--pv-primary-l);border:1px solid #cfe2f7;border-radius:9px;padding:13px 15px;margin-bottom:16px;font-size:12.5px;line-height:1.5}
+.cm-item{border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:9px;border-left-width:4px}
+.cm-item.ok{border-left-color:#16a34a}.cm-item.partial{border-left-color:#f59e0b}.cm-item.gap{border-left-color:#dc2626}
+.cm-item .top{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px}
+.cm-item .el{font-size:13.5px;font-weight:700}
+.cm-item .st{font-size:9.5px;font-weight:800;text-transform:uppercase;padding:3px 8px;border-radius:8px;white-space:nowrap}
+.cm-item.ok .st{background:#dcfce7;color:#166534}.cm-item.partial .st{background:#fef3c7;color:#92400e}.cm-item.gap .st{background:#fee2e2;color:#991b1b}
+.cm-item .mp{font-size:12px;color:var(--ink);line-height:1.5}.cm-item .mp b{color:var(--pv-primary)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand"><div class="logo">P</div><div class="nm">Posterra<small>Incyte · Market Access</small></div></div>
+    <nav style="flex:1">
+      <div class="sb-sec">Analytics</div>
+      <div class="sb-item active"><span>◎</span> Opportunity Finder</div>
+      <div class="sb-item"><span>🗺</span> Geography</div>
+      <div class="sb-item"><span>▤</span> Cohort Builder</div>
+      <div class="sb-item"><span>★</span> Saved Targets</div>
+      <div class="sb-sec">Admin</div>
+      <div class="sb-item"><span>⚙</span> Page Builder</div>
+      <div class="sb-item"><span>⛃</span> Data Sources</div>
+    </nav>
+    <div class="sb-foot">Prototype B · opportunity-first<br>minimal-change improvement</div>
+  </aside>
+  <div class="content">
+    <header class="topbar">
+      <div class="tb-left">
+        <div class="crumb"><b>Incyte</b> ▸ Market Access ▸ Opportunity Finder</div>
+        <div class="pg-title">Where is the whitespace?</div>
+        <div class="pg-sub">Medicaid TMSIS · 2022–2024 · Vitiligo / Atopic Dermatitis · high prevalence + low penetration = go-after</div>
+      </div>
+      <div class="tb-right">
+        <div class="annot-toggle" id="annotToggle"><span class="sw"></span> Capability overlay</div>
+        <button class="capmap-btn" id="capmapBtn">Capability map ▸</button>
+      </div>
+    </header>
+    <div class="main">
+
+      <!-- compact filter pills -->
+      <div class="fpills" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> dashboard.page.filter (ui_type=pills)</span>
+        <div class="fpg"><span class="lbl">Year</span><div class="pill">2024</div></div>
+        <div class="fpg"><span class="lbl">Half</span><div class="pill active">H2</div><div class="pill">H1</div></div>
+        <div class="fpg"><span class="lbl">Lens</span><select class="fsel"><option>State opportunity</option><option>Plan opportunity</option></select></div>
+        <div class="fpg"><span class="lbl">Bubble size</span><select class="fsel"><option>Total Rx Quantity</option><option>Treated beneficiaries</option></select></div>
+        <div style="margin-left:auto" class="fpg"><span class="pill" style="border-style:dashed;color:var(--pv-primary);border-color:var(--pv-primary)">★ Saved: DC-GA-CA</span></div>
+      </div>
+
+      <!-- context strip: demoted KPIs + mini map -->
+      <div class="ctx-strip" data-cap data-status="ok">
+        <span class="cap-chip ok"><span class="tag">EXISTS</span> KPI Strip (compact) + Map widget thumbnail — same widgets, demoted</span>
+        <div class="mini-kpi"><div class="lbl">Rx Quantity</div><div class="val">6.84M</div></div>
+        <div class="mini-kpi"><div class="lbl">Beneficiaries*</div><div class="val">8,462</div></div>
+        <div class="mini-kpi"><div class="lbl">Treated states</div><div class="val">37</div></div>
+        <div class="mini-kpi"><div class="lbl">Avg pen / 1k</div><div class="val" id="kAvgPen">—</div></div>
+        <div class="mini-kpi"><div class="lbl">Whitespace states</div><div class="val" id="kWs" style="color:var(--go)">—</div></div>
+        <div class="mini-map"><div class="cap-lbl">Penetration — state</div><div id="miniMap" style="height:100%;min-height:96px"></div></div>
+      </div>
+
+      <!-- HERO: opportunity matrix + ranked targets -->
+      <div class="hero">
+        <div class="sec" data-cap data-status="partial">
+          <span class="cap-chip partial"><span class="tag">SMALL ADD</span> Scatter chart type (new) + quadrant ref-lines (markLine flag); opportunity score = SQL/derived column</span>
+          <div class="sec-hd">
+            <div><div class="sec-title">Opportunity matrix <span class="pin">— go after the bottom-right</span></div>
+              <div class="sec-sub">x = market size (prevalent benes) · y = penetration / 1k · bubble = Rx volume · click a state to open its plan-level detail</div></div>
+          </div>
+          <div id="matrix" class="chart" style="height:480px"></div>
+        </div>
+        <div class="sec" data-cap data-status="partial">
+          <span class="cap-chip partial"><span class="tag">REUSE</span> Ranked Detail List widget + the new Detail Drawer (row click → state 360)</span>
+          <div class="sec-hd"><div><div class="sec-title">Ranked targets — best whitespace first</div>
+            <div class="sec-sub">Opportunity = market size × under-penetration · click to open detail</div></div></div>
+          <div class="tlist" id="targetList"></div>
+        </div>
+      </div>
+
+      <!-- secondary supporting context -->
+      <div class="two-col">
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Line/Area chart widget</span>
+          <div class="sec-hd"><div class="sec-title">Momentum — total Rx trend</div></div>
+          <div id="trendChart" class="chart" style="height:240px"></div>
+        </div>
+        <div class="sec" data-cap data-status="ok">
+          <span class="cap-chip ok"><span class="tag">EXISTS</span> Bar chart widget</span>
+          <div class="sec-hd"><div class="sec-title">Top MCO plans (national)</div></div>
+          <div id="planChart" class="chart" style="height:240px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- detail drawer (state 360) -->
+<div class="ovl" id="ovl"><div class="drawer" data-cap data-status="gap">
+  <span class="cap-chip gap"><span class="tag">NEW (built)</span> Detail Drawer — the generic capability just implemented; State-360 is one config preset</span>
+  <div class="dh"><div><div class="t" id="dT">State</div><div class="s" id="dS"></div></div><button class="x" id="dX">✕</button></div>
+  <div class="db" id="dBody"></div>
+</div></div>
+
+<!-- capability map -->
+<div class="cm-ovl" id="cmOvl"><div class="cm-panel">
+  <div class="cm-head"><div><h2>Capability Map — Prototype B (opportunity-first)</h2><p>Every element mapped to a current/near-term Posterra capability. The improved design is mostly re-composition of existing widgets plus the Detail Drawer just built.</p></div><button class="cm-x" id="cmX">✕</button></div>
+  <div class="cm-body" id="cmBody"></div>
+</div></div>
+
+<script>
+const D=window.INCYTE;
+const fmt=n=>n==null?'—':(Math.abs(n)>=1e6?(n/1e6).toFixed(2)+'M':Math.abs(n)>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString());
+const states=D.states.filter(s=>s.cd!=='NATIONAL'&&s.prev>0);
+
+// opportunity score: market size × under-penetration (penetration capped/inverted)
+const PEN_BENCH=800;  // /1k benchmark — above this = "well penetrated"
+states.forEach(s=>{
+  const under=Math.max(0,1-Math.min(s.pen,PEN_BENCH)/PEN_BENCH); // 0..1
+  s.opp=Math.round(s.prev*under);
+});
+const ranked=[...states].sort((a,b)=>b.opp-a.opp);
+const maxOpp=ranked[0].opp||1;
+const medPrev=[...states].map(s=>s.prev).sort((a,b)=>a-b)[Math.floor(states.length/2)];
+
+document.getElementById('kAvgPen').textContent=Math.round(states.reduce((s,x)=>s+x.pen,0)/states.length);
+document.getElementById('kWs').textContent=states.filter(s=>s.prev>=medPrev&&s.pen<PEN_BENCH).length;
+
+// ---- matrix ----
+let matrix;
+function drawMatrix(){
+  const pts=states.map(s=>({name:s.cd,value:[s.prev,Math.min(s.pen,3000),s.qty,s.name,s.opp]}));
+  matrix=echarts.init(document.getElementById('matrix'));
+  matrix.setOption({
+    grid:{left:70,right:30,top:30,bottom:55},
+    tooltip:{trigger:'item',formatter:p=>`<b>${p.value[3]}</b><br/>Market size (prevalent): ${fmt(p.value[0])}<br/>Penetration/1k: ${p.value[1].toFixed(0)}<br/>Rx volume: ${fmt(p.value[2])}<br/><b style="color:#16a34a">Opportunity: ${fmt(p.value[4])}</b><br/><span style="color:#6b7280">click for plan-level detail</span>`},
+    xAxis:{type:'value',name:'Market size — prevalent beneficiaries →',nameLocation:'middle',nameGap:32,axisLabel:{formatter:fmt,fontSize:10}},
+    yAxis:{type:'value',name:'↑ Penetration / 1k',axisLabel:{fontSize:10}},
+    visualMap:{show:false,min:0,max:maxOpp,dimension:4,inRange:{symbolSize:[10,60],color:['#cbd5e1','#6366f1','#16a34a']}},
+    series:[{type:'scatter',data:pts,
+      label:{show:true,formatter:p=>p.value[4]>maxOpp*0.12?p.name:'',position:'top',fontSize:10,fontWeight:700,color:'#334155'},
+      markLine:{silent:true,symbol:'none',lineStyle:{type:'dashed',color:'#94a3b8'},
+        data:[{xAxis:medPrev},{yAxis:PEN_BENCH}],
+        label:{formatter:p=>p.value===PEN_BENCH?'penetration benchmark':'median market size',fontSize:9,color:'#94a3b8'}},
+      markArea:{silent:true,itemStyle:{color:'rgba(22,163,74,.06)'},
+        data:[[{xAxis:medPrev,yAxis:0},{xAxis:'max',yAxis:PEN_BENCH}]]}}]
+  });
+  matrix.on('click',p=>{if(p.value)openState(p.value[3]);});
+}
+
+// ---- ranked target list ----
+function drawList(){
+  document.getElementById('targetList').innerHTML=ranked.slice(0,14).map((s,i)=>`
+    <div class="titem" data-state="${s.name}">
+      <div class="rank">${i+1}</div>
+      <div class="nm">${s.name}<small>${fmt(s.prev)} prevalent · ${s.pen.toFixed(0)}/1k penetration · ${fmt(s.qty)} Rx</small>
+        <div class="scorebar"><i style="width:${Math.max(4,s.opp/maxOpp*100)}%"></i></div></div>
+      <div class="score"><div class="s" style="color:var(--go)">${fmt(s.opp)}</div><div class="s-sub">opp. score</div></div>
+      <div class="arrow">›</div>
+    </div>`).join('');
+  document.querySelectorAll('#targetList .titem').forEach(el=>el.onclick=()=>openState(el.dataset.state));
+}
+
+// ---- state-360 detail drawer ----
+function openState(name){
+  const s=states.find(x=>x.name===name)||D.states.find(x=>x.name===name); if(!s)return;
+  const plans=D.cohort.filter(c=>c.state===s.cd).sort((a,b)=>b.qty-a.qty).slice(0,6);
+  const under=Math.max(0,1-Math.min(s.pen,PEN_BENCH)/PEN_BENCH);
+  document.getElementById('dT').textContent=s.name;
+  document.getElementById('dS').textContent=`${s.cd} · ${s.counties} treated counties · opportunity score ${fmt(s.opp)}`;
+  document.getElementById('dBody').innerHTML=`
+    ${s.prev>=medPrev&&s.pen<PEN_BENCH?`<div class="opp-banner"><span class="tag-go">Whitespace</span> &nbsp;<b>High prevalence, low penetration.</b> ~${fmt(s.prev)} prevalent beneficiaries with only ${s.pen.toFixed(0)}/1k penetrated — roughly <b>${Math.round(under*100)}% of the addressable market is untreated</b>.</div>`:`<div class="opp-banner" style="background:#eff6ff;border-color:#cfe2f7;color:#1e3a8a"><b>Context state.</b> Penetration ${s.pen.toFixed(0)}/1k vs ${PEN_BENCH} benchmark.</div>`}
+    <div class="ds-title">Market snapshot</div>
+    <div class="dkpis">
+      <div class="dkpi"><div class="l">Rx Quantity</div><div class="v">${fmt(s.qty)}</div></div>
+      <div class="dkpi"><div class="l">Treated benes*</div><div class="v">${fmt(s.benes)}</div></div>
+      <div class="dkpi"><div class="l">Prevalent</div><div class="v">${fmt(s.prev)}</div></div>
+      <div class="dkpi"><div class="l">Penetration/1k</div><div class="v">${s.pen.toFixed(0)}</div></div>
+      <div class="dkpi"><div class="l">Claims*</div><div class="v">${fmt(s.claims)}</div></div>
+      <div class="dkpi"><div class="l">Counties</div><div class="v">${s.counties}</div></div>
+    </div>
+    <div class="ds-title">Top MCO plans in ${s.cd}</div>
+    ${plans.length?plans.map(p=>`<div class="planrow"><span class="pn">${p.plan}</span><span class="pv">${fmt(p.qty)}</span></div>`).join(''):'<div style="color:#9ca3af;font-size:13px">No plan-level rows for this state in the current cut.</div>'}
+    <div class="ds-title">Suggested action</div>
+    <div style="font-size:13px;line-height:1.55;color:var(--ink)">${s.prev>=medPrev&&s.pen<PEN_BENCH?`Prioritize field engagement with the top plans above; the prevalent-but-untreated pool is large relative to current treatment.`:`Maintain coverage; limited incremental whitespace at the current benchmark.`}</div>`;
+  document.getElementById('ovl').classList.add('show');
+  document.body.style.overflow='hidden';
+}
+function closeDrawer(){document.getElementById('ovl').classList.remove('show');document.body.style.overflow='';}
+
+function drawTrend(){
+  echarts.init(document.getElementById('trendChart')).setOption({
+    grid:{left:50,right:15,top:15,bottom:30},tooltip:{trigger:'axis',valueFormatter:fmt},
+    xAxis:{type:'category',data:D.trend.map(t=>t.period),axisLabel:{fontSize:10}},
+    yAxis:{type:'value',axisLabel:{formatter:fmt,fontSize:10}},
+    series:[{type:'line',data:D.trend.map(t=>t.qty),smooth:false,symbolSize:6,lineStyle:{color:'#0066cc',width:2.5},itemStyle:{color:'#0066cc'},areaStyle:{color:'rgba(0,102,204,.12)'}}]
+  });
+}
+function drawPlans(){
+  const p=[...D.top_plans].slice(0,8).reverse();
+  echarts.init(document.getElementById('planChart')).setOption({
+    grid:{left:200,right:25,top:8,bottom:30},tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:fmt},
+    xAxis:{type:'value',axisLabel:{formatter:fmt,fontSize:10}},
+    yAxis:{type:'category',data:p.map(x=>x.plan),axisLabel:{fontSize:10,width:190,overflow:'truncate'}},
+    series:[{type:'bar',data:p.map(x=>x.qty),itemStyle:{color:'#6366f1',borderRadius:[0,3,3,0]},barWidth:'62%'}]
+  });
+}
+
+// mini map
+let miniMap;
+function drawMini(geoReady){
+  if(!geoReady)return;
+  miniMap=echarts.init(document.getElementById('miniMap'));
+  miniMap.setOption({
+    tooltip:{trigger:'item',formatter:p=>`${p.name}: ${p.data?p.data.value.toFixed(0):'—'}/1k`},
+    visualMap:{show:false,min:0,max:3000,inRange:{color:['#f7fbff','#9ecae1','#2171b5','#08306b']}},
+    series:[{type:'map',map:'USA',roam:false,
+      data:states.map(s=>({name:s.name,value:Math.min(s.pen,3000)})),
+      itemStyle:{borderColor:'#fff',borderWidth:.4,areaColor:'#eef2f7'},emphasis:{disabled:true},label:{show:false}}]
+  });
+}
+
+// boot
+fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+  .then(r=>r.json()).then(geo=>{
+    echarts.registerMap('USA',geo,{Alaska:{left:-131,top:25,width:15},Hawaii:{left:-110,top:28,width:5},'Puerto Rico':{left:-76,top:26,width:3}});
+    drawMini(true);
+  }).catch(()=>{});
+drawMatrix();drawList();drawTrend();drawPlans();
+window.addEventListener('resize',()=>{[matrix,miniMap].forEach(c=>c&&c.resize());});
+
+document.getElementById('dX').onclick=closeDrawer;
+document.getElementById('ovl').onclick=e=>{if(e.target.id==='ovl')closeDrawer();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+document.getElementById('annotToggle').onclick=()=>document.body.classList.toggle('annot-on');
+document.getElementById('capmapBtn').onclick=()=>document.getElementById('cmOvl').classList.add('show');
+document.getElementById('cmX').onclick=()=>document.getElementById('cmOvl').classList.remove('show');
+document.getElementById('cmOvl').onclick=e=>{if(e.target.id==='cmOvl')e.currentTarget.classList.remove('show');};
+
+const CAP=[
+  {el:'Opportunity matrix (prevalence × penetration, bubble=Rx)',st:'partial',status:'SMALL ADD',mp:'A <b>scatter chart type</b> (the one net-new chart_type, ~3-file widget add) + quadrant <b>markLine/markArea</b> reference flags. Bubble size + color = opportunity.'},
+  {el:'Opportunity score (market size × under-penetration)',st:'partial',status:'SQL DERIVED',mp:'A <b>derived column</b> in the ClickHouse view (or widget CASE) — <code>prev × (1 − least(pen,bench)/bench)</code>. No platform code; one source of truth for matrix + list + KPI.'},
+  {el:'Ranked target list (best whitespace first)',st:'ok',status:'EXISTS',mp:'<b>Ranked Detail List</b> widget — master rows ranked by opportunity, score bar via the inline-bar renderer; row click opens detail.'},
+  {el:'State-360 detail drawer (KPIs + top plans + action)',st:'gap',status:'NEW (built)',mp:'The generic <b>Detail Drawer</b> we just implemented — State-360 is one <code>detail_drawer_config</code> preset (field_grid + plan list + alert). Reuses the row click-action + per-section SQL.'},
+  {el:'Demoted KPI strip + mini map (context)',st:'ok',status:'EXISTS',mp:'Same <b>KPI Strip</b> + <b>Map widget</b> as Prototype A, just sized down into a context strip — pure layout/placement config.'},
+  {el:'Penetration benchmark + whitespace flag',st:'partial',status:'SQL DERIVED',mp:'Benchmark is a parameter; whitespace flag = <code>prev ≥ median AND pen < benchmark</code> as a derived column (same pattern as gap_type).'},
+  {el:'Momentum trend + Top MCO plans',st:'ok',status:'EXISTS',mp:'Line/Area + Bar chart widgets — unchanged from Prototype A, demoted to supporting context.'},
+  {el:'Pill filters + saved targets',st:'ok',status:'EXISTS',mp:'<b>dashboard.page.filter</b> with <code>ui_type=pills</code> (just shipped) + saved-filter chips. "Saved Targets" reuses the saved-views mechanism.'},
+];
+function renderCap(){
+  const c={ok:0,partial:0,gap:0};CAP.forEach(x=>c[x.st]++);
+  document.getElementById('cmBody').innerHTML=
+   `<div class="cm-legend"><span><i style="background:#16a34a"></i>Exists (${c.ok})</span><span><i style="background:#f59e0b"></i>Small add / derived (${c.partial})</span><span><i style="background:#dc2626"></i>New, already built (${c.gap})</span></div>`+
+   `<div class="cm-sum"><b>Why this is "minimal change":</b> the opportunity-first redesign is mostly <b>re-composition</b> of existing widgets (KPI strip, map, line, bar, Ranked Detail List, pill filters) plus the <b>Detail Drawer we just built</b>. The only genuinely new viz is one <b>scatter chart type</b>; the opportunity score + whitespace flag are <b>SQL-derived columns</b> in the ClickHouse view (no platform code). Net: 1 small chart-type add + a couple derived columns turns the data viewer into a targeting tool.</div>`+
+   CAP.map(x=>`<div class="cm-item ${x.st}"><div class="top"><span class="el">${x.el}</span><span class="st">${x.status}</span></div><div class="mp">${x.mp}</div></div>`).join('');
+}
+renderCap();
+</script>
+</body>
+</html>

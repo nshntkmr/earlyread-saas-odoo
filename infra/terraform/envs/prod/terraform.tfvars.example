@@ -1,0 +1,26 @@
+# Copy this file to terraform.tfvars and fill in your values.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# ─── Required ─────────────────────────────────────────────────────────────────
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+allowed_ips     = ["1.2.3.4"]
+
+# Resource group that ALREADY holds the apex `earlyread.ai` DNS zone.
+# This is NOT prod's resource group — prod only reads the zone and adds the
+# wildcard A record. Find it with:
+#   az network dns zone list --query "[?name=='earlyread.ai'].resourceGroup" -o tsv
+dns_zone_resource_group_name = "REPLACE_ME"
+
+# ─── Optional overrides (uncomment to change from defaults) ───────────────────
+
+# Region: eastus2 needs a Dasv7 quota increase; eastus/centralus have 20 vCPU
+# free today. Everything else is region-agnostic.
+# location          = "eastus2"
+
+# vnet_cidr         = "10.30.0.0/16"
+# aks_subnet_cidr   = "10.30.0.0/22"
+# pg_subnet_cidr    = "10.30.4.0/24"
+# appgw_subnet_cidr = "10.30.5.0/24"
+# pe_subnet_cidr    = "10.30.6.0/24"
