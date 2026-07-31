@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class DashboardNavSection(models.Model):
@@ -161,6 +162,37 @@ class DashboardPageTab(models.Model):
     page_id = fields.Many2one('dashboard.page', required=True, ondelete='cascade')
     sequence = fields.Integer(default=10)
     is_active = fields.Boolean(default=True)
+
+    def unlink(self):
+        """Phase T tab-deletion contract (ADDITIVE — preserves existing
+        behavior): a tab with NO tab-scoped filters deletes exactly as today
+        (widgets/sections set-null to global). A tab WITH tab-scoped filters
+        blocks deletion until those filters are moved or safely deleted; the
+        block lists only consumers that actually REFERENCE those filters.
+        The filter-side ondelete='cascade' stays as a DB backstop only."""
+        from ..utils import filter_scope_inspector as insp
+        Filter = self.env['dashboard.page.filter'].sudo()
+        blockers = []
+        for tab in self:
+            tab_filters = Filter.search([('tab_id', '=', tab.id)])
+            if not tab_filters:
+                continue  # today's deletion behavior, unchanged
+            details = []
+            for flt in tab_filters:
+                refs = insp.filter_references(self.env, flt)
+                details.append(
+                    "filter '%s'%s" % (
+                        flt.display_name,
+                        (' — referenced by: %s' % '; '.join(refs))
+                        if refs else ''))
+            blockers.append(
+                "Tab '%s' has %d tab-scoped filter(s): %s"
+                % (tab.name, len(tab_filters), ' | '.join(details)))
+        if blockers:
+            raise ValidationError(
+                'Cannot delete tab(s) with tab-scoped filters:\n%s\n'
+                'Move or delete those filters first.' % '\n'.join(blockers))
+        return super().unlink()
 
     @api.model
     def default_get(self, fields_list):

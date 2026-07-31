@@ -99,6 +99,31 @@ class DashboardFilterDependency(models.Model):
                 raise ValidationError(
                     'Dependency page_id must match the filters\' page.')
 
+    @api.constrains('source_filter_id', 'target_filter_id')
+    def _check_tab_compatibility(self):
+        """Phase T tab rules: page-wide → tab OK; tab → SAME tab OK (cycles
+        stay guarded by the runtime visited sets); tab → DIFFERENT tab
+        rejected; tab → page-wide rejected (one tab's dropdown must never
+        silently change every other tab's data). Also re-run from the filter
+        model when placements change — see _revalidate_tab_relationships."""
+        for rec in self:
+            src_tab = rec.source_filter_id.tab_id
+            tgt_tab = rec.target_filter_id.tab_id
+            if src_tab and not tgt_tab:
+                raise ValidationError(
+                    "Tab-scoped filter '%s' cannot cascade a page-wide "
+                    "filter ('%s') — that would change other tabs' data "
+                    "from inside one tab." % (
+                        rec.source_filter_id.display_name,
+                        rec.target_filter_id.display_name))
+            if src_tab and tgt_tab and src_tab.id != tgt_tab.id:
+                raise ValidationError(
+                    "Cross-tab dependency rejected: '%s' (tab %s) → '%s' "
+                    "(tab %s). Filters may cascade only page-wide → tab or "
+                    "within one tab." % (
+                        rec.source_filter_id.display_name, src_tab.name,
+                        rec.target_filter_id.display_name, tgt_tab.name))
+
     # NOTE: Cycle detection (_check_no_cycle) was intentionally removed.
     # Bidirectional dependencies (e.g., Provider ↔ State) are allowed.
     # The visited set at all runtime layers (portal.py, widget_api.py,

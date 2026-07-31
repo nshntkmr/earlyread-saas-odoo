@@ -363,10 +363,132 @@ class DashboardPageFilter(models.Model):
             ('filter_bar',        'Filter Bar (below header)'),
             ('page_header_start', 'Page Header — Start (left of title)'),
             ('page_header_end',   'Page Header — End (right)'),
+            ('tab_filter_bar',    'Tab Filter Bar (inside a tab)'),
         ],
         string='Display Region',
         help='Where this filter renders. Blank/legacy = Filter Bar. '
-             'Page Header End places it in the page header alongside badges.')
+             'Page Header End places it in the page header alongside badges. '
+             'Tab Filter Bar renders inside ONE tab (set Tab below) and '
+             'constrains only that tab\'s widgets and sections.')
+    # Phase T: tab scoping. NULL = page-wide (every existing filter). Cascade
+    # is a DB-level backstop only — dashboard.page.tab.unlink() blocks first
+    # when tab-scoped filters exist (see dashboard_page.py guard).
+    tab_id = fields.Many2one(
+        'dashboard.page.tab', string='Tab', ondelete='cascade',
+        domain="[('page_id', '=', page_id)]", index=True,
+        help='Required for the Tab Filter Bar region; must belong to this '
+             'page. Leave empty for page-wide filters.')
+
+    @api.constrains('display_region', 'tab_id', 'page_id')
+    def _check_tab_region(self):
+        for rec in self:
+            region = rec.display_region or 'filter_bar'
+            if region == 'tab_filter_bar' and not rec.tab_id:
+                raise ValidationError(
+                    'A Tab Filter Bar filter requires a Tab.')
+            if region != 'tab_filter_bar' and rec.tab_id:
+                raise ValidationError(
+                    'Only Tab Filter Bar filters may carry a Tab — clear the '
+                    'Tab or switch the Display Region.')
+            if rec.tab_id and rec.tab_id.page_id != rec.page_id:
+                raise ValidationError(
+                    'The Tab must belong to the same page as the filter.')
+
+    @api.constrains('tab_id', 'page_id', 'display_region', 'is_active')
+    def _revalidate_tab_relationships(self):
+        """Phase T: moving a filter between tabs (or global<->tab), moving it
+        across pages, or REACTIVATING it can invalidate untouched records.
+        Re-check dependency edges (both directions, incl. the legacy
+        depends_on_filter_id single-parent), scope_filter_id consumers, and
+        every executable SQL surface on this page."""
+        from ..utils import filter_scope_inspector as insp
+        Dep = self.env['dashboard.filter.dependency'].sudo()
+        for rec in self:
+            if not rec.is_active:
+                continue
+            edges = Dep.search(['|', ('source_filter_id', '=', rec.id),
+                                ('target_filter_id', '=', rec.id)])
+            edges._check_tab_compatibility()
+            # Legacy single-parent cascade behaves as a required edge.
+            legacy_children = self.search(
+                [('depends_on_filter_id', '=', rec.id)])
+            for child in legacy_children | (rec.depends_on_filter_id and rec or self.browse()):
+                parent = child.depends_on_filter_id
+                if not parent:
+                    continue
+                if parent.tab_id and (not child.tab_id
+                                      or child.tab_id.id != parent.tab_id.id):
+                    raise ValidationError(
+                        "Legacy dependency '%s' → '%s' violates tab scoping "
+                        "after this placement change." % (
+                            parent.display_name, child.display_name))
+            # Consumers referencing this filter must stay compatible.
+            for model, label in (('dashboard.widget', 'widget'),
+                                 ('dashboard.page.section', 'section')):
+                Model = self.env[model].sudo()
+                if 'scope_filter_id' not in Model._fields:
+                    continue
+                for consumer in Model.search(
+                        [('scope_filter_id', '=', rec.id)]):
+                    c_tab = getattr(consumer, 'tab_id', False)
+                    c_region = getattr(consumer, 'render_region', '') or ''
+                    page_level = (c_region == 'page_summary'
+                                  or (model == 'dashboard.page.section'
+                                      and not c_tab))
+                    if rec.tab_id and (page_level or not c_tab
+                                       or c_tab.id != rec.tab_id.id):
+                        raise ValidationError(
+                            "%s '%s' references filter '%s', which is now "
+                            "scoped to tab '%s' the %s cannot see." % (
+                                label.capitalize(), consumer.display_name,
+                                rec.display_name, rec.tab_id.name, label))
+            # SQL placeholders across the page (widgets + sections + badges).
+            if rec.tab_id:
+                key = insp.runtime_key(rec)
+                if key:
+                    for model, label in (
+                            ('dashboard.widget', 'widget'),
+                            ('dashboard.page.section', 'section'),
+                            ('dashboard.page.badge', 'badge')):
+                        if model not in self.env:
+                            continue
+                        Model = self.env[model].sudo()
+                        domain = [('page_id', '=', rec.page_id.id)] \
+                            if 'page_id' in Model._fields else []
+                        for consumer in Model.search(domain):
+                            c_tab = getattr(consumer, 'tab_id', False)
+                            c_region = getattr(consumer, 'render_region',
+                                               '') or ''
+                            same_tab = (c_tab and c_tab.id == rec.tab_id.id
+                                        and c_region != 'page_summary')
+                            if same_tab:
+                                continue
+                            for surface, sql in insp.iter_sql_surfaces(consumer):
+                                if key in insp.extract_placeholders(sql):
+                                    raise ValidationError(
+                                        "%s '%s' (%s) uses %%(%s)s, but that "
+                                        "filter is now scoped to tab '%s'."
+                                        % (label.capitalize(),
+                                           consumer.display_name, surface,
+                                           key, rec.tab_id.name))
+
+    def unlink(self):
+        """Phase T filter unlink guard: deletion may never leave unresolved
+        placeholders or scope_mode='dependent' with no filter. Dependency
+        EDGES keep their existing ondelete='cascade' (edge records delete
+        with either endpoint — stated policy, not a blocker)."""
+        from ..utils import filter_scope_inspector as insp
+        blockers = []
+        for rec in self:
+            refs = insp.filter_references(self.env, rec)
+            if refs:
+                blockers.append("'%s' is still referenced by: %s"
+                                % (rec.display_name, '; '.join(refs)))
+        if blockers:
+            raise ValidationError(
+                'Cannot delete filter(s):\n%s\nMove or update the consumers '
+                'first.' % '\n'.join(blockers))
+        return super().unlink()
     apply_behavior = fields.Selection(
         [('manual', 'Manual (Apply button)'), ('immediate', 'Immediate (apply on change)')],
         string='Apply Behavior', default='manual',
