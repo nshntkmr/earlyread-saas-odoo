@@ -52,6 +52,8 @@ class DashboardWidgetDefinition(models.Model):
         ('albers_choropleth', 'US Choropleth'),
         ('ranked_detail_list', 'Ranked Detail List'),
         ('record_header', 'Record Header'),
+        ('attribute_grid', 'Attribute Grid'),
+        ('metric_list',   'Metric List'),
         ('composite',     'Composite (Multi-section)'),
     ], required=True, default='bar')
     chart_height      = fields.Integer(default=350, string='Default Height (px)')

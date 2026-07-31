@@ -19,3 +19,6 @@ access_widget_tpl_slot_admin,dashboard.widget.template.slot admin,model_dashboar
 access_widget_tpl_slot_system,dashboard.widget.template.slot system,model_dashboard_widget_template_slot,base.group_system,1,1,1,1
 access_dashboard_connection_admin,dashboard.connection admin,model_dashboard_connection,group_dashboard_builder_admin,1,1,1,1
 access_dashboard_connection_system,dashboard.connection system,model_dashboard_connection,base.group_system,1,1,1,1
+access_dashboard_icon_user,dashboard.icon user,model_dashboard_icon,group_dashboard_builder_user,1,0,0,0
+access_dashboard_icon_admin,dashboard.icon admin,model_dashboard_icon,group_dashboard_builder_admin,1,1,1,1
+access_dashboard_icon_system,dashboard.icon system,model_dashboard_icon,base.group_system,1,1,1,1

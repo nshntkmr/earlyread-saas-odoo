@@ -20,8 +20,10 @@
     'data': [
         'security/builder_security.xml',
         'security/ir.model.access.csv',
+        'data/dashboard_icon_data.xml',
         'views/dashboard_connection_views.xml',
         'views/dashboard_schema_views.xml',
+        'views/dashboard_icon_views.xml',
         'views/widget_definition_views.xml',
         'views/widget_template_views.xml',
         'views/menuitems.xml',

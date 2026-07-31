@@ -168,6 +168,22 @@
                                        style="font-family: monospace; min-height: 80px;"
                                        nolabel="1" colspan="2"/>
                             </group>
+                            <!-- v5 widget configs — validated JSON for EMERGENCY edits only.
+                                 Recommended: author these in the Dashboard Builder. -->
+                            <group string="Attribute Grid Config (JSON — use the Builder instead)"
+                                   invisible="chart_type != 'attribute_grid'">
+                                <field name="attribute_grid_config" widget="text"
+                                       placeholder='{"version": 1, "data_shape": "attribute_rows", "columns": 2, "row_mapping": {"label_column": "LABEL", "value_column": "VALUE"}}'
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                            <group string="Metric List Config (JSON — use the Builder instead)"
+                                   invisible="chart_type != 'metric_list'">
+                                <field name="metric_list_config" widget="text"
+                                       placeholder='{"version": 1, "mapping": {"label_column": "METRIC", "value_column": "VALUE"}}'
+                                       style="font-family: monospace; min-height: 120px;"
+                                       nolabel="1" colspan="2"/>
+                            </group>
                             <group>
                                 <field name="preview_image" widget="image"
                                        options="{'size': [200, 200]}"/>

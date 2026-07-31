@@ -285,6 +285,8 @@ class DashboardWidget(models.Model):
         ('sankey',       'Sankey (Flow Diagram)'),
         ('sankey_member_flow', 'Sankey Member Flow'),
         ('record_header', 'Record Header'),
+        ('attribute_grid', 'Attribute Grid'),
+        ('metric_list',  'Metric List'),
         ('composite',    'Composite (Multi-section)'),
     ], required=True, default='bar', string='Chart Type')
 
@@ -831,6 +833,11 @@ class DashboardWidget(models.Model):
         self.column_link_config = defn.column_link_config
         self.table_column_config = defn.table_column_config
         self.detail_drawer_config = defn.detail_drawer_config
+        # v5 widget configs (from mixin) — a miss here means picking a
+        # library definition leaves the instance config blank and the
+        # mandatory-config constraint rejects the save.
+        self.attribute_grid_config = defn.attribute_grid_config
+        self.metric_list_config = defn.metric_list_config
 
     # ── ORM onchange ──────────────────────────────────────────────────────────
     @api.onchange('orm_model_id')
@@ -992,6 +999,14 @@ class DashboardWidget(models.Model):
             return self._build_ranked_detail_list_data(cols, rows)
         elif self.chart_type == 'smart_table':
             return self._build_smart_table_data(cols, rows)
+        elif self.chart_type == 'attribute_grid':
+            # Scope query mode ("Different SQL Per Option"): the widget-level
+            # config applies to EVERY option; an option SQL missing the
+            # configured aliases hits the formatter's fail-closed error —
+            # never the ECharts fallback below.
+            return self._build_attribute_grid_data(cols, rows)
+        elif self.chart_type == 'metric_list':
+            return self._build_metric_list_data(cols, rows)
         else:
             # ECharts types (bar, line, pie, donut, gauge, radar, scatter, heatmap)
             option = self._build_echart_option(cols, rows)
@@ -1120,6 +1135,10 @@ class DashboardWidget(models.Model):
             result = self._build_member_flow_data(cols, rows)
         elif ct == 'record_header':
             result = self._build_record_header_data(cols, rows)
+        elif ct == 'attribute_grid':
+            result = self._build_attribute_grid_data(cols, rows)
+        elif ct == 'metric_list':
+            result = self._build_metric_list_data(cols, rows)
         else:
             # Default: ECharts (bar/line/pie/donut/radar/scatter/heatmap)
             # Run annotation query once and pass to chart builder
@@ -1295,6 +1314,49 @@ class DashboardWidget(models.Model):
         config['x_column'] = self.x_column or ''
         config['y_columns'] = self.y_columns or ''
         return format_record_header(cols, rows, config)
+
+    def _widget_icon_map(self):
+        """Resolve the dashboard.icon registry into the plain dict the pure
+        formatters take. sudo() because portal users carry no registry ACL;
+        the model method is ormcache'd so this is one lookup per worker, not
+        per widget. Tolerant of the registry model being absent (module
+        upgrade windows)."""
+        if 'dashboard.icon' not in self.env:
+            return {}
+        return self.env['dashboard.icon'].sudo().get_icon_map()
+
+    def _parse_config_json(self, raw):
+        try:
+            cfg = json.loads(raw or '{}')
+        except (json.JSONDecodeError, TypeError):
+            return None
+        return cfg if isinstance(cfg, dict) else None
+
+    def _build_attribute_grid_data(self, cols, rows):
+        """Portal wrapper for the shared attribute_grid formatter — the SAME
+        pure function the designer preview calls, so the two can never drift.
+        Read-only / transient-safe: reads only from ``self``."""
+        from odoo.addons.dashboard_builder.services.attribute_grid_formatter import (
+            format_attribute_grid,
+        )
+        cfg = self._parse_config_json(self.attribute_grid_config)
+        if cfg is None:
+            return {'type': 'attribute_grid', 'error_code': 'BAD_CONFIG',
+                    'error': 'attribute_grid_config is not valid JSON'}
+        return format_attribute_grid(cols, rows, cfg,
+                                     icon_map=self._widget_icon_map())
+
+    def _build_metric_list_data(self, cols, rows):
+        """Portal wrapper for the shared metric_list formatter (see above)."""
+        from odoo.addons.dashboard_builder.services.metric_list_formatter import (
+            format_metric_list,
+        )
+        cfg = self._parse_config_json(self.metric_list_config)
+        if cfg is None:
+            return {'type': 'metric_list', 'error_code': 'BAD_CONFIG',
+                    'error': 'metric_list_config is not valid JSON'}
+        return format_metric_list(cols, rows, cfg,
+                                  icon_map=self._widget_icon_map())
 
     def _build_legend_list_data(self, cols, rows):
         """Rows of {label, value, pct} for a colored-dot list.

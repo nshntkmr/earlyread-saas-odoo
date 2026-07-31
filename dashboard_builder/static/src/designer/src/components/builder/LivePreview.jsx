@@ -8,6 +8,8 @@ import { previewUrl, libraryPlaceUrl } from '../../api/endpoints'
 import PageFilterPanel from './PageFilterPanel'
 import { serializeCompositeChildren } from './compositeUtils'
 import RecordHeaderPreview from './RecordHeaderPreview'
+// v5 — the SAME shared components the portal renders; preview == portal.
+import { AttributeGrid, MetricList } from '@posterra/grid-utils'
 
 /* ── Lightweight gauge preview renderers (inline, no external deps) ─── */
 
@@ -513,6 +515,8 @@ export default function LivePreview({
   const isMap = builderState.chartType === 'map'
     || builderState.chartType === 'albers_choropleth'
   const isRecordHeader = builderState.chartType === 'record_header'
+  const isAttributeGrid = builderState.chartType === 'attribute_grid'
+  const isMetricList = builderState.chartType === 'metric_list'
   // KPI label placement (opt-in) — read from live config so the preview reflects
   // above/below/hidden without a backend round-trip. Default keeps current order.
   const kpiLabelPos = builderState.visualFlags?.kpi_label_position || 'default'
@@ -782,8 +786,17 @@ export default function LivePreview({
         <RecordHeaderPreview data={previewData} />
       )}
 
+      {/* v5 previews — the EXACT portal components render the EXACT formatter
+          payload; body-only (this pane provides the card frame). */}
+      {isAttributeGrid && previewData && (
+        <div className="border rounded bg-white"><AttributeGrid data={previewData} /></div>
+      )}
+      {isMetricList && previewData && (
+        <div className="border rounded bg-white"><MetricList data={previewData} /></div>
+      )}
+
       {/* KPI / Gauge preview */}
-      {!isChart && !isTable && !isMemberFlow && !isComposite && !isKeyTakeaways && !isMap && !isRecordHeader && previewData && (
+      {!isChart && !isTable && !isMemberFlow && !isComposite && !isKeyTakeaways && !isMap && !isRecordHeader && !isAttributeGrid && !isMetricList && previewData && (
         <div className="wb-preview-kpi">
           <div className="wb-kpi-preview-card">
             {previewData.icon_class && (
@@ -893,6 +906,12 @@ export function buildPreviewPayload(state, pageFilterValues) {
     color_palette: state.appearance?.colorPalette || 'default',
     title: state.appearance?.title || '',
     visual_config: state.visualFlags || {},
+    // v5 configs — the API threads these (plus the icon map) into the SAME
+    // pure formatter the portal uses, so preview == portal.
+    ...(state.chartType === 'attribute_grid'
+      ? { attribute_grid_config: state.attributeGridConfig || {} } : {}),
+    ...(state.chartType === 'metric_list'
+      ? { metric_list_config: state.metricListConfig || {} } : {}),
   }
 
   // AI mode: use AI-generated SQL with same preview path as custom SQL

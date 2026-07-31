@@ -38,6 +38,8 @@ _CHART_TYPES = [
     ('key_takeaways', 'Key Takeaways'),
     ('kpi_strip', 'KPI Strip'),
     ('albers_choropleth', 'US Choropleth'),
+    ('attribute_grid', 'Attribute Grid'),
+    ('metric_list', 'Metric List'),
 ]
 
 _COL_SPAN_CHOICES = [
@@ -215,6 +217,10 @@ class DashboardWidgetTemplate(models.Model):
             'action_pass_value_as', 'drill_detail_columns',
             'action_url_template', 'column_link_config',
             'builder_config',
+            # v5 widget configs — omitting these here silently drops the
+            # config on template use (the constraint then rejects the
+            # widget), so they MUST stay in this list.
+            'attribute_grid_config', 'metric_list_config',
         ]
 
         for field in direct_fields:
@@ -276,6 +282,14 @@ class DashboardWidgetTemplate(models.Model):
         self.ensure_one()
         if self.template_mode != 'parameterized':
             raise ValueError('Template is not parameterized.')
+        if self.chart_type in ('attribute_grid', 'metric_list'):
+            # Initial-release contract: these types carry mandatory dedicated
+            # configs that slot substitution cannot synthesize — creating a
+            # widget here would immediately fail the config-required
+            # constraint. Explicit rejection beats a confusing save error.
+            raise ValueError(
+                'Parameterized templates do not support %s widgets. '
+                'Use the Dashboard Builder to create them.' % self.chart_type)
         if not schema_source_id:
             raise ValueError('schema_source_id is required.')
 

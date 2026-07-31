@@ -11,6 +11,8 @@ import FilterActionConfig from './FilterActionConfig'
 import LivePreview              from './LivePreview'
 import TableConfigurator        from './TableConfigurator'
 import SmartTableConfigurator   from './SmartTableConfigurator'
+import AttributeGridConfigurator from './AttributeGridConfigurator'
+import MetricListConfigurator   from './MetricListConfigurator'
 import AiSqlEditor        from './AiSqlEditor'
 import ConnectionPicker   from './ConnectionPicker'
 import WidgetControlsStep from './WidgetControlsStep'
@@ -40,6 +42,19 @@ function getSteps(chartType, scopeMode, masterRowConfig = null) {
       { key: 'chart_type', label: 'Chart Type' },
       { key: 'data_source', label: 'Data Source' },
       { key: 'columns', label: 'Configure Header' },
+      { key: 'preview', label: 'Preview & Save' },
+    ]
+  }
+
+  if (chartType === 'attribute_grid' || chartType === 'metric_list') {
+    // Custom-SQL-only for the initial release (like record_header): the
+    // dedicated configurator IS the columns step; preview & save closes.
+    return [
+      { key: 'chart_type', label: 'Chart Type' },
+      { key: 'data_source', label: 'Data Source' },
+      { key: 'configure_v5',
+        label: chartType === 'attribute_grid'
+          ? 'Configure Attribute Grid' : 'Configure Metric List' },
       { key: 'preview', label: 'Preview & Save' },
     ]
   }
@@ -255,6 +270,10 @@ const initialState = {
   // Table column config (AG Grid columnDefs — only for chart_type 'table')
   tableColumnConfig: [],
 
+  // v5 widget configs — raw (possibly partial) config objects; the shared
+  // grid-utils normalizer fills defaults everywhere they are consumed.
+  attributeGridConfig: null,
+  metricListConfig: null,
   // Smart Table config (chart_type='smart_table' — independent of AG Grid)
   // Schema documented in SmartTable.jsx + cellRecipes.jsx.
   smartTableConfig: {
@@ -470,6 +489,10 @@ function reducer(state, action) {
       // Whole-config replacement (no shallow merge). Configurator owns
       // the full object — partial updates are managed inside the form.
       return { ...state, smartTableConfig: action.value }
+    case 'SET_ATTRIBUTE_GRID_CONFIG':
+      return { ...state, attributeGridConfig: action.value }
+    case 'SET_METRIC_LIST_CONFIG':
+      return { ...state, metricListConfig: action.value }
     case 'SET_MASTER_ROW_CONFIG': {
       // Route based on Mode:
       //   - No scope, or Mode A (parameter): top-level (shared across options)
@@ -614,6 +637,22 @@ function reducer(state, action) {
               table: { ...initialState.smartTableConfig.table, ...(parsed.table || {}) },
             }
           } catch { return initialState.smartTableConfig }
+        })(),
+        // v5 widget configs — hydrate raw JSON; null when absent so the
+        // configurator seeds defaults.
+        attributeGridConfig: (() => {
+          try {
+            const raw = d.attribute_grid_config
+            if (!raw) return null
+            return typeof raw === 'string' ? JSON.parse(raw) : raw
+          } catch { return null }
+        })(),
+        metricListConfig: (() => {
+          try {
+            const raw = d.metric_list_config
+            if (!raw) return null
+            return typeof raw === 'string' ? JSON.parse(raw) : raw
+          } catch { return null }
         })(),
         // Composite children — library_detail returns `composite_children`
         // via the stash-first fallback chain (stash → instance records → []).
@@ -1184,6 +1223,23 @@ export default function WidgetBuilder({
             </>
           )}
 
+          {/* v5 configurators (attribute_grid / metric_list) */}
+          {currentStepKey === 'configure_v5' && (
+            state.chartType === 'attribute_grid' ? (
+              <AttributeGridConfigurator
+                config={state.attributeGridConfig}
+                onChange={cfg => dispatch({ type: 'SET_ATTRIBUTE_GRID_CONFIG', value: cfg })}
+                apiBase={apiBase}
+              />
+            ) : (
+              <MetricListConfigurator
+                config={state.metricListConfig}
+                onChange={cfg => dispatch({ type: 'SET_METRIC_LIST_CONFIG', value: cfg })}
+                apiBase={apiBase}
+              />
+            )
+          )}
+
           {/* Master Row Layout step (ranked_detail_list) */}
           {currentStepKey === 'master_row_layout' && (() => {
             // Mode B: show OptionTabBar so admin configures each option independently
@@ -1419,6 +1475,15 @@ function buildCreatePayload(state) {
       smart_table_config: state.smartTableConfig
         ? JSON.stringify(_cleanSmartTableConfig(state.smartTableConfig))
         : '',
+    } : {}),
+    // v5 widget configs (per-type; mixin constraint validates server-side)
+    ...(state.chartType === 'attribute_grid' ? {
+      attribute_grid_config: state.attributeGridConfig
+        ? JSON.stringify(state.attributeGridConfig) : '',
+    } : {}),
+    ...(state.chartType === 'metric_list' ? {
+      metric_list_config: state.metricListConfig
+        ? JSON.stringify(state.metricListConfig) : '',
     } : {}),
     // Composite children — serializeCompositeChildren is the ONE wire shape
     // shared with the preview payload (no preview-only fork).

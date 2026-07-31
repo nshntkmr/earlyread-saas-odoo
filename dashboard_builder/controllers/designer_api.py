@@ -446,6 +446,23 @@ class DesignerAPI(http.Controller):
         return _json_response(get_flags_for_chart(chart_type))
 
     @http.route(
+        '/dashboard/designer/api/icons',
+        type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
+    )
+    def icon_registry(self, **kw):
+        """Active icon-registry entries for the Designer's searchable picker.
+
+        Active only — archived icons stay renderable in saved widgets (the
+        runtime map includes them) but disappear from NEW selection here.
+        """
+        try:
+            _require_admin()
+        except ValueError as e:
+            return _json_error(403, str(e))
+        return _json_response(
+            request.env['dashboard.icon'].sudo().get_picker_entries())
+
+    @http.route(
         '/dashboard/designer/api/sources/<int:source_id>/relations',
         type='http', auth='user', methods=['GET'], csrf=False, readonly=True,
     )
@@ -876,6 +893,18 @@ class DesignerAPI(http.Controller):
             chart_type = body.get('chart_type', 'table')
             widget_config = body.get('widget_config', {})
             visual_config = widget_config.get('visual_config', {})
+            if chart_type in ('attribute_grid', 'metric_list'):
+                # Thread the v5 config + resolved icon registry so the pure
+                # formatter renders the EXACT portal payload in preview.
+                cfg_key = ('attribute_grid_config'
+                           if chart_type == 'attribute_grid'
+                           else 'metric_list_config')
+                widget_config = dict(widget_config)
+                widget_config[cfg_key] = (
+                    body.get(cfg_key) or widget_config.get(cfg_key) or {})
+                widget_config['_icon_map'] = (
+                    request.env['dashboard.icon'].sudo().get_icon_map()
+                    if 'dashboard.icon' in request.env else {})
             formatted = format_preview(chart_type, columns, rows_list, widget_config, visual_config)
 
             return _json_response({
@@ -1253,6 +1282,10 @@ class DesignerAPI(http.Controller):
             'ranked_detail_config': defn.ranked_detail_config or '',
             # Smart Table v1 config (chart_type='smart_table')
             'smart_table_config': defn.smart_table_config or '',
+            # v5 widget configs — absent here = blank edit forms on reload
+            # (the exact bug the ranked configs note above documents).
+            'attribute_grid_config': defn.attribute_grid_config or '',
+            'metric_list_config': defn.metric_list_config or '',
             # Scope options from first widget instance
             'scope_options': self._get_scope_options_for_definition(defn),
             # Composite children — stash-first fallback chain
@@ -1434,6 +1467,13 @@ class DesignerAPI(http.Controller):
             if 'smart_table_config' in body:
                 stc = body['smart_table_config']
                 def_vals['smart_table_config'] = stc if isinstance(stc, str) else json.dumps(stc) if stc else ''
+            # v5 widget configs (accept dict or pre-serialized string; the
+            # mixin constraint validates on write).
+            for _cfg_key in ('attribute_grid_config', 'metric_list_config'):
+                if _cfg_key in body:
+                    _cv = body[_cfg_key]
+                    def_vals[_cfg_key] = _cv if isinstance(_cv, str) \
+                        else json.dumps(_cv) if _cv else ''
 
             # App scoping (field added by posterra_portal via _inherit)
             if body.get('app_ids') and 'app_ids' in request.env['dashboard.widget.definition']._fields:
@@ -1650,6 +1690,13 @@ class DesignerAPI(http.Controller):
             stc = body['smart_table_config']
             update_vals['smart_table_config'] = stc if isinstance(stc, str) else json.dumps(stc) if stc else ''
 
+        # v5 widget configs
+        for _cfg_key in ('attribute_grid_config', 'metric_list_config'):
+            if _cfg_key in body:
+                _cv = body[_cfg_key]
+                update_vals[_cfg_key] = _cv if isinstance(_cv, str) \
+                    else json.dumps(_cv) if _cv else ''
+
         if 'app_ids' in body and 'app_ids' in request.env['dashboard.widget.definition']._fields:
             update_vals['app_ids'] = [(6, 0, body['app_ids'] or [])]
 
@@ -1750,6 +1797,13 @@ class DesignerAPI(http.Controller):
                     # Smart Table v1 config sync
                     if defn.chart_type == 'smart_table' and hasattr(defn, 'smart_table_config'):
                         sync_vals['smart_table_config'] = defn.smart_table_config or ''
+                    # v5 widget config sync — per-type, like smart_table.
+                    # Placement fields (name/page/tab/render_region/sequence/
+                    # width/height) stay instance-preserved as documented above.
+                    if defn.chart_type == 'attribute_grid':
+                        sync_vals['attribute_grid_config'] = defn.attribute_grid_config or ''
+                    if defn.chart_type == 'metric_list':
+                        sync_vals['metric_list_config'] = defn.metric_list_config or ''
                     instances.write(sync_vals)
                     _logger.info(
                         'Synced definition %s (%s) → %d instance(s)',
@@ -2126,6 +2180,8 @@ class DesignerAPI(http.Controller):
                 'detail_drawer_config': defn.detail_drawer_config or '',
                 'ranked_master_config': (defn.ranked_master_config or '') if hasattr(defn, 'ranked_master_config') else '',
                 'ranked_detail_config': (defn.ranked_detail_config or '') if hasattr(defn, 'ranked_detail_config') else '',
+                'attribute_grid_config': defn.attribute_grid_config or '',
+                'metric_list_config': defn.metric_list_config or '',
                 'builder_config': defn.builder_config or '',
                 'query_type': 'sql',
                 'query_sql': defn.get_effective_sql() or '',

@@ -1,0 +1,985 @@
+[
+  {
+    "canonical": {
+      "columns": 2,
+      "data_shape": "single_record",
+      "default_layout": "stacked",
+      "default_style_key": "",
+      "density": "comfortable",
+      "empty_text": "No information available",
+      "fields": [],
+      "leading_visual": {
+        "background": "#ecfdf5",
+        "foreground": "#059669",
+        "icon_key": "",
+        "mode": "none",
+        "source_column": ""
+      },
+      "row_default_format": {
+        "decimals": 0,
+        "display_multiplier": 1,
+        "null_text": "\u2014",
+        "prefix": "",
+        "suffix": "",
+        "type": "text"
+      },
+      "row_icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "row_link": {
+        "new_tab": false,
+        "template": "",
+        "type": "none"
+      },
+      "row_mapping": {
+        "column_span_column": "",
+        "column_start_column": "",
+        "decimals_column": "",
+        "display_multiplier_column": "",
+        "divider_before_column": "",
+        "emphasis_column": "",
+        "format_type_column": "",
+        "icon_key_column": "",
+        "is_visible_column": "",
+        "item_key_column": "",
+        "label_column": "",
+        "layout_column": "",
+        "link_type_column": "",
+        "link_value_column": "",
+        "null_text_column": "",
+        "prefix_column": "",
+        "row_order_column": "",
+        "secondary_value_column": "",
+        "style_key_column": "",
+        "suffix_column": "",
+        "value_column": ""
+      },
+      "styles": {
+        "danger": {
+          "background": "#fee2e2",
+          "foreground": "#dc2626"
+        },
+        "info": {
+          "background": "#e7f1fb",
+          "foreground": "#087ad8"
+        },
+        "success": {
+          "background": "#ecfdf5",
+          "foreground": "#059669"
+        },
+        "warning": {
+          "background": "#fef3c7",
+          "foreground": "#d97706"
+        }
+      },
+      "version": 1
+    },
+    "input": {},
+    "name": "ag_empty",
+    "widget": "attribute_grid"
+  },
+  {
+    "canonical": {
+      "columns": 2,
+      "data_shape": "single_record",
+      "default_layout": "stacked",
+      "default_style_key": "",
+      "density": "comfortable",
+      "empty_text": "No information available",
+      "fields": [],
+      "leading_visual": {
+        "background": "#ecfdf5",
+        "foreground": "#059669",
+        "icon_key": "",
+        "mode": "none",
+        "source_column": ""
+      },
+      "row_default_format": {
+        "decimals": 0,
+        "display_multiplier": 1,
+        "null_text": "\u2014",
+        "prefix": "",
+        "suffix": "",
+        "type": "text"
+      },
+      "row_icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "row_link": {
+        "new_tab": false,
+        "template": "",
+        "type": "none"
+      },
+      "row_mapping": {
+        "column_span_column": "",
+        "column_start_column": "",
+        "decimals_column": "",
+        "display_multiplier_column": "",
+        "divider_before_column": "",
+        "emphasis_column": "",
+        "format_type_column": "",
+        "icon_key_column": "",
+        "is_visible_column": "",
+        "item_key_column": "",
+        "label_column": "",
+        "layout_column": "",
+        "link_type_column": "",
+        "link_value_column": "",
+        "null_text_column": "",
+        "prefix_column": "",
+        "row_order_column": "",
+        "secondary_value_column": "",
+        "style_key_column": "",
+        "suffix_column": "",
+        "value_column": ""
+      },
+      "styles": {
+        "danger": {
+          "background": "#fee2e2",
+          "foreground": "#dc2626"
+        },
+        "info": {
+          "background": "#e7f1fb",
+          "foreground": "#087ad8"
+        },
+        "success": {
+          "background": "#ecfdf5",
+          "foreground": "#059669"
+        },
+        "warning": {
+          "background": "#fef3c7",
+          "foreground": "#d97706"
+        }
+      },
+      "version": 1
+    },
+    "input": {
+      "version": 1
+    },
+    "name": "ag_version_only",
+    "widget": "attribute_grid"
+  },
+  {
+    "canonical": {
+      "columns": 3,
+      "data_shape": "single_record",
+      "default_layout": "stacked",
+      "default_style_key": "info",
+      "density": "compact",
+      "empty_text": "No information available",
+      "fields": [
+        {
+          "divider_before": true,
+          "emphasis": "strong",
+          "format": {
+            "decimals": 0,
+            "display_multiplier": 1,
+            "null_text": "\u2014",
+            "prefix": "",
+            "suffix": "",
+            "type": "date"
+          },
+          "icon": {
+            "allowed_keys": [],
+            "column": "",
+            "fallback_key": "",
+            "key": "clock",
+            "mode": "static"
+          },
+          "key": "timeline",
+          "label": "Timeline",
+          "layout": "inline",
+          "link": {
+            "new_tab": true,
+            "template": "/member?eid={EID}",
+            "type": "internal"
+          },
+          "span": 2,
+          "style_key": "brand",
+          "value_column": "TL"
+        }
+      ],
+      "leading_visual": {
+        "background": "#ecfdf5",
+        "foreground": "#059669",
+        "icon_key": "",
+        "mode": "initials",
+        "source_column": "NAME"
+      },
+      "row_default_format": {
+        "decimals": 0,
+        "display_multiplier": 1,
+        "null_text": "\u2014",
+        "prefix": "",
+        "suffix": "",
+        "type": "text"
+      },
+      "row_icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "row_link": {
+        "new_tab": false,
+        "template": "",
+        "type": "none"
+      },
+      "row_mapping": {
+        "column_span_column": "",
+        "column_start_column": "",
+        "decimals_column": "",
+        "display_multiplier_column": "",
+        "divider_before_column": "",
+        "emphasis_column": "",
+        "format_type_column": "",
+        "icon_key_column": "",
+        "is_visible_column": "",
+        "item_key_column": "",
+        "label_column": "",
+        "layout_column": "",
+        "link_type_column": "",
+        "link_value_column": "",
+        "null_text_column": "",
+        "prefix_column": "",
+        "row_order_column": "",
+        "secondary_value_column": "",
+        "style_key_column": "",
+        "suffix_column": "",
+        "value_column": ""
+      },
+      "styles": {
+        "brand": {
+          "background": "#abcdef",
+          "foreground": "#123456"
+        },
+        "danger": {
+          "background": "#fee2e2",
+          "foreground": "#dc2626"
+        },
+        "info": {
+          "background": "#e7f1fb",
+          "foreground": "#087ad8"
+        },
+        "success": {
+          "background": "#ecfdf5",
+          "foreground": "#059669"
+        },
+        "warning": {
+          "background": "#fef3c7",
+          "foreground": "#d97706"
+        }
+      },
+      "version": 1
+    },
+    "input": {
+      "columns": 3,
+      "default_style_key": "info",
+      "density": "compact",
+      "fields": [
+        {
+          "divider_before": true,
+          "emphasis": "strong",
+          "format": {
+            "type": "date"
+          },
+          "icon": {
+            "key": "clock",
+            "mode": "static"
+          },
+          "key": "timeline",
+          "label": "Timeline",
+          "layout": "inline",
+          "link": {
+            "new_tab": true,
+            "template": "/member?eid={EID}",
+            "type": "internal"
+          },
+          "span": 2,
+          "style_key": "brand",
+          "value_column": "TL"
+        }
+      ],
+      "leading_visual": {
+        "mode": "initials",
+        "source_column": "NAME"
+      },
+      "styles": {
+        "brand": {
+          "background": "#abcdef",
+          "foreground": "#123456"
+        }
+      },
+      "version": 1
+    },
+    "name": "ag_single_record_full_field",
+    "widget": "attribute_grid"
+  },
+  {
+    "canonical": {
+      "columns": 2,
+      "data_shape": "attribute_rows",
+      "default_layout": "stacked",
+      "default_style_key": "",
+      "density": "comfortable",
+      "empty_text": "No information available",
+      "fields": [],
+      "leading_visual": {
+        "background": "#ecfdf5",
+        "foreground": "#059669",
+        "icon_key": "",
+        "mode": "none",
+        "source_column": ""
+      },
+      "row_default_format": {
+        "decimals": 0,
+        "display_multiplier": 1,
+        "null_text": "n/a",
+        "prefix": "",
+        "suffix": "",
+        "type": "text"
+      },
+      "row_icon": {
+        "allowed_keys": [
+          "clock",
+          "users"
+        ],
+        "fallback_key": "info-circle"
+      },
+      "row_link": {
+        "new_tab": false,
+        "template": "{link_value}",
+        "type": "tel"
+      },
+      "row_mapping": {
+        "column_span_column": "",
+        "column_start_column": "",
+        "decimals_column": "",
+        "display_multiplier_column": "",
+        "divider_before_column": "",
+        "emphasis_column": "",
+        "format_type_column": "",
+        "icon_key_column": "IC",
+        "is_visible_column": "",
+        "item_key_column": "",
+        "label_column": "LABEL",
+        "layout_column": "",
+        "link_type_column": "",
+        "link_value_column": "",
+        "null_text_column": "",
+        "prefix_column": "",
+        "row_order_column": "",
+        "secondary_value_column": "",
+        "style_key_column": "",
+        "suffix_column": "",
+        "value_column": "VALUE"
+      },
+      "styles": {
+        "danger": {
+          "background": "#fee2e2",
+          "foreground": "#dc2626"
+        },
+        "info": {
+          "background": "#e7f1fb",
+          "foreground": "#087ad8"
+        },
+        "success": {
+          "background": "#ecfdf5",
+          "foreground": "#059669"
+        },
+        "warning": {
+          "background": "#fef3c7",
+          "foreground": "#d97706"
+        }
+      },
+      "version": 1
+    },
+    "input": {
+      "columns": 2,
+      "data_shape": "attribute_rows",
+      "row_default_format": {
+        "null_text": "n/a"
+      },
+      "row_icon": {
+        "allowed_keys": [
+          "clock",
+          "users"
+        ],
+        "fallback_key": "info-circle"
+      },
+      "row_link": {
+        "template": "{link_value}",
+        "type": "tel"
+      },
+      "row_mapping": {
+        "icon_key_column": "IC",
+        "label_column": "LABEL",
+        "value_column": "VALUE"
+      },
+      "version": 1
+    },
+    "name": "ag_attribute_rows",
+    "widget": "attribute_grid"
+  },
+  {
+    "canonical": {
+      "columns": 8,
+      "data_shape": "single_record",
+      "default_layout": "stacked",
+      "default_style_key": "",
+      "density": "comfortable",
+      "empty_text": "No information available",
+      "fields": [
+        {
+          "divider_before": false,
+          "emphasis": "normal",
+          "format": {
+            "decimals": 0,
+            "display_multiplier": 1,
+            "null_text": "\u2014",
+            "prefix": "",
+            "suffix": "",
+            "type": "text"
+          },
+          "icon": {
+            "allowed_keys": [],
+            "column": "",
+            "fallback_key": "",
+            "key": "",
+            "mode": "none"
+          },
+          "key": "a",
+          "label": "A",
+          "layout": "inherit",
+          "link": {
+            "new_tab": false,
+            "template": "",
+            "type": "none"
+          },
+          "span": 1,
+          "style_key": "",
+          "value_column": "X"
+        }
+      ],
+      "leading_visual": {
+        "background": "#ecfdf5",
+        "foreground": "#059669",
+        "icon_key": "",
+        "mode": "none",
+        "source_column": ""
+      },
+      "row_default_format": {
+        "decimals": 0,
+        "display_multiplier": 1,
+        "null_text": "\u2014",
+        "prefix": "",
+        "suffix": "",
+        "type": "text"
+      },
+      "row_icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "row_link": {
+        "new_tab": false,
+        "template": "",
+        "type": "none"
+      },
+      "row_mapping": {
+        "column_span_column": "",
+        "column_start_column": "",
+        "decimals_column": "",
+        "display_multiplier_column": "",
+        "divider_before_column": "",
+        "emphasis_column": "",
+        "format_type_column": "",
+        "icon_key_column": "",
+        "is_visible_column": "",
+        "item_key_column": "",
+        "label_column": "",
+        "layout_column": "",
+        "link_type_column": "",
+        "link_value_column": "",
+        "null_text_column": "",
+        "prefix_column": "",
+        "row_order_column": "",
+        "secondary_value_column": "",
+        "style_key_column": "",
+        "suffix_column": "",
+        "value_column": ""
+      },
+      "styles": {
+        "danger": {
+          "background": "#fee2e2",
+          "foreground": "#dc2626"
+        },
+        "info": {
+          "background": "#e7f1fb",
+          "foreground": "#087ad8"
+        },
+        "success": {
+          "background": "#ecfdf5",
+          "foreground": "#059669"
+        },
+        "warning": {
+          "background": "#fef3c7",
+          "foreground": "#d97706"
+        }
+      },
+      "version": 1
+    },
+    "input": {
+      "bogus": true,
+      "columns": 8,
+      "fields": [
+        {
+          "key": "a",
+          "label": "A",
+          "mystery": 1,
+          "value_column": "X"
+        }
+      ],
+      "version": 1
+    },
+    "name": "ag_unknown_keys_dropped",
+    "widget": "attribute_grid"
+  },
+  {
+    "canonical": {
+      "default_direction": "neutral",
+      "detail_label": "",
+      "empty_text": "No metrics available",
+      "icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "legend": {
+        "include_threshold_text": true,
+        "mode": "auto",
+        "position": "bottom"
+      },
+      "mapping": {
+        "decimals_column": "",
+        "detail_column": "",
+        "direction_column": "",
+        "display_multiplier_column": "",
+        "format_type_column": "",
+        "icon_column": "",
+        "key_column": "",
+        "label_column": "",
+        "prefix_column": "",
+        "scale_max_column": "",
+        "scale_min_column": "",
+        "status_column": "",
+        "suffix_column": "",
+        "value_column": ""
+      },
+      "max_items": 20,
+      "metric_settings": [],
+      "progress": {
+        "height": 10,
+        "show": true,
+        "track_color": "#eef2f7"
+      },
+      "scale": {
+        "clamp": true,
+        "max": 1,
+        "min": 0
+      },
+      "status_rules": [],
+      "value_format": {
+        "decimals": 3,
+        "display_multiplier": 1,
+        "prefix": "",
+        "suffix": "",
+        "type": "decimal"
+      },
+      "version": 1
+    },
+    "input": {},
+    "name": "ml_empty",
+    "widget": "metric_list"
+  },
+  {
+    "canonical": {
+      "default_direction": "neutral",
+      "detail_label": "",
+      "empty_text": "No metrics available",
+      "icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "legend": {
+        "include_threshold_text": true,
+        "mode": "auto",
+        "position": "bottom"
+      },
+      "mapping": {
+        "decimals_column": "",
+        "detail_column": "",
+        "direction_column": "",
+        "display_multiplier_column": "",
+        "format_type_column": "",
+        "icon_column": "",
+        "key_column": "",
+        "label_column": "METRIC",
+        "prefix_column": "",
+        "scale_max_column": "",
+        "scale_min_column": "",
+        "status_column": "",
+        "suffix_column": "",
+        "value_column": "VALUE"
+      },
+      "max_items": 20,
+      "metric_settings": [],
+      "progress": {
+        "height": 10,
+        "show": true,
+        "track_color": "#eef2f7"
+      },
+      "scale": {
+        "clamp": true,
+        "max": 1,
+        "min": 0
+      },
+      "status_rules": [],
+      "value_format": {
+        "decimals": 3,
+        "display_multiplier": 1,
+        "prefix": "",
+        "suffix": "",
+        "type": "decimal"
+      },
+      "version": 1
+    },
+    "input": {
+      "mapping": {
+        "label_column": "METRIC",
+        "value_column": "VALUE"
+      },
+      "version": 1
+    },
+    "name": "ml_minimal_mapping",
+    "widget": "metric_list"
+  },
+  {
+    "canonical": {
+      "default_direction": "neutral",
+      "detail_label": "Drivers",
+      "empty_text": "No metrics available",
+      "icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "legend": {
+        "include_threshold_text": true,
+        "mode": "semantic",
+        "position": "bottom"
+      },
+      "mapping": {
+        "decimals_column": "",
+        "detail_column": "D",
+        "direction_column": "DIR",
+        "display_multiplier_column": "",
+        "format_type_column": "",
+        "icon_column": "",
+        "key_column": "K",
+        "label_column": "L",
+        "prefix_column": "",
+        "scale_max_column": "SMAX",
+        "scale_min_column": "SMIN",
+        "status_column": "",
+        "suffix_column": "",
+        "value_column": "V"
+      },
+      "max_items": 20,
+      "metric_settings": [
+        {
+          "direction": "lower_is_better",
+          "metric_key": "unplanned_admission"
+        },
+        {
+          "direction": "lower_is_better",
+          "metric_key": "high_cost"
+        }
+      ],
+      "progress": {
+        "height": 10,
+        "show": true,
+        "track_color": "#eef2f7"
+      },
+      "scale": {
+        "clamp": true,
+        "max": 1,
+        "min": 0
+      },
+      "status_rules": [
+        {
+          "applies_to": [
+            "sepsis"
+          ],
+          "background": "#fef3c7",
+          "color": "#d97706",
+          "key": "sepsis_amber",
+          "label": "Moderate",
+          "match_values": [],
+          "range": {
+            "max": 0.5,
+            "max_inclusive": false,
+            "min": null,
+            "min_inclusive": true
+          },
+          "show_in_legend": true
+        },
+        {
+          "applies_to": [
+            "high_cost"
+          ],
+          "background": "#fee2e2",
+          "color": "#dc2626",
+          "key": "hc_red",
+          "label": "Elevated",
+          "match_values": [],
+          "range": {
+            "max": null,
+            "max_inclusive": false,
+            "min": 5,
+            "min_inclusive": false
+          },
+          "show_in_legend": true
+        },
+        {
+          "applies_to": [],
+          "background": "#dcfce7",
+          "color": "#16a34a",
+          "key": "named",
+          "label": "Low",
+          "match_values": [
+            "Low",
+            "low risk"
+          ],
+          "range": null,
+          "show_in_legend": true
+        }
+      ],
+      "value_format": {
+        "decimals": 3,
+        "display_multiplier": 1,
+        "prefix": "",
+        "suffix": "",
+        "type": "decimal"
+      },
+      "version": 1
+    },
+    "input": {
+      "default_direction": "neutral",
+      "detail_label": "Drivers",
+      "legend": {
+        "mode": "semantic"
+      },
+      "mapping": {
+        "detail_column": "D",
+        "direction_column": "DIR",
+        "key_column": "K",
+        "label_column": "L",
+        "scale_max_column": "SMAX",
+        "scale_min_column": "SMIN",
+        "value_column": "V"
+      },
+      "metric_settings": [
+        {
+          "direction": "lower_is_better",
+          "metric_key": "unplanned_admission"
+        },
+        {
+          "direction": "lower_is_better",
+          "metric_key": "high_cost"
+        }
+      ],
+      "status_rules": [
+        {
+          "applies_to": [
+            "sepsis"
+          ],
+          "background": "#fef3c7",
+          "color": "#d97706",
+          "key": "sepsis_amber",
+          "label": "Moderate",
+          "match_values": [],
+          "range": {
+            "max": 0.5
+          }
+        },
+        {
+          "applies_to": [
+            "high_cost"
+          ],
+          "background": "#fee2e2",
+          "color": "#dc2626",
+          "key": "hc_red",
+          "label": "Elevated",
+          "range": {
+            "max": null,
+            "min": 5,
+            "min_inclusive": false
+          }
+        },
+        {
+          "background": "#dcfce7",
+          "color": "#16a34a",
+          "key": "named",
+          "label": "Low",
+          "match_values": [
+            "Low",
+            "low risk"
+          ],
+          "range": null
+        }
+      ],
+      "value_format": {
+        "decimals": 3
+      },
+      "version": 1
+    },
+    "name": "ml_risk_acuity_style",
+    "widget": "metric_list"
+  },
+  {
+    "canonical": {
+      "default_direction": "neutral",
+      "detail_label": "",
+      "empty_text": "No metrics available",
+      "icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "legend": {
+        "include_threshold_text": true,
+        "mode": "auto",
+        "position": "bottom"
+      },
+      "mapping": {
+        "decimals_column": "DEC",
+        "detail_column": "",
+        "direction_column": "",
+        "display_multiplier_column": "MULT",
+        "format_type_column": "FT",
+        "icon_column": "",
+        "key_column": "",
+        "label_column": "M",
+        "prefix_column": "PRE",
+        "scale_max_column": "",
+        "scale_min_column": "",
+        "status_column": "",
+        "suffix_column": "SUF",
+        "value_column": "V"
+      },
+      "max_items": 50,
+      "metric_settings": [],
+      "progress": {
+        "height": 8,
+        "show": true,
+        "track_color": "#eef2f7"
+      },
+      "scale": {
+        "clamp": true,
+        "max": 1,
+        "min": 0
+      },
+      "status_rules": [],
+      "value_format": {
+        "decimals": 3,
+        "display_multiplier": 1,
+        "prefix": "",
+        "suffix": "",
+        "type": "decimal"
+      },
+      "version": 1
+    },
+    "input": {
+      "mapping": {
+        "decimals_column": "DEC",
+        "display_multiplier_column": "MULT",
+        "format_type_column": "FT",
+        "label_column": "M",
+        "prefix_column": "PRE",
+        "suffix_column": "SUF",
+        "value_column": "V"
+      },
+      "max_items": 50,
+      "progress": {
+        "height": 8
+      },
+      "version": 1
+    },
+    "name": "ml_per_row_formatting",
+    "widget": "metric_list"
+  },
+  {
+    "canonical": {
+      "default_direction": "neutral",
+      "detail_label": "",
+      "empty_text": "No metrics available",
+      "icon": {
+        "allowed_keys": [],
+        "fallback_key": ""
+      },
+      "legend": {
+        "include_threshold_text": true,
+        "mode": "auto",
+        "position": "bottom"
+      },
+      "mapping": {
+        "decimals_column": "",
+        "detail_column": "",
+        "direction_column": "",
+        "display_multiplier_column": "",
+        "format_type_column": "",
+        "icon_column": "",
+        "key_column": "",
+        "label_column": "a",
+        "prefix_column": "",
+        "scale_max_column": "",
+        "scale_min_column": "",
+        "status_column": "",
+        "suffix_column": "",
+        "value_column": "b"
+      },
+      "max_items": 20,
+      "metric_settings": [],
+      "progress": {
+        "height": 10,
+        "show": true,
+        "track_color": "#eef2f7"
+      },
+      "scale": {
+        "clamp": true,
+        "max": 1,
+        "min": 0
+      },
+      "status_rules": [],
+      "value_format": {
+        "decimals": 3,
+        "display_multiplier": 1,
+        "prefix": "",
+        "suffix": "",
+        "type": "decimal"
+      },
+      "version": 1
+    },
+    "input": {
+      "legacy_junk": [
+        1,
+        2
+      ],
+      "mapping": {
+        "ghost_col": "x",
+        "label_column": "a",
+        "value_column": "b"
+      },
+      "version": 1
+    },
+    "name": "ml_unknown_keys_dropped",
+    "widget": "metric_list"
+  }
+]

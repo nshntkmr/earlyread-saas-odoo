@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Icon registry seed. noupdate="1": upgrades never clobber admin edits
+         (labels, categories, archival). Keys are immutable by model contract.
+         FA4 classes — the portal bundle ships Font Awesome 4. -->
+    <data noupdate="1">
+
+        <record id="icon_clock" model="dashboard.icon">
+            <field name="key">clock</field>
+            <field name="label">Clock / Timeline</field>
+            <field name="fa_class">fa-clock-o</field>
+            <field name="category">general</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="icon_users" model="dashboard.icon">
+            <field name="key">users</field>
+            <field name="label">Users / Cohort</field>
+            <field name="fa_class">fa-users</field>
+            <field name="category">people</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="icon_user" model="dashboard.icon">
+            <field name="key">user</field>
+            <field name="label">Person</field>
+            <field name="fa_class">fa-user</field>
+            <field name="category">people</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="icon_user_md" model="dashboard.icon">
+            <field name="key">user-md</field>
+            <field name="label">Practitioner</field>
+            <field name="fa_class">fa-user-md</field>
+            <field name="category">people</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="icon_hospital" model="dashboard.icon">
+            <field name="key">hospital</field>
+            <field name="label">Facility / Clinic</field>
+            <field name="fa_class">fa-hospital-o</field>
+            <field name="category">places</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="icon_map_marker" model="dashboard.icon">
+            <field name="key">map-marker</field>
+            <field name="label">Location / Address</field>
+            <field name="fa_class">fa-map-marker</field>
+            <field name="category">places</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="icon_globe" model="dashboard.icon">
+            <field name="key">globe</field>
+            <field name="label">Region / Market</field>
+            <field name="fa_class">fa-globe</field>
+            <field name="category">places</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="icon_file_text" model="dashboard.icon">
+            <field name="key">file-text</field>
+            <field name="label">Document / Contract</field>
+            <field name="fa_class">fa-file-text-o</field>
+            <field name="category">general</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="icon_phone" model="dashboard.icon">
+            <field name="key">phone</field>
+            <field name="label">Telephone</field>
+            <field name="fa_class">fa-phone</field>
+            <field name="category">general</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="icon_info_circle" model="dashboard.icon">
+            <field name="key">info-circle</field>
+            <field name="label">Information</field>
+            <field name="fa_class">fa-info-circle</field>
+            <field name="category">general</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="icon_warning" model="dashboard.icon">
+            <field name="key">warning</field>
+            <field name="label">Warning</field>
+            <field name="fa_class">fa-exclamation-triangle</field>
+            <field name="category">status</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="icon_check_circle" model="dashboard.icon">
+            <field name="key">check-circle</field>
+            <field name="label">Success / Check</field>
+            <field name="fa_class">fa-check-circle</field>
+            <field name="category">status</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="icon_heartbeat" model="dashboard.icon">
+            <field name="key">heartbeat</field>
+            <field name="label">Vitals / Activity</field>
+            <field name="fa_class">fa-heartbeat</field>
+            <field name="category">status</field>
+            <field name="sequence">30</field>
+        </record>
+
+    </data>
+</odoo>

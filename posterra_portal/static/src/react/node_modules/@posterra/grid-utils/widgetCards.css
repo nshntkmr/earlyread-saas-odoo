@@ -1,0 +1,85 @@
+/* Shared component styles for AttributeGrid (.pvag-*) + MetricList (.pvml-*).
+   Lives IN the shared package and is imported by the components themselves,
+   so BOTH bundles (portal + designer) ship identical styling — the designer
+   has no portal Tailwind, so nothing here may depend on portal-only classes. */
+
+/* ── AttributeGrid ─────────────────────────────────────────────────────── */
+.pvag-host { padding: 12px 16px 16px; }
+.pvag-host--compact { padding: 8px 12px 12px; }
+.pvag-empty, .pvml-empty { padding: 16px; font-size: 13px; color: #6b7280; }
+
+.pvag-leading {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 600; margin-bottom: 12px;
+}
+.pvag-leading-initials { letter-spacing: 0.5px; }
+
+.pvag-grid { display: grid; column-gap: 20px; row-gap: 14px; }
+.pvag-host--compact .pvag-grid { column-gap: 14px; row-gap: 8px; }
+
+.pvag-divider { border-top: 1px solid #eef2f7; margin: 2px 0; }
+
+.pvag-item { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.pvag-item--inline { align-items: center; }
+.pvag-item--inline .pvag-item-body { display: flex; align-items: baseline; gap: 8px; }
+
+.pvag-icon {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #087ad8; background: #e7f1fb;
+}
+
+.pvag-item-body { min-width: 0; }
+.pvag-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #8a94a6; margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pvag-value {
+  font-size: 14px; color: #1f2937; overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.pvag-value--strong { font-weight: 700; }
+.pvag-value--null { color: #9ca3af; }
+a.pvag-value { color: #087ad8; }
+a.pvag-value:hover { text-decoration: underline; }
+.pvag-secondary { font-size: 12px; color: #6b7280; }
+
+/* ── MetricList ────────────────────────────────────────────────────────── */
+.pvml-host { padding: 6px 16px 12px; }
+.pvml-item { padding: 10px 0; }
+.pvml-item + .pvml-item { border-top: 1px solid #f1f5f9; }
+
+.pvml-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 6px;
+}
+.pvml-label { font-size: 14px; font-weight: 700; color: #111827; min-width: 0; }
+.pvml-item-icon { margin-right: 6px; color: #6b7280; }
+.pvml-right { display: inline-flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.pvml-value { font-size: 16px; font-weight: 800; }
+
+.pvml-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; border-radius: 999px;
+  padding: 2px 10px; white-space: nowrap;
+}
+.pvml-badge-dot {
+  width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+  flex: 0 0 auto;
+}
+
+.pvml-track { width: 100%; border-radius: 999px; overflow: hidden; }
+.pvml-fill { height: 100%; border-radius: 999px; transition: width .25s ease; }
+
+.pvml-oor { font-size: 11px; margin-top: 4px; color: #9ca3af; }
+.pvml-detail { font-size: 12px; margin-top: 6px; color: #64748b; overflow-wrap: anywhere; }
+.pvml-detail-label { font-weight: 700; color: #475569; }
+
+.pvml-thresholds, .pvml-legend {
+  display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: #6b7280;
+}
+.pvml-thresholds { margin-top: 6px; }
+.pvml-legend { border-top: 1px solid #f1f5f9; padding-top: 10px; margin-top: 4px; }
+.pvml-legend-entry { display: inline-flex; align-items: center; gap: 6px; }

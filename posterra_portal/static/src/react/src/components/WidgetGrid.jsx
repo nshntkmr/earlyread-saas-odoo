@@ -13,7 +13,8 @@ import MemberFlowTimeline from './widgets/MemberFlowTimeline'
 import RecordHeader from './widgets/RecordHeader'
 // SmartTable lives in the shared @posterra/grid-utils package so the
 // designer's preview pane and the portal both render via the same code.
-import { SmartTable }  from '@posterra/grid-utils'
+// AttributeGrid + MetricList (v5) live there for the same reason.
+import { SmartTable, AttributeGrid, MetricList } from '@posterra/grid-utils'
 // Composite widget — renders 1..N children inside one card
 import CompositeWidget from './widgets/CompositeWidget'
 // Shared child registry — handles bar/line/pie/donut/kpi/table/gauge/etc.
@@ -66,6 +67,8 @@ function resolveWidget(chartType) {
     case 'key_takeaways':      return KeyTakeaways      // multi-row narrative list
     case 'sankey_member_flow': return MemberFlowTimeline
     case 'record_header':      return RecordHeader  // top-level only (not a composite child this phase)
+    case 'attribute_grid':     return AttributeGrid // v5 — body-only, shared with designer preview
+    case 'metric_list':        return MetricList    // v5 — body-only, shared with designer preview
   }
   // Everything else (bar/line/pie/donut/radar/scatter/heatmap/sankey/gauge/
   // gauge_kpi/kpi/status_kpi/kpi_strip/table/legend_list/text_note) resolves

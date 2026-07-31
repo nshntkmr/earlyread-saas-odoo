@@ -366,6 +366,18 @@ class BuilderAPI(http.Controller):
             # this, Sankey + other chart_types whose flags live in visual_config
             # would render with defaults only.
             visual_config = widget_config.get('visual_config', {})
+            if chart_type in ('attribute_grid', 'metric_list'):
+                # Thread v5 config + resolved icon registry (mirrors
+                # designer_api.preview) so preview == portal payload.
+                _cfg_key = ('attribute_grid_config'
+                            if chart_type == 'attribute_grid'
+                            else 'metric_list_config')
+                widget_config = dict(widget_config)
+                widget_config[_cfg_key] = (
+                    body.get(_cfg_key) or widget_config.get(_cfg_key) or {})
+                widget_config['_icon_map'] = (
+                    request.env['dashboard.icon'].sudo().get_icon_map()
+                    if 'dashboard.icon' in request.env else {})
             formatted = format_preview(chart_type, columns, rows_list,
                                        widget_config, visual_config)
 
@@ -435,6 +447,16 @@ class BuilderAPI(http.Controller):
                 'search_enabled': body.get('search_enabled', False),
                 'search_placeholder': body.get('search_placeholder', 'Search...'),
             }
+
+            # v5 widget configs (attribute_grid / metric_list) — legacy
+            # builder route carries them too; a miss here silently drops the
+            # config and the mandatory-config constraint then rejects the
+            # widget.
+            for _cfg_key in ('attribute_grid_config', 'metric_list_config'):
+                if _cfg_key in body:
+                    _cv = body[_cfg_key]
+                    def_vals[_cfg_key] = _cv if isinstance(_cv, str) \
+                        else json.dumps(_cv) if _cv else ''
 
             if mode == 'custom_sql':
                 def_vals.update({
@@ -609,6 +631,13 @@ class BuilderAPI(http.Controller):
         for body_key, field_name in field_map.items():
             if body_key in body:
                 update_vals[field_name] = body[body_key]
+
+        # v5 widget configs (dict or pre-serialized string)
+        for _cfg_key in ('attribute_grid_config', 'metric_list_config'):
+            if _cfg_key in body:
+                _cv = body[_cfg_key]
+                update_vals[_cfg_key] = _cv if isinstance(_cv, str) \
+                    else json.dumps(_cv) if _cv else ''
 
         if 'col_span' in body:
             update_vals['col_span'] = str(body['col_span'])
@@ -946,6 +975,9 @@ class BuilderAPI(http.Controller):
             # caused Master Row Layout + Detail Config to load blank.
             'ranked_master_config': defn.ranked_master_config or '',
             'ranked_detail_config': defn.ranked_detail_config or '',
+            # v5 widget configs — same blank-edit-form rationale.
+            'attribute_grid_config': defn.attribute_grid_config or '',
+            'metric_list_config': defn.metric_list_config or '',
         }
 
         # Include scope options from a widget instance (if any).

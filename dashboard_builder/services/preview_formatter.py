@@ -100,6 +100,28 @@ def format_preview(chart_type, columns, rows, config=None, visual_config=None):
         cfg['y_columns'] = (config or {}).get('y_columns', '')
         return format_record_header(columns, rows, cfg)
 
+    if chart_type in ('attribute_grid', 'metric_list'):
+        # Same pure formatters the portal runtime uses → preview == portal.
+        # The API caller threads the parsed config under its dedicated key
+        # and the resolved registry under '_icon_map' (formatters are pure —
+        # no ORM access here).
+        cfg_key = ('attribute_grid_config' if chart_type == 'attribute_grid'
+                   else 'metric_list_config')
+        raw_cfg = (config or {}).get(cfg_key) or {}
+        if isinstance(raw_cfg, str):
+            try:
+                raw_cfg = json.loads(raw_cfg or '{}')
+            except (json.JSONDecodeError, TypeError):
+                return {'type': chart_type, 'error_code': 'BAD_CONFIG',
+                        'error': '%s is not valid JSON' % cfg_key}
+        icon_map = (config or {}).get('_icon_map') or {}
+        if chart_type == 'attribute_grid':
+            from .attribute_grid_formatter import format_attribute_grid
+            return format_attribute_grid(columns, rows, raw_cfg,
+                                         icon_map=icon_map)
+        from .metric_list_formatter import format_metric_list
+        return format_metric_list(columns, rows, raw_cfg, icon_map=icon_map)
+
     # Fallback — return raw data as-is
     return {}
 

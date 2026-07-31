@@ -26,6 +26,8 @@ const CHART_TYPES = [
   { key: 'ranked_detail_list', label: 'Ranked List', icon: 'fa-list-ol',   desc: 'Expandable ranked list with detail charts' },
   { key: 'smart_table',   label: 'Smart Table',   icon: 'fa-th-list',         desc: 'Analytical table with deltas, status pills, conditional colors' },
   { key: 'record_header', label: 'Record Header', icon: 'fa-id-card',        desc: 'Identity header — avatar, title, and label/value fields from one SQL row' },
+  { key: 'attribute_grid', label: 'Attribute Grid', icon: 'fa-th-large',     desc: 'Labeled values in a configurable grid — one wide row, or one SQL row per attribute' },
+  { key: 'metric_list',   label: 'Metric List',   icon: 'fa-tasks',          desc: 'Scored metrics with progress bars, status badges, and per-metric thresholds' },
   { key: 'composite',     label: 'Composite',     icon: 'fa-object-group',    desc: 'Multi-section card — donut, table, KPI in one card' },
 ]
 

@@ -107,6 +107,76 @@ class DashboardWidgetActionMixin(models.AbstractModel):
              'widgets. Five recipes supported: text, metric, '
              'metric_with_delta, badge, composite. Auto-populated by builder.')
 
+    # ── Attribute Grid / Metric List configs (v1 canonical contracts) ──────
+    # Dedicated fields (never inside visual_config/builder_config) so the two
+    # types cannot cross-contaminate anything else. Canonical schemas +
+    # defaults live in services/widget_config_defaults.py; validation in
+    # services/widget_config_validators.py — shared by BOTH the definition
+    # and instance models via this mixin, so every save path (designer,
+    # builder API, Odoo form) runs the same rules.
+    attribute_grid_config = fields.Text(
+        string='Attribute Grid Config (JSON)',
+        help='Canonical v1 config for attribute_grid widgets: data_shape '
+             '(single_record | attribute_rows), columns, styles palette, '
+             'fields or row_mapping, icons via the dashboard.icon registry. '
+             'Author with the Dashboard Builder; this raw JSON is for '
+             'emergency edits only.')
+    metric_list_config = fields.Text(
+        string='Metric List Config (JSON)',
+        help='Canonical v1 config for metric_list widgets: column mapping, '
+             'scale, per-row formatting, scoped status rules, directions, '
+             'legend mode. Author with the Dashboard Builder; this raw JSON '
+             'is for emergency edits only.')
+
+    @api.constrains('attribute_grid_config', 'chart_type')
+    def _check_attribute_grid_config(self):
+        """chart_type participates so switching an existing widget to
+        attribute_grid re-validates — and the config is mandatory then."""
+        from ..services.widget_config_validators import (
+            validate_attribute_grid_config,
+        )
+        for rec in self:
+            raw = (rec.attribute_grid_config or '').strip()
+            is_active_type = getattr(rec, 'chart_type', '') == 'attribute_grid'
+            if not raw:
+                if is_active_type:
+                    raise ValidationError(
+                        'An Attribute Grid widget requires '
+                        'attribute_grid_config.')
+                continue
+            try:
+                cfg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                raise ValidationError(
+                    'Attribute Grid config is not valid JSON.')
+            errors = validate_attribute_grid_config(cfg)
+            if errors:
+                raise ValidationError(
+                    'Attribute Grid config is invalid:\n- '
+                    + '\n- '.join(errors))
+
+    @api.constrains('metric_list_config', 'chart_type')
+    def _check_metric_list_config(self):
+        from ..services.widget_config_validators import (
+            validate_metric_list_config,
+        )
+        for rec in self:
+            raw = (rec.metric_list_config or '').strip()
+            is_active_type = getattr(rec, 'chart_type', '') == 'metric_list'
+            if not raw:
+                if is_active_type:
+                    raise ValidationError(
+                        'A Metric List widget requires metric_list_config.')
+                continue
+            try:
+                cfg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                raise ValidationError('Metric List config is not valid JSON.')
+            errors = validate_metric_list_config(cfg)
+            if errors:
+                raise ValidationError(
+                    'Metric List config is invalid:\n- ' + '\n- '.join(errors))
+
     # ── Detail Drawer config validation (save-time, every API path) ────────
     @api.constrains('detail_drawer_config')
     def _check_detail_drawer_config(self):

@@ -246,6 +246,10 @@ class DashboardPageTemplate(models.Model):
                 'table_column_config': w.table_column_config or '',
                 'detail_drawer_config': w.detail_drawer_config or '',
                 'column_link_config': w.column_link_config or '',
+                # v5 widget configs (JSON) — icon keys referenced inside are
+                # bundled by _collect_icon_keys at export.
+                'attribute_grid_config': w.attribute_grid_config or '',
+                'metric_list_config': w.metric_list_config or '',
                 'bar_stack': w.bar_stack,
                 # Actions
                 'click_action': w.click_action or 'none',
@@ -461,6 +465,11 @@ class DashboardPageTemplate(models.Model):
             'widgets': widgets,
             'sections': sections,
             'badges': badges,
+            # v5: registry entries for every icon key the widgets reference
+            # (discoverable set: static keys, fallbacks, allowed_keys,
+            # leading_visual). Restores on a fresh tenant can then create
+            # missing icons at preflight instead of rendering blanks.
+            'icons': self._collect_icon_bundle(widgets),
         }
 
     # ── Deserialization: JSON → Page ────────────────────────────────────
@@ -585,12 +594,151 @@ class DashboardPageTemplate(models.Model):
             resolved[i] = r
         return resolved
 
+    # ── v5: icon bundle + widget preflight helpers ───────────────────────
+
+    @staticmethod
+    def _collect_icon_keys(chart_type, raw_config):
+        """Discoverable icon keys referenced by one widget config: static
+        keys, fallbacks, every allowed_keys entry, leading_visual.icon_key.
+        (Arbitrary SQL output is NOT discoverable — that is exactly why
+        column-mode icons require allowed_keys.)"""
+        from odoo.addons.dashboard_builder.services.widget_config_normalizer import (
+            normalize_attribute_grid, normalize_metric_list,
+        )
+        keys = set()
+        if not isinstance(raw_config, dict):
+            return keys
+        if chart_type == 'attribute_grid':
+            cfg = normalize_attribute_grid(raw_config)
+            if cfg['leading_visual'].get('icon_key'):
+                keys.add(cfg['leading_visual']['icon_key'])
+            for f in cfg['fields']:
+                icon = f.get('icon') or {}
+                keys.update(k for k in [icon.get('key'),
+                                        icon.get('fallback_key')] if k)
+                keys.update(k for k in icon.get('allowed_keys') or [] if k)
+            ri = cfg['row_icon']
+            if ri.get('fallback_key'):
+                keys.add(ri['fallback_key'])
+            keys.update(k for k in ri.get('allowed_keys') or [] if k)
+        elif chart_type == 'metric_list':
+            cfg = normalize_metric_list(raw_config)
+            if cfg['icon'].get('fallback_key'):
+                keys.add(cfg['icon']['fallback_key'])
+            keys.update(k for k in cfg['icon'].get('allowed_keys') or [] if k)
+        return keys
+
+    def _collect_icon_bundle(self, widgets):
+        """Registry entries for every discoverable key across the serialized
+        widgets. Keys with no registry record are skipped (nothing to bundle)."""
+        all_keys = set()
+        for w in widgets:
+            for ct, cfg_field in (('attribute_grid', 'attribute_grid_config'),
+                                  ('metric_list', 'metric_list_config')):
+                raw = w.get(cfg_field)
+                if not raw:
+                    continue
+                try:
+                    parsed = json.loads(raw) if isinstance(raw, str) else raw
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                all_keys |= self._collect_icon_keys(ct, parsed)
+        if not all_keys or 'dashboard.icon' not in self.env:
+            return []
+        rows = self.env['dashboard.icon'].sudo().with_context(
+            active_test=False).search_read(
+            [('key', 'in', sorted(all_keys))],
+            ['key', 'label', 'fa_class', 'category'])
+        return [{'key': r['key'], 'label': r['label'],
+                 'fa_class': r['fa_class'], 'category': r['category'] or ''}
+                for r in rows]
+
+    def _preflight_widgets(self, widgets_cfg, icon_bundle):
+        """Parse + validate every widget's v5 config and resolve the icon
+        bundle BEFORE any record is written. Returns the list of registry
+        vals to create. Conflict contract: missing key + bundled → create;
+        existing key with identical fa_class → reuse; different fa_class →
+        fail with the conflict list; a template never overwrites a global
+        registry entry."""
+        from odoo.addons.dashboard_builder.services.widget_config_validators import (
+            validate_attribute_grid_config, validate_metric_list_config,
+        )
+        needed_keys = set()
+        for w in widgets_cfg:
+            for ct, cfg_field, validate in (
+                    ('attribute_grid', 'attribute_grid_config',
+                     validate_attribute_grid_config),
+                    ('metric_list', 'metric_list_config',
+                     validate_metric_list_config)):
+                raw = w.get(cfg_field)
+                if not raw:
+                    if w.get('chart_type') == ct:
+                        raise ValidationError(
+                            "Widget '%s' is a %s but its template carries no "
+                            "%s." % (w.get('name', '?'), ct, cfg_field))
+                    continue
+                try:
+                    parsed = json.loads(raw) if isinstance(raw, str) else raw
+                except (json.JSONDecodeError, TypeError):
+                    raise ValidationError(
+                        "Widget '%s': %s is not valid JSON."
+                        % (w.get('name', '?'), cfg_field))
+                errors = validate(parsed)
+                if errors:
+                    raise ValidationError(
+                        "Widget '%s': invalid %s:\n- %s"
+                        % (w.get('name', '?'), cfg_field,
+                           '\n- '.join(errors)))
+                needed_keys |= self._collect_icon_keys(ct, parsed)
+
+        if not needed_keys or 'dashboard.icon' not in self.env:
+            return []
+        bundle_by_key = {b.get('key'): b for b in (icon_bundle or [])
+                         if b.get('key')}
+        Icon = self.env['dashboard.icon'].sudo().with_context(
+            active_test=False)
+        existing = {r['key']: r['fa_class'] for r in Icon.search_read(
+            [('key', 'in', sorted(needed_keys))], ['key', 'fa_class'])}
+        to_create, conflicts, unresolvable = [], [], []
+        for key in sorted(needed_keys):
+            if key in existing:
+                bundled = bundle_by_key.get(key)
+                if bundled and bundled.get('fa_class') \
+                        and bundled['fa_class'] != existing[key]:
+                    conflicts.append(
+                        '%s (template: %s, registry: %s)'
+                        % (key, bundled['fa_class'], existing[key]))
+                continue  # identical or unbundled → reuse
+            bundled = bundle_by_key.get(key)
+            if not bundled or not bundled.get('fa_class'):
+                unresolvable.append(key)
+                continue
+            to_create.append({
+                'key': key,
+                'label': bundled.get('label') or key,
+                'fa_class': bundled['fa_class'],
+                'category': bundled.get('category') or 'general',
+            })
+        if conflicts:
+            raise ValidationError(
+                'Icon key conflicts between this template and the global '
+                'registry (a template never overwrites registry entries): '
+                '%s. Rename the keys in the template or align the registry '
+                'first.' % '; '.join(conflicts))
+        if unresolvable:
+            raise ValidationError(
+                'Template references icon keys that exist neither in the '
+                'registry nor in the template bundle: %s.'
+                % ', '.join(unresolvable))
+        return to_create
+
     def create_page_from_template(self, app_id, nav_section_id, name_override=None, key_override=None):
         """Create a new page with all children from this template's page_config.
 
-        Returns the created dashboard.page record. Preflight-first + a savepoint
-        make it atomic: a failed reference resolution leaves NO new page, tab,
-        filter or other child record.
+        Preflight-first, then one savepoint around EVERYTHING that writes —
+        icon upserts, page, tabs, filters, widgets, sections, badges. A
+        failure anywhere leaves no partial page AND no stray registry rows
+        (registry writes are global state, unlike page children).
         """
         self.ensure_one()
         cfg = json.loads(self.page_config or '{}')
@@ -600,7 +748,25 @@ class DashboardPageTemplate(models.Model):
         # Resolve + validate all filter schema references up front — raises
         # before anything is created if a source/column/template is unresolvable.
         filter_resolutions = self._preflight_filters(cfg.get('filters', []))
+        # v5: parse/validate widget configs + resolve icon bundle — zero writes.
+        icons_to_create = self._preflight_widgets(
+            cfg.get('widgets', []), cfg.get('icons', []))
 
+        with self.env.cr.savepoint():
+            if icons_to_create:
+                self.env['dashboard.icon'].sudo().create(icons_to_create)
+                _logger.info('Template %s: created %d missing icon(s): %s',
+                             self.name, len(icons_to_create),
+                             ', '.join(i['key'] for i in icons_to_create))
+            return self._create_page_children(
+                cfg, app_id, nav_section_id, name_override, key_override,
+                filter_resolutions)
+
+    def _create_page_children(self, cfg, app_id, nav_section_id,
+                              name_override, key_override,
+                              filter_resolutions):
+        """The original creation body — runs entirely inside the caller's
+        savepoint."""
         Page = self.env['dashboard.page'].sudo()
         Tab = self.env['dashboard.page.tab'].sudo()
         Filter = self.env['dashboard.page.filter'].sudo()
@@ -815,6 +981,12 @@ class DashboardPageTemplate(models.Model):
             # Gauge KPI fields
             for fld in ('gauge_sub_kpi_columns', 'gauge_sub_kpi_labels',
                         'gauge_sub_label_columns', 'gauge_alert_column'):
+                if fld in w:
+                    wvals[fld] = w[fld]
+            # v5 widget configs — restore verbatim; the mixin constraint
+            # re-validates on create (and _preflight_widgets already parsed
+            # them before any record was written).
+            for fld in ('attribute_grid_config', 'metric_list_config'):
                 if fld in w:
                     wvals[fld] = w[fld]
 
