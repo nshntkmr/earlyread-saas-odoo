@@ -33,6 +33,7 @@ export default function FilterBar({ headerBadges = [] }) {
     config, pendingValues, setPendingFilter, applyFilters, applyImmediate,
     crossFilterResolverRef,
     accessToken, refreshToken, apiBase,
+    currentTabKey,
   } = useFilters()
   const { filters = [], filter_dependencies = [] } = config
 
@@ -520,6 +521,14 @@ export default function FilterBar({ headerBadges = [] }) {
   const barFilters = visibleFilters.filter(f => regionOf(f) === 'filter_bar')
   const headerFilters = visibleFilters.filter(
     f => regionOf(f) === 'page_header_start' || regionOf(f) === 'page_header_end')
+  // Phase T: tab-scoped filters — the ACTIVE tab's only. Filters of other
+  // tabs stay mounted in state/URL (scoping is at SQL application, server
+  // side) but render nothing until their tab is opened. This is a PORTAL
+  // out of the ONE FilterBar instance — never a second FilterBar mount
+  // (it owns cascade state; two mounts = two controllers).
+  const tabFilters = visibleFilters.filter(
+    f => regionOf(f) === 'tab_filter_bar' && f.tab_key
+      && f.tab_key === currentTabKey)
 
   // Per-filter change: an 'immediate' filter applies at once from the APPLIED
   // base (one commit); a 'manual' filter sets pending + cascades and waits for
@@ -605,6 +614,36 @@ export default function FilterBar({ headerBadges = [] }) {
     return nodes
   }
 
+  // ── Tab filter slot (Phase T) ───────────────────────────────────────────
+  // Same pending/apply/cascade engine as the bar; only PLACEMENT differs.
+  // Apply renders here only when a manual tab filter exists AND the main
+  // bar is absent — the "Apply renders EXACTLY ONCE" principle.
+  const tabHasManual = tabFilters.some(f => f.apply_behavior !== 'immediate')
+  const tabItems = tabFilters.length > 0 ? (
+    <div className="pv-tab-ctx-filter-bar">
+      {tabFilters.map(filter => {
+        const key = filter.param_name || filter.field_name
+        return (
+          <div key={filter.id} className="pv-ctx-filter-group">
+            <label className="pv-ctx-filter-label" htmlFor={`ctx-${key}-select`}>
+              {filter.name}
+            </label>
+            {renderControl(filter)}
+          </div>
+        )
+      })}
+      {tabHasManual && !bar && (
+        <div className="pv-ctx-filter-group pv-ctx-apply-group">
+          <button type="button" className="btn btn-sm btn-primary"
+                  onClick={applyFilters}>Apply</button>
+          <button type="button" className="btn btn-sm btn-outline-secondary"
+                  onClick={handleClearAll}>Clear All</button>
+        </div>
+      )}
+    </div>
+  ) : null
+  const tabSlotEl = typeof document !== 'undefined' && document.getElementById('pv-tab-filter-bar')
+
   const startEl = typeof document !== 'undefined' && document.getElementById('pv-page-header-actions-start')
   const endEl = typeof document !== 'undefined' && document.getElementById('pv-page-header-actions-end')
   // Manual header filters need an Apply trigger (the bar may be hidden). Render
@@ -616,13 +655,14 @@ export default function FilterBar({ headerBadges = [] }) {
   const startItems = buildSlotItems('page_header_start', applySlot === 'page_header_start')
   const endItems = buildSlotItems('page_header_end', applySlot === 'page_header_end')
 
-  if (!bar && startItems.length === 0 && endItems.length === 0) return null
+  if (!bar && !tabItems && startItems.length === 0 && endItems.length === 0) return null
 
   return (
     <>
       {bar}
       {startEl && startItems.length > 0 && createPortal(startItems, startEl)}
       {endEl && endItems.length > 0 && createPortal(endItems, endEl)}
+      {tabSlotEl && tabItems && createPortal(tabItems, tabSlotEl)}
     </>
   )
 }

@@ -847,6 +847,27 @@ class DashboardWidget(models.Model):
         self.orm_series_field = False
 
     # ── Constraints ──────────────────────────────────────────────────────────
+    @api.constrains('query_sql', 'download_sql', 'annotation_query_sql',
+                    'ranked_detail_sql', 'ranked_detail_config',
+                    'detail_drawer_config', 'tab_id', 'render_region',
+                    'page_id')
+    def _check_tab_scoped_placeholders(self):
+        """Phase T: a widget's SQL (any executable surface, incl. nested
+        detail/drawer JSON SQL) must not reference a filter scoped to a tab
+        this widget cannot see — config error at save, never a runtime
+        missing-parameter failure. page_summary widgets are global consumers."""
+        from ..utils import filter_scope_inspector as insp
+        for rec in self:
+            if not rec.page_id:
+                continue
+            tab = None if (rec.render_region or '') == 'page_summary' \
+                else (rec.tab_id or None)
+            errors = insp.check_sql_surfaces(
+                self.env, rec, rec.page_id, tab,
+                "widget '%s'" % (rec.name or rec.id))
+            if errors:
+                raise ValidationError('\n'.join(errors))
+
     @api.constrains('query_sql', 'schema_source_id')
     def _check_where_clause_requires_source(self):
         for w in self:

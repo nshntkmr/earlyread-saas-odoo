@@ -5,6 +5,7 @@ import logging
 import re
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -187,6 +188,21 @@ class DashboardPageSection(models.Model):
             last = self.search(domain, order='sequence desc', limit=1)
             res['sequence'] = (last.sequence if last else 0) + 10
         return res
+
+    @api.constrains('query_sql', 'tab_id', 'page_id')
+    def _check_tab_scoped_placeholders(self):
+        """Phase T: a page-level section is a GLOBAL consumer; a tab-level
+        section may reference global + SAME-tab filters. Foreign-tab SQL
+        placeholders are a config error at save."""
+        from ..utils import filter_scope_inspector as insp
+        for rec in self:
+            if not rec.page_id:
+                continue
+            errors = insp.check_sql_surfaces(
+                self.env, rec, rec.page_id, rec.tab_id or None,
+                "section '%s'" % (rec.name or rec.id))
+            if errors:
+                raise ValidationError('\n'.join(errors))
 
     # =========================================================================
     # Scope options (independent mode)

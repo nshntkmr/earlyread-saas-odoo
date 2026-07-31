@@ -75,6 +75,9 @@ export default function App({ pageConfig, initialWidgets, initialSections, initi
           <WidgetGrid placement="page-summary" initialWidgets={pageSummaryWidgets} />
         )}
         <TabBar />
+        {/* Phase T: DOM slot the single FilterBar portals the ACTIVE tab's
+            filters into. Empty div when the page has none — zero layout. */}
+        <div id="pv-tab-filter-bar" />
         <SectionGrid placement="tab-level" initialSections={initialSections} apiBase={apiBase} />
         <WidgetGrid placement="tab-content" initialWidgets={tabContentWidgets} />
         <IdleWarningModal primaryColor={pageConfig?.app?.primary_color || '#0066cc'} />

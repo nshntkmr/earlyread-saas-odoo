@@ -1149,6 +1149,18 @@
     gap: 16px;
 }
 
+/* Phase T: tab-scoped filter bar — rendered between the tab bar and tab
+   content by the single FilterBar's portal. Reuses .pv-ctx-filter-group /
+   -label controls; lighter chrome than the page bar (it lives INSIDE a tab,
+   per the Recent Encounters Month/Year design). */
+.pv-tab-ctx-filter-bar {
+    padding: 10px 24px 2px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+}
+
 .pv-ctx-section-header {
     display: flex;
     align-items: center;

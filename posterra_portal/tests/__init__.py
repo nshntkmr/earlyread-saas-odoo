@@ -10,3 +10,5 @@ from . import test_detail_drawer_chart
 from . import test_remote_autocomplete
 from . import test_remote_filter_endpoint
 from . import test_page_template_roundtrip
+from . import test_filter_scope_inspector
+from . import test_tab_scoped_filters

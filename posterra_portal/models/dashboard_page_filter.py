@@ -394,6 +394,33 @@ class DashboardPageFilter(models.Model):
                 raise ValidationError(
                     'The Tab must belong to the same page as the filter.')
 
+    @api.constrains('param_name', 'field_name', 'page_id', 'is_active')
+    def _check_runtime_key_unique(self):
+        """Phase T: URL + React state key on the ACTIVE runtime key
+        (param_name or field_name), so two filters on one page cannot both
+        own e.g. 'year' — a tab filter needing independence uses its own
+        name (encounter_year). Fires on create/write/import/reactivation
+        only — untouched pre-existing rows never break a module upgrade
+        (audit those with the rollout report before relying on scoping)."""
+        for rec in self:
+            if not rec.is_active:
+                continue
+            key = rec.param_name or rec.field_name
+            if not key:
+                continue
+            clash = self.search([
+                ('page_id', '=', rec.page_id.id),
+                ('is_active', '=', True),
+                ('id', '!=', rec.id),
+            ]).filtered(lambda f: (f.param_name or f.field_name) == key)
+            if clash:
+                raise ValidationError(
+                    "Runtime key '%s' is already owned by active filter '%s' "
+                    "on this page. Two filters cannot share a URL/state key — "
+                    "use a distinct param name (e.g. encounter_%s), or make "
+                    "one page-wide filter if tabs should share the value."
+                    % (key, clash[0].display_name, key))
+
     @api.constrains('tab_id', 'page_id', 'display_region', 'is_active')
     def _revalidate_tab_relationships(self):
         """Phase T: moving a filter between tabs (or global<->tab), moving it

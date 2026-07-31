@@ -235,7 +235,67 @@ def _get_api_user():
 
 # ── portal_ctx builder for API calls ─────────────────────────────────────────
 
-def _build_portal_ctx(page, user, app, kw):
+def _drop_foreign_tab_values(target_filter, page_filters, values,
+                             keyed_by='param'):
+    """Phase T cascade/search isolation: strip values that belong to filters
+    scoped to a DIFFERENT tab than the TARGET filter, so Tab A's value can
+    never constrain Tab B's dropdown options. Global target → only global
+    values survive; tab target → global + same-tab. Keys that match no
+    page filter are preserved (their existing rejection/validation behavior
+    is unchanged). ``keyed_by``: 'param' or 'filter_id'."""
+    if not values or not any(pf.tab_id for pf in page_filters):
+        return values
+    t_tab = target_filter.tab_id.id if target_filter.tab_id else None
+
+    def _allowed(pf):
+        return (not pf.tab_id) or (t_tab and pf.tab_id.id == t_tab)
+
+    if keyed_by == 'filter_id':
+        allowed_ids = {pf.id for pf in page_filters if _allowed(pf)}
+        return {k: v for k, v in values.items() if k in allowed_ids}
+    key_ok = {}
+    for pf in page_filters:
+        k = pf.param_name or pf.field_name
+        if k:
+            key_ok[k] = key_ok.get(k, False) or _allowed(pf)
+    return {k: v for k, v in values.items() if key_ok.get(k, True)}
+
+
+def _scope_ctx_for_consumer(ctx, page_filters, consumer):
+    """Phase T: scope a full portal_ctx to one consumer's placement.
+
+    Consumer table (plan v8): page-level section / badge / page_summary
+    widget / global widget → GLOBAL filters only; tab widget / tab section →
+    global + SAME-tab. Fails CLOSED server-side: a client sending every URL
+    param never leaks a foreign tab's filter into this consumer's SQL.
+    With zero tab-scoped filters, returns ``ctx`` unchanged (identical
+    object — the binding non-regression guarantee).
+    ``consumer=None`` keeps the legacy full ctx (non-executing callers only).
+    """
+    if consumer is None or not any(f.tab_id for f in page_filters):
+        return ctx
+    region = getattr(consumer, 'render_region', '') or ''
+    tab = None if region == 'page_summary' \
+        else (getattr(consumer, 'tab_id', False) or None)
+    scoped = page_filters.filtered(
+        lambda f: not f.tab_id or (tab and f.tab_id.id == tab.id))
+    keys = {(f.param_name or f.field_name)
+            for f in scoped if (f.param_name or f.field_name)}
+    fvbn = {k: v for k, v in ctx['filter_values_by_name'].items() if k in keys}
+    from ..utils.sql_params import build_sql_params
+    ms = {(f.param_name or f.field_name) for f in scoped if f.is_multiselect}
+    sp = build_sql_params(fvbn, ms)
+    # Trusted system keys ride EVERY bundle (injected after partitioning).
+    sp['selected_hha_ccn'] = ctx['sql_params'].get('selected_hha_ccn')
+    sp['selected_hha_id'] = ctx['sql_params'].get('selected_hha_id')
+    scoped_ctx = dict(ctx)
+    scoped_ctx['filter_values_by_name'] = fvbn
+    scoped_ctx['sql_params'] = sp
+    scoped_ctx['_filter_defs'] = scoped.to_filter_defs()
+    return scoped_ctx
+
+
+def _build_portal_ctx(page, user, app, kw, consumer=None):
     """Build the portal_ctx dict that widget.get_portal_data() expects.
 
     Mirrors the filter/HHA resolution logic of portal.py app_dashboard(),
@@ -247,6 +307,8 @@ def _build_portal_ctx(page, user, app, kw):
         user  — res.users record (already sudo'd)
         app   — saas.app record (already sudo'd)
         kw    — dict of query-string params from the API request
+        consumer — Phase T: the executing widget/section/badge record; its
+            placement selects the scoped bundle. None = legacy full ctx.
 
     Returns:
         portal_ctx dict with keys: sql_params, filter_values_by_name,
@@ -403,12 +465,13 @@ def _build_portal_ctx(page, user, app, kw):
     sql_params['selected_hha_id'] = (
         selected_provider.id if selected_provider else None)
 
-    return {
+    ctx = {
         'selected_hha':          selected_provider,
         'filter_values_by_name': filter_values_by_name,
         'sql_params':            sql_params,
         '_filter_defs':          page_filters.to_filter_defs(),
     }
+    return _scope_ctx_for_consumer(ctx, page_filters, consumer)
 
 
 # ── Normalise widget data for JSON serialisation ──────────────────────────────
@@ -561,6 +624,8 @@ class PosterraWidgetAPI(http.Controller):
                 'name':                  f.display_label or f.field_name or f.param_name or '',
                 'param_name':            f.param_name or f.field_name or '',
                 'field_name':            f.field_name or '',
+                # Phase T: only when set — mirrors portal.py's rule.
+                **({'tab_key': f.tab_id.key} if f.tab_id else {}),
                 'default_value':         f.default_value or '',
                 'depends_on_filter_id':  f.depends_on_filter_id.id if f.depends_on_filter_id else None,
                 'depends_on_field_name': dep_field_name or None,
@@ -714,7 +779,8 @@ class PosterraWidgetAPI(http.Controller):
         # surfaces as 403, not 500 (the generic catch is below).
         from ..utils.access import ForgedProviderValueError
         try:
-            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw)
+            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw,
+                                           consumer=widget)
         except ForgedProviderValueError as exc:
             _logger.info('api_widget_data: forged provider value widget=%s: %s', widget_id, exc)
             return _json_error(403, str(exc))
@@ -886,7 +952,8 @@ class PosterraWidgetAPI(http.Controller):
 
         from ..utils.access import ForgedProviderValueError
         try:
-            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw)
+            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw,
+                                           consumer=widget)
         except ForgedProviderValueError as exc:
             _logger.info('api_widget_download: forged provider value widget=%s: %s',
                          widget_id, exc)
@@ -1008,7 +1075,8 @@ class PosterraWidgetAPI(http.Controller):
 
         from ..utils.access import ForgedProviderValueError
         try:
-            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw)
+            portal_ctx = _build_portal_ctx(widget.page_id, user, app, kw,
+                                           consumer=widget)
         except ForgedProviderValueError as exc:
             return _json_error(403, str(exc))
         except Exception as exc:
@@ -1093,7 +1161,8 @@ class PosterraWidgetAPI(http.Controller):
 
         from ..utils.access import ForgedProviderValueError
         try:
-            portal_ctx = _build_portal_ctx(section.page_id, user, app, kw)
+            portal_ctx = _build_portal_ctx(section.page_id, user, app, kw,
+                                           consumer=section)
         except ForgedProviderValueError as exc:
             _logger.info('api_section_data: forged provider value section=%s: %s', section_id, exc)
             return _json_error(403, str(exc))
@@ -1326,6 +1395,15 @@ class PosterraWidgetAPI(http.Controller):
             _logger.info('api_filters_cascade_multi: forged value filter=%s: %s', fid, exc)
             return _json_error(403, str(exc))
 
+        # Phase T: a foreign tab's value must not constrain THIS target's
+        # options (defense in depth for constraint_values — cross-tab edges
+        # are already rejected at save — and the real gate for all_values).
+        constraint_values = _drop_foreign_tab_values(
+            f, page_filters_for_validation, constraint_values,
+            keyed_by='filter_id')
+        all_filter_values = _drop_foreign_tab_values(
+            f, page_filters_for_validation, all_filter_values)
+
         # ── Strip stale downstream values from all_filter_values ─────────
         # When a source filter changes (e.g. Provider), its resets_target
         # edges mean the target values (State, County, City) are about to be
@@ -1415,7 +1493,8 @@ class PosterraWidgetAPI(http.Controller):
 
         from ..utils.access import ForgedProviderValueError
         try:
-            portal_ctx = _build_portal_ctx(page, user, app, kw)
+            portal_ctx = _build_portal_ctx(page, user, app, kw,
+                                           consumer=page)  # badges: global-only scope
         except ForgedProviderValueError as exc:
             _logger.info('api_page_badges: forged provider value page=%s: %s', page_id, exc)
             return _json_error(403, str(exc))
@@ -1677,11 +1756,11 @@ class PosterraWidgetAPI(http.Controller):
                     if val and val != 'all':
                         constraint_values[src['source_id']] = val
 
-                # Build all_filter_values from snapshot
-                all_filter_values = {
-                    k: v for k, v in snapshot.items()
-                    if v and v != 'all'
-                }
+                # Build all_filter_values from snapshot — Phase T: scoped
+                # per TARGET (foreign-tab values must not constrain it).
+                all_filter_values = _drop_foreign_tab_values(
+                    target_filter, page_filters,
+                    {k: v for k, v in snapshot.items() if v and v != 'all'})
 
                 # Resolve provider_ids for scoped filters
                 provider_ids = None
@@ -1923,6 +2002,13 @@ class PosterraWidgetAPI(http.Controller):
                     current_values, page.filter_ids, app, accessible, is_superadmin)
         except ForgedProviderValueError as exc:
             return _remote_search_response({'error': str(exc), 'status': 403}, status=403)
+
+        # Phase T: values from a DIFFERENT tab's filters must not constrain
+        # this filter's remote search. (Unknown params were already rejected
+        # above; dependency edges below are same-scope by the save-time
+        # constraint — this scopes the same-source sibling constraints.)
+        current_values = _drop_foreign_tab_values(
+            f, page.filter_ids, current_values)
 
         # Record-keyed dependency constraints (search/hydrate → _build_schema_where).
         deps = request.env['dashboard.filter.dependency'].sudo().search([

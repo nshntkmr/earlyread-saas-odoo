@@ -110,6 +110,20 @@ class DashboardPageBadge(models.Model):
                 raise models.ValidationError(
                     'A Schema Source is required when using {where_clause} in SQL.')
 
+    @api.constrains('query_sql', 'page_id')
+    def _check_tab_scoped_placeholders(self):
+        """Phase T: badges are GLOBAL-only consumers — SQL referencing any
+        tab-scoped filter's param is a config error at save."""
+        from ..utils import filter_scope_inspector as insp
+        for rec in self:
+            if not rec.page_id:
+                continue
+            errors = insp.check_sql_surfaces(
+                self.env, rec, rec.page_id, None,
+                "badge '%s'" % (rec.name or rec.id))
+            if errors:
+                raise models.ValidationError('\n'.join(errors))
+
     # ── SQL Execution ─────────────────────────────────────────────────────────
 
     def execute_badge_sql(self, portal_ctx):

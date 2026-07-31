@@ -32,6 +32,10 @@
                         <group string="Presentation">
                             <field name="ui_type"/>
                             <field name="display_region"/>
+                            <field name="tab_id"
+                                   invisible="display_region != 'tab_filter_bar'"
+                                   required="display_region == 'tab_filter_bar'"
+                                   options="{'no_create': True}"/>
                             <field name="placeholder"/>
                             <field name="control_width_px"
                                    invisible="ui_type != 'remote_autocomplete'"/>

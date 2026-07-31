@@ -137,6 +137,9 @@ class DashboardPageTemplate(models.Model):
                 # D1/D2: placement + apply behavior + remote-search config.
                 'ui_type': f.ui_type or 'default',
                 'display_region': f.display_region or '',
+                # Phase T: tab reference by portable key (restore maps it
+                # through tab_map; preflight rejects an unknown key).
+                'tab_key': f.tab_id.key if f.tab_id else '',
                 'apply_behavior': f.apply_behavior or 'manual',
                 'search_page_size': f.search_page_size or 0,
                 'search_min_chars': f.search_min_chars or 0,
@@ -838,6 +841,19 @@ class DashboardPageTemplate(models.Model):
             # template/source-source selectors.
             if f.get('display_region'):
                 fvals['display_region'] = f['display_region']
+            # Phase T: resolve the tab reference through this restore's
+            # tab_map. An unknown key must fail loudly — a tab_filter_bar
+            # filter silently restored without its tab would be rejected by
+            # the model constraint anyway, but with a worse message.
+            if f.get('tab_key'):
+                new_tab_id = tab_map.get(f['tab_key'])
+                if not new_tab_id:
+                    raise ValidationError(
+                        "Filter '%s' references tab key '%s', which this "
+                        "template's tabs do not define." % (
+                            f.get('param_name') or f.get('field_name') or '?',
+                            f['tab_key']))
+                fvals['tab_id'] = new_tab_id
             if f.get('display_template_source'):
                 fvals['display_template_source'] = f['display_template_source']
             if f.get('option_sort'):

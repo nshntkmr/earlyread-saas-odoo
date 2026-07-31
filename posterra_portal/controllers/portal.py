@@ -197,6 +197,9 @@ def _build_page_config_json(app, page, tabs, page_filters, filter_options,
                 'id':                    pf.id,
                 'field_name':            pf.field_name or pf.param_name or '',
                 'param_name':            pf.param_name or pf.field_name or '',
+                # Phase T: present ONLY for tab-scoped filters, so pages
+                # without them keep a byte-identical page_config.
+                **({'tab_key': pf.tab_id.key} if pf.tab_id else {}),
                 # display_label = label override → field description → field_name
                 'name':                  pf.display_label or pf.field_name or '',
                 'default_value':         (filter_values or {}).get(pf.id, pf.default_value or ''),
@@ -1130,6 +1133,50 @@ class PosterraPortal(CustomerPortal):
             '_filter_defs':          page_filters.to_filter_defs(),
         }
 
+        # ── Phase T: scoped execution bundles ──────────────────────────
+        # Consumer table (plan v8, binding): page-level section / badge /
+        # page_summary widget / global widget → GLOBAL filters only; tab
+        # widget / tab section → global + SAME-tab. Partitioning divides
+        # ONLY configured page-filter params; trusted system keys
+        # (selected_hha_*) are injected after partitioning into every
+        # bundle. With zero tab-scoped filters every consumer receives
+        # portal_ctx ITSELF — identical objects, byte-identical behavior.
+        _has_tab_filters = any(f.tab_id for f in page_filters)
+        _scoped_ctx_cache = {}
+
+        def _ctx_for_tab(tab):
+            """Scoped bundle for a consumer assigned to ``tab`` (a
+            dashboard.page.tab record or falsy = global consumer)."""
+            if not _has_tab_filters:
+                return portal_ctx
+            cache_key = tab.id if tab else 0
+            cached = _scoped_ctx_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            scoped = page_filters.filtered(
+                lambda f: not f.tab_id or (tab and f.tab_id.id == tab.id))
+            keys = {(f.param_name or f.field_name)
+                    for f in scoped if (f.param_name or f.field_name)}
+            fvbn = {k: v for k, v in filter_values_by_name.items()
+                    if k in keys}
+            ms = {(f.param_name or f.field_name)
+                  for f in scoped if f.is_multiselect}
+            sp = build_sql_params(fvbn, ms)
+            # Trusted system keys ride EVERY bundle (post-partition).
+            sp['selected_hha_ccn'] = sql_params['selected_hha_ccn']
+            sp['selected_hha_id'] = sql_params['selected_hha_id']
+            ctx = dict(portal_ctx)
+            ctx['filter_values_by_name'] = fvbn
+            ctx['sql_params'] = sp
+            ctx['_filter_defs'] = scoped.to_filter_defs()
+            _scoped_ctx_cache[cache_key] = ctx
+            return ctx
+
+        def _ctx_for_widget(w):
+            if w.render_region == 'page_summary':
+                return _ctx_for_tab(None)   # tab-independent → global only
+            return _ctx_for_tab(w.tab_id or None)
+
         # Load ALL widgets for the page (all tabs). Execute SQL only for
         # current-tab widgets. Other-tab widgets get deferred metadata —
         # React lazy-loads them via per-widget API when the tab is clicked.
@@ -1177,9 +1224,10 @@ class PosterraPortal(CustomerPortal):
                         )
                         default_opt = default_opt[:1] or active_opts[:1]
                         if default_opt and (default_opt.query_sql or '').strip():
-                            portal_data = default_opt.execute_option_sql(portal_ctx)
+                            portal_data = default_opt.execute_option_sql(
+                                _ctx_for_widget(w))
                 if portal_data is None:
-                    portal_data = w.get_portal_data(portal_ctx)
+                    portal_data = w.get_portal_data(_ctx_for_widget(w))
                 widget_data[w.id] = portal_data
             else:
                 # Other tab → deferred metadata only (no SQL execution)
@@ -1191,7 +1239,11 @@ class PosterraPortal(CustomerPortal):
             ('page_id', '=', current_page.id if current_page else 0),
             ('is_active', '=', True),
         ], order='sequence asc') if current_page else request.env['dashboard.page.section']
-        section_data = {sec.id: sec.get_portal_data(portal_ctx) for sec in page_sections}
+        # Tab-level sections get global + same-tab params; page-level global only.
+        section_data = {
+            sec.id: sec.get_portal_data(_ctx_for_tab(sec.tab_id or None))
+            for sec in page_sections
+        }
 
         # ── 10b. Page header badges ───────────────────────────────────
         # SQL-driven badges for the page header. Passed to React via
@@ -1202,7 +1254,8 @@ class PosterraPortal(CustomerPortal):
         if current_page:
             active_badges = current_page.badge_ids.filtered(lambda b: b.is_active)
             for badge in active_badges:
-                value = badge.execute_badge_sql(portal_ctx)
+                # Badges are global-only consumers (plan v8 consumer table).
+                value = badge.execute_badge_sql(_ctx_for_tab(None))
                 placement = badge.placement or 'below_header_end'
                 if placement == 'page_header_start':
                     has_page_header_start_badges = True
