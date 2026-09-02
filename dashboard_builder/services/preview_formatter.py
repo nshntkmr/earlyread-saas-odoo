@@ -800,20 +800,35 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
         number_format  = vc.get('number_format', 'auto')
         tt_value_label = (vc.get('tooltip_value_label') or '').strip()
         _eff_label_fmt = label_format or ('name_percent' if show_percent else 'name')
+        try:
+            _nd = vc.get('number_decimals')
+            number_decimals = int(_nd) if _nd not in (None, '') else None
+            if number_decimals is not None:
+                number_decimals = max(0, min(number_decimals, 6))
+        except (TypeError, ValueError):
+            number_decimals = None
 
         def _pie_fmt_number(raw):
             try:
                 n = float(raw)
             except (TypeError, ValueError):
                 return str(raw)
+            d = number_decimals
             if number_format == 'compact':
                 for div, suf in ((1e9, 'B'), (1e6, 'M'), (1e3, 'K')):
                     if abs(n) >= div:
-                        txt = f'{n / div:.1f}'
-                        txt = txt[:-2] if txt.endswith('.0') else txt
+                        txt = f'{n / div:.{1 if d is None else d}f}'
+                        if d is None and txt.endswith('.0'):
+                            txt = txt[:-2]
                         return f'{txt}{suf}'
+            if number_format == 'percent':
+                return f'{n:.{1 if d is None else d}f}%'
+            if number_format == 'decimal':
+                return f'{n:,.{2 if d is None else d}f}'
             if number_format in ('comma', 'compact'):
-                return f'{n:,.0f}' if n == int(n) else f'{n:,.2f}'
+                if d is None:
+                    return f'{n:,.0f}' if n == int(n) else f'{n:,.2f}'
+                return f'{n:,.{d}f}'
             return str(raw)
 
         def _pie_decorate_items(items):

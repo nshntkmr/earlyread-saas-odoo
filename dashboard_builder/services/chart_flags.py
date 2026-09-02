@@ -256,12 +256,26 @@ _PIE_DONUT_COMMON = [
         'default': 'auto',
         'label': 'Number Format',
         'help': 'How slice values are written in the hover tooltip and in value '
-                'labels. Auto keeps the raw number (unchanged behaviour).',
+                'labels. Auto keeps the raw number (unchanged behaviour). '
+                'Percent formats the SQL value itself as a percentage (42.9 -> 42.9%); '
+                'the share-of-total percentage is the separate Label Format option.',
         'options': [
             {'value': 'auto',    'label': 'Auto (raw number)'},
             {'value': 'comma',   'label': 'Comma (216,457)'},
-            {'value': 'compact', 'label': 'Compact (216.5K)'},
+            {'value': 'decimal', 'label': 'Decimal (1,234.50)'},
+            {'value': 'percent', 'label': 'Percent (42.9%)'},
+            {'value': 'compact', 'label': 'Compact (216.5K / 1.1M)'},
         ],
+    },
+    {
+        'flag': 'number_decimals',
+        'type': 'number',
+        'default': None,
+        'label': 'Decimals',
+        'help': 'Decimal places for the Number Format. Blank = sensible default per '
+                'format (Comma 0, Decimal 2, Percent 1, Compact 1). Set 0 with '
+                'Compact for 216K / 1M / 16K, or 1 for 216.5K / 1.1M.',
+        'show_when': {'number_format': ['comma', 'decimal', 'percent', 'compact']},
     },
     {
         'flag': 'tooltip_value_label',
