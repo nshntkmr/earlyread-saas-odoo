@@ -85,6 +85,7 @@ export default function CustomSqlEditor({
   testParams = {}, onUpdate, apiBase, appContext = null,
   schemaSourceId = null, connectionId = 'local_pg',
   chartType, donutStyle, lineStyle, gaugeStyle,
+  extraParams = [],   // [{param, label}] — this widget's own (widget-level) filter params
 }) {
   const [testing, setTesting] = useState(false)
   const [pageParams, setPageParams] = useState([])
@@ -125,14 +126,23 @@ export default function CustomSqlEditor({
     onUpdate({ testParams: { ...testParams, [key]: value } })
   }, [testParams, onUpdate])
 
-  // Insert pills: page filter params when context is set, otherwise auto-detected from SQL
+  // Insert pills: page filter params when context is set, otherwise auto-detected
+  // from SQL — plus this widget's own filter params (deduped; a mirror shares
+  // the page param and therefore collapses into the page pill).
   const insertPills = useMemo(() => {
-    if (pageParams.length > 0) return pageParams
-    // Fallback: auto-detect unique params from SQL
-    if (!sql) return []
-    const matches = [...sql.matchAll(/%\((\w+)\)s/g)]
-    return [...new Set(matches.map(m => m[1]))].map(p => ({ param: p, label: p }))
-  }, [pageParams, sql])
+    let base
+    if (pageParams.length > 0) {
+      base = pageParams
+    } else if (sql) {
+      const matches = [...sql.matchAll(/%\((\w+)\)s/g)]
+      base = [...new Set(matches.map(m => m[1]))].map(p => ({ param: p, label: p }))
+    } else {
+      base = []
+    }
+    const seen = new Set(base.map(p => p.param))
+    const extra = (extraParams || []).filter(p => p && p.param && !seen.has(p.param))
+    return [...base, ...extra]
+  }, [pageParams, sql, extraParams])
 
   // Auto-extract %(param_name)s placeholders from SQL (deduplicated, in order)
   const detectedParams = useMemo(() => {
@@ -241,7 +251,9 @@ export default function CustomSqlEditor({
         <label className="wb-label">
           Insert Filter Param
           {pageParams.length > 0 && (
-            <span className="wb-hint-inline"> (from {appContext.page.name} filters)</span>
+            <span className="wb-hint-inline">
+              {' '}(from {appContext.page.name} filters{(extraParams || []).length ? ' + this widget\'s filters' : ''})
+            </span>
           )}
         </label>
         <div className="wb-param-pills">

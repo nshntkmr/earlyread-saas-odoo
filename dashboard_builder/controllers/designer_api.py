@@ -1182,6 +1182,32 @@ class DesignerAPI(http.Controller):
             pass
         return []
 
+    def _get_widget_filters_for_definition(self, defn):
+        """Widget-level filters for edit mode: the first placed instance's
+        records, else the ``_widget_filters_stash`` in builder_config
+        (Save-to-Library without Place), else []. Same fallback chain and
+        rationale as ``_get_scope_options_for_definition``."""
+        try:
+            Widget = request.env['dashboard.widget']
+            instances = Widget.sudo().search(
+                [('definition_id', '=', defn.id)], limit=1)
+            if instances and instances[0].widget_filter_ids:
+                return [f.to_config_dict()
+                        for f in instances[0].widget_filter_ids.sorted('sequence')]
+        except (KeyError, Exception):
+            pass
+        try:
+            bc_raw = defn.builder_config or ''
+            if bc_raw:
+                bc = json.loads(bc_raw)
+                if isinstance(bc, dict):
+                    stash = bc.get('_widget_filters_stash') or []
+                    if isinstance(stash, list):
+                        return stash
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+        return []
+
     def _get_composite_children_for_definition(self, defn):
         """Resolve composite children for library edit — STASH-FIRST chain.
 
@@ -1288,6 +1314,8 @@ class DesignerAPI(http.Controller):
             'metric_list_config': defn.metric_list_config or '',
             # Scope options from first widget instance
             'scope_options': self._get_scope_options_for_definition(defn),
+            # Widget-level filters — instance first, then the stash
+            'widget_filters': self._get_widget_filters_for_definition(defn),
             # Composite children — stash-first fallback chain
             'composite_children': self._get_composite_children_for_definition(defn),
         })
@@ -1514,6 +1542,19 @@ class DesignerAPI(http.Controller):
                 bc['_scope_options_stash'] = body['scope_options']
                 def_vals['builder_config'] = json.dumps(bc)
 
+            # Stash widget-level filters — same rationale as the scope stash
+            # (edit mode must restore them even before the widget is placed).
+            if 'widget_filters' in body:
+                try:
+                    bc_raw = def_vals.get('builder_config', '')
+                    bc = json.loads(bc_raw) if bc_raw else {}
+                except (json.JSONDecodeError, TypeError):
+                    bc = {}
+                if not isinstance(bc, dict):
+                    bc = {}
+                bc['_widget_filters_stash'] = body.get('widget_filters') or []
+                def_vals['builder_config'] = json.dumps(bc)
+
             # Stash composite children — the definition-level source of truth
             # for library edits (stash-first fallback chain in library_detail).
             # Same precedent as _scope_options_stash.
@@ -1730,6 +1771,18 @@ class DesignerAPI(http.Controller):
             bc['_scope_options_stash'] = body.get('scope_options') or []
             update_vals['builder_config'] = json.dumps(bc)
 
+        # Stash widget-level filters — same contract as the scope stash.
+        if 'widget_filters' in body:
+            try:
+                bc_raw = update_vals.get('builder_config', defn.builder_config or '')
+                bc = json.loads(bc_raw) if bc_raw else {}
+            except (json.JSONDecodeError, TypeError):
+                bc = {}
+            if not isinstance(bc, dict):
+                bc = {}
+            bc['_widget_filters_stash'] = body.get('widget_filters') or []
+            update_vals['builder_config'] = json.dumps(bc)
+
         # Stash composite children — definition-level source of truth for
         # library edits (stash-first fallback chain in library_detail).
         if effective_chart_type == 'composite' and 'composite_children' in body:
@@ -1876,6 +1929,12 @@ class DesignerAPI(http.Controller):
                                     if detected:
                                         opt_vals['schema_source_id'] = detected
                                 ScopeOption.sudo().create(opt_vals)
+                    # Recreate widget-level filter records on instances —
+                    # ONLY when the payload carries the key (Odoo-form-built
+                    # widgets updated without it are left untouched).
+                    if 'widget_filters' in body:
+                        request.env['dashboard.widget.filter'].sudo().sync_for_widgets(
+                            instances, body.get('widget_filters') or [])
             except KeyError as ke:
                 # dashboard.widget not installed — log so we can tell the
                 # difference between "consuming module missing" (expected
@@ -2315,6 +2374,15 @@ class DesignerAPI(http.Controller):
                 _logger.info(
                     'library_place: created %d scope options for widget %s',
                     len(scope_options), widget.id)
+
+            # Widget-level filters: the request body (Save & Place) wins,
+            # else the definition's stash (Place from the library later).
+            wf_items = body.get('widget_filters')
+            if wf_items is None:
+                wf_items = self._get_widget_filters_for_definition(defn)
+            if wf_items:
+                request.env['dashboard.widget.filter'].sudo().sync_for_widgets(
+                    widget, wf_items)
 
             return _json_response({'widget_id': widget.id, 'name': widget.name})
 

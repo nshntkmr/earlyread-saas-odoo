@@ -606,6 +606,74 @@
                                     </form>
                                 </field>
                             </group>
+
+                            <!-- Widget Filters: N independent controls bound only
+                                 into THIS widget's SQL (static / schema / mirror). -->
+                            <group string="Widget Filters">
+                                <p class="text-muted" colspan="2">
+                                    Each row is a dropdown, multi-select or toggle group shown in this
+                                    widget's header. Reference it in the widget SQL exactly like a page
+                                    filter (an optional clause with the param name). Mirror mode borrows a
+                                    page filter's options and param and overrides the page value for this
+                                    widget only; blank inherits the page value.
+                                </p>
+                                <field name="widget_filter_ids" nolabel="1" colspan="2">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="label"/>
+                                        <field name="options_mode"/>
+                                        <field name="param_name"
+                                               placeholder="e.g. age_group"
+                                               readonly="options_mode == 'mirror'"/>
+                                        <field name="page_filter_id"
+                                               domain="[('page_id','=',parent.page_id)]"
+                                               options="{'no_create': True}"/>
+                                        <field name="ui_type"/>
+                                        <field name="default_value"/>
+                                        <field name="include_all_option"/>
+                                        <field name="is_active"/>
+                                    </list>
+                                    <form>
+                                        <sheet>
+                                            <group>
+                                                <group string="Control">
+                                                    <field name="label"/>
+                                                    <field name="options_mode"/>
+                                                    <field name="param_name"
+                                                           placeholder="e.g. age_group"
+                                                           readonly="options_mode == 'mirror'"/>
+                                                    <field name="ui_type"/>
+                                                    <field name="is_searchable"/>
+                                                    <field name="include_all_option"/>
+                                                    <field name="default_value"
+                                                           placeholder="blank = All / inherit"/>
+                                                    <field name="sequence"/>
+                                                    <field name="is_active"/>
+                                                </group>
+                                                <group string="Options">
+                                                    <field name="page_filter_id"
+                                                           invisible="options_mode != 'mirror'"
+                                                           domain="[('page_id','=',parent.page_id)]"
+                                                           options="{'no_create': True}"/>
+                                                    <field name="schema_source_id"
+                                                           invisible="options_mode != 'schema'"/>
+                                                    <field name="value_column"
+                                                           invisible="options_mode != 'schema'"
+                                                           placeholder="e.g. age_group"/>
+                                                    <field name="label_column"
+                                                           invisible="options_mode != 'schema'"
+                                                           placeholder="optional"/>
+                                                </group>
+                                            </group>
+                                            <group string="Static Options (one per line: value or value|Label)"
+                                                   invisible="options_mode != 'static'">
+                                                <field name="manual_options" widget="text" nolabel="1" colspan="2"
+                                                       placeholder="AD|Atopic Dermatitis&#10;Vitiligo"/>
+                                            </group>
+                                        </sheet>
+                                    </form>
+                                </field>
+                            </group>
                         </page>
 
                         <!-- ──────────────────────────── Download tab ──── -->

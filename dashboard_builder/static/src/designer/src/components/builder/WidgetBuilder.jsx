@@ -244,6 +244,7 @@ const initialState = {
   scopeDefaultValue: '',
   scopeOptions: [],          // [{label, value, icon}] — option identity
   optionConfigs: [],         // per-option full config (dataMode, sources, customSql, etc.)
+  widgetFilters: [],         // widget-level filters — wire-shape dicts (see WidgetFiltersSection)
   activeScopeIdx: 0,         // which option tab is active in steps 2-5
   searchEnabled: false,
   searchPlaceholder: 'Search...',
@@ -457,6 +458,7 @@ function reducer(state, action) {
       const scopeKeys = new Set([
         'scopeMode', 'scopeUi', 'scopeQueryMode', 'scopeParamName',
         'scopeLabel', 'scopeDefaultValue', 'scopeOptions', 'optionConfigs',
+        'widgetFilters',
         'activeScopeIdx', 'searchEnabled', 'searchPlaceholder',
         // ranked_detail_list external link fields live on top-level state
         'externalLinkColumn', 'externalLinkTemplate', 'externalLinkNewTab',
@@ -670,6 +672,9 @@ function reducer(state, action) {
         scopeDefaultValue: d.scope_default_value || '',
         searchEnabled: d.search_enabled || false,
         searchPlaceholder: d.search_placeholder || 'Search...',
+        // Widget-level filters — library_detail returns the instance's records
+        // (or the definition stash) in the same wire shape the editor uses.
+        widgetFilters: Array.isArray(d.widget_filters) ? d.widget_filters : [],
         activeScopeIdx: 0,
         // Restore scope options + per-option configs
         scopeOptions: (d.scope_options || []).map(o => ({
@@ -961,6 +966,9 @@ export default function WidgetBuilder({
               searchPlaceholder={state.searchPlaceholder}
               scopeOptions={state.scopeOptions}
               optionConfigs={state.optionConfigs}
+              widgetFilters={state.widgetFilters}
+              apiBase={apiBase}
+              appContext={appContext}
               onUpdate={v => dispatch({ type: 'UPDATE_FILTERS', value: v })}
             />
           )}
@@ -1083,6 +1091,9 @@ export default function WidgetBuilder({
                     onUpdate={v => dispatch({ type: 'UPDATE_CUSTOM_SQL', value: v })}
                     apiBase={apiBase}
                     appContext={appContext}
+                    extraParams={(state.widgetFilters || [])
+                      .filter(f => (f.param_name || '').trim())
+                      .map(f => ({ param: f.param_name.trim(), label: f.label || f.param_name }))}
                     connectionId={ac.connectionId || 'local_pg'}
                     chartType={state.chartType}
                     donutStyle={state.visualFlags?.donut_style || 'standard'}
@@ -1490,6 +1501,25 @@ function buildCreatePayload(state) {
     ...(state.chartType === 'composite' ? {
       composite_children: serializeCompositeChildren(state.compositeChildren),
     } : {}),
+    // Widget-level filters — ALWAYS sent (an empty list clears the records),
+    // in the server's wire shape (dashboard.widget.filter.to_config_dict).
+    widget_filters: (state.widgetFilters || []).map((f, idx) => ({
+      label: f.label || '',
+      param_name: f.param_name || '',
+      sequence: (idx + 1) * 10,
+      is_active: f.is_active !== false,
+      ui_type: f.ui_type || 'dropdown',
+      is_searchable: !!f.is_searchable,
+      options_mode: f.options_mode || 'static',
+      manual_options: f.manual_options || '',
+      schema_source_id: f.schema_source_id || null,
+      schema_source_table: f.schema_source_table || '',
+      value_column: f.value_column || '',
+      label_column: f.label_column || '',
+      page_filter_param: f.page_filter_param || '',
+      default_value: f.default_value || '',
+      include_all_option: f.include_all_option !== false,
+    })),
     // Widget-Scoped Controls (only include if configured)
     ...(state.scopeMode !== 'none' ? {
       scope_mode: state.scopeMode,

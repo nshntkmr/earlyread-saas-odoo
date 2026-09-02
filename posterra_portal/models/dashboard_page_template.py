@@ -342,6 +342,13 @@ class DashboardPageTemplate(models.Model):
             if scope_opts:
                 wdata['scope_options'] = scope_opts
 
+            # Widget-level filters (present only when configured). Portable:
+            # schema source by table name, mirrored page filter by param.
+            wf_items = [f.to_config_dict()
+                        for f in w.widget_filter_ids.sorted('sequence')]
+            if wf_items:
+                wdata['widget_filters'] = wf_items
+
             # ── Composite items ────────────────────────────────────────
             # Round-trip invariant: any field copied to the transient
             # .new() payload in dashboard_widget._build_composite_data MUST
@@ -1074,6 +1081,14 @@ class DashboardPageTemplate(models.Model):
                     if opt_src:
                         opt_vals['schema_source_id'] = opt_src.id
                 ScopeOption.create(opt_vals)
+
+            # Widget-level filters — strict: an unresolvable mirror or schema
+            # source raises and the surrounding transaction rolls the whole
+            # page back (same atomic contract as the filter preflight).
+            if w.get('widget_filters'):
+                self.env['dashboard.widget.filter'].sync_for_widgets(
+                    new_widget, w['widget_filters'], filter_map=filter_map,
+                    strict=True)
 
             # Create composite items (child records for chart_type='composite')
             if w.get('chart_type') == 'composite' and w.get('composite_items'):

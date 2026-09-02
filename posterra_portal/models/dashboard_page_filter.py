@@ -427,6 +427,35 @@ class DashboardPageFilter(models.Model):
                     "one page-wide filter if tabs should share the value."
                     % (key, clash[0].display_name, key))
 
+    @api.constrains('param_name', 'field_name', 'page_id', 'is_active')
+    def _check_widget_filter_key_collision(self):
+        """A page filter may not take a runtime key already owned by a
+        static/schema WIDGET filter on this page (the widget side enforces
+        the same rule in the other direction). Mirrors are exempt — they
+        deliberately share the page filter's key."""
+        if self.env.context.get('install_mode'):
+            return
+        if 'dashboard.widget.filter' not in self.env:
+            return
+        WidgetFilter = self.env['dashboard.widget.filter'].sudo()
+        for rec in self:
+            if not rec.is_active:
+                continue
+            key = rec.param_name or rec.field_name
+            if not key:
+                continue
+            clash = WidgetFilter.search([
+                ('widget_id.page_id', '=', rec.page_id.id),
+                ('is_active', '=', True),
+                ('options_mode', '!=', 'mirror'),
+            ]).filtered(lambda f: (f.param_name or '').strip() == key)
+            if clash:
+                raise ValidationError(
+                    "Runtime key '%s' is already used by widget filter '%s' on "
+                    "widget '%s'. Rename one of them — a page filter and a "
+                    "widget's own filter cannot share a param."
+                    % (key, clash[0].label, clash[0].widget_id.display_name))
+
     @api.constrains('tab_id', 'page_id', 'display_region', 'is_active')
     def _revalidate_tab_relationships(self):
         """Phase T: moving a filter between tabs (or global<->tab), moving it

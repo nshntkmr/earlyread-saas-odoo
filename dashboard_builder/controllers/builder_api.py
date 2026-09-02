@@ -525,6 +525,11 @@ class BuilderAPI(http.Controller):
                 widget = request.env['dashboard.widget'].sudo().create(widget_vals)
                 result['widget_id'] = widget.id
 
+                # Widget-level filters (from builder payload)
+                if body.get('widget_filters'):
+                    request.env['dashboard.widget.filter'].sudo().sync_for_widgets(
+                        widget, body.get('widget_filters') or [])
+
                 # Create scope option child records (from builder payload)
                 scope_options = body.get('scope_options', [])
                 if scope_options:
@@ -701,6 +706,11 @@ class BuilderAPI(http.Controller):
 
         try:
             widget.write(update_vals)
+
+            # Recreate widget-level filters (only when the key is present)
+            if 'widget_filters' in body:
+                request.env['dashboard.widget.filter'].sudo().sync_for_widgets(
+                    widget, body.get('widget_filters') or [])
 
             # Recreate scope_option child records (only when scope_options key present)
             if 'scope_options' in body:
@@ -1034,6 +1044,15 @@ class BuilderAPI(http.Controller):
         except Exception:
             pass  # dashboard.widget may not exist
         data['scope_options'] = scope_options
+        # Widget-level filters from the same instance (portable dicts).
+        try:
+            if instances:
+                data['widget_filters'] = [
+                    f.to_config_dict()
+                    for f in instances[0].widget_filter_ids.sorted('sequence')]
+        except Exception:
+            pass  # dashboard.widget may not exist / no instance
+        data.setdefault('widget_filters', [])
 
         return _json_resp(data)
 
@@ -1121,6 +1140,11 @@ class BuilderAPI(http.Controller):
                 widget_vals['tab_id'] = tab_id
 
             widget = request.env['dashboard.widget'].sudo().create(widget_vals)
+
+            # Widget-level filters (forwarded from React)
+            if body.get('widget_filters'):
+                request.env['dashboard.widget.filter'].sudo().sync_for_widgets(
+                    widget, body.get('widget_filters') or [])
 
             # Create scope_option child records (forwarded from React)
             scope_options = body.get('scope_options', [])

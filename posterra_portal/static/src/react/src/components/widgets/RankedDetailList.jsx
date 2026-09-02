@@ -452,7 +452,7 @@ function DetailPanel({ detailData, sublistLayout, youConfig, masterRow }) {
 }
 
 // ── Main component ───────────────────────────────────────────────────
-export default function RankedDetailList({ data, height, name, widgetId, scopeOptionId }) {
+export default function RankedDetailList({ data, height, name, widgetId, scopeOptionId, extraParams = {} }) {
   const { filterValues, accessToken, refreshToken, apiBase } = useFilters()
   const [expandedRows, setExpandedRows] = useState({})
 
@@ -487,13 +487,15 @@ export default function RankedDetailList({ data, height, name, widgetId, scopeOp
       if (!wid) return
       const params = { ...filterValues }
       if (scopeOptionId) params._scope_option_id = scopeOptionId
+      // Widget-level filter values (_wf_<param>) from WidgetGrid
+      Object.assign(params, extraParams || {})
       const url = widgetDetailUrl(apiBase, wid, kv, params)
       const result = await apiFetch(url, accessToken, {}, refreshToken)
       setExpandedRows(prev => ({ ...prev, [kv]: result }))
     } catch (err) {
       setExpandedRows(prev => ({ ...prev, [kv]: { error: err.message || 'Failed' } }))
     }
-  }, [expandedRows, widgetId, data?.id, apiBase, filterValues, accessToken, refreshToken, scopeOptionId])
+  }, [expandedRows, widgetId, data?.id, apiBase, filterValues, accessToken, refreshToken, scopeOptionId, extraParams])
 
   const handleNavigate = useCallback((kv) => {
     const url = new URL(window.location)

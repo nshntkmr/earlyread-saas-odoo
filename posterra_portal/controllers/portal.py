@@ -15,6 +15,9 @@ from odoo.http import request, route
 from werkzeug.exceptions import Forbidden, NotFound
 
 from ..utils.app_resolver import get_app_from_host, build_app_url
+from ..utils.widget_filters import (
+    apply_widget_filter_values, default_values as _wf_default_values,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -354,6 +357,12 @@ def _build_initial_widgets_json(widgets, widget_data):
                     and _scope.get('options')):
                 _scope['default_value'] = _scope['options'][0].get('value', '')
         result[str(w.id)]['scope'] = _scope
+
+        # ── Widget-level filters — key present ONLY when configured, so
+        # every existing widget's payload stays byte-identical. ──
+        _wf = w.get_widget_filters_payload()
+        if _wf:
+            result[str(w.id)]['widget_filters'] = _wf
 
         # ── Stable map-control flags ──
         # Read from the MERGED visual_config (definition then instance), never
@@ -1177,6 +1186,18 @@ class PosterraPortal(CustomerPortal):
                 return _ctx_for_tab(None)   # tab-independent → global only
             return _ctx_for_tab(w.tab_id or None)
 
+        def _ctx_for_widget_with_filters(w):
+            """Initial render: bind the widget's OWN filter defaults into a
+            COPY of its scoped ctx (the API path binds request values). A
+            widget with no widget filters gets the shared ctx unchanged —
+            identical objects, identical behaviour."""
+            ctx = _ctx_for_widget(w)
+            declared = w.get_widget_filter_declarations()
+            if not declared:
+                return ctx
+            return apply_widget_filter_values(
+                ctx, declared, _wf_default_values(declared))
+
         # Load ALL widgets for the page (all tabs). Execute SQL only for
         # current-tab widgets. Other-tab widgets get deferred metadata —
         # React lazy-loads them via per-widget API when the tab is clicked.
@@ -1225,9 +1246,9 @@ class PosterraPortal(CustomerPortal):
                         default_opt = default_opt[:1] or active_opts[:1]
                         if default_opt and (default_opt.query_sql or '').strip():
                             portal_data = default_opt.execute_option_sql(
-                                _ctx_for_widget(w))
+                                _ctx_for_widget_with_filters(w))
                 if portal_data is None:
-                    portal_data = w.get_portal_data(_ctx_for_widget(w))
+                    portal_data = w.get_portal_data(_ctx_for_widget_with_filters(w))
                 widget_data[w.id] = portal_data
             else:
                 # Other tab → deferred metadata only (no SQL execution)

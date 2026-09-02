@@ -116,6 +116,21 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
   const [scopeValues, setScopeValues] = useState({})      // { widgetId: scopeValue }
   const [scopeOptionIds, setScopeOptionIds] = useState({}) // { widgetId: optionId } (query mode)
   const [searchTexts, setSearchTexts] = useState({})
+  // Widget-level filters: { widgetId: { param: value } } — seeded from each
+  // widget's configured defaults so every fetch (Apply, scope, drill, lazy
+  // load, download, detail) carries the same values the server bound on the
+  // initial paint. Sent as _wf_<param>; the server reads declared params only.
+  const [widgetFilterValues, setWidgetFilterValues] = useState(() => {
+    const init = {}
+    Object.values(initialWidgets || {}).forEach(w => {
+      if (Array.isArray(w.widget_filters) && w.widget_filters.length) {
+        const vals = {}
+        w.widget_filters.forEach(f => { vals[f.param_name] = f.default_value || '' })
+        init[w.id] = vals
+      }
+    })
+    return init
+  })
   // Map state→county drill, per widget:
   //   { widgetId: { mapLevel: 'state'|'county', drillStateCode, drillStateFips, drillStateName } }
   const [mapDrillStates, setMapDrillStates] = useState({})
@@ -156,6 +171,23 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
   // the effect to preserve THIS widget's drill and skip its base-level refetch.
   const drillJustFiredRef = useRef(null)
 
+  // ── Widget-level filter params for a fetch: { _wf_<param>: value } ───────
+  // `override` lets a change handler send the just-selected values before the
+  // state update lands. Blank values are omitted (server: absent = All for
+  // static/schema, inherit the page value for mirrors), and only params the
+  // widget declares are ever sent. Widgets without filters → {} (no change).
+  const wfParamsFor = useCallback((w, override = null) => {
+    const out = {}
+    const list = Array.isArray(w?.widget_filters) ? w.widget_filters : []
+    if (!list.length) return out
+    const vals = override || widgetFilterValues[w.id] || {}
+    list.forEach(f => {
+      const v = vals[f.param_name] ?? f.default_value ?? ''
+      if (v !== '' && v != null) out[`_wf_${f.param_name}`] = v
+    })
+    return out
+  }, [widgetFilterValues])
+
   // ── Widget-scoped control handler ─────────────────────────────────────────
   const handleScopeChange = useCallback(async (widgetId, newValue, optionId) => {
     setScopeValues(prev => ({ ...prev, [widgetId]: newValue }))
@@ -170,13 +202,14 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     const w = widgetData[String(widgetId)]
     if (!w) return
 
-    // Build params: page filters + scope param
+    // Build params: page filters + scope param + this widget's own filters
     const params = { ...filterValues }
     if (w.scope?.query_mode === 'query' && optionId) {
       params._scope_option_id = optionId  // Query mode: send option ID
     } else if (w.scope?.param_name && newValue) {
       params[w.scope.param_name] = newValue  // Parameter mode: send param value
     }
+    Object.assign(params, wfParamsFor(w))
 
     // Clear any prior error for this widget so a failed option's error does not
     // linger while the user switches to another tab (toolbar stays usable).
@@ -194,7 +227,47 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     } finally {
       setLoading(prev => ({ ...prev, [widgetId]: false }))
     }
-  }, [widgetData, filterValues, apiBase, accessToken, refreshToken])
+  }, [widgetData, filterValues, wfParamsFor, apiBase, accessToken, refreshToken])
+
+  // ── Widget-level filter change: refetch ONLY this widget ─────────────────
+  // Same fetch shape as handleScopeChange (page filters + scope + drill), plus
+  // the widget's own values with the new selection applied immediately.
+  const handleWidgetFilterChange = useCallback(async (widgetId, param, value) => {
+    const w = widgetData[String(widgetId)]
+    if (!w) return
+    const nextVals = { ...(widgetFilterValues[widgetId] || {}), [param]: value }
+    setWidgetFilterValues(prev => ({ ...prev, [widgetId]: nextVals }))
+
+    const params = { ...filterValues }
+    if (w.scope?.query_mode === 'query' && scopeOptionIds[widgetId]) {
+      params._scope_option_id = scopeOptionIds[widgetId]
+    } else if (w.scope?.param_name && scopeValues[widgetId]) {
+      params[w.scope.param_name] = scopeValues[widgetId]
+    }
+    const drill = mapDrillStates[widgetId]
+    if (drill?.mapLevel === 'county') {
+      params._map_level = 'county'
+      params._drill_state_code = drill.drillStateCode
+      params._drill_state_fips = drill.drillStateFips
+    }
+    Object.assign(params, wfParamsFor(w, nextVals))
+
+    setErrors(prev => { if (!(widgetId in prev)) return prev; const n = { ...prev }; delete n[widgetId]; return n })
+    setLoading(prev => ({ ...prev, [widgetId]: true }))
+    try {
+      const url = widgetDataUrl(apiBase, widgetId, params)
+      const result = await apiFetch(url, accessToken, {}, refreshToken)
+      setWidgetData(prev => ({
+        ...prev,
+        [String(widgetId)]: { ...prev[String(widgetId)], data: result.data },
+      }))
+    } catch (err) {
+      setErrors(prev => ({ ...prev, [widgetId]: err.message || 'Failed to load' }))
+    } finally {
+      setLoading(prev => ({ ...prev, [widgetId]: false }))
+    }
+  }, [widgetData, widgetFilterValues, filterValues, scopeValues, scopeOptionIds, mapDrillStates,
+      wfParamsFor, apiBase, accessToken, refreshToken])
 
   // ── Map state→county drill handler ────────────────────────────────────────
   // drillData = { code, fips, name } to drill into a state; null to go back to
@@ -227,6 +300,7 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     } else if (w.scope?.param_name && scopeValues[widgetId]) {
       params[w.scope.param_name] = scopeValues[widgetId]
     }
+    Object.assign(params, wfParamsFor(w))
     if (drillData) {
       params._map_level = 'county'
       params._drill_state_code = drillData.code
@@ -249,7 +323,7 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     } finally {
       setLoading(prev => ({ ...prev, [widgetId]: false }))
     }
-  }, [widgetData, filterValues, scopeValues, scopeOptionIds, apiBase, accessToken, refreshToken])
+  }, [widgetData, filterValues, scopeValues, scopeOptionIds, wfParamsFor, apiBase, accessToken, refreshToken])
 
   // ── Per-widget download (admin-gated) ─────────────────────────────────────
   // Two paths, decided per click:
@@ -305,6 +379,7 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
         } else if (w.scope?.param_name && sv) {
           params[w.scope.param_name] = sv
         }
+        Object.assign(params, wfParamsFor(w))
         const drill = mapDrillStates[w.id]
         if (drill?.mapLevel === 'county') {
           params._map_level = 'county'
@@ -336,7 +411,7 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     } finally {
       setDownloadingIds(prev => { const n = { ...prev }; delete n[w.id]; return n })
     }
-  }, [downloadingIds, filterValues, scopeValues, scopeOptionIds, mapDrillStates, apiBase, accessToken, refreshToken])
+  }, [downloadingIds, filterValues, scopeValues, scopeOptionIds, mapDrillStates, wfParamsFor, apiBase, accessToken, refreshToken])
 
   // ── Refetch when filterValues changes (after Apply) ───────────────────────
   useEffect(() => {
@@ -400,6 +475,8 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
         } else if (w.scope?.param_name && sv) {
           params[w.scope.param_name] = sv
         }
+        // Widget-level filters ride along (no-op for widgets without them)
+        Object.assign(params, wfParamsFor(w))
         const url = widgetDataUrl(apiBase, w.id, params)
         const result = await apiFetch(url, accessToken, {}, refreshToken)
         setWidgetData(prev => ({
@@ -447,6 +524,8 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
         } else if (w.scope?.param_name && sv) {
           params[w.scope.param_name] = sv
         }
+        // Widget-level filters ride along (no-op for widgets without them)
+        Object.assign(params, wfParamsFor(w))
         const url = widgetDataUrl(apiBase, w.id, params)
         const result = await apiFetch(url, accessToken, {}, refreshToken)
         setWidgetData(prev => ({
@@ -625,6 +704,7 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
         const params = { ...filterValues, detail_type: 'drawer' }
         const sv = scopeValues[w.id]
         if (sv != null && sv !== '') params._scope_value = sv
+        Object.assign(params, wfParamsFor(w))
         return apiFetch(
           widgetDetailUrl(apiBase, w.id, rowKey, params),
           accessToken, {}, refreshToken,
@@ -633,6 +713,8 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     }
     if (w.chart_type === 'ranked_detail_list') {
       extraProps.widgetId = w.id
+      // Widget-level filter values so the expand-row detail SQL binds them too
+      extraProps.extraParams = wfParamsFor(w)
       // Pass the active scope option id (Mode B) so detail fetches include it
       if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
         extraProps.scopeOptionId = scopeOptionIds[w.id]
@@ -748,6 +830,10 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
                   onScopeChange={(val, optId) => handleScopeChange(w.id, val, optId)}
                   searchText={searchTexts[w.id] || ''}
                   onSearchChange={(val) => setSearchTexts(prev => ({ ...prev, [w.id]: val }))}
+                  widgetFilters={w.widget_filters || []}
+                  widgetFilterValues={widgetFilterValues[w.id] || {}}
+                  onWidgetFilterChange={(param, val) => handleWidgetFilterChange(w.id, param, val)}
+                  pageFilters={config?.filters || []}
                 />
               )}
               {w.annotation_type === 'badge' && w.annotation_text && (
@@ -777,7 +863,8 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
               loading/error/content block so the tabs persist and stay
               interactive while a tab loads or after one errors — the user can
               always switch away. Search is hidden for choropleth. */}
-          {w.map_controls_placement === 'body' && w.scope?.mode !== 'none' && (
+          {w.map_controls_placement === 'body'
+            && (w.scope?.mode !== 'none' || (w.widget_filters || []).length > 0) && (
             <div className="pv-map-toolbar px-3 pt-2">
               <WidgetControls
                 placement="body"
@@ -787,6 +874,10 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
                 onScopeChange={(val, optId) => handleScopeChange(w.id, val, optId)}
                 searchText={''}
                 onSearchChange={() => {}}
+                widgetFilters={w.widget_filters || []}
+                widgetFilterValues={widgetFilterValues[w.id] || {}}
+                onWidgetFilterChange={(param, val) => handleWidgetFilterChange(w.id, param, val)}
+                pageFilters={config?.filters || []}
               />
               {/* Drill breadcrumb: shown only while drilled into a state's
                   counties. Clicking returns to the national state view. */}

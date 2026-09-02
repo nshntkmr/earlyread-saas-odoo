@@ -224,6 +224,15 @@ class DashboardWidget(models.Model):
         help='Initial value. Blank = first option or "All" (no filter).')
     scope_option_ids = fields.One2many(
         'dashboard.widget.scope.option', 'widget_id', string='Scope Options')
+    # ── Widget-level filters (N independent controls, this widget only) ──
+    # Additive to the single scope control above: a widget with no records
+    # here behaves exactly as before (no injection, nothing rendered).
+    widget_filter_ids = fields.One2many(
+        'dashboard.widget.filter', 'widget_id', string='Widget Filters',
+        help='Filters rendered in this widget\'s header and bound only into '
+             'this widget\'s SQL (static list, schema column, or a mirror of '
+             'a page filter). Reference them in SQL like page filters: '
+             '[[ AND col = %(param)s ]].')
     composite_item_ids = fields.One2many(
         'dashboard.widget.composite.item', 'parent_widget_id',
         string='Composite Items',
@@ -942,6 +951,20 @@ class DashboardWidget(models.Model):
     # =========================================================================
     # Widget-Scoped Controls helpers
     # =========================================================================
+
+    # ── Widget-level filters ─────────────────────────────────────────────
+    def get_widget_filter_declarations(self):
+        """Runtime declarations for ``utils.widget_filters`` — one dict per
+        ACTIVE widget filter. Empty list = no-op for every injection point."""
+        self.ensure_one()
+        return [f.to_declaration()
+                for f in self.widget_filter_ids.filtered('is_active').sorted('sequence')]
+
+    def get_widget_filters_payload(self):
+        """Per-widget React payload (labels, UI, options, defaults)."""
+        self.ensure_one()
+        return [f.to_portal_payload()
+                for f in self.widget_filter_ids.filtered('is_active').sorted('sequence')]
 
     def get_scope_options(self):
         """Return [{value, label, icon}, ...] for the scope control.

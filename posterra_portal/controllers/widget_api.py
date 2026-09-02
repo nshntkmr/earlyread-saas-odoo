@@ -35,6 +35,7 @@ from odoo.http import content_disposition, request
 from .auth_api import _get_request_json, _json_error, _json_response, _verify_token
 from .portal import _get_providers_for_user
 from ..models.dashboard_widget import DOWNLOAD_MAX_ROWS
+from ..utils.widget_filters import parse_widget_filter_kw, apply_widget_filter_values
 
 _logger = logging.getLogger(__name__)
 
@@ -474,6 +475,24 @@ def _build_portal_ctx(page, user, app, kw, consumer=None):
     return _scope_ctx_for_consumer(ctx, page_filters, consumer)
 
 
+# ── Widget-level filters ──────────────────────────────────────────────────────
+
+def _apply_widget_filters(widget, kw, portal_ctx):
+    """Bind this widget's own filter values (``_wf_<param>`` request params)
+    into a COPY of ``portal_ctx``.
+
+    Only params declared on the widget's ``widget_filter_ids`` are read, so a
+    caller cannot smuggle arbitrary SQL params through the prefix. Widgets
+    with no widget filters get the SAME ctx object back — byte-identical
+    behaviour for every existing widget.
+    """
+    declared = widget.get_widget_filter_declarations()
+    if not declared:
+        return portal_ctx
+    values = parse_widget_filter_kw(kw, declared)
+    return apply_widget_filter_values(portal_ctx, declared, values)
+
+
 # ── Normalise widget data for JSON serialisation ──────────────────────────────
 
 def _normalise_widget_data(data: dict) -> dict:
@@ -788,6 +807,9 @@ class PosterraWidgetAPI(http.Controller):
             _logger.warning('api_widget_data: portal_ctx error widget=%s: %s', widget_id, exc)
             return _json_error(500, f'Context build error: {exc}')
 
+        # ── Widget-level filters (declared params only; no-op otherwise) ──
+        portal_ctx = _apply_widget_filters(widget, kw, portal_ctx)
+
         # ── Map choropleth drill params (validated) ───────────────────────
         # Normalise + inject the drill request into sql_params. The scope
         # option / widget decides via _effective_map_level whether the drill is
@@ -963,6 +985,9 @@ class PosterraWidgetAPI(http.Controller):
                             widget_id, exc)
             return _json_error(500, f'Context build error: {exc}')
 
+        # ── Widget-level filters ("download what you see") ────────────────
+        portal_ctx = _apply_widget_filters(widget, kw, portal_ctx)
+
         # ── Map choropleth drill params (same whitelist as /data) ─────────
         if widget.chart_type in ('map', 'albers_choropleth'):
             _raw_lvl = (kw.get('_map_level') or '').strip().lower()
@@ -1081,6 +1106,9 @@ class PosterraWidgetAPI(http.Controller):
             return _json_error(403, str(exc))
         except Exception as exc:
             return _json_error(500, f'Context build error: {exc}')
+
+        # ── Widget-level filters (detail SQL sees the same binds) ─────────
+        portal_ctx = _apply_widget_filters(widget, kw, portal_ctx)
 
         # Detail Drawer: resolve all sql-backed sections in one request and
         # return section-keyed named-row-object results (portal context already

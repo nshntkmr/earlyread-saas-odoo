@@ -1,4 +1,5 @@
 import React from 'react'
+import WidgetFiltersSection from './WidgetFiltersSection'
 
 /**
  * WidgetControlsStep — Step 1 of the builder wizard.
@@ -56,6 +57,7 @@ export default function WidgetControlsStep({
   scopeMode, scopeUi, scopeQueryMode, scopeParamName, scopeLabel,
   searchEnabled, searchPlaceholder,
   scopeOptions, optionConfigs,
+  widgetFilters = [], apiBase, appContext,
   onUpdate,
 }) {
   // Composite widgets only support parameter-mode scope — the model bans
@@ -385,6 +387,14 @@ export default function WidgetControlsStep({
           </>
         )}
       </div>
+
+      {/* ── Widget Filters (N independent controls, this widget only) ── */}
+      <WidgetFiltersSection
+        widgetFilters={widgetFilters}
+        onUpdate={onUpdate}
+        apiBase={apiBase}
+        appContext={appContext}
+      />
     </div>
   )
 }
