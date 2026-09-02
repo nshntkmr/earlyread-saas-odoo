@@ -793,6 +793,47 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                 shown.append({'name': 'Other', 'value': rest_val})
             pie_data = shown
 
+        # ── Formatted tooltip / value labels (per data item) ───────
+        # Parity with dashboard_widget._build_echart_option: the value is
+        # pre-formatted here and attached per slice (item-level formatter
+        # wins over the series template). Both flags default to "off".
+        number_format  = vc.get('number_format', 'auto')
+        tt_value_label = (vc.get('tooltip_value_label') or '').strip()
+        _eff_label_fmt = label_format or ('name_percent' if show_percent else 'name')
+
+        def _pie_fmt_number(raw):
+            try:
+                n = float(raw)
+            except (TypeError, ValueError):
+                return str(raw)
+            if number_format == 'compact':
+                for div, suf in ((1e9, 'B'), (1e6, 'M'), (1e3, 'K')):
+                    if abs(n) >= div:
+                        txt = f'{n / div:.1f}'
+                        txt = txt[:-2] if txt.endswith('.0') else txt
+                        return f'{txt}{suf}'
+            if number_format in ('comma', 'compact'):
+                return f'{n:,.0f}' if n == int(n) else f'{n:,.2f}'
+            return str(raw)
+
+        def _pie_decorate_items(items):
+            pct_sfx = ' ({d}%)' if 'percent' in _eff_label_fmt else ''
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                val_txt = (_pie_fmt_number(item.get('value'))
+                           if number_format != 'auto' else '{c}')
+                if tt_value_label:
+                    tip = f'{{b}}<br/>{tt_value_label}: {val_txt}{pct_sfx}'
+                else:
+                    tip = f'{{b}}: {val_txt}{pct_sfx}'
+                item['tooltip'] = {'formatter': tip}
+                if number_format != 'auto' and show_labels and 'value' in _eff_label_fmt:
+                    item['label'] = {'formatter': f'{{b}}: {val_txt}{pct_sfx}'}
+
+        if number_format != 'auto' or tt_value_label:
+            _pie_decorate_items(pie_data)
+
         # ── Helper: build label config ─────────────────────────────
         _LABEL_FMTS = {
             'name':               '{b}',

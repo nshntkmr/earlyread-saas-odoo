@@ -251,6 +251,28 @@ _PIE_DONUT_COMMON = [
         ],
     },
     {
+        'flag': 'number_format',
+        'type': 'select',
+        'default': 'auto',
+        'label': 'Number Format',
+        'help': 'How slice values are written in the hover tooltip and in value '
+                'labels. Auto keeps the raw number (unchanged behaviour).',
+        'options': [
+            {'value': 'auto',    'label': 'Auto (raw number)'},
+            {'value': 'comma',   'label': 'Comma (216,457)'},
+            {'value': 'compact', 'label': 'Compact (216.5K)'},
+        ],
+    },
+    {
+        'flag': 'tooltip_value_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Tooltip Value Label',
+        'help': 'Text placed before the value in the hover tooltip, e.g. "Rx Volume" '
+                'shows "Dermatology Physician" on one line and "Rx Volume: 216,457" '
+                'on the next. Blank keeps the default "name: value".',
+    },
+    {
         'flag': 'sort',
         'type': 'select',
         'default': 'none',
