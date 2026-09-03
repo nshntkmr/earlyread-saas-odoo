@@ -287,6 +287,22 @@ _PIE_DONUT_COMMON = [
                 'on the next. Blank keeps the default "name: value".',
     },
     {
+        'flag': 'pie_center_x',
+        'type': 'text',
+        'default': '',
+        'label': 'Chart Centre X',
+        'help': 'Horizontal position of the pie/donut inside the widget as a percent '
+                'of the width, e.g. 30% to sit it on the left with the legend beside it. '
+                'The centre total/text follows. Blank = 50% (unchanged).',
+    },
+    {
+        'flag': 'pie_center_y',
+        'type': 'text',
+        'default': '',
+        'label': 'Chart Centre Y',
+        'help': 'Vertical position as a percent of the height. Blank = 50% (unchanged).',
+    },
+    {
         'flag': 'sort',
         'type': 'select',
         'default': 'none',

@@ -2529,9 +2529,44 @@ class DashboardWidget(models.Model):
             # ── Legend ─────────────────────────────────────────────────
             option['legend'] = _pie_legend_cfg()
 
+            # ── Custom chart centre (pie_center_x / pie_center_y flags) ──
+            # Moves every pie series that has no centre of its own (semi and
+            # multi-ring keep theirs), and makes the centre text FOLLOW it: a
+            # graphic text is positioned by its bounding-box edge, so it can't
+            # be centred on a percentage — the centre text is rendered as a
+            # title component instead, which centres on a coordinate. Blank
+            # flags leave every existing pie exactly as before.
+            pc_x = _ensure_pct(vc.get('pie_center_x', ''), '')
+            pc_y = _ensure_pct(vc.get('pie_center_y', ''), '')
+            _custom_center = bool(pc_x or pc_y)
+            if _custom_center:
+                for s in option.get('series') or []:
+                    if isinstance(s, dict) and s.get('type') == 'pie' and 'center' not in s:
+                        s['center'] = [pc_x or '50%', pc_y or '50%']
+
             # ── Center display (graphic element) ─────────────────────────
             _center_styles = ('standard', 'label_center', 'rounded', 'rose')
-            if center_mode == 'auto_total' and donut_style in _center_styles:
+            if _custom_center and donut_style in _center_styles:
+                _t_pos = {'left': pc_x or '50%', 'top': pc_y or '50%',
+                          'textAlign': 'center', 'textVerticalAlign': 'middle'}
+                if center_mode == 'auto_total':
+                    total_val = sum((d.get('value') or 0) for d in pie_data)
+                    total_str = f'{total_val:,.0f}' if isinstance(total_val, (int, float)) else str(total_val)
+                    option['title'] = dict(_t_pos, **{
+                        'text': center_text or total_str,
+                        'subtext': total_str if center_text else '',
+                        'itemGap': 4,
+                        'textStyle': ({'fontSize': 12, 'color': '#999', 'fontWeight': 'normal'}
+                                      if center_text else
+                                      {'fontSize': 20, 'color': '#333', 'fontWeight': 'bold'}),
+                        'subtextStyle': {'fontSize': 20, 'color': '#333', 'fontWeight': 'bold'},
+                    })
+                elif (center_mode == 'static' and center_static) or (center_mode == 'none' and center_text):
+                    option['title'] = dict(_t_pos, **{
+                        'text': center_static if center_mode == 'static' else center_text,
+                        'textStyle': {'fontSize': 16, 'color': '#333', 'fontWeight': 'bold'},
+                    })
+            if center_mode == 'auto_total' and donut_style in _center_styles and not _custom_center:
                 total_val = sum((d.get('value') or 0) for d in pie_data)
                 # Format number with commas
                 total_str = f'{total_val:,.0f}' if isinstance(total_val, (int, float)) else str(total_val)
@@ -2556,7 +2591,7 @@ class DashboardWidget(models.Model):
                         'text': ('{label|' + center_text + '}\n{total|' + total_str + '}') if center_text else ('{total|' + total_str + '}'),
                     },
                 })
-            elif center_mode == 'static' and center_static and donut_style in _center_styles:
+            elif center_mode == 'static' and center_static and donut_style in _center_styles and not _custom_center:
                 option.setdefault('graphic', []).append({
                     'type': 'text',
                     'left': 'center',
@@ -2570,7 +2605,7 @@ class DashboardWidget(models.Model):
                         'textVerticalAlign': 'middle',
                     },
                 })
-            elif center_mode == 'none' and center_text and donut_style in _center_styles:
+            elif center_mode == 'none' and center_text and donut_style in _center_styles and not _custom_center:
                 # Backward compat: old widgets with center_text but no center_mode
                 option.setdefault('graphic', []).append({
                     'type': 'text',
