@@ -67,6 +67,20 @@ class DashboardConnection(models.Model):
              'scoped to exactly one hospital app may use it.',
     )
 
+    # ── Purpose ─────────────────────────────────────────────────────────
+    # ``analytics`` (default) = a read connection used by executors, the
+    # Designer and schema sources — unchanged behaviour for every existing
+    # record. ``publisher`` = a write-only connection (INSERT-only DB user)
+    # used ONLY by the projections publisher; the query executor factory,
+    # the Designer connection dropdown and the schema-source picker refuse
+    # it, so the analytics path never gains write capability.
+    purpose = fields.Selection(
+        [('analytics', 'Analytics (read)'), ('publisher', 'Projections publisher (write-only)')],
+        required=True, default='analytics',
+        help='Publisher connections are never used for reading: executors, '
+             'the Designer and schema sources refuse them.',
+    )
+
     is_active = fields.Boolean(
         default=True,
         help='Disable to take all schema sources using this connection '

@@ -20,3 +20,4 @@ from . import geo_zip_centroid
 from . import portal_audit_log
 from . import ai_query_log
 from . import res_users_ai
+from . import dashboard_projection

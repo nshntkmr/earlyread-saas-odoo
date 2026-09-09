@@ -55,6 +55,38 @@ export async function apiFetch(url, token, opts = {}, refreshFn = null) {
 }
 
 /**
+ * Fetch JSON from the Posterra API WITHOUT throwing on HTTP errors.
+ *
+ * Same auth + 401-refresh-retry contract as apiFetch, but resolves with
+ * `{ ok, status, body }` so callers can act on structured error bodies
+ * (e.g. a 409 conflict payload carrying who changed a record and when).
+ *
+ * @param {string}   url       — full URL (built by endpoints.js helpers)
+ * @param {string}   token     — JWT access token
+ * @param {object}   opts      — additional fetch options
+ * @param {Function} refreshFn — optional async function that returns a fresh token
+ * @returns {Promise<{ok: boolean, status: number, body: any}>}
+ */
+export async function apiFetchResult(url, token, opts = {}, refreshFn = null) {
+  const doFetch = async (tok) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+      ...(opts.headers || {}),
+    }
+    return fetch(url, { ...opts, headers })
+  }
+  let res = await doFetch(token)
+  if (res.status === 401 && refreshFn) {
+    const newToken = await refreshFn()
+    if (newToken) res = await doFetch(newToken)
+  }
+  let body = null
+  try { body = await res.json() } catch (_) { body = null }
+  return { ok: res.ok, status: res.status, body }
+}
+
+/**
  * Fetch a binary file from the Posterra API (widget data downloads).
  *
  * Same auth + 401-refresh-retry contract as apiFetch, but resolves with the

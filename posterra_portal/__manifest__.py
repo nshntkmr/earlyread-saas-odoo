@@ -62,6 +62,9 @@
         'views/dashboard_builder_ext_views.xml',
         'views/ai_assist_views.xml',
         'views/dashboard_templates.xml',
+        # Projections (Mark Projected Compliant) — admin views + menus + crons
+        'views/projection_views.xml',
+        'data/projection_cron.xml',
     ],
     'assets': {
         'web.assets_frontend': [

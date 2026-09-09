@@ -116,6 +116,21 @@ export function filterSearchUrl(apiBase, filterId) {
 }
 
 /**
+ * Build the URL for a projection mutation (Mark Projected Compliant).
+ *
+ * POST only — the JSON body carries widget/section/row/identity/snapshot,
+ * expected_revision, request_id, the optional popover fields and the applied
+ * page filter values (so the drawer section SQL binds identically).
+ *
+ * @param {string} apiBase — e.g. "/api/v1"
+ * @param {string} action  — 'mark' | 'edit' | 'reproject' | 'undo'
+ * @returns {string}
+ */
+export function projectionActionUrl(apiBase, action) {
+  return `${apiBase}/projections/${action}`
+}
+
+/**
  * Build the URL for saving filter state (permalink).
  *
  * @param {string} apiBase — e.g. "/api/v1"

@@ -50,6 +50,7 @@
                         <group>
                             <field name="connection_id"
                                    options="{'no_create': True}"
+                                   domain="[('purpose', '!=', 'publisher')]"
                                    help="Leave empty to use the local Odoo Postgres."/>
                             <field name="engine" readonly="1"/>
                             <field name="table_name"

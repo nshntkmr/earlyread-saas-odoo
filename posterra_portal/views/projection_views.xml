@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         Projection Type (dashboard.projection.config)
+         ══════════════════════════════════════════════════════════════════ -->
+    <record id="view_dashboard_projection_config_list" model="ir.ui.view">
+        <field name="name">dashboard.projection.config.list</field>
+        <field name="model">dashboard.projection.config</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="app_id"/>
+                <field name="key"/>
+                <field name="name"/>
+                <field name="source_id"/>
+                <field name="engine"/>
+                <field name="projection_count"/>
+                <field name="is_active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_dashboard_projection_config_form" model="ir.ui.view">
+        <field name="name">dashboard.projection.config.form</field>
+        <field name="model">dashboard.projection.config</field>
+        <field name="arch" type="xml">
+            <form string="Projection Type">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Quality compliance projections"/></h1>
+                    </div>
+                    <group>
+                        <group string="Type">
+                            <field name="app_id"/>
+                            <field name="key" placeholder="quality_compliance"/>
+                            <field name="is_active"/>
+                            <field name="projection_count"/>
+                        </group>
+                        <group string="Source">
+                            <field name="source_id"/>
+                            <field name="engine"/>
+                            <field name="snapshot_column_id" domain="[('source_id', '=', source_id)]"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Identity">
+                            <p class="text-muted">
+                                Ordered columns that identify what a projection is about. All are
+                                required and must be text or integer. They are frozen once
+                                projections exist.
+                            </p>
+                            <field name="identity_column_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="column_id" domain="[('source_id', '=', parent.source_id)]"/>
+                                    <field name="data_type"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Status &amp; Eligibility">
+                            <group>
+                                <group>
+                                    <field name="status_column_id" domain="[('source_id', '=', source_id)]"/>
+                                    <field name="status_true_values"/>
+                                </group>
+                                <group>
+                                    <field name="eligibility_column_id" domain="[('source_id', '=', source_id)]"/>
+                                    <field name="eligible_values"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Permissions">
+                            <group>
+                                <group>
+                                    <field name="scope_mode"/>
+                                    <field name="scope_column_id" domain="[('source_id', '=', source_id)]"
+                                           invisible="scope_mode != 'provider'"
+                                           required="scope_mode == 'provider'"/>
+                                    <field name="scope_provider_field"
+                                           invisible="scope_mode != 'provider'"
+                                           required="scope_mode == 'provider'"/>
+                                    <field name="allowed_group_ids" widget="many2many_tags"/>
+                                </group>
+                                <group>
+                                    <field name="undo_policy"/>
+                                    <field name="allow_historical_mark"/>
+                                    <field name="history_shown"/>
+                                    <field name="poll_seconds"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Popover &amp; Card">
+                            <group>
+                                <group string="Popover">
+                                    <field name="label_mark"/>
+                                    <field name="label_reproject"/>
+                                    <field name="note_enabled"/>
+                                    <field name="expected_date_enabled"/>
+                                </group>
+                                <group string="Outcome styles">
+                                    <field name="style_projected_label"/>
+                                    <field name="style_projected_color" widget="color"/>
+                                    <field name="style_missed_label"/>
+                                    <field name="style_missed_color" widget="color"/>
+                                    <field name="style_matched_label"/>
+                                    <field name="style_matched_color" widget="color"/>
+                                    <field name="style_ineligible_label"/>
+                                    <field name="style_ineligible_color" widget="color"/>
+                                </group>
+                            </group>
+                            <group string="Evidence options (one per line: value|Label)">
+                                <field name="evidence_options" nolabel="1" colspan="2"
+                                       placeholder="appt_scheduled|Appointment scheduled&#10;chart_chase|Chart chase submitted"/>
+                            </group>
+                        </page>
+                        <page string="Reporting SQL">
+                            <p class="text-muted">
+                                Copy these into the database by hand (ClickHouse: as an admin;
+                                Postgres: as the Odoo DB owner). Odoo never runs DDL on ClickHouse.
+                                Register the reporting view as a Schema Source afterwards.
+                            </p>
+                            <group>
+                                <group>
+                                    <field name="view_name" placeholder="shared.v_humana_stars_tracker"/>
+                                    <field name="mirror_table" placeholder="shared.dashboard_projections"/>
+                                </group>
+                                <group>
+                                    <field name="publisher_connection_id"
+                                           domain="[('purpose', '=', 'publisher'), ('engine', '=', 'clickhouse')]"
+                                           options="{'no_create': True}"/>
+                                    <field name="mirror_note"/>
+                                </group>
+                            </group>
+                            <group string="Identity key expression">
+                                <field name="identity_expr_sql" nolabel="1" colspan="2" readonly="1"
+                                       style="font-family: monospace; min-height: 60px;"/>
+                            </group>
+                            <group string="Mirror table DDL (ClickHouse)">
+                                <field name="mirror_ddl_sql" nolabel="1" colspan="2" readonly="1"
+                                       style="font-family: monospace; min-height: 120px;"/>
+                            </group>
+                            <group string="Combined reporting view">
+                                <field name="view_sql" nolabel="1" colspan="2" readonly="1"
+                                       style="font-family: monospace; min-height: 240px;"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_dashboard_projection_config" model="ir.actions.act_window">
+        <field name="name">Projection Types</field>
+        <field name="res_model">dashboard.projection.config</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a Projection Type</p>
+            <p>One per app and purpose (e.g. quality_compliance). It defines the
+               identity, the month column, how compliance is read, who may act and
+               what the card shows.</p>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         Projection cycles (dashboard.projection) — read-only + audited buttons
+         ══════════════════════════════════════════════════════════════════ -->
+    <record id="view_dashboard_projection_list" model="ir.ui.view">
+        <field name="name">dashboard.projection.list</field>
+        <field name="model">dashboard.projection</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0" edit="0">
+                <field name="config_id"/>
+                <field name="identity_label"/>
+                <field name="cycle_no"/>
+                <field name="state"/>
+                <field name="first_applies_from"/>
+                <field name="applies_from"/>
+                <field name="attempt_no"/>
+                <field name="undone_month"/>
+                <field name="owner_name"/>
+                <field name="revision"/>
+                <field name="publish_state"/>
+                <field name="last_action_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_dashboard_projection_form" model="ir.ui.view">
+        <field name="name">dashboard.projection.form</field>
+        <field name="model">dashboard.projection</field>
+        <field name="arch" type="xml">
+            <form string="Projection cycle" create="0" delete="0" edit="0">
+                <header>
+                    <button name="action_admin_undo" type="object" string="Undo (admin)"
+                            class="btn-secondary" invisible="state != 'active'"
+                            confirm="Cancel this expectation from the latest available month? Earlier months keep their statuses. This is audited."/>
+                    <button name="action_open_void_wizard" type="object" string="Void…"
+                            class="btn-secondary" invisible="state != 'active'"/>
+                    <button name="action_republish" type="object" string="Republish"
+                            class="btn-secondary" invisible="publish_state in ('none', 'published')"
+                            help="Resend the latest saved state of this cycle to the reporting mirror."/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Identity">
+                            <field name="config_id"/>
+                            <field name="identity_label"/>
+                            <field name="identity_hash"/>
+                            <field name="cycle_no"/>
+                        </group>
+                        <group string="Cycle">
+                            <field name="first_applies_from"/>
+                            <field name="applies_from"/>
+                            <field name="attempt_months"/>
+                            <field name="attempt_no"/>
+                            <field name="undone_month"/>
+                            <field name="revision"/>
+                            <field name="published_revision"/>
+                            <field name="publish_state"/>
+                        </group>
+                        <group string="Details">
+                            <field name="owner_name"/>
+                            <field name="asserted_at"/>
+                            <field name="expected_date"/>
+                            <field name="evidence"/>
+                            <field name="note"/>
+                        </group>
+                        <group string="Undo">
+                            <field name="undone_at"/>
+                            <field name="undone_by_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="History">
+                            <field name="event_ids" readonly="1">
+                                <list>
+                                    <field name="at"/>
+                                    <field name="action"/>
+                                    <field name="actor_name"/>
+                                    <field name="revision"/>
+                                    <field name="reason"/>
+                                    <field name="publish_state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Source snapshot">
+                            <field name="source_snapshot" nolabel="1" colspan="2" readonly="1"
+                                   style="font-family: monospace;"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_dashboard_projection" model="ir.actions.act_window">
+        <field name="name">Projections</field>
+        <field name="res_model">dashboard.projection</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         Events (append-only)
+         ══════════════════════════════════════════════════════════════════ -->
+    <record id="view_dashboard_projection_event_list" model="ir.ui.view">
+        <field name="name">dashboard.projection.event.list</field>
+        <field name="model">dashboard.projection.event</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0" edit="0">
+                <field name="at"/>
+                <field name="config_id"/>
+                <field name="projection_id"/>
+                <field name="cycle_no"/>
+                <field name="action"/>
+                <field name="actor_name"/>
+                <field name="revision"/>
+                <field name="reason"/>
+                <field name="publish_state"/>
+                <field name="attempts"/>
+                <field name="published_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_dashboard_projection_event_form" model="ir.ui.view">
+        <field name="name">dashboard.projection.event.form</field>
+        <field name="model">dashboard.projection.event</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0" edit="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="at"/>
+                            <field name="action"/>
+                            <field name="actor_name"/>
+                            <field name="reason"/>
+                            <field name="revision"/>
+                            <field name="request_id"/>
+                        </group>
+                        <group>
+                            <field name="config_id"/>
+                            <field name="projection_id"/>
+                            <field name="identity_hash"/>
+                            <field name="cycle_no"/>
+                            <field name="publish_state"/>
+                            <field name="attempts"/>
+                            <field name="last_error"/>
+                            <field name="published_at"/>
+                        </group>
+                    </group>
+                    <group string="Before">
+                        <field name="before_json" nolabel="1" colspan="2" style="font-family: monospace;"/>
+                    </group>
+                    <group string="After">
+                        <field name="after_json" nolabel="1" colspan="2" style="font-family: monospace;"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_dashboard_projection_event" model="ir.actions.act_window">
+        <field name="name">Projection History</field>
+        <field name="res_model">dashboard.projection.event</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         Void wizard
+         ══════════════════════════════════════════════════════════════════ -->
+    <record id="view_dashboard_projection_void_wizard_form" model="ir.ui.view">
+        <field name="name">dashboard.projection.void.wizard.form</field>
+        <field name="model">dashboard.projection.void.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Void projection">
+                <p>Voiding removes this projection — and any match attributed to it —
+                   from every month it covered. The record and its history are kept.
+                   Source compliance is never changed.</p>
+                <group>
+                    <field name="projection_id" readonly="1"/>
+                    <field name="reason" placeholder="Why is this projection being voided?"/>
+                </group>
+                <footer>
+                    <button name="action_void" type="object" string="Void" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         Menus (under Posterra → Configuration)
+         ══════════════════════════════════════════════════════════════════ -->
+    <menuitem id="menu_dashboard_projection_config"
+              name="Projection Types"
+              parent="posterra_portal.menu_posterra_config"
+              action="action_dashboard_projection_config"
+              sequence="26"/>
+    <menuitem id="menu_dashboard_projection"
+              name="Projections"
+              parent="posterra_portal.menu_posterra_config"
+              action="action_dashboard_projection"
+              sequence="27"/>
+    <menuitem id="menu_dashboard_projection_event"
+              name="Projection History"
+              parent="posterra_portal.menu_posterra_config"
+              action="action_dashboard_projection_event"
+              sequence="28"/>
+
+</odoo>

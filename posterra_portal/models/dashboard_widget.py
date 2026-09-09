@@ -6238,6 +6238,25 @@ class DashboardWidget(models.Model):
                 'widget %s: invalid detail_drawer_config JSON', self.id)
             return {}
 
+    def _is_projection_consumer(self):
+        """True when this widget's source feeds (or is) an active Projection
+        Type of its app — such widgets refresh after a projection is saved."""
+        self.ensure_one()
+        src = self.schema_source_id
+        if not src:
+            return False
+        ptype = getattr(src, 'projection_type_id', False)
+        if ptype and ptype.is_active:
+            return True
+        try:
+            Config = self.env['dashboard.projection.config'].sudo()
+        except KeyError:
+            return False
+        return bool(Config.search_count([
+            ('source_id', '=', src.id), ('is_active', '=', True),
+            ('app_id', '=', self.page_id.app_id.id),
+        ], limit=1))
+
     def _build_drawer_render_schema(self):
         """Client-safe projection of the drawer config — SQL STRIPPED.
 
@@ -6265,7 +6284,7 @@ class DashboardWidget(models.Model):
             'sections': sections,
         }
 
-    def _execute_drawer_detail(self, row_key_value, portal_ctx):
+    def _execute_drawer_detail(self, row_key_value, portal_ctx, user=None, providers=None):
         """Resolve ALL sql-backed drawer sections for one clicked row.
 
         Returns {'sections': {<id>: {'rows': [{col: val}, ...]} | {'error': str}}}.
@@ -6274,6 +6293,12 @@ class DashboardWidget(models.Model):
         Reuses _run_detail_query → row_key binding, {where_clause}/[[ ]], the
         SELECT/WITH read-only guard, and the connector-correct, tenant-safe
         executor. A failing section is isolated to its own {'error': ...} key.
+
+        ``user``/``providers`` (optional, additive): a ``measure_cards`` section
+        whose ``card.projection`` block names a Projection Type gets the
+        projection overlay (per-row outcomes + capability flags,
+        ``projections`` and ``projection_meta``) in its own try/except.
+        Sections without the block are byte-identical to before.
         """
         self.ensure_one()
         cfg = self._get_detail_drawer_config()
@@ -6311,6 +6336,19 @@ class DashboardWidget(models.Model):
                     'drawer section %s (widget %s) failed: %s',
                     sid, self.id, exc)
                 out[sid] = {'error': str(exc)}
+                continue
+            # Projections overlay (only for sections carrying the block).
+            if (s.get('type') == 'measure_cards'
+                    and (s.get('card') or {}).get('projection')):
+                out[sid] = {'rows': [dict(r) for r in out[sid]['rows']]}
+                try:
+                    from ..services.projection_overlay import apply_overlay
+                    apply_overlay(self, s, out[sid], portal_ctx, user, providers)
+                except Exception as exc:  # noqa: BLE001 — never break the cards
+                    _logger.warning(
+                        'projection overlay on section %s (widget %s) failed: %s',
+                        sid, self.id, exc)
+                    out[sid]['projection_meta'] = {'error': str(exc)}
         return {'sections': out}
 
     def _build_detail_tile(self, tile_config, cols, rows):

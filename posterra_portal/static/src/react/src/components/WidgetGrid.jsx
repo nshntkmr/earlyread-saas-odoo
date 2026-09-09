@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useFilters } from '../state/FilterContext'
-import { apiFetch, apiFetchBlob } from '../api/client'
-import { widgetDataUrl, widgetDetailUrl, widgetDownloadUrl } from '../api/endpoints'
+import { apiFetch, apiFetchBlob, apiFetchResult } from '../api/client'
+import { widgetDataUrl, widgetDetailUrl, widgetDownloadUrl, projectionActionUrl } from '../api/endpoints'
 
 // ── Widget components ─────────────────────────────────────────────────────────
 import KPICard      from './widgets/KPICard'
@@ -92,7 +92,8 @@ function resolveWidget(chartType) {
 const KPI_LIKE_TYPES = new Set(['kpi', 'status_kpi', 'gauge_kpi'])
 
 export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }) {
-  const { config, filterValues, currentTabKey, accessToken, refreshToken, apiBase, applyCrossFilter } = useFilters()
+  const { config, filterValues, currentTabKey, accessToken, refreshToken, apiBase, applyCrossFilter,
+          applyImmediate } = useFilters()
 
   // widgetData state: { "<widgetId>": { ...widgetMeta, data: {...} } }
   const [widgetData, setWidgetData] = useState(initialWidgets || {})
@@ -268,6 +269,54 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     }
   }, [widgetData, widgetFilterValues, filterValues, scopeValues, scopeOptionIds, mapDrillStates,
       wfParamsFor, apiBase, accessToken, refreshToken])
+
+  // ── Projections: refresh consumer widgets after a save ───────────────────
+  // Widgets bound to a source that feeds (or is) a Projection Type carry
+  // `projection_consumer: true` in their metadata. After a user saves a
+  // projection the visible consumers refetch through this dedicated path —
+  // NO loading skeleton (the table and its open drawer stay mounted, AG Grid
+  // keeps sort/filter/page), no filter change, no drill reset. Consumers on
+  // other tabs are marked deferred so they refetch when shown.
+  const refreshProjectionConsumers = useCallback(async () => {
+    const targets = Object.values(widgetData).filter(w => w.projection_consumer)
+    if (!targets.length) return
+    if (!isPageSummary) {
+      setWidgetData(prev => {
+        const updated = { ...prev }
+        targets.forEach(w => {
+          if (w.tab_key && w.tab_key !== currentTabKey) {
+            updated[String(w.id)] = { ...w, data: { _deferred: true } }
+          }
+        })
+        return updated
+      })
+    }
+    await Promise.all(targets.filter(visibleForGrid).map(async (w) => {
+      const params = { ...filterValues }
+      if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
+        params._scope_option_id = scopeOptionIds[w.id]
+      } else if (w.scope?.param_name && scopeValues[w.id]) {
+        params[w.scope.param_name] = scopeValues[w.id]
+      }
+      const drill = mapDrillStates[w.id]
+      if (drill?.mapLevel === 'county') {
+        params._map_level = 'county'
+        params._drill_state_code = drill.drillStateCode
+        params._drill_state_fips = drill.drillStateFips
+      }
+      Object.assign(params, wfParamsFor(w))
+      try {
+        const result = await apiFetch(widgetDataUrl(apiBase, w.id, params), accessToken, {}, refreshToken)
+        setWidgetData(prev => ({
+          ...prev,
+          [String(w.id)]: { ...prev[String(w.id)], data: result.data },
+        }))
+      } catch (err) {
+        console.warn('[PROJECTIONS] consumer refresh failed for widget', w.id, err)
+      }
+    }))
+  }, [widgetData, filterValues, scopeValues, scopeOptionIds, mapDrillStates, wfParamsFor,
+      apiBase, accessToken, refreshToken, currentTabKey, isPageSummary]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Map state→county drill handler ────────────────────────────────────────
   // drillData = { code, fips, name } to drill into a state; null to go back to
@@ -710,6 +759,22 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
           accessToken, {}, refreshToken,
         )
       }
+      // Projections (Mark Projected Compliant): saves go through the JWT API
+      // with the SAME applied filters the drawer fetch sends, so the section
+      // SQL resolves the row identically; consumers refresh after a save.
+      extraProps.projectionApi = {
+        mutate: (action, body) => apiFetchResult(
+          projectionActionUrl(apiBase, action), accessToken, {
+            method: 'POST',
+            body: JSON.stringify({
+              ...body, widget_id: w.id,
+              filters: { ...filterValues, ...wfParamsFor(w) },
+            }),
+          }, refreshToken),
+      }
+      extraProps.onProjectionSaved = refreshProjectionConsumers
+      extraProps.appliedFilters = filterValues
+      extraProps.onShowMonth = (param, value) => applyImmediate({ [param]: value })
     }
     if (w.chart_type === 'ranked_detail_list') {
       extraProps.widgetId = w.id

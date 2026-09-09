@@ -13,7 +13,8 @@ void CELL_RENDERERS
 ModuleRegistry.registerModules([AllCommunityModule])
 
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
-function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widgetId, fetchDrawerDetail, registerGridApi }) {
+function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widgetId, fetchDrawerDetail, registerGridApi,
+                       projectionApi = null, onProjectionSaved = null, appliedFilters = null, onShowMonth = null }) {
   const { columnDefs, rowData = [], row_count, visual_config: vc = {}, detail_drawer: drawer } = data
   const gridRef = useRef(null)
 
@@ -191,6 +192,10 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widget
           row={drawerRow}
           fetchDetail={(rowKey) => fetchDrawerDetail(rowKey)}
           onClose={closeDrawer}
+          projectionApi={projectionApi}
+          onProjectionSaved={onProjectionSaved}
+          appliedFilters={appliedFilters}
+          onShowMonth={onShowMonth}
         />
       )}
     </div>
@@ -287,11 +292,14 @@ function LegacyTable({ data, columnLinkConfig, onCellClick }) {
  *   columnLinkConfig — legacy column link map (only used in legacy mode)
  *   onCellClick     — ({ column, value, row, linkConfig }) => void
  */
-export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText, fillHeight, widgetId, fetchDrawerDetail, registerGridApi }) {
+export default function DataTable({ data = {}, columnLinkConfig, onCellClick, searchText, fillHeight, widgetId, fetchDrawerDetail, registerGridApi,
+                                    projectionApi = null, onProjectionSaved = null, appliedFilters = null, onShowMonth = null }) {
   // AG Grid mode: has columnDefs from table_column_config
   if (data.columnDefs) {
     return <AGGridTable data={data} onCellClick={onCellClick} searchText={searchText} fillHeight={fillHeight}
-      widgetId={widgetId} fetchDrawerDetail={fetchDrawerDetail} registerGridApi={registerGridApi} />
+      widgetId={widgetId} fetchDrawerDetail={fetchDrawerDetail} registerGridApi={registerGridApi}
+      projectionApi={projectionApi} onProjectionSaved={onProjectionSaved}
+      appliedFilters={appliedFilters} onShowMonth={onShowMonth} />
   }
 
   // Legacy mode: plain cols/rows (backward compat for existing widgets)

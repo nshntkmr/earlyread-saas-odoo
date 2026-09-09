@@ -692,6 +692,7 @@ class PosterraWidgetAPI(http.Controller):
                 'tab_key':      tab_key,
                 'render_region': w.render_region or 'tab_content',
                 'sequence':     w.sequence,
+                'projection_consumer': w._is_projection_consumer(),
             }
             if typo:
                 wdata.update(typo)
@@ -1115,7 +1116,12 @@ class PosterraWidgetAPI(http.Controller):
         # rebuilt above, so %(param)s / {where_clause} / %(row_key)s resolve
         # exactly like ranked-detail SQL, and tenant scoping holds).
         if detail_type == 'drawer':
-            drawer_data = widget._execute_drawer_detail(row_key, portal_ctx)
+            try:
+                providers = _get_providers_for_user(user)
+            except Exception:  # noqa: BLE001 — only provider-scoped types need them
+                providers = None
+            drawer_data = widget._execute_drawer_detail(
+                row_key, portal_ctx, user=user, providers=providers)
             return _json_response({
                 'widget_id': widget.id,
                 'row_key': row_key,

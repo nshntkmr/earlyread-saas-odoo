@@ -284,6 +284,7 @@ def _build_initial_widgets_json(widgets, widget_data):
             'height':       w.chart_height,
             'name':         w.name,
             'sequence':     w.sequence,
+            'projection_consumer': w._is_projection_consumer(),
             'display_mode': w.display_mode or 'standard',
             'display_density': _extract_vc_field(w, 'display_density', 'standard'),
             'card_padding': _extract_vc_field(w, 'card_padding', 'standard'),

@@ -239,6 +239,15 @@ class DashboardSchemaSourceExt(models.Model):
         string='Available in Apps',
         help='Leave empty for global availability. Set to restrict to specific apps.')
 
+    # Projections: set on the registered combined reporting view so widgets
+    # bound to it refresh after a projection is saved (they are "consumers").
+    # Widgets bound to a Projection Type's own source are consumers implicitly.
+    projection_type_id = fields.Many2one(
+        'dashboard.projection.config', string='Projection Type (reporting view)',
+        ondelete='set null',
+        help='Set on the combined reporting view of a Projection Type. Widgets '
+             'using this source refresh after a projection is saved.')
+
     data_classification = fields.Selection(
         [
             ('non_phi', 'Non-PHI'),

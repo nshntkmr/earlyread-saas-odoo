@@ -171,4 +171,45 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 
+    <!-- ── Projections (Mark Projected Compliant) ──────────────────────────
+         Portal users have NO ACL on any of these: every change goes through
+         the JWT API and the service (sudo). Admins configure types and read
+         the cycles / history; admin Undo and Void are audited buttons. -->
+    <record id="access_dashboard_projection_config_admin" model="ir.model.access">
+        <field name="name">dashboard.projection.config admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.projection.config')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+    <record id="access_dashboard_projection_config_identity_admin" model="ir.model.access">
+        <field name="name">dashboard.projection.config.identity admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.projection.config.identity')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+    <record id="access_dashboard_projection_admin" model="ir.model.access">
+        <field name="name">dashboard.projection admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.projection')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_dashboard_projection_event_admin" model="ir.model.access">
+        <field name="name">dashboard.projection.event admin</field>
+        <field name="model_id" model="ir.model" search="[('model','=','dashboard.projection.event')]"/>
+        <field name="group_id" ref="posterra_portal.group_posterra_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
 </odoo>

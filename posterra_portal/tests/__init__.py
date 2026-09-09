@@ -13,3 +13,7 @@ from . import test_page_template_roundtrip
 from . import test_filter_scope_inspector
 from . import test_tab_scoped_filters
 from . import test_widget_filters
+from . import test_projection_identity
+from . import test_projection_outcomes
+from . import test_projection_service
+from . import test_projection_publisher

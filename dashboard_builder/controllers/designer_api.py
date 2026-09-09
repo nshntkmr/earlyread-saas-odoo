@@ -384,7 +384,7 @@ class DesignerAPI(http.Controller):
         }]
 
         connections = request.env['dashboard.connection'].sudo().search(
-            [('is_active', '=', True)], order='name asc')
+            [('is_active', '=', True), ('purpose', '!=', 'publisher')], order='name asc')
         for c in connections:
             result.append({
                 'id': c.id,

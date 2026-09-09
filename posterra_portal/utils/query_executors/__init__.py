@@ -63,6 +63,13 @@ def get_executor_for_connection(env, connection, schema_source=None, allow_inact
             "enable it in Dashboard Builder → Configuration → Database "
             "Connections before running queries against it."
         )
+    # Projections publisher connections are write-only (INSERT-only DB
+    # user) and must never be used to read: refuse to build an executor.
+    if getattr(connection, 'purpose', 'analytics') == 'publisher':
+        raise ValueError(
+            f"Connection {connection.name!r} is a projections publisher "
+            "connection and cannot be used for queries."
+        )
     cls = _EXECUTORS.get(connection.engine)
     if not cls:
         raise ValueError(
