@@ -11,6 +11,7 @@
             <list string="Database Connections">
                 <field name="name"/>
                 <field name="engine"/>
+                <field name="purpose"/>
                 <field name="host"/>
                 <field name="database"/>
                 <field name="is_active"/>
@@ -51,6 +52,7 @@
                     <group>
                         <group string="General">
                             <field name="engine"/>
+                            <field name="purpose"/>
                             <field name="security_profile"
                                    invisible="engine != 'snowflake'"/>
                             <field name="is_active"/>
