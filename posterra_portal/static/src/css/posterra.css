@@ -1994,6 +1994,63 @@
     color: var(--w-value-secondary);
 }
 
+/* ── Info tooltip icon (dashboard.widget.info_text) ──────────────────
+   Only headers WITH info text get --has-info: the title stays on one line
+   and ellipsizes instead of wrapping, so the header height never changes. */
+.pv-widget-card-header--has-info .pv-widget-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pv-widget-card-header--has-info .pv-widget-title-icon {
+    flex-shrink: 0;
+}
+.pv-widget-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.15em;
+    height: 1.15em;
+    margin-left: -4px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #94a3b8;
+    font-size: clamp(0.65rem, 4.5cqw, 0.875rem);
+    line-height: 1;
+    cursor: pointer;
+}
+.pv-widget-info-btn:hover,
+.pv-widget-info-btn.is-open {
+    color: #2563eb;
+    background: #eff6ff;
+}
+.pv-widget-info-btn:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 1px;
+}
+.pv-widget-card--dense .pv-widget-info-btn {
+    font-size: clamp(0.55rem, 3.5cqw, 0.7rem);
+}
+.pv-widget-info-popover {
+    position: fixed;
+    z-index: 3000;
+    padding: 8px 10px;
+    background: #fff;
+    border: 0.8px solid #e2e8f0;
+    border-radius: 6px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14);
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.45;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
 .pv-widget-title-icon {
     display: inline-flex;
     align-items: center;

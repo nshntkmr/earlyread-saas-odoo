@@ -354,6 +354,9 @@
                                 <field name="footnote" widget="text"
                                        placeholder="e.g. Source: CMS OASIS data"
                                        style="min-height: 60px;"/>
+                                <field name="info_text" widget="text"
+                                       placeholder="e.g. Sum of dispensed units across all NDCs. Blank = no info icon"
+                                       style="min-height: 60px;"/>
                             </group>
 
                             <!-- Chart / Table annotation (single field, conditional sub-fields) -->

@@ -665,6 +665,11 @@ class DashboardWidget(models.Model):
         help='Displayed below the widget content area.\n'
              'Supports SQL interpolation: %(column_name)s is replaced with first-row values.\n'
              'Example: "Source: CMS data as of %(data_date)s"')
+    info_text = fields.Text(string='Info Tooltip',
+        help='Shows a small info icon next to the widget title; hover or click it '
+             'to read this text. Leave blank to hide the icon.\n'
+             'Supports SQL interpolation: %(column_name)s is replaced with first-row values.\n'
+             'Example: "Sum of dispensed units across all NDCs. Data as of %(data_date)s"')
     annotation_text = fields.Char(string='Annotation Text',
         help='Text label for chart annotation. Used with reference_line, text_overlay, or badge.\n'
              'Supports SQL interpolation: %(column_name)s is replaced with first-row values.\n'
@@ -5676,6 +5681,9 @@ class DashboardWidget(models.Model):
         resolved_footnote = _interp(self.footnote)
         if resolved_footnote:
             result['_resolved_footnote'] = resolved_footnote
+        resolved_info = _interp(self.info_text)
+        if resolved_info:
+            result['_resolved_info_text'] = resolved_info
         resolved_annotation = _interp(self.annotation_text)
         if resolved_annotation:
             result['_resolved_annotation_text'] = resolved_annotation

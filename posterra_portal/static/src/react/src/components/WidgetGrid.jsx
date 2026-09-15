@@ -34,6 +34,9 @@ import WidgetControls from './WidgetControls'
 // ── Per-widget data download (admin-gated) ──────────────────────────────────
 import WidgetDownloadButton from './WidgetDownloadButton'
 
+// ── Info tooltip icon next to the title (dashboard.widget.info_text) ────────
+import WidgetInfoIcon from './WidgetInfoIcon'
+
 // ── Drill-down ──────────────────────────────────────────────────────────────
 import DrillDownModal from './builder/DrillDownModal'
 
@@ -691,6 +694,9 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     // subtitle, footnote). Download/scope/search/click are declared unsupported
     // for it in the builder, so nothing stale leaks beneath the identity.
     const isChromeless = w.chart_type === 'record_header'
+    // Info tooltip: prefer the value re-resolved on refresh (data._resolved_info_text,
+    // so %(col)s tracks Apply), else the first-paint value from the page payload.
+    const infoText = w.data?._resolved_info_text || w.info_text || ''
 
     // Scalable widgets (ECharts, tables) fill available height.
     // Non-scalable widgets (gauge variants, KPI, battle card) render at natural size
@@ -852,7 +858,7 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
           }}
         >
           {!isCompact && !isChromeless && (
-            <div className="pv-widget-card-header">
+            <div className={`pv-widget-card-header${infoText ? ' pv-widget-card-header--has-info' : ''}`}>
               {w.download && w.download.position === 'header_left' && (
                 <WidgetDownloadButton
                   download={w.download}
@@ -884,7 +890,9 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
                   : (w.label_font_weight || w.label_color)
                     ? { ...(w.label_font_weight && { fontWeight: w.label_font_weight }), ...(w.label_color && { color: w.label_color }) }
                     : undefined}
+                title={infoText ? w.name : undefined}
               >{w.name}</span>
+              {infoText && <WidgetInfoIcon text={infoText} />}
               {/* Widget-scoped controls (toggle/dropdown/search) — header placement.
                   Choropleth maps relocate this into the map body (see below). */}
               {w.map_controls_placement !== 'body' && (

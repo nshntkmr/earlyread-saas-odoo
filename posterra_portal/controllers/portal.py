@@ -271,6 +271,7 @@ def _build_initial_widgets_json(widgets, widget_data):
         # falling back to the static admin-configured values.
         resolved_subtitle = wd.pop('_resolved_subtitle', '') or w.subtitle or ''
         resolved_footnote = wd.pop('_resolved_footnote', '') or w.footnote or ''
+        resolved_info_text = wd.pop('_resolved_info_text', '') or w.info_text or ''
         resolved_annotation_text = wd.pop('_resolved_annotation_text', '') or w.annotation_text or ''
 
         result[str(w.id)] = {
@@ -296,6 +297,7 @@ def _build_initial_widgets_json(widgets, widget_data):
             # Annotations (SQL-interpolated when %(col)s syntax used)
             'subtitle':           resolved_subtitle,
             'footnote':           resolved_footnote,
+            'info_text':          resolved_info_text,
             'annotation_type':    w.annotation_type or 'none',
             'annotation_text':    resolved_annotation_text,
             'annotation_position': w.annotation_position or 'top_right',
