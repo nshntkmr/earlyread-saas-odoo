@@ -43,7 +43,8 @@ def get_executor(env, schema_source):
     return get_executor_for_connection(env, connection, schema_source=schema_source)
 
 
-def get_executor_for_connection(env, connection, schema_source=None, allow_inactive=False):
+def get_executor_for_connection(env, connection, schema_source=None, allow_inactive=False,
+                                allow_publisher=False):
     """Pick the executor for a connection record.
 
     Refuses to build an executor for an inactive connection — a
@@ -56,6 +57,13 @@ def get_executor_for_connection(env, connection, schema_source=None, allow_inact
     must be able to test a connection that a sensitive-field change has
     just auto-deactivated. Normal widget/preview/API paths MUST NOT pass
     it — without it, an inactive connection still fails closed.
+
+    ``allow_publisher=True`` is reserved for the connection's own
+    **Test Connection** action, which only calls ``executor.ping()``
+    (``SELECT 1`` — no table access, so an INSERT-only publisher user can
+    run it). Every path that reads data — widgets, previews, filters, the
+    PHI source validation — MUST NOT pass it: a projections publisher
+    connection is write-only and still fails closed for them.
     """
     if not getattr(connection, 'is_active', True) and not allow_inactive:
         raise ValueError(
@@ -65,7 +73,7 @@ def get_executor_for_connection(env, connection, schema_source=None, allow_inact
         )
     # Projections publisher connections are write-only (INSERT-only DB
     # user) and must never be used to read: refuse to build an executor.
-    if getattr(connection, 'purpose', 'analytics') == 'publisher':
+    if getattr(connection, 'purpose', 'analytics') == 'publisher' and not allow_publisher:
         raise ValueError(
             f"Connection {connection.name!r} is a projections publisher "
             "connection and cannot be used for queries."

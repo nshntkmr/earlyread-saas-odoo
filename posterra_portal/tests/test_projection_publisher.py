@@ -79,7 +79,16 @@ class TestProjectionPublisher(TransactionCase):
     def test_executor_factory_refuses_publisher_connection(self):
         with self.assertRaises(ValueError):
             get_executor_for_connection(self.env, self.pub_conn)
+        # Data-reading callers that only opt into allow_inactive still refuse.
+        with self.assertRaises(ValueError):
+            get_executor_for_connection(self.env, self.pub_conn, allow_inactive=True)
         self.assertIsNotNone(get_executor_for_connection(self.env, self.read_conn))
+
+    def test_test_connection_may_build_an_executor_for_a_publisher(self):
+        # Test Connection opts in explicitly so a publisher can be verified.
+        executor = get_executor_for_connection(
+            self.env, self.pub_conn, allow_inactive=True, allow_publisher=True)
+        self.assertIsNotNone(executor)
 
     def test_publisher_connection_constraints(self):
         with self.assertRaises(ValidationError):

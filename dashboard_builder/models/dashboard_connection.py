@@ -339,8 +339,12 @@ class DashboardConnection(models.Model):
                 # allow_inactive: Test Connection is an explicit admin action
                 # and must work on a connection that a sensitive-field change
                 # just auto-deactivated (the revalidation path).
+                # allow_publisher: a projections publisher connection must be
+                # testable too. The test only pings (SELECT 1, no table
+                # access), which an INSERT-only publisher user can run; every
+                # data-reading path still refuses publisher connections.
                 executor = get_executor_for_connection(
-                    self.env, rec, allow_inactive=True)
+                    self.env, rec, allow_inactive=True, allow_publisher=True)
                 ok = executor.ping()
                 if not ok:
                     raise RuntimeError('ping returned False')
