@@ -323,6 +323,14 @@ def _build_member_flow_preview(columns, rows, visual_config=None):
 _KPI_UNIT_SCALE = {'thousands': (1e3, 'K'), 'millions': (1e6, 'M'), 'billions': (1e9, 'B')}
 
 
+def _currency_str(val, decimals):
+    """Sign before the symbol (-$1.62M, not $-1.62M); decided on the rounded
+    value so -0.001 renders as $0.00. Mirrors dashboard_widget._currency_str."""
+    rounded = round(val, decimals)
+    sign = '-' if rounded < 0 else ''
+    return f'{sign}${abs(rounded):,.{decimals}f}'
+
+
 def _format_value(raw, fmt='number', prefix='', suffix='', unit=None):
     """Format a raw numeric value for KPI display.
 
@@ -341,12 +349,12 @@ def _format_value(raw, fmt='number', prefix='', suffix='', unit=None):
     if scale and fmt != 'percent':
         divisor, letter = scale
         val = val / divisor
-        formatted = (f'${val:,.2f}{letter}' if fmt == 'currency'
+        formatted = (f'{_currency_str(val, 2)}{letter}' if fmt == 'currency'
                      else f'{val:,.2f}{letter}')
         return f'{prefix}{formatted}{suffix}'
 
     if fmt == 'currency':
-        formatted = f'${val:,.0f}'
+        formatted = _currency_str(val, 0)
     elif fmt == 'percent':
         formatted = f'{val:.1f}%'
     elif fmt == 'decimal':
@@ -433,6 +441,16 @@ def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
         result['kpi_label_bold'] = True
     if visual_config.get('kpi_label_italic'):
         result['kpi_label_italic'] = True
+
+    # Negative-value color — mirrors dashboard_widget._apply_kpi_negative_color
+    # so the Designer live preview shows the same red the portal will.
+    neg_color = str(visual_config.get('kpi_negative_color') or '').strip()
+    if neg_color:
+        try:
+            if float(raw_val) < 0:
+                result['value_color'] = neg_color
+        except (TypeError, ValueError):
+            pass
 
     # Secondary value — match the portal trend badge: "±N% vs <comparison_label>".
     # Comparison label: SQL column 'comparison_label' (trimmed, non-blank)

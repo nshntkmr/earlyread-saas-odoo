@@ -55,6 +55,15 @@ _VALUE_COLOR_MAP = {
     'dark': '#374151', 'black': '#111827',
     'teal': '#0d9488', 'primary': '#1e40af',
 }
+
+
+def _currency_str(val, decimals):
+    """Format a float as currency with the sign BEFORE the symbol: -$1.62M,
+    not $-1.62M. The sign is decided on the ROUNDED value so -0.001 renders
+    as $0.00 rather than -$0.00. Mirrored in preview_formatter._currency_str."""
+    rounded = round(val, decimals)
+    sign = '-' if rounded < 0 else ''
+    return f'{sign}${abs(rounded):,.{decimals}f}'
 # ── Annotation position → ECharts graphic coordinates ────────────────────
 _POSITION_MAP = {
     'top_left':      {'left': '5%',  'top': '5%'},
@@ -4364,7 +4373,7 @@ class DashboardWidget(models.Model):
         elif fmt_mode == 'integer':
             return f'{int(round(val))}'
         elif fmt_mode == 'currency':
-            return f'${val:,.0f}'
+            return _currency_str(val, 0)
         return str(round(val, 1))
 
     # =========================================================================
@@ -4661,6 +4670,13 @@ class DashboardWidget(models.Model):
                     result['secondary'] = str(prior_raw)
 
         result.update(self._get_typography_overrides())
+
+        # Negative-value color (opt-in, visual_config.kpi_negative_color).
+        # Runs AFTER the typography merge so it wins over the static Value
+        # Color only when the raw value is below zero. Every KPI renderer
+        # (KPICard / StatusKPI / KPIStrip / KpiCardGeneric) already honors
+        # ``value_color``, so no React change is needed.
+        self._apply_kpi_negative_color(result, vc, raw_val)
 
         # ── KPI variant enrichment (dashboard builder variants) ──────
         # vc already parsed once at the top of this method.
@@ -5811,6 +5827,23 @@ class DashboardWidget(models.Model):
         if vc.get('kpi_label_italic'):
             result['kpi_label_italic'] = True
 
+    @staticmethod
+    def _apply_kpi_negative_color(result, visual_config, raw_val):
+        """Recolor the primary KPI value when it is below zero (opt-in).
+
+        ``visual_config.kpi_negative_color`` holds any CSS color (e.g.
+        ``#dc2626``). Blank/missing → no-op, so existing cards are untouched.
+        Non-numeric raw values never trigger it.
+        """
+        color = str((visual_config or {}).get('kpi_negative_color') or '').strip()
+        if not color:
+            return
+        try:
+            if float(raw_val) < 0:
+                result['value_color'] = color
+        except (TypeError, ValueError):
+            pass
+
     # =========================================================================
     # KPI formatting helper
     # =========================================================================
@@ -5876,12 +5909,12 @@ class DashboardWidget(models.Model):
         if scale and fmt != 'percent':
             divisor, letter = scale
             val = val / divisor
-            formatted = (f'${val:,.2f}{letter}' if fmt == 'currency'
+            formatted = (f'{_currency_str(val, 2)}{letter}' if fmt == 'currency'
                          else f'{val:,.2f}{letter}')
             return f'{prefix}{formatted}{suffix}'
 
         if fmt == 'currency':
-            formatted = f'${val:,.0f}'
+            formatted = _currency_str(val, 0)
         elif fmt == 'percent':
             formatted = f'{val:.1f}%'
         elif fmt == 'decimal':

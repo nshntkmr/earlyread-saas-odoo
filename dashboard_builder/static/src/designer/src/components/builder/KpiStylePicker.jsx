@@ -384,6 +384,20 @@ export default function KpiStylePicker({
       </div>
       <div className="wb-field-row">
         <label className="wb-field-label">
+          Negative Value Color
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Optional CSS color applied to the primary value ONLY when it is below zero (e.g. #dc2626 for red). Leave blank to keep the normal Value Color for negatives. Label, badge and trend colors are not affected." />
+        </label>
+        <input
+          type="text"
+          className="wb-input wb-input--sm"
+          placeholder="Default (e.g. #dc2626 for red)"
+          value={cfgVal(visualConfig, 'kpi_negative_color', '')}
+          onChange={e => handleCfg('kpi_negative_color', e.target.value)}
+        />
+      </div>
+      <div className="wb-field-row">
+        <label className="wb-field-label">
           Display Density
           <i className="fa fa-info-circle wb-flag-info"
              title="Controls card padding, font sizes, and spacing. Standard: generous spacing (default). Compact: tighter layout (~120px height). Dense: minimal spacing (~80px height) — matches competitor KPI strips." />
