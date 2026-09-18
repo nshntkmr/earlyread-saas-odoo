@@ -832,6 +832,15 @@ class PosterraWidgetAPI(http.Controller):
         # ── Widget-scoped control override ───────────────────────────────
         _scope_option_id = kw.pop('_scope_option_id', None)
 
+        # No option id on a "Different SQL Per Option" widget → run the
+        # DEFAULT option (same rule as the page's first paint) so the
+        # option's column config / x-y mapping apply. Empty recordset →
+        # unchanged fallback to the widget-level SQL below.
+        if widget.scope_query_mode == 'query' and not _scope_option_id:
+            _default_opt = widget._default_query_scope_option()
+            if _default_opt:
+                _scope_option_id = _default_opt.id
+
         if widget.scope_query_mode == 'query' and _scope_option_id:
             # Query Mode: use the selected option's SQL instead of widget's
             try:
@@ -1004,6 +1013,12 @@ class PosterraWidgetAPI(http.Controller):
 
         # ── Widget-scoped control (same guards as /data) ───────────────────
         scope_opt = None
+        # No option id → the default option (same rule as /data and the
+        # page's first paint), so a download matches what is on screen.
+        if widget.scope_query_mode == 'query' and not _scope_option_id:
+            _default_opt = widget._default_query_scope_option()
+            if _default_opt:
+                _scope_option_id = _default_opt.id
         if widget.scope_query_mode == 'query' and _scope_option_id:
             # Query Mode: download the ACTIVE option's rows ("what you see").
             # The record is passed to get_download_data — never

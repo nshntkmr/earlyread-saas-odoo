@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useFilters } from '../state/FilterContext'
 import { apiFetch, apiFetchBlob, apiFetchResult } from '../api/client'
 import { widgetDataUrl, widgetDetailUrl, widgetDownloadUrl, projectionActionUrl } from '../api/endpoints'
@@ -117,8 +117,26 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     w.chart_type === 'record_header' && w.data?.empty && !loading[w.id] && !errors[w.id]
 
   // Widget-scoped control state
-  const [scopeValues, setScopeValues] = useState({})      // { widgetId: scopeValue }
-  const [scopeOptionIds, setScopeOptionIds] = useState({}) // { widgetId: optionId } (query mode)
+  // Scope state is seeded SYNCHRONOUSLY from the initial widgets (not only in
+  // the mount effect below) so the very first fetches — the deferred-tab lazy
+  // load that fires on mount when the URL carries ?tab=, downloads, projection
+  // refreshes — already carry _scope_option_id. Without this, a per-option
+  // table's first load ran the widget-level SQL + (empty) column config and
+  // showed one auto header per SQL column until the first toggle click.
+  const initialScope = useMemo(() => {
+    const values = {}, optionIds = {}
+    Object.values(initialWidgets || {}).forEach(w => {
+      if (w.scope?.mode !== 'none' && w.scope?.query_mode === 'query' && w.scope?.options?.length) {
+        const defVal = w.scope.default_value || w.scope.options[0]?.value || ''
+        const match = w.scope.options.find(o => (o.value ?? '') === defVal) || w.scope.options[0]
+        values[w.id] = match.value ?? ''
+        optionIds[w.id] = match.id
+      }
+    })
+    return { values, optionIds }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [scopeValues, setScopeValues] = useState(initialScope.values)      // { widgetId: scopeValue }
+  const [scopeOptionIds, setScopeOptionIds] = useState(initialScope.optionIds) // { widgetId: optionId } (query mode)
   const [searchTexts, setSearchTexts] = useState({})
   // Widget-level filters: { widgetId: { param: value } } — seeded from each
   // widget's configured defaults so every fetch (Apply, scope, drill, lazy

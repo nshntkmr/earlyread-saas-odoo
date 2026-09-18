@@ -1031,6 +1031,40 @@ class DashboardWidget(models.Model):
             ]
         return []
 
+    def _default_query_scope_option(self):
+        """The scope option a data request should run when it carries no
+        ``_scope_option_id`` and the widget is in "Different SQL Per Option"
+        mode (``scope_mode='independent'`` + ``scope_query_mode='query'``).
+
+        Mirrors the first-paint rule in ``portal.app_dashboard``: the option
+        whose value equals ``scope_default_value``, else the first active
+        option by sequence. Returns an EMPTY recordset (→ caller falls back
+        to the widget-level SQL, the pre-existing behaviour) when the widget
+        is not in query mode, has no active option, or the chosen option has
+        no SQL.
+
+        Why: per-option tables keep their column config on the OPTION, not
+        on the widget. A fetch without an option id (the deferred-tab lazy
+        load on first render, downloads, projection refreshes) used to run
+        the widget-level SQL with the widget-level (empty) column config and
+        auto-generated one header per SQL column until the first toggle
+        click.
+        """
+        self.ensure_one()
+        Option = self.env['dashboard.widget.scope.option']
+        if self.scope_mode != 'independent' or self.scope_query_mode != 'query':
+            return Option
+        active = self.scope_option_ids.filtered('is_active').sorted('sequence')
+        if not active:
+            return Option
+        default_val = self.scope_default_value or ''
+        opt = (active.filtered(lambda o: (o.value or '') == default_val)[:1]
+               if default_val else Option)
+        opt = opt or active[:1]
+        if not (opt.query_sql or '').strip():
+            return Option
+        return opt
+
     def _format_scope_result(self, cols, rows):
         """Format SQL result based on chart_type for scope option query mode.
 
