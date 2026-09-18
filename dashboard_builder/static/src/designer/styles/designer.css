@@ -1243,6 +1243,77 @@
     margin-top: 2px;
 }
 
+/* Comparison card preview — classic + compact split (mirrors portal
+   .pv-kpi-card-dual / .pv-kpi-card-compact). */
+.wb-kpi-preview-card--compact {
+    align-items: stretch;
+    padding: 12px 16px;
+    min-width: 300px;
+    gap: 8px;
+}
+.wb-cmp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.wb-cmp-tiles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.wb-cmp-tile {
+    border-radius: 8px;
+    padding: 8px 10px;
+    min-width: 0;
+}
+.wb-cmp-tile-label {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wb-cmp-tile-value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+.wb-cmp-classic {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 8px;
+}
+.wb-cmp-classic-col { text-align: center; }
+.wb-cmp-period {
+    font-size: 11px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 4px;
+}
+.wb-cmp-vs { font-size: 11px; color: #9ca3af; font-weight: 600; }
+.wb-kpi-value--prior { color: #6b7280; font-weight: 600; }
+.wb-cmp-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    margin-top: 6px;
+    white-space: nowrap;
+}
+.wb-cmp-badge.status-up      { color: #059669; background: #ecfdf5; }
+.wb-cmp-badge.status-down    { color: #9f1239; background: #fff1f2; }
+.wb-cmp-badge.status-neutral { color: #6b7280; background: #f3f4f6; }
+
 .wb-sql-display {
     background: #1f2937;
     color: #e5e7eb;

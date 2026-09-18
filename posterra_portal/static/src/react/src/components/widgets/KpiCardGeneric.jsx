@@ -78,6 +78,54 @@ export default function KpiCardGeneric({ data = {}, name }) {
     )
   }
 
+  // ── Layout: Compact split (comparison, opt-in via visual_config) ──────
+  // Same data contract as the classic dual layout (value / prior_formatted /
+  // current_label / prior_label / diff_*); only the arrangement changes.
+  // Keys live in visual_config (already forwarded for every KPI variant), so
+  // widgets without them render the classic layout byte-for-byte as before.
+  const vcfg = data.visual_config || {}
+  if (kpi_variant === 'comparison' && vcfg.comparison_layout === 'compact_split') {
+    const showSide = vcfg.comparison_show_side_labels !== false
+    const badgeBelow = vcfg.comparison_badge_position === 'below'
+    const leftBg = vcfg.comparison_left_bg || '#E1F5EE'
+    const leftFg = vcfg.comparison_left_color || '#0F6E56'
+    const rightBg = vcfg.comparison_right_bg || '#F1EFE8'
+    const rightFg = vcfg.comparison_right_color || '#5F5E5A'
+    const badge = data.diff_annotation ? (
+      <div className={`pv-trend-badge pv-kpi-card-compact-badge ${data.diff_status || ''}`}>
+        <TrendIcon statusCss={data.diff_status} />
+        <span>{data.diff_annotation}</span>
+      </div>
+    ) : null
+    return (
+      <div className="pv-kpi-card-compact">
+        <div className="pv-kpi-card-compact-head">
+          {labelEl}
+          {!badgeBelow && badge}
+        </div>
+        <div className="pv-kpi-card-compact-tiles">
+          <div className="pv-kpi-card-compact-tile" style={{ background: leftBg, color: leftFg }}>
+            {showSide && data.current_label && (
+              <div className="pv-kpi-card-compact-tile-label">{data.current_label}</div>
+            )}
+            <div className="pv-kpi-card-compact-tile-value" style={valueStyle}>
+              {formatted_value ?? '—'}
+            </div>
+          </div>
+          <div className="pv-kpi-card-compact-tile" style={{ background: rightBg, color: rightFg }}>
+            {showSide && data.prior_label && (
+              <div className="pv-kpi-card-compact-tile-label">{data.prior_label}</div>
+            )}
+            <div className="pv-kpi-card-compact-tile-value">
+              {data.prior_formatted ?? '—'}
+            </div>
+          </div>
+        </div>
+        {badgeBelow && badge && <div className="pv-kpi-card-compact-foot">{badge}</div>}
+      </div>
+    )
+  }
+
   // ── Layout: Dual-column (comparison) ──────────────────────────────────
   if (kpi_variant === 'comparison') {
     return (

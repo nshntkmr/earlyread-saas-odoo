@@ -755,6 +755,92 @@ export default function KpiStylePicker({
         <>
           <div style={styles.sectionTitle}>Comparison Settings</div>
 
+          <div className="wb-field-row">
+            <label className="wb-field-label">
+              Layout
+              <i className="fa fa-info-circle wb-flag-info"
+                 title="Classic: two centered columns with a VS separator and the difference badge below (default). Compact split: title row with the badge, then two tinted tiles (left = X column, right = Y column) — about half the height, for KPI rails." />
+            </label>
+            <select
+              className="wb-select wb-select--sm"
+              value={cfgVal(visualConfig, 'comparison_layout', 'classic')}
+              onChange={e => handleCfg('comparison_layout', e.target.value)}
+            >
+              <option value="classic">Classic (columns + VS)</option>
+              <option value="compact_split">Compact split (tiles)</option>
+            </select>
+          </div>
+
+          {cfgVal(visualConfig, 'comparison_layout', 'classic') === 'compact_split' && (
+            <>
+              <div className="wb-field-row">
+                <label className="wb-field-label">
+                  Badge Position
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="Where the difference badge sits in the compact layout." />
+                </label>
+                <select
+                  className="wb-select wb-select--sm"
+                  value={cfgVal(visualConfig, 'comparison_badge_position', 'title_row')}
+                  onChange={e => handleCfg('comparison_badge_position', e.target.value)}
+                >
+                  <option value="title_row">Title row (right)</option>
+                  <option value="below">Below the tiles</option>
+                </select>
+              </div>
+              <div className="wb-toggle-group">
+                <label className="wb-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={cfgVal(visualConfig, 'comparison_show_side_labels', true)}
+                    onChange={e => handleCfg('comparison_show_side_labels', e.target.checked)}
+                  />
+                  Show Side Labels (from current_label / prior_label columns)
+                </label>
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">
+                  Left Tile Background
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="CSS color for the left (X column) tile. Blank = teal tint #E1F5EE." />
+                </label>
+                <input type="text" className="wb-input wb-input--sm" placeholder="#E1F5EE"
+                  value={cfgVal(visualConfig, 'comparison_left_bg', '')}
+                  onChange={e => handleCfg('comparison_left_bg', e.target.value)} />
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">
+                  Left Tile Text Color
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="CSS color for the left tile label and value. Blank = teal #0F6E56." />
+                </label>
+                <input type="text" className="wb-input wb-input--sm" placeholder="#0F6E56"
+                  value={cfgVal(visualConfig, 'comparison_left_color', '')}
+                  onChange={e => handleCfg('comparison_left_color', e.target.value)} />
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">
+                  Right Tile Background
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="CSS color for the right (Y column) tile. Blank = neutral tint #F1EFE8." />
+                </label>
+                <input type="text" className="wb-input wb-input--sm" placeholder="#F1EFE8"
+                  value={cfgVal(visualConfig, 'comparison_right_bg', '')}
+                  onChange={e => handleCfg('comparison_right_bg', e.target.value)} />
+              </div>
+              <div className="wb-field-row">
+                <label className="wb-field-label">
+                  Right Tile Text Color
+                  <i className="fa fa-info-circle wb-flag-info"
+                     title="CSS color for the right tile label and value. Blank = gray #5F5E5A." />
+                </label>
+                <input type="text" className="wb-input wb-input--sm" placeholder="#5F5E5A"
+                  value={cfgVal(visualConfig, 'comparison_right_color', '')}
+                  onChange={e => handleCfg('comparison_right_color', e.target.value)} />
+              </div>
+            </>
+          )}
+
           <div className="wb-toggle-group">
             <label className="wb-toggle-label">
               <input

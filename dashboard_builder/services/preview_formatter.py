@@ -483,6 +483,36 @@ def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
                 except (TypeError, ValueError):
                     result['secondary'] = str(prior_raw)
 
+    # Comparison card preview — mirror the portal's comparison branch in
+    # dashboard_widget._build_kpi_data (prior_formatted / side labels /
+    # diff badge) so LivePreview can render the classic and compact layouts.
+    # Additive: only emitted for kpi_style == 'comparison' with a Y column.
+    if visual_config.get('kpi_style') == 'comparison' and y_cols_raw and rows:
+        y_col = y_cols_raw.split(',')[0].strip()
+        cur_label_col = visual_config.get('comparison_current_label_col', '') or 'current_label'
+        pri_label_col = visual_config.get('comparison_prior_label_col', '') or 'prior_label'
+        if cur_label_col in col_idx:
+            result['current_label'] = str(rows[0][col_idx[cur_label_col]] or '')
+        if pri_label_col in col_idx:
+            result['prior_label'] = str(rows[0][col_idx[pri_label_col]] or '')
+        if y_col in col_idx:
+            prior_raw = rows[0][col_idx[y_col]]
+            result['prior_formatted'] = _format_value(
+                prior_raw, config.get('kpi_format', 'number'),
+                config.get('kpi_prefix', ''), config.get('kpi_suffix', ''), kpi_unit)
+            try:
+                cur = float(raw_val or 0)
+                pri = float(prior_raw or 0)
+                abs_diff = cur - pri
+                pct_diff = round(((cur - pri) / abs(pri) * 100) if pri else 0, 1)
+                sign = '+' if abs_diff > 0 else ''
+                result['diff_annotation'] = f'{sign}{abs_diff:,.0f} ({sign}{pct_diff:.1f}%)'
+                result['diff_status'] = ('status-up' if abs_diff > 0
+                                         else 'status-down' if abs_diff < 0
+                                         else 'status-neutral')
+            except (TypeError, ValueError):
+                pass
+
     # Status KPI — icon/css. Diagnostics held at DEBUG: ``raw_val`` and
     # other row data may be PHI-adjacent and must not retain in long-
     # retention production logs (was incorrectly INFO labelled "PREVIEW

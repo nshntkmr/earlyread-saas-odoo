@@ -3254,6 +3254,61 @@
     font-weight: var(--w-weight-semi) !important;
 }
 
+/* Compact split layout (comparison, opt-in: visual_config.comparison_layout =
+   'compact_split'). Title row + two tinted tiles; ~half the classic height.
+   Tile bg/text colors are inline (admin-chosen, with defaults in React). */
+.pv-kpi-card-compact {
+    padding: var(--w-space-md) var(--w-space-lg);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--w-space-sm);
+    container-type: inline-size;
+}
+
+.pv-kpi-card-compact-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--w-space-sm);
+    min-height: 1.25rem;
+}
+.pv-kpi-card-compact-head .pv-widget-kpi-label { margin-top: 0; }
+
+.pv-kpi-card-compact-badge { margin-top: 0; }
+
+.pv-kpi-card-compact-tiles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--w-space-sm);
+}
+
+.pv-kpi-card-compact-tile {
+    border-radius: 8px;
+    padding: var(--w-space-sm) var(--w-space-md);
+    min-width: 0;
+}
+
+.pv-kpi-card-compact-tile-label {
+    font-size: clamp(0.55rem, 3.5cqw, 0.7rem);
+    font-weight: var(--w-weight-semi);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pv-kpi-card-compact-tile-value {
+    font-size: clamp(1.1rem, 6cqw, 1.6rem);
+    font-weight: var(--w-weight-bold);
+    line-height: 1.15;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pv-kpi-card-compact-foot { display: flex; }
+
 /* RAG status card — colored left border */
 .pv-kpi-card--rag-green { border-left: 4px solid #10b981; }
 .pv-kpi-card--rag-amber { border-left: 4px solid #f59e0b; }

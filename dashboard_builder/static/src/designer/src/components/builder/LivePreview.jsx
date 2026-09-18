@@ -523,6 +523,20 @@ export default function LivePreview({
   const kpiShowLabel = kpiLabelPos !== 'hidden'
   const kpiLabelAbove = kpiLabelPos === 'above_value'
   const kpiLabelStyle = buildKpiLabelStyle(previewData, builderState.visualFlags)
+  // Comparison card (classic / compact split) — mirrors KpiCardGeneric's keys.
+  const vflags = builderState.visualFlags || {}
+  const isComparisonKpi = (builderState.chartType === 'kpi' || builderState.chartType === 'status_kpi')
+    && vflags.kpi_style === 'comparison'
+  const cmpCompact = vflags.comparison_layout === 'compact_split'
+  const cmpBadgePos = vflags.comparison_badge_position || 'title_row'
+  const cmpShowSide = vflags.comparison_show_side_labels !== false
+  const cmpLeftBg = vflags.comparison_left_bg || '#E1F5EE'
+  const cmpLeftFg = vflags.comparison_left_color || '#0F6E56'
+  const cmpRightBg = vflags.comparison_right_bg || '#F1EFE8'
+  const cmpRightFg = vflags.comparison_right_color || '#5F5E5A'
+  const cmpBadge = previewData?.diff_annotation ? (
+    <span className={`wb-cmp-badge ${previewData.diff_status || ''}`}>{previewData.diff_annotation}</span>
+  ) : null
 
   const runPreview = async () => {
     setLoading(true)
@@ -795,8 +809,62 @@ export default function LivePreview({
         <div className="border rounded bg-white"><MetricList data={previewData} /></div>
       )}
 
+      {/* Comparison card preview (classic + compact split) — same data keys the
+          portal card reads; layout/colors come straight from visualFlags. */}
+      {isComparisonKpi && previewData && (
+        <div className="wb-preview-kpi">
+          {cmpCompact ? (
+            <div className="wb-kpi-preview-card wb-kpi-preview-card--compact">
+              <div className="wb-cmp-head">
+                {kpiShowLabel && (
+                  <span className="wb-kpi-label" style={{ ...(kpiLabelStyle || {}), marginTop: 0 }}>
+                    {previewData.label || builderState.appearance?.title || 'KPI'}
+                  </span>
+                )}
+                {cmpBadgePos !== 'below' && cmpBadge}
+              </div>
+              <div className="wb-cmp-tiles">
+                <div className="wb-cmp-tile" style={{ background: cmpLeftBg, color: cmpLeftFg }}>
+                  {cmpShowSide && previewData.current_label && (
+                    <div className="wb-cmp-tile-label">{previewData.current_label}</div>
+                  )}
+                  <div className="wb-cmp-tile-value">{previewData.formatted_value || '—'}</div>
+                </div>
+                <div className="wb-cmp-tile" style={{ background: cmpRightBg, color: cmpRightFg }}>
+                  {cmpShowSide && previewData.prior_label && (
+                    <div className="wb-cmp-tile-label">{previewData.prior_label}</div>
+                  )}
+                  <div className="wb-cmp-tile-value">{previewData.prior_formatted || '—'}</div>
+                </div>
+              </div>
+              {cmpBadgePos === 'below' && cmpBadge}
+            </div>
+          ) : (
+            <div className="wb-kpi-preview-card">
+              {kpiShowLabel && (
+                <span className="wb-kpi-label" style={kpiLabelStyle}>
+                  {previewData.label || builderState.appearance?.title || 'KPI'}
+                </span>
+              )}
+              <div className="wb-cmp-classic">
+                <div className="wb-cmp-classic-col">
+                  {previewData.current_label && <div className="wb-cmp-period">{previewData.current_label}</div>}
+                  <span className="wb-kpi-value">{previewData.formatted_value || '—'}</span>
+                </div>
+                <div className="wb-cmp-vs">VS</div>
+                <div className="wb-cmp-classic-col">
+                  {previewData.prior_label && <div className="wb-cmp-period">{previewData.prior_label}</div>}
+                  <span className="wb-kpi-value wb-kpi-value--prior">{previewData.prior_formatted || '—'}</span>
+                </div>
+              </div>
+              {cmpBadge}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* KPI / Gauge preview */}
-      {!isChart && !isTable && !isMemberFlow && !isComposite && !isKeyTakeaways && !isMap && !isRecordHeader && !isAttributeGrid && !isMetricList && previewData && (
+      {!isChart && !isTable && !isMemberFlow && !isComposite && !isKeyTakeaways && !isMap && !isRecordHeader && !isAttributeGrid && !isMetricList && !isComparisonKpi && previewData && (
         <div className="wb-preview-kpi">
           <div className="wb-kpi-preview-card">
             {previewData.icon_class && (
