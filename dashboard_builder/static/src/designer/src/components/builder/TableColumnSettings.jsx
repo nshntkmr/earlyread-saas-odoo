@@ -29,6 +29,7 @@ const RENDERER_OPTIONS = [
   { value: 'composite',  label: 'Composite (multi-field)' },
   { value: 'dualValue',  label: 'Dual Value (value + %)' },
   { value: 'complianceStrip', label: 'Compliance Dot Strip' },
+  { value: 'expandableCount', label: 'Expandable Count (+ popover)' },
 ]
 
 const FILTER_OPTIONS = [
@@ -89,7 +90,7 @@ const TYPE_AUTO_FILL = {
 // (2, 5, 10 — unbounded). Fixed keys keep their dedicated inputs above.
 const FIXED_STATUS_KEYS = ['compliant', 'nonCompliant', 'na']
 
-function CustomStatusColors({ colors, onColorsChange }) {
+function CustomStatusColors({ colors, onColorsChange, helpText }) {
   const entries = Object.entries(colors || {}).filter(([k]) => !FIXED_STATUS_KEYS.includes(k))
 
   // Rebuild the colors object: fixed keys first (preserved as-is), then the
@@ -137,9 +138,11 @@ function CustomStatusColors({ colors, onColorsChange }) {
         <i className="fa fa-plus me-1" /> Add Status Color
       </button>
       <div className="tcs-help-text">
-        For statuses beyond compliant / nonCompliant / na. The status text must
-        match the data exactly (case-sensitive) — the hover tooltip shows it
-        verbatim. Statuses with no color here fall back to the N/A Color.
+        {helpText || (
+          'For statuses beyond compliant / nonCompliant / na. The status text must '
+          + 'match the data exactly (case-sensitive) — the hover tooltip shows it '
+          + 'verbatim. Statuses with no color here fall back to the N/A Color.'
+        )}
       </div>
     </div>
   )
@@ -522,6 +525,111 @@ export default function TableColumnSettings({ column, allColumns = [], onChange 
                 : column.cellRendererParams?.variant === 'winloss'
                 ? 'Win/Loss input: JSON array or comma-separated numbers. Colors are automatic — green for positive, red for negative.'
                 : 'Input: JSON array [10,14,12] or comma-separated numbers. Color "auto"/empty = green when trending up, red when down.'}
+            </div>
+          </div>
+        )}
+
+        {/* Expandable Count renderer params — number + "+" opening a read-only
+            popover that lists items from a JSON column ([{label, status, note?}]). */}
+        {column.cellRenderer === 'expandableCount' && (
+          <div className="tcs-renderer-params">
+            <div className="tcs-row">
+              <label className="tcs-label">Items Source Column (JSON list)</label>
+              <select className="tcs-select"
+                value={column.cellRendererParams?.itemsColumn || ''}
+                onChange={e => set('cellRendererParams', {
+                  ...column.cellRendererParams,
+                  itemsColumn: e.target.value || null,
+                })}
+              >
+                <option value="">— select the JSON column —</option>
+                {allColumns.map(c => (
+                  <option key={c.column_name} value={c.column_name}>
+                    {c.display_name || c.column_name}
+                  </option>
+                ))}
+              </select>
+              <div className="tcs-help-text">
+                Row column holding a JSON array like
+                {' '}[{'{'}"label": "CBP · Controlling BP", "status": "True Care Gap", "note": "..."{'}'}].
+                The "+" is hidden when the list is empty (unless enabled below).
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Popover Title</label>
+                <input type="text" className="tcs-input" placeholder="(column header)"
+                  value={column.cellRendererParams?.title ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams, title: e.target.value || undefined,
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Month / Context Column</label>
+                <select className="tcs-select"
+                  value={column.cellRendererParams?.monthColumn || ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams,
+                    monthColumn: e.target.value || null,
+                  })}
+                >
+                  <option value="">(none)</option>
+                  {allColumns.map(c => (
+                    <option key={c.column_name} value={c.column_name}>
+                      {c.display_name || c.column_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="tcs-row-inline">
+              <div>
+                <label className="tcs-label">Icon Color</label>
+                <input type="text" className="tcs-input" placeholder="#6b7280"
+                  value={column.cellRendererParams?.iconColor ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams, iconColor: e.target.value || undefined,
+                  })}
+                />
+              </div>
+              <div>
+                <label className="tcs-label">Icon Color (open)</label>
+                <input type="text" className="tcs-input" placeholder="#0f6e56"
+                  value={column.cellRendererParams?.iconActiveColor ?? ''}
+                  onChange={e => set('cellRendererParams', {
+                    ...column.cellRendererParams, iconActiveColor: e.target.value || undefined,
+                  })}
+                />
+              </div>
+            </div>
+            <div className="tcs-row">
+              <label className="tcs-label">Show "+" when the list is empty</label>
+              <input type="checkbox"
+                checked={column.cellRendererParams?.showWhenEmpty === true}
+                onChange={e => set('cellRendererParams', {
+                  ...column.cellRendererParams, showWhenEmpty: e.target.checked || undefined,
+                })}
+              />
+            </div>
+            <CustomStatusColors
+              colors={column.cellRendererParams?.colors}
+              onColorsChange={colors => set('cellRendererParams', {
+                ...column.cellRendererParams,
+                colors,
+              })}
+              helpText={'Chip color per status text (case-sensitive), e.g. True Care Gap, Data Gap, '
+                + 'Projected, Compliant, Matched, Missed. Built-in defaults apply to those six; '
+                + 'any other status renders gray.'}
+            />
+            <div className="tcs-row">
+              <label className="tcs-label">Footer Text</label>
+              <input type="text" className="tcs-input" placeholder="e.g. Click the row to mark projections"
+                value={column.cellRendererParams?.footerText ?? ''}
+                onChange={e => set('cellRendererParams', {
+                  ...column.cellRendererParams, footerText: e.target.value || undefined,
+                })}
+              />
             </div>
           </div>
         )}

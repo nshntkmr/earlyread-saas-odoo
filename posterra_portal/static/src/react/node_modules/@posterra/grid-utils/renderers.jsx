@@ -1,4 +1,6 @@
 import React from 'react'
+import ReactDOM from 'react-dom'
+import './widgetCards.css'
 
 // ── Cell renderer registry ──────────────────────────────────────────────────
 // Keys match the Renderer dropdown in TableColumnSettings.jsx.
@@ -589,6 +591,208 @@ function ComplianceStripRenderer(params) {
   return <ComplianceStrip items={raw} colors={p.colors} size={p.size || 'sm'} showLabels={p.showLabels} fontSize={p.fontSize} padding={p.padding} />
 }
 
+// ── 10. Expandable Count (+ popover) ────────────────────────────────────────
+// Number + a small "+" button. Clicking opens a READ-ONLY popover anchored to
+// the cell listing items from a JSON column on the same row, each with a
+// status chip. One popover at a time; closes on outside click / Esc / scroll.
+// The button stops the native click so AG Grid's onCellClicked (row → detail
+// drawer) does not fire — marking still happens in the row drawer.
+// Params (cellRendererParams, admin-configured in TableColumnSettings):
+//   itemsColumn     row column holding the JSON list (required)
+//                   items: [{label, status, note?}] (array, JSON string, or
+//                   a {label: status} object)
+//   title           popover heading (default: column header)
+//   monthColumn     row column shown top-right (e.g. the snapshot month)
+//   iconColor       "+" color when closed        (default #6b7280)
+//   iconActiveColor "−" color when open          (default #0f6e56)
+//   showWhenEmpty   keep the "+" when there are no items (default false)
+//   colors          {status text → hex} chip colors; unknown statuses → gray
+//   footerText      optional hint under the list
+const EXPAND_DEFAULT_COLORS = {
+  'True Care Gap': '#dc2626',
+  'Data Gap':      '#d97706',
+  'Projected':     '#0f6e56',
+  'Compliant':     '#16a34a',
+  'Matched':       '#16a34a',
+  'Missed':        '#dc2626',
+}
+const EXPAND_NEUTRAL = '#6b7280'
+
+function parseExpandItems(raw) {
+  if (raw == null || raw === '') return []
+  let v = raw
+  if (typeof v === 'string') {
+    try { v = JSON.parse(v) } catch (_) { return [] }
+  }
+  if (Array.isArray(v)) {
+    return v.map(it => (typeof it === 'string'
+      ? { label: it, status: '' }
+      : { label: String(it?.label ?? ''), status: String(it?.status ?? ''), note: it?.note ? String(it.note) : '' }))
+      .filter(it => it.label)
+  }
+  if (typeof v === 'object') {
+    return Object.entries(v).map(([label, status]) => ({ label, status: String(status ?? '') }))
+  }
+  return []
+}
+
+function hexWithAlpha(hex, alpha) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim())
+  if (!m) return 'rgba(107,114,128,0.12)'
+  return `#${m[1]}${alpha}`
+}
+
+// Module-level "one open popover at a time" latch.
+let _pvxcCloseCurrent = null
+
+function CellPopover({ anchorEl, onClose, children }) {
+  const [pos, setPos] = React.useState(null)
+  const boxRef = React.useRef(null)
+
+  React.useLayoutEffect(() => {
+    if (!anchorEl) return undefined
+    const place = () => {
+      const r = anchorEl.getBoundingClientRect()
+      const width = 280
+      const boxH = boxRef.current ? boxRef.current.offsetHeight : 240
+      const spaceBelow = window.innerHeight - r.bottom
+      const top = spaceBelow >= boxH + 12 || r.top < boxH + 12 ? r.bottom + 6 : r.top - boxH - 6
+      let left = r.left + r.width / 2 - width * 0.3
+      left = Math.max(8, Math.min(left, window.innerWidth - width - 8))
+      setPos({ top, left, width })
+    }
+    place()
+    const onDocDown = (e) => {
+      if (boxRef.current && boxRef.current.contains(e.target)) return
+      if (anchorEl.contains(e.target)) return
+      onClose()
+    }
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    const onScroll = (e) => {
+      if (boxRef.current && boxRef.current.contains(e.target)) return
+      onClose()
+    }
+    document.addEventListener('mousedown', onDocDown, true)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onClose)
+    return () => {
+      document.removeEventListener('mousedown', onDocDown, true)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onClose)
+    }
+  }, [anchorEl, onClose])
+
+  const style = pos
+    ? { position: 'fixed', top: pos.top, left: pos.left, width: pos.width }
+    : { position: 'fixed', top: -9999, left: -9999, width: 280 }
+  return ReactDOM.createPortal(
+    <div ref={boxRef} className="pvxc-pop" role="dialog" style={style}>{children}</div>,
+    document.body,
+  )
+}
+
+function ExpandableCountRenderer(params) {
+  const p = params.colDef?.cellRendererParams || {}
+  const [open, setOpen] = React.useState(false)
+  const btnRef = React.useRef(null)
+
+  const items = React.useMemo(
+    () => parseExpandItems(p.itemsColumn ? params.data?.[p.itemsColumn] : null),
+    [p.itemsColumn, params.data],
+  )
+  const colors = React.useMemo(() => ({ ...EXPAND_DEFAULT_COLORS, ...(p.colors || {}) }), [p.colors])
+
+  const close = React.useCallback(() => {
+    setOpen(false)
+    if (_pvxcCloseCurrent === close) _pvxcCloseCurrent = null
+  }, [])
+  React.useEffect(() => () => { if (_pvxcCloseCurrent === close) _pvxcCloseCurrent = null }, [close])
+
+  const toggle = () => {
+    if (open) { close(); return }
+    if (_pvxcCloseCurrent && _pvxcCloseCurrent !== close) _pvxcCloseCurrent()
+    _pvxcCloseCurrent = close
+    setOpen(true)
+  }
+  const toggleRef = React.useRef(toggle)
+  toggleRef.current = toggle
+
+  // Native listeners on the button: AG Grid's onCellClicked is a native
+  // listener on the cell that fires BEFORE React's delegated root handler, so
+  // a React stopPropagation would be too late (the row drawer would open).
+  // Stopping propagation here also keeps the event from reaching React's
+  // root, so the toggle itself must run in this native handler too.
+  React.useEffect(() => {
+    const el = btnRef.current
+    if (!el) return undefined
+    const onDown = (e) => { e.stopPropagation() }
+    const onClick = (e) => { e.stopPropagation(); e.preventDefault(); toggleRef.current() }
+    el.addEventListener('mousedown', onDown)
+    el.addEventListener('click', onClick)
+    return () => {
+      el.removeEventListener('mousedown', onDown)
+      el.removeEventListener('click', onClick)
+    }
+  }, [])
+
+  const display = params.valueFormatted != null ? params.valueFormatted
+    : (params.value == null ? '' : String(params.value))
+  const showIcon = items.length > 0 || p.showWhenEmpty
+  const iconColor = open ? (p.iconActiveColor || '#0f6e56') : (p.iconColor || '#6b7280')
+  const title = p.title || params.colDef?.headerName || params.colDef?.field || ''
+  const month = p.monthColumn ? params.data?.[p.monthColumn] : ''
+  const count = params.value != null && params.value !== '' ? params.value : items.length
+
+  return (
+    <span className="pvxc">
+      <span className="pvxc-val">{display}</span>
+      {showIcon && (
+        <button
+          ref={btnRef}
+          type="button"
+          className={`pvxc-btn${open ? ' pvxc-btn--open' : ''}`}
+          style={{ color: iconColor, borderColor: iconColor }}
+          aria-expanded={open}
+          aria-label={open ? `Hide ${title}` : `Show ${title}`}
+        >
+          {open ? '−' : '+'}
+        </button>
+      )}
+      {open && (
+        <CellPopover anchorEl={btnRef.current} onClose={close}>
+          <div className="pvxc-head">
+            <span className="pvxc-title">{title}{count !== '' ? ` · ${count}` : ''}</span>
+            {month ? <span className="pvxc-month">{month}</span> : null}
+          </div>
+          {items.length === 0
+            ? <div className="pvxc-empty">Nothing to show</div>
+            : (
+              <ul className="pvxc-list">
+                {items.map((it, i) => {
+                  const c = colors[it.status] || EXPAND_NEUTRAL
+                  return (
+                    <li key={i} className="pvxc-item">
+                      <span className="pvxc-item-text">
+                        <span className="pvxc-item-label">{it.label}</span>
+                        {it.note ? <span className="pvxc-item-note">{it.note}</span> : null}
+                      </span>
+                      {it.status
+                        ? <span className="pvxc-chip" style={{ color: c, background: hexWithAlpha(c, '1a') }}>{it.status}</span>
+                        : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          {p.footerText ? <div className="pvxc-foot">{p.footerText}</div> : null}
+        </CellPopover>
+      )}
+    </span>
+  )
+}
+
 // ── Registry ────────────────────────────────────────────────────────────────
 export const CELL_RENDERERS = {
   starRating:      StarRatingRenderer,
@@ -600,4 +804,5 @@ export const CELL_RENDERERS = {
   dualValue:       DualValueRenderer,
   inlineChart:     InlineChartRenderer,
   complianceStrip: ComplianceStripRenderer,
+  expandableCount: ExpandableCountRenderer,
 }
