@@ -5968,7 +5968,12 @@ class DashboardWidget(models.Model):
         vc = vc or {}
         unit = vc.get('kpi_value_unit', '')
         if not unit or unit == 'none':
-            return self._format_kpi(raw)
+            unit = None
+        # Honor the Designer's Value Format (visual_config.kpi_format) with or
+        # without a unit — the primary value is re-formatted with it at the end
+        # of _build_kpi_data, so the prior / target must follow the same format
+        # ("0.0%" vs "66" mismatch otherwise). Only the Comparison prior and the
+        # Progress target call this helper; every other value path is untouched.
         vc_format = vc.get('kpi_format', '')
         if vc_format and vc_format != (self.kpi_format or 'number'):
             orig = self.kpi_format
