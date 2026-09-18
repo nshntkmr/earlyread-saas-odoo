@@ -3274,9 +3274,18 @@
     gap: var(--w-space-sm);
     min-height: 1.25rem;
 }
-.pv-kpi-card-compact-head .pv-widget-kpi-label { margin-top: 0; }
+.pv-kpi-card-compact-head .pv-widget-kpi-label {
+    margin-top: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.2;
+}
 
-.pv-kpi-card-compact-badge { margin-top: 0; }
+.pv-kpi-card-compact-badge {
+    margin-top: 0;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
 
 .pv-kpi-card-compact-tiles {
     display: grid;
@@ -3294,9 +3303,10 @@
     font-size: clamp(0.55rem, 3.5cqw, 0.7rem);
     font-weight: var(--w-weight-semi);
     line-height: 1.2;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .pv-kpi-card-compact-tile-value {
