@@ -107,9 +107,114 @@ def format_record_header(cols, rows, config):
         'color': config.get('avatar_color') or DEFAULT_AVATAR_COLOR,
     }
 
-    return {
+    payload = {
         'type': 'record_header',
         'title': title,
         'avatar': avatar,
         'fields': fields,
     }
+
+    # ── Scorecard layout (opt-in: header_layout == 'scorecard') ──────────
+    # Classic payload above is byte-identical when the key is absent. The
+    # scorecard adds subtitle / stat tiles / chips from their own columns,
+    # with the same fail-closed rule for a configured-but-missing column.
+    if (config.get('header_layout') or 'classic') != 'scorecard':
+        return payload
+
+    payload['layout'] = 'scorecard'
+    shape = config.get('avatar_shape') or 'rounded'
+    avatar['shape'] = shape if shape in ('circle', 'rounded') else 'rounded'
+
+    sub_col = (config.get('subtitle_column') or '').strip()
+    if sub_col:
+        if sub_col not in col_idx:
+            return {'type': 'record_header',
+                    'error': 'Configured subtitle column not found: %s' % sub_col}
+        payload['subtitle'] = _cell(row, col_idx[sub_col])
+    else:
+        payload['subtitle'] = ''
+
+    stats = []
+    for spec in _as_list(config.get('stats')):
+        col = str((spec or {}).get('column') or '').strip()
+        if not col:
+            continue
+        if col not in col_idx:
+            return {'type': 'record_header',
+                    'error': 'Configured stat column not found: %s' % col}
+        stats.append({
+            'key': col,
+            'label': (spec.get('label') or overrides.get(col) or col),
+            'icon': (spec.get('icon') or ''),
+            'value': _format_stat(row[col_idx[col]], spec.get('format') or 'number'),
+        })
+    payload['stats'] = stats
+
+    chips_col = (config.get('chips_column') or '').strip()
+    chips = []
+    if chips_col:
+        if chips_col not in col_idx:
+            return {'type': 'record_header',
+                    'error': 'Configured chips column not found: %s' % chips_col}
+        chips = _as_chips(row[col_idx[chips_col]])
+    payload['chips'] = chips
+    payload['chips_label'] = config.get('chips_label') or ''
+    payload['chip_color'] = config.get('chip_color') or ''
+    payload['chip_text_color'] = config.get('chip_text_color') or ''
+    return payload
+
+
+def _as_list(value):
+    """``stats`` may arrive as a list or as a JSON string (visual_config)."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        import json
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError):
+            return []
+    return [v for v in value if isinstance(v, dict)] if isinstance(value, list) else []
+
+
+def _format_stat(val, fmt):
+    """number → thousands separators (integral stays integral); percent →
+    one decimal + '%'; text/other → as text. NULL → ''. Non-numeric input
+    under a numeric format falls back to text (never raises)."""
+    if val is None:
+        return ''
+    if fmt in ('number', 'percent'):
+        try:
+            num = float(val)
+        except (TypeError, ValueError):
+            return str(val)
+        if fmt == 'percent':
+            return '%.1f%%' % num
+        if num == int(num):
+            return '{:,}'.format(int(num))
+        return '{:,.2f}'.format(num)
+    return str(val)
+
+
+def _as_chips(val):
+    """JSON array (of strings) or CSV text → list of non-blank strings."""
+    if val is None:
+        return []
+    if isinstance(val, (list, tuple)):
+        items = val
+    else:
+        text = str(val).strip()
+        if not text:
+            return []
+        items = None
+        if text.startswith('['):
+            import json
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    items = parsed
+            except (TypeError, ValueError):
+                items = None
+        if items is None:
+            items = text.split(',')
+    return [str(x).strip() for x in items if str(x).strip()]

@@ -21,6 +21,7 @@ import MasterRowLayoutStep from './MasterRowLayoutStep'
 import DetailConfigStep    from './DetailConfigStep'
 import CompositeDataSource from './CompositeDataSource'
 import CompositeLayoutChildren from './CompositeLayoutChildren'
+import RecordHeaderConfig  from './RecordHeaderConfig'
 import {
   serializeCompositeChildren,
   hydrateCompositeChildren,
@@ -1145,6 +1146,14 @@ export default function WidgetBuilder({
                   chartType={state.chartType}
                   visualFlags={state.visualFlags}
                   onUpdate={v => dispatch({ type: 'UPDATE_COLUMN_MAPPER', value: v })}
+                />
+              ) : state.chartType === 'record_header' ? (
+                <RecordHeaderConfig
+                  columns={(ac.customSql || {}).testResult?.columns || []}
+                  xColumn={(ac.customSql || {}).xColumn || ''}
+                  yColumns={(ac.customSql || {}).yColumns || ''}
+                  visualFlags={state.visualFlags}
+                  onFlagChange={(flag, value) => dispatch({ type: 'SET_VISUAL_FLAG', flag, value })}
                 />
               ) : (
                 <div className="wb-step-skip">
