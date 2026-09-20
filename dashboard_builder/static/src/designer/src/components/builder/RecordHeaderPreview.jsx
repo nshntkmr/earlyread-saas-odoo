@@ -38,15 +38,26 @@ export default function RecordHeaderPreview({ data = {} }) {
         </div>
         {stats.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${stats.length}, minmax(96px, 1fr))`, gap: 8, flex: '2 1 420px', minWidth: 0 }}>
-            {stats.map((s, i) => (
-              <div key={s.key || i} style={{ background: '#f6f7f9', borderRadius: 8, padding: '8px 10px', minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {s.icon ? <i className={`fa ${s.icon}`} style={{ fontSize: 12 }} /> : null}
-                  <span>{s.label}</span>
+            {stats.map((s, i) => {
+              const trendColor = s.trend ? ({ good: '#059669', bad: '#dc2626' }[s.trend.status] || '#9ca3af') : null
+              const arrow = s.trend ? (s.trend.dir === 'up' ? 'fa-arrow-up' : s.trend.dir === 'down' ? 'fa-arrow-down' : 'fa-minus') : ''
+              return (
+                <div key={s.key || i} style={{ background: s.bg || '#f6f7f9', borderRadius: 8, padding: '8px 10px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: s.label_color || '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {s.icon ? <i className={`fa ${s.icon}`} style={{ fontSize: 12, color: s.icon_color || undefined }} /> : null}
+                    <span>{s.label}</span>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2, marginTop: 2, color: s.value_color || '#111827' }}>
+                    {s.value === '' ? '—' : s.value}
+                    {s.trend && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6, fontSize: 11, fontWeight: 600, color: trendColor, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <i className={`fa ${arrow}`} style={{ fontSize: 10 }} />{s.trend.delta}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2, marginTop: 2, color: '#111827' }}>{s.value === '' ? '—' : s.value}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
         {chips.length > 0 && (

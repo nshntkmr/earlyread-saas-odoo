@@ -115,22 +115,53 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
 
           <div className="wb-field-row">
             <label className="wb-field-label">
+              Tile Colors (defaults for every tile)
+              <i className="fa fa-info-circle wb-flag-info" title="CSS colors. Blank keeps the built-in greys. Each tile below can override any of them." />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              <input type="text" className="wb-input wb-input--sm" placeholder="Icon color #0f6e56" value={vf.stat_icon_color || ''} onChange={e => set('stat_icon_color', e.target.value)} />
+              <input type="text" className="wb-input wb-input--sm" placeholder="Label color #6b7280" value={vf.stat_label_color || ''} onChange={e => set('stat_label_color', e.target.value)} />
+              <input type="text" className="wb-input wb-input--sm" placeholder="Value color #111827" value={vf.stat_value_color || ''} onChange={e => set('stat_value_color', e.target.value)} />
+              <input type="text" className="wb-input wb-input--sm" placeholder="Tile background #f6f7f9" value={vf.stat_bg || ''} onChange={e => set('stat_bg', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="wb-field-row">
+            <label className="wb-field-label">
               Stat Tiles
-              <i className="fa fa-info-circle wb-flag-info" title="Up to 6 tiles. Column = SQL result column; Icon = Font Awesome class, e.g. fa-map-marker, fa-user-md, fa-users, fa-building." />
+              <i className="fa fa-info-circle wb-flag-info" title="Up to 6 tiles. Column = SQL result column; Icon = Font Awesome class, e.g. fa-map-marker, fa-user-md, fa-users, fa-building. Prior column (optional) adds an up/down arrow with the delta vs that column; 'Higher is better' decides which direction is green." />
             </label>
             {stats.map((s, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 0.9fr auto', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                <select className="wb-select wb-select--sm" value={s.column || ''} onChange={e => setStat(i, { column: e.target.value })}>
-                  {colOptions('— column —')}
-                </select>
-                <input type="text" className="wb-input wb-input--sm" placeholder="Label" value={s.label || ''} onChange={e => setStat(i, { label: e.target.value })} />
-                <input type="text" className="wb-input wb-input--sm" placeholder="fa-users" value={s.icon || ''} onChange={e => setStat(i, { icon: e.target.value })} />
-                <select className="wb-select wb-select--sm" value={s.format || 'number'} onChange={e => setStat(i, { format: e.target.value })}>
-                  {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
-                <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={() => removeStat(i)} aria-label="Remove tile">
-                  <i className="fa fa-times" />
-                </button>
+              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 6, marginBottom: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 0.9fr auto', gap: 6, alignItems: 'center' }}>
+                  <select className="wb-select wb-select--sm" value={s.column || ''} onChange={e => setStat(i, { column: e.target.value })}>
+                    {colOptions('— column —')}
+                  </select>
+                  <input type="text" className="wb-input wb-input--sm" placeholder="Label" value={s.label || ''} onChange={e => setStat(i, { label: e.target.value })} />
+                  <input type="text" className="wb-input wb-input--sm" placeholder="fa-users" value={s.icon || ''} onChange={e => setStat(i, { icon: e.target.value })} />
+                  <select className="wb-select wb-select--sm" value={s.format || 'number'} onChange={e => setStat(i, { format: e.target.value })}>
+                    {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                  <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={() => removeStat(i)} aria-label="Remove tile">
+                    <i className="fa fa-times" />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 6 }}>
+                  <input type="text" className="wb-input wb-input--sm" placeholder="Icon color" value={s.icon_color || ''} onChange={e => setStat(i, { icon_color: e.target.value })} />
+                  <input type="text" className="wb-input wb-input--sm" placeholder="Label color" value={s.label_color || ''} onChange={e => setStat(i, { label_color: e.target.value })} />
+                  <input type="text" className="wb-input wb-input--sm" placeholder="Value color" value={s.value_color || ''} onChange={e => setStat(i, { value_color: e.target.value })} />
+                  <input type="text" className="wb-input wb-input--sm" placeholder="Tile background" value={s.bg || ''} onChange={e => setStat(i, { bg: e.target.value })} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                  <select className="wb-select wb-select--sm" value={s.prior_column || ''} onChange={e => setStat(i, { prior_column: e.target.value })}>
+                    {colOptions('— no trend arrow (prior column) —')}
+                  </select>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <input type="checkbox" checked={s.higher_is_better !== false}
+                      onChange={e => setStat(i, { higher_is_better: e.target.checked })} />
+                    Higher is better (green when up)
+                  </label>
+                </div>
               </div>
             ))}
             {stats.length < 6 && (

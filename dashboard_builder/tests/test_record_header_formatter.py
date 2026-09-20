@@ -135,6 +135,39 @@ class TestScorecard(unittest.TestCase):
         self.assertEqual(out['stats'][0]['value'], '')
         self.assertEqual(out['stats'][1]['value'], 'n/a')   # non-numeric under number → text
 
+    def test_tile_colors_default_and_override(self):
+        cfg = dict(self.CFG, stat_icon_color='#0f6e56', stat_bg='#eee',
+                   stats=[{'column': 'PLAN_COUNT'},
+                          {'column': 'PCP_COUNT', 'icon_color': '#2563eb', 'value_color': '#111'}])
+        st = F(COLS, [ROW], cfg)['stats']
+        self.assertEqual(st[0]['icon_color'], '#0f6e56')
+        self.assertEqual(st[0]['bg'], '#eee')
+        self.assertNotIn('label_color', st[0])           # blank → omitted
+        self.assertEqual(st[1]['icon_color'], '#2563eb')  # per-tile override wins
+        self.assertEqual(st[1]['value_color'], '#111')
+        self.assertEqual(st[1]['bg'], '#eee')
+
+    def test_trend_arrow(self):
+        cols = COLS + ['PCP_PRIOR', 'RATE_PRIOR']
+        row = ROW + (1100, 66.4)
+        cfg = dict(self.CFG, stats=[
+            {'column': 'PCP_COUNT', 'prior_column': 'PCP_PRIOR'},
+            {'column': 'RATE', 'format': 'percent', 'prior_column': 'RATE_PRIOR'},
+            {'column': 'PCP_COUNT', 'prior_column': 'PCP_PRIOR', 'higher_is_better': False},
+            {'column': 'PLAN_COUNT'},
+        ])
+        st = F(cols, [row], cfg)['stats']
+        self.assertEqual(st[0]['trend'], {'dir': 'up', 'status': 'good', 'delta': '+6'})
+        self.assertEqual(st[1]['trend'], {'dir': 'down', 'status': 'bad', 'delta': '-0.7 pts'})
+        self.assertEqual(st[2]['trend']['status'], 'bad')   # up but lower is better
+        self.assertNotIn('trend', st[3])
+        # equal → flat/neutral; NULL prior → no trend; missing prior column → error
+        row2 = ROW + (1106, None)
+        st2 = F(cols, [row2], cfg)['stats']
+        self.assertEqual(st2[0]['trend'], {'dir': 'flat', 'status': 'neutral', 'delta': ''})
+        self.assertNotIn('trend', st2[1])
+        self.assertIn('error', F(COLS, [ROW], dict(self.CFG, stats=[{'column': 'PCP_COUNT', 'prior_column': 'NOPE'}])))
+
     def test_scorecard_keeps_classic_fail_closed(self):
         self.assertEqual(F(COLS, [], self.CFG)['empty'], True)
         self.assertIn('error', F(COLS, [ROW, ROW], self.CFG))

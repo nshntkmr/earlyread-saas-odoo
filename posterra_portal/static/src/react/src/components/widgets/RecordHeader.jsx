@@ -49,12 +49,21 @@ export default function RecordHeader({ data = {} }) {
         {stats.length > 0 && (
           <div className="pv-record-header-stats" style={{ '--pv-rh-stats': stats.length }}>
             {stats.map((s, i) => (
-              <div key={s.key || i} className="pv-record-header-stat">
-                <div className="pv-record-header-stat-label">
-                  {s.icon ? <i className={`fa ${s.icon}`} aria-hidden="true" /> : null}
+              <div key={s.key || i} className="pv-record-header-stat" style={s.bg ? { background: s.bg } : undefined}>
+                <div className="pv-record-header-stat-label" style={s.label_color ? { color: s.label_color } : undefined}>
+                  {s.icon ? <i className={`fa ${s.icon}`} aria-hidden="true" style={s.icon_color ? { color: s.icon_color } : undefined} /> : null}
                   <span>{s.label}</span>
                 </div>
-                <div className="pv-record-header-stat-value">{s.value === '' ? '—' : s.value}</div>
+                <div className="pv-record-header-stat-value" style={s.value_color ? { color: s.value_color } : undefined}>
+                  {s.value === '' ? '—' : s.value}
+                  {s.trend && (
+                    <span className={`pv-record-header-stat-trend pv-record-header-stat-trend--${s.trend.status}`}
+                          title={`${s.trend.delta} vs prior`}>
+                      <i className={`fa ${s.trend.dir === 'up' ? 'fa-arrow-up' : s.trend.dir === 'down' ? 'fa-arrow-down' : 'fa-minus'}`} aria-hidden="true" />
+                      {s.trend.delta}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

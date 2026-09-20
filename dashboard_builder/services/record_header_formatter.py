@@ -134,6 +134,15 @@ def format_record_header(cols, rows, config):
     else:
         payload['subtitle'] = ''
 
+    # Tile colours: per-tile override → header-wide default → blank (CSS
+    # default). Blank keys are omitted from the payload so the renderers'
+    # stylesheet defaults apply unchanged.
+    defaults = {
+        'icon_color':  (config.get('stat_icon_color') or '').strip(),
+        'label_color': (config.get('stat_label_color') or '').strip(),
+        'value_color': (config.get('stat_value_color') or '').strip(),
+        'bg':          (config.get('stat_bg') or '').strip(),
+    }
     stats = []
     for spec in _as_list(config.get('stats')):
         col = str((spec or {}).get('column') or '').strip()
@@ -142,12 +151,28 @@ def format_record_header(cols, rows, config):
         if col not in col_idx:
             return {'type': 'record_header',
                     'error': 'Configured stat column not found: %s' % col}
-        stats.append({
+        fmt_kind = spec.get('format') or 'number'
+        stat = {
             'key': col,
             'label': (spec.get('label') or overrides.get(col) or col),
             'icon': (spec.get('icon') or ''),
-            'value': _format_stat(row[col_idx[col]], spec.get('format') or 'number'),
-        })
+            'value': _format_stat(row[col_idx[col]], fmt_kind),
+        }
+        for k, default in defaults.items():
+            colour = (str(spec.get(k) or '').strip()) or default
+            if colour:
+                stat[k] = colour
+        # Optional trend vs a prior-value column (same row): arrow + delta.
+        prior_col = str(spec.get('prior_column') or '').strip()
+        if prior_col:
+            if prior_col not in col_idx:
+                return {'type': 'record_header',
+                        'error': 'Configured prior column not found: %s' % prior_col}
+            trend = _trend(row[col_idx[col]], row[col_idx[prior_col]], fmt_kind,
+                           higher_is_better=spec.get('higher_is_better', True))
+            if trend:
+                stat['trend'] = trend
+        stats.append(stat)
     payload['stats'] = stats
 
     chips_col = (config.get('chips_column') or '').strip()
@@ -194,6 +219,40 @@ def _format_stat(val, fmt):
             return '{:,}'.format(int(num))
         return '{:,.2f}'.format(num)
     return str(val)
+
+
+def _trend(cur, prior, fmt_kind, higher_is_better=True):
+    """Direction + formatted delta of ``cur`` vs ``prior``. ``None`` when
+    either side is missing/non-numeric (no arrow rendered). Percent format →
+    delta in points ('+1.2 pts'); number → signed integer/decimal."""
+    try:
+        c = float(cur)
+        p = float(prior)
+    except (TypeError, ValueError):
+        return None
+    diff = c - p
+    if diff > 0:
+        direction = 'up'
+    elif diff < 0:
+        direction = 'down'
+    else:
+        direction = 'flat'
+    good = bool(higher_is_better) if higher_is_better not in ('false', 'False', 0, '0') else False
+    if direction == 'flat':
+        status = 'neutral'
+    else:
+        status = 'good' if (direction == 'up') == good else 'bad'
+    if direction == 'flat':
+        return {'dir': 'flat', 'status': 'neutral', 'delta': ''}
+    sign = '+' if diff > 0 else '-'
+    mag = abs(diff)
+    if fmt_kind == 'percent':
+        delta = '%s%.1f pts' % (sign, mag)
+    elif mag == int(mag):
+        delta = '%s%s' % (sign, '{:,}'.format(int(mag)))
+    else:
+        delta = '%s%s' % (sign, '{:,.2f}'.format(mag))
+    return {'dir': direction, 'status': status, 'delta': delta}
 
 
 def _as_chips(val):
