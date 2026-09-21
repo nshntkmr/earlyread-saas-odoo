@@ -325,6 +325,12 @@ def _build_initial_widgets_json(widgets, widget_data):
             'annotation_type':    w.annotation_type or 'none',
             'annotation_text':    resolved_annotation_text,
             'annotation_position': w.annotation_position or 'top_right',
+            # Header badge colour. The field defaults to '#6b7280', which every
+            # existing badge carries without anyone choosing it → sent as ''
+            # so those badges keep their classic grey look; only an explicitly
+            # chosen colour reaches React.
+            'annotation_color':   (w.annotation_color or '')
+                                  if (w.annotation_color or '').lower() != '#6b7280' else '',
             # Widget-level click action (for charts — bar / line / scatter / etc.)
             # Tables use per-column click actions inside table_column_config
             # which is serialized as part of `data` below. These four fields are

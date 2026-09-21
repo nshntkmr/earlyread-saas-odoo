@@ -392,6 +392,14 @@
                                        placeholder="0 = use grid preset"/>
                                 <field name="annotation_align"/>
                                 <field name="annotation_font_size"/>
+                            </group>
+
+                            <!-- Colour: charts (reference line / overlay text) AND the header
+                                 badge on every widget type incl. tables. For the badge, the
+                                 field default #6b7280 means "classic grey"; any other value
+                                 colours the badge text with a light tint behind it. -->
+                            <group string="Color"
+                                   invisible="annotation_type == 'none'">
                                 <field name="annotation_color"
                                        placeholder="#6b7280"/>
                             </group>

@@ -306,6 +306,16 @@ class DashboardWidgetScopeOption(models.Model):
                 result = widget._build_table_data(cols, rows)
                 if col_config:
                     result['columnDefs'] = col_config
+                # SQL-driven annotations (header badge / subtitle / footnote /
+                # info tooltip) for per-option tables: get_portal_data merges
+                # these for widget-level SQL, but this path bypassed it, so a
+                # badge like "Evidence uploaded: %(evidence_count)s" showed the
+                # raw template. Additive keys only (_resolved_*); never raises.
+                try:
+                    result.update(widget._interpolate_annotations(cols, rows, portal_ctx))
+                except Exception as exc:  # noqa: BLE001 — annotations must not break the table
+                    _logger.warning('Scope option %s: annotation interpolation failed: %s',
+                                    self.id, exc)
                 return result
             elif widget.chart_type == 'ranked_detail_list':
                 # Ranked list (Mode B): option overrides master layout.

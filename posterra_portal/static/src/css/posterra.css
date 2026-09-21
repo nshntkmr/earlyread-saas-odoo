@@ -5378,3 +5378,6 @@ body.pv-login-page main {
 .pv-widget-subtitle { font-size: 0.8rem; margin-bottom: 4px; }
 .pv-widget-footnote { font-size: 0.75rem; }
 .pv-widget-badge { font-size: 0.7rem; font-weight: 500; }
+/* Coloured header badge (annotation_color set): text colour + 12% tint come
+   from inline style; classic badges keep Bootstrap's bg-light/text-dark. */
+.pv-widget-badge--colored { border-radius: 10px; padding: 3px 8px; white-space: nowrap; }

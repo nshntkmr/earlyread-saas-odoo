@@ -949,9 +949,17 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
                   pageFilters={config?.filters || []}
                 />
               )}
-              {w.annotation_type === 'badge' && w.annotation_text && (
-                <span className="pv-widget-badge badge bg-light text-dark ms-2">
-                  {w.annotation_text}
+              {w.annotation_type === 'badge' && (w.data?._resolved_annotation_text || w.annotation_text) && (
+                // Text: prefer the value re-resolved on the latest fetch (Apply /
+                // toggle / lazy load), like the info tooltip; fall back to the
+                // page-load value. Colour: only when the admin set one (the server
+                // sends '' for the field default), so existing badges keep the
+                // classic bg-light/text-dark classes byte-for-byte.
+                <span
+                  className={`pv-widget-badge badge ms-2${w.annotation_color ? ' pv-widget-badge--colored' : ' bg-light text-dark'}`}
+                  style={w.annotation_color ? { color: w.annotation_color, background: `${w.annotation_color}1f` } : undefined}
+                >
+                  {w.data?._resolved_annotation_text || w.annotation_text}
                 </span>
               )}
               {w.download && w.download.position !== 'header_left' && (
