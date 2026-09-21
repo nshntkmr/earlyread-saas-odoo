@@ -41,4 +41,11 @@
               action="action_schema_source"
               sequence="10"/>
 
+    <!-- ── Icon Registry (action in dashboard_icon_views.xml) ───────── -->
+    <menuitem id="menu_dashboard_icons"
+              name="Icon Registry"
+              parent="menu_dashboard_builder_config"
+              action="action_dashboard_icons"
+              sequence="45"/>
+
 </odoo>

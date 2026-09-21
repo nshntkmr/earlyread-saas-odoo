@@ -54,10 +54,8 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
-    <menuitem id="menu_dashboard_icons"
-              name="Icon Registry"
-              parent="menu_dashboard_builder_config"
-              action="action_dashboard_icons"
-              sequence="45"/>
+    <!-- The "Icon Registry" menu item lives in views/menuitems.xml: its parent
+         (menu_dashboard_builder_config) is defined there, and this file loads
+         first — declaring it here broke fresh installs. -->
 
 </odoo>
