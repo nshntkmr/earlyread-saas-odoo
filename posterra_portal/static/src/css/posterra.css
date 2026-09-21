@@ -3319,14 +3319,39 @@
 
 .pv-kpi-card-compact-foot { display: flex; }
 
-/* Badge beside the left value (comparison_badge_position = 'beside_value') */
+/* Badge beside the left value (comparison_badge_position = 'beside_value').
+   The value line is a single non-wrapping row: the badge never drops under
+   the value (which made one card taller than its neighbours), it shrinks
+   instead — in a narrow card (container query against .pv-kpi-card-compact,
+   the existing inline-size container, so the cqw-based font clamps keep
+   their reference) it loses its arrow icon and tightens, and as a last
+   resort its text is clipped. Scoped to the compact Comparison Card only. */
+.pv-kpi-card-compact-tile-value {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
 .pv-kpi-card-compact-tile-value .pv-kpi-card-compact-badge {
     display: inline-flex;
-    margin-left: 6px;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: 0;
     padding: 2px 7px;
     font-size: clamp(0.5rem, 3cqw, 0.65rem);
-    vertical-align: middle;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    align-self: center;
+}
+.pv-kpi-card-compact-tile-value .pv-kpi-card-compact-badge span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+@container (max-width: 360px) {
+    .pv-kpi-card-compact-tile-value .pv-kpi-card-compact-badge { padding: 1px 5px; gap: 2px; }
+    .pv-kpi-card-compact-tile-value .pv-kpi-card-compact-badge svg { display: none; }
 }
 
 /* RAG status card — colored left border */

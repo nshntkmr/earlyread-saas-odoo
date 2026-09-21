@@ -1312,7 +1312,8 @@
     margin-top: 6px;
     white-space: nowrap;
 }
-.wb-cmp-tile-value .wb-cmp-badge { margin: 0 0 0 6px; font-size: 11px; padding: 2px 7px; vertical-align: middle; }
+.wb-cmp-tile-value { display: flex; align-items: baseline; gap: 6px; flex-wrap: nowrap; min-width: 0; }
+.wb-cmp-tile-value .wb-cmp-badge { margin: 0; font-size: 11px; padding: 2px 7px; align-self: center; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .wb-cmp-badge.status-up      { color: #059669; background: #ecfdf5; }
 .wb-cmp-badge.status-down    { color: #9f1239; background: #fff1f2; }
 .wb-cmp-badge.status-neutral { color: #6b7280; background: #f3f4f6; }
