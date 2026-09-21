@@ -107,6 +107,102 @@ class DashboardPage(models.Model):
     help_text = fields.Text(string='Help Text',
         help='Tooltip shown via info icon next to the page title')
 
+    # ── PDF export (config-driven; off by default → zero change) ──────────
+    pdf_export_enabled = fields.Boolean(
+        string='Enable PDF Export', default=False,
+        help='Shows an "Export PDF" button that prints the current tab '
+             '(record headers, KPIs and tables) with the applied filters. '
+             'Enabling PDF export makes every included table\'s rows '
+             'exportable as PDF, regardless of the widget\'s Download '
+             'settings. Use "Include in PDF" on each widget to leave a '
+             'widget out.')
+    pdf_orientation = fields.Selection(
+        [('landscape', 'Landscape'), ('portrait', 'Portrait')],
+        string='PDF Orientation', default='landscape')
+    pdf_paper = fields.Selection(
+        [('letter', 'US Letter'), ('a4', 'A4')],
+        string='PDF Paper Size', default='letter')
+    pdf_title_template = fields.Char(
+        string='PDF Title',
+        help='Title printed at the top of the PDF. Placeholders: {app_name}, '
+             '{page_name}, {tab_name}, {date} and any visible filter\'s '
+             'parameter name (prints the selected option label). '
+             'Blank = "{app_name} — {page_name} — {tab_name}".')
+    pdf_show_filters = fields.Boolean(
+        string='PDF: Print Applied Filters', default=True)
+    pdf_show_logo = fields.Boolean(
+        string='PDF: Print App Logo', default=True)
+    pdf_footer_text = fields.Char(
+        string='PDF Footer Text',
+        help='Printed at the bottom-left of every PDF page (page numbers are '
+             'always printed on the right). Supports {app_name}.')
+    pdf_row_limit = fields.Integer(
+        string='PDF Row Limit', default=500,
+        help='Maximum rows printed per table (the database is asked for one '
+             'more row to detect truncation; a notice is printed when rows '
+             'were left out). Hard maximum 5,000.')
+    pdf_max_columns = fields.Integer(
+        string='PDF Column Limit', default=16,
+        help='Maximum columns printed per table (a notice is printed when '
+             'columns were left out). Hard maximum 24.')
+    pdf_keynote_enabled = fields.Boolean(
+        string='PDF: Allow Keynote', default=True,
+        help='Let users type a short keynote in the export dialog; it is '
+             'printed near the top of the PDF.')
+    pdf_tab_ids = fields.Many2many(
+        'dashboard.page.tab', 'dashboard_page_pdf_tab_rel', 'page_id', 'tab_id',
+        string='PDF Button on Tabs',
+        help='Tabs that show the Export PDF button (and may be exported). '
+             'Leave empty to allow every tab of this page.')
+    pdf_button_bg_color = fields.Char(
+        string='PDF Button Color',
+        help='Background colour of the Export PDF button (e.g. #0b6e4f). '
+             'Blank = the standard outline button.')
+    pdf_button_text_color = fields.Char(
+        string='PDF Button Text Color',
+        help='Text and icon colour of the Export PDF button. Blank = white '
+             'on a custom background, the standard grey otherwise.')
+
+    def pdf_tab_allowed(self, tab):
+        """True when ``tab`` (a dashboard.page.tab or empty) may be exported.
+        No tab restriction configured, or a page without tabs → allowed."""
+        self.ensure_one()
+        if not self.pdf_tab_ids or not tab:
+            return True
+        return tab.id in self.pdf_tab_ids.ids
+
+    @api.constrains('pdf_tab_ids')
+    def _check_pdf_tab_ids(self):
+        for page in self:
+            foreign = page.pdf_tab_ids.filtered(lambda t: t.page_id != page)
+            if foreign:
+                raise ValidationError(
+                    'PDF Button on Tabs may only list tabs of this page (%s).'
+                    % ', '.join(foreign.mapped('name')))
+
+    @api.constrains('pdf_button_bg_color', 'pdf_button_text_color')
+    def _check_pdf_button_colors(self):
+        from ..services.pdf_export.cell_format import safe_color
+        for page in self:
+            for label, value in (('PDF Button Color', page.pdf_button_bg_color),
+                                 ('PDF Button Text Color', page.pdf_button_text_color)):
+                if value and not safe_color(value):
+                    raise ValidationError(
+                        f'{label} must be a colour such as #0b6e4f, rgb(11,110,79) or a '
+                        f'CSS colour name.')
+
+    @api.constrains('pdf_row_limit', 'pdf_max_columns')
+    def _check_pdf_limits(self):
+        from ..services.pdf_export.limits import (
+            PDF_ROW_LIMIT_MAX, PDF_COLUMN_LIMIT_MAX)
+        for page in self:
+            if not (1 <= (page.pdf_row_limit or 0) <= PDF_ROW_LIMIT_MAX):
+                raise ValidationError(
+                    f'PDF Row Limit must be between 1 and {PDF_ROW_LIMIT_MAX:,}.')
+            if not (1 <= (page.pdf_max_columns or 0) <= PDF_COLUMN_LIMIT_MAX):
+                raise ValidationError(
+                    f'PDF Column Limit must be between 1 and {PDF_COLUMN_LIMIT_MAX}.')
+
     @api.model
     def default_get(self, fields_list):
         """New pages always land at the end of the sidebar, not the top."""

@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Page PDF export — print document (rendered by the Gotenberg service).
+
+    Lays out the sanitised view model from services/pdf_export/document.py:
+    title + applied filters + badges, notices, keynote, then rows of blocks
+    (consecutive cards share a 12-column grid; each table is its own
+    full-width row so long tables paginate reliably). All values are escaped
+    by t-out except table cells, which arrive as pre-escaped Markup from
+    services/pdf_export/cell_format.py. No external resources: JavaScript is
+    disabled in the renderer and every network sub-request is blocked.
+-->
+<odoo>
+    <template id="pdf_export_document" name="PDF Export Document">
+        <html>
+            <head>
+                <meta charset="utf-8"/>
+                <title t-out="v['title']"/>
+                <style>
+                    * { box-sizing: border-box; }
+                    html, body { margin: 0; padding: 0; background: #ffffff; }
+                    body { font-family: 'Noto Sans', 'Liberation Sans', Arial, sans-serif; color: #1f2933;
+                           font-size: 9.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .pv-title { display: flex; align-items: flex-end; gap: 10px; border-bottom: 2px solid #0b6e4f;
+                                padding-bottom: 5px; margin-bottom: 5px; }
+                    .pv-title img { max-height: 30px; max-width: 140px; }
+                    .pv-title h1 { font-size: 16px; margin: 0; flex: 1; line-height: 1.25; }
+                    .pv-title .meta { color: #52606d; font-size: 8.5px; text-align: right; white-space: nowrap; }
+                    .pv-filters { color: #3e4c59; font-size: 8.5px; margin: 2px 0 4px; }
+                    .pv-filters b { font-weight: 600; }
+                    .pv-badges { margin: 2px 0 4px; }
+                    .pv-badge-top { display: inline-block; background: #eef2f6; border-radius: 10px; padding: 1px 8px;
+                                    font-size: 8.5px; margin-right: 4px; }
+                    .pv-notice { border-radius: 4px; padding: 4px 8px; margin: 3px 0; font-size: 8.5px; }
+                    .pv-notice.info { background: #f3f6f9; border: 1px solid #d9e2ec; color: #3e4c59; }
+                    .pv-notice.warn { background: #fff8e6; border: 1px solid #f0c36d; }
+                    .pv-notice.bad { background: #fdecea; border: 1px solid #e8a29b; color: #7a1e16; font-weight: 600; }
+                    .pv-keynote { border-left: 3px solid #0b6e4f; background: #f3faf7; padding: 5px 9px; margin: 6px 0;
+                                  white-space: pre-wrap; }
+                    .pv-keynote b { display: block; font-size: 8px; color: #0b6e4f; text-transform: uppercase;
+                                    letter-spacing: .04em; margin-bottom: 1px; }
+                    .pv-row { margin: 7px 0; }
+                    .pv-row.break { break-before: page; page-break-before: always; }
+                    .pv-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 7px; }
+                    .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; }
+                    .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
+                    .pv-card { border: 1px solid #e4e7eb; border-radius: 6px; padding: 7px 8px; break-inside: avoid; }
+                    .kpi-t { font-size: 8.5px; color: #52606d; font-weight: 600; }
+                    .kpi-v { font-size: 17px; font-weight: 700; margin-top: 3px; }
+                    .kpi-v .arrow { font-size: 10px; margin-left: 4px; }
+                    .kpi-s { font-size: 8px; color: #7b8794; margin-top: 2px; }
+                    .kpi-cmp { font-size: 8px; color: #52606d; margin-top: 3px; }
+                    .kpi-prog { height: 6px; background: #e5e7eb; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+                    .kpi-prog span { display: block; height: 100%; }
+                    .hdr-top { display: flex; align-items: center; gap: 9px; }
+                    .avatar { width: 34px; height: 34px; color: #fff; display: flex; align-items: center;
+                              justify-content: center; font-weight: 700; font-size: 13px; border-radius: 6px; }
+                    .avatar.round { border-radius: 50%; }
+                    .hdr-title { font-size: 14px; font-weight: 700; margin: 0; }
+                    .hdr-sub { color: #52606d; font-size: 9.5px; }
+                    .hdr-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 7px; }
+                    .stat { border-radius: 5px; padding: 5px 7px; }
+                    .stat .l { font-size: 8.5px; } .stat .val { font-size: 15px; font-weight: 700; }
+                    .stat .tr { font-size: 9px; margin-left: 4px; font-weight: 600; }
+                    .hdr-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 12px; margin-top: 6px; }
+                    .hdr-fields .l { color: #7b8794; font-size: 8px; } .hdr-fields .val { font-weight: 600; }
+                    .chips { margin-top: 7px; color: #52606d; font-size: 8.5px; }
+                    .chip { display: inline-block; border-radius: 10px; padding: 1px 8px; margin-left: 4px; }
+                    .unavail { color: #7b8794; border-style: dashed; }
+                    .tbl h3 { font-size: 11.5px; margin: 0 0 2px; }
+                    .tbl .cap { color: #7b8794; font-size: 8px; margin-bottom: 3px; }
+                    table { border-collapse: collapse; width: 100%; }
+                    thead { display: table-header-group; }
+                    tr { break-inside: avoid; page-break-inside: avoid; }
+                    th { text-align: left; font-size: 8px; text-transform: uppercase; letter-spacing: .02em; color: #3e4c59;
+                         border-bottom: 1.5px solid #9aa5b1; padding: 3px 5px; vertical-align: bottom; }
+                    td { border-bottom: 1px solid #e4e7eb; padding: 2.5px 5px; vertical-align: top; }
+                    tbody tr:nth-child(even) td { background: #f7f9fa; }
+                    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+                    .dense table { font-size: 8px; } .dense th { font-size: 7px; } .dense td { padding: 2px 3px; }
+                    .pv-badge { display: inline-block; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 0.85em; }
+                    .pv-star { color: #f59e0b; white-space: nowrap; }
+                    .pv-muted { color: #9aa5b1; }
+                    .pv-svg { vertical-align: middle; }
+                    .pv-barinline { display: flex; align-items: center; gap: 5px; }
+                    .pv-bar { flex: 1; min-width: 40px; height: 7px; background: #e5e7eb; border-radius: 4px; overflow: hidden;
+                              display: inline-block; }
+                    .pv-bar span { display: block; height: 100%; border-radius: 4px; }
+                    .pv-bar-label { min-width: 30px; text-align: right; font-size: 0.9em; }
+                    .pv-strip { display: inline-flex; gap: 2px; align-items: center; }
+                    .pv-dot { display: inline-block; border-radius: 2px; }
+                    .pv-pill { color: #fff; font-weight: 700; border-radius: 3px; padding: 1px 5px; }
+                    .pv-comp-main { font-weight: 600; }
+                    .pv-consistency { color: #9aa5b1; font-size: 7.5px; margin-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="pv-title">
+                    <img t-if="v['logo']" t-att-src="v['logo']" alt=""/>
+                    <h1 t-out="v['title']"/>
+                    <div class="meta" t-out="v['generated']"/>
+                </div>
+                <div class="pv-filters" t-if="v['show_filters']">
+                    <t t-if="v['filters']">
+                        <t t-foreach="v['filters']" t-as="f">
+                            <b t-out="f['label']"/>: <t t-out="f['value_label']"/><t t-if="not f_last"> · </t>
+                        </t>
+                    </t>
+                    <t t-else="">Filters: none applied</t>
+                </div>
+                <div class="pv-badges" t-if="v['badges']">
+                    <t t-foreach="v['badges']" t-as="b">
+                        <span class="pv-badge-top" t-att-style="('color:%s' % b['color']) if b['color'] else None"
+                              t-out="b['value']"/>
+                    </t>
+                </div>
+                <t t-foreach="v['notices']" t-as="n">
+                    <div t-attf-class="pv-notice #{n['severity']}" t-out="n['text']"/>
+                </t>
+                <div class="pv-keynote" t-if="v['keynote']"><b>Keynote</b><t t-out="v['keynote']"/></div>
+
+                <t t-foreach="v['rows']" t-as="row">
+                    <div t-attf-class="pv-row #{'break' if row['break_before'] else ''}">
+                        <t t-if="row['type'] == 'grid'">
+                            <div class="pv-grid">
+                                <t t-foreach="row['blocks']" t-as="blk">
+                                    <t t-call="posterra_portal.pdf_export_block"/>
+                                </t>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <t t-set="blk" t-value="row['block']"/>
+                            <div t-att-class="'tbl dense' if blk['table']['dense'] else 'tbl'">
+                                <h3 t-out="blk['name']"/>
+                                <div class="cap" t-out="blk['table']['caption']"/>
+                                <table>
+                                    <thead><tr>
+                                        <t t-foreach="blk['table']['columns']" t-as="c"><th t-out="c['label']"/></t>
+                                    </tr></thead>
+                                    <tbody>
+                                        <t t-foreach="blk['table']['rows']" t-as="r">
+                                            <tr>
+                                                <t t-foreach="r" t-as="cell">
+                                                    <td t-att-class="cell[1] or None" t-att-style="cell[2] or None"
+                                                        t-out="cell[0]"/>
+                                                </t>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+                    </div>
+                </t>
+                <div class="pv-consistency" t-out="v['consistency']"/>
+            </body>
+        </html>
+    </template>
+
+    <template id="pdf_export_block" name="PDF Export Block">
+        <t t-if="blk['kind'] == 'kpi'">
+            <t t-set="k" t-value="blk['kpi']"/>
+            <div t-attf-class="pv-card span-#{blk['span']}">
+                <div class="kpi-t" t-out="k['title']"/>
+                <div class="kpi-v" t-att-style="('color:%s' % k['value_color']) if k['value_color'] else None">
+                    <t t-out="k['value']"/>
+                    <span class="arrow" t-if="k['arrow']" t-att-style="'color:%s' % k['arrow_color']" t-out="k['arrow']"/>
+                </div>
+                <t t-if="k['variant'] == 'comparison'">
+                    <div class="kpi-cmp">
+                        <t t-if="k['current_label']"><t t-out="k['current_label']"/> vs </t>
+                        <t t-out="k['prior_label']"/><t t-if="k['prior_value']">: <t t-out="k['prior_value']"/></t>
+                        <span t-if="k['diff']" t-att-style="'color:%s;font-weight:600;margin-left:4px' % k['diff_color']"
+                              t-out="k['diff']"/>
+                    </div>
+                </t>
+                <t t-if="k.get('progress_pct') is not None">
+                    <div class="kpi-prog"><span t-attf-style="width:#{k['progress_pct']}%;background:#{k['progress_color']}"/></div>
+                    <div class="kpi-s" t-if="k['progress_note']" t-out="k['progress_note']"/>
+                </t>
+                <div class="kpi-s" t-if="k['secondary']" t-out="k['secondary']"/>
+            </div>
+        </t>
+        <t t-elif="blk['kind'] == 'record_header'">
+            <t t-set="h" t-value="blk['header']"/>
+            <div t-attf-class="pv-card span-#{blk['span']}">
+                <t t-if="h['empty']"><div class="pv-muted">No record for the selected filters.</div></t>
+                <t t-else="">
+                    <div class="hdr-top">
+                        <div t-if="h['avatar_text']" t-att-class="'avatar round' if h['avatar_round'] else 'avatar'"
+                             t-att-style="'background:%s' % h['avatar_color']" t-out="h['avatar_text']"/>
+                        <div>
+                            <div class="hdr-title" t-out="h['title']"/>
+                            <div class="hdr-sub" t-if="h['subtitle']" t-out="h['subtitle']"/>
+                        </div>
+                    </div>
+                    <div class="hdr-stats" t-if="h['stats']">
+                        <t t-foreach="h['stats']" t-as="s">
+                            <div class="stat" t-att-style="'background:%s' % s['bg']">
+                                <div class="l" t-att-style="'color:%s' % s['label_color']" t-out="s['label']"/>
+                                <div class="val" t-att-style="'color:%s' % s['value_color']">
+                                    <t t-out="s['value']"/>
+                                    <span class="tr" t-if="s['trend_arrow']" t-att-style="'color:%s' % s['trend_color']">
+                                        <t t-out="s['trend_arrow']"/> <t t-out="s['trend_delta']"/>
+                                    </span>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                    <div class="hdr-fields" t-if="h['fields']">
+                        <t t-foreach="h['fields']" t-as="fld">
+                            <div><div class="l" t-out="fld['label']"/><div class="val" t-out="fld['value']"/></div>
+                        </t>
+                    </div>
+                    <div class="chips" t-if="h['chips']">
+                        <t t-out="h['chips_label']"/>
+                        <t t-foreach="h['chips']" t-as="chip">
+                            <span class="chip" t-att-style="'background:%s;color:%s' % (h['chip_bg'], h['chip_fg'])"
+                                  t-out="chip"/>
+                        </t>
+                    </div>
+                </t>
+            </div>
+        </t>
+        <t t-else="">
+            <div t-attf-class="pv-card unavail span-#{blk['span']}">
+                <b t-out="blk['name']"/><br/>Widget unavailable
+            </div>
+        </t>
+    </template>
+</odoo>

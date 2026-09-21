@@ -128,6 +128,26 @@ class DashboardWidgetActionMixin(models.AbstractModel):
              'legend mode. Author with the Dashboard Builder; this raw JSON '
              'is for emergency edits only.')
 
+    # ── Page PDF export (print layout; declared once for definition + instance)
+    # Placement/layout fields: seeded from the library definition when an
+    # instance is PLACED, then owned by the instance — ``library_update`` never
+    # overwrites them (same rule as col_span / chart_height).
+    pdf_include = fields.Boolean(
+        string='Include in PDF', default=True,
+        help='Print this widget in the page PDF export. Turn off to leave it '
+             'out of the PDF (it still shows on the dashboard).')
+    pdf_page_break_before = fields.Boolean(
+        string='PDF: New Page Before', default=False,
+        help='Start this widget on a new PDF page.')
+    pdf_col_span = fields.Selection([
+        ('3', '25%'),
+        ('4', '33%'),
+        ('6', '50%'),
+        ('8', '67%'),
+        ('12', '100%'),
+    ], string='PDF Width',
+        help='Width of this widget in the PDF. Blank = same as on screen.')
+
     @api.constrains('attribute_grid_config', 'chart_type')
     def _check_attribute_grid_config(self):
         """chart_type participates so switching an existing widget to

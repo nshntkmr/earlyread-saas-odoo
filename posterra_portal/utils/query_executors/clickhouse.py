@@ -295,12 +295,13 @@ class ClickHouseExecutor(BaseQueryExecutor):
     it per query — see Phase 4 DDL in the ClickHouse plan.
     """
 
-    def execute(self, query, params, execution_context=None):
-        _validate_select_only(query)
-        client = _get_client(self.env, self.connection)
-
+    def _query_settings(self, timeout=None):
+        """Per-query settings shared by ``execute`` and ``execute_bounded``:
+        resource limits + the tenant setting. Single source of truth for the
+        tenant rule — never duplicate it."""
         # Per-query resource limits — defence against runaway queries.
-        timeout = self.connection.query_timeout_seconds or 30
+        if timeout is None:
+            timeout = self.connection.query_timeout_seconds or 30
         settings = {
             'max_execution_time': timeout,
             # Hard caps to prevent a single query exhausting the cluster.
@@ -327,7 +328,10 @@ class ClickHouseExecutor(BaseQueryExecutor):
                 '— admin tooling only, ensure this is intentional.',
                 self.connection.name,
             )
+        return settings
 
+    @staticmethod
+    def _ch_params(params):
         # clickhouse-connect renders Python tuples as CH Tuple literals "(a,b)"
         # and lists as Array literals "[a,b]". Our shared build_sql_params emits
         # tuples (psycopg2's IN-clause contract on the PG path); coerce to lists
@@ -335,10 +339,16 @@ class ClickHouseExecutor(BaseQueryExecutor):
         # BEFORE translate_params so type inference and bound values use the
         # same object — defends against future changes to _infer_ch_type that
         # might distinguish tuple vs list.
-        ch_params = {
+        return {
             k: list(v) if isinstance(v, tuple) else v
             for k, v in params.items()
         }
+
+    def execute(self, query, params, execution_context=None):
+        _validate_select_only(query)
+        client = _get_client(self.env, self.connection)
+        settings = self._query_settings()
+        ch_params = self._ch_params(params)
         ch_query = translate_params(query, ch_params)
         try:
             query_lock = _get_query_lock(self.connection.id)
@@ -356,6 +366,49 @@ class ClickHouseExecutor(BaseQueryExecutor):
 
         rows = [tuple(r) for r in result.result_rows]
         return list(result.column_names), rows
+
+    def execute_bounded(self, query, params, *, max_rows=None, timeout_s=None,
+                        order_by=None, execution_context=None):
+        """Bounded execution (see BaseQueryExecutor). The row cap is a SQL
+        ``LIMIT`` on a wrap of the validated query (never ``max_result_rows``
+        + ``break``, which overshoots by a whole block); the timeout is the
+        per-query ``max_execution_time``, capped by the connection's own."""
+        import math
+        from .bounded import (BoundedResult, is_unknown_column_error,
+                              split_bounded_rows, wrap_bounded)
+        _validate_select_only(query)
+        client = _get_client(self.env, self.connection)
+        conn_timeout = self.connection.query_timeout_seconds or 30
+        timeout = conn_timeout
+        if timeout_s:
+            timeout = max(1, min(conn_timeout, int(math.ceil(float(timeout_s)))))
+        settings = self._query_settings(timeout=timeout)
+        ch_params = self._ch_params(params or {})
+
+        def _run(sort):
+            sql = wrap_bounded(query, max_rows=max_rows, order_by=sort,
+                               dialect='clickhouse')
+            ch_query = translate_params(sql, ch_params)
+            try:
+                with _get_query_lock(self.connection.id):
+                    result = client.query(ch_query, parameters=ch_params,
+                                          settings=settings)
+            except Exception as exc:
+                _logger.warning('ClickHouse bounded query failed (connection=%s): %s',
+                                self.connection.name, exc)
+                raise
+            return list(result.column_names), [tuple(r) for r in result.result_rows]
+
+        sort_applied = bool(order_by)
+        try:
+            cols, rows = _run(order_by)
+        except Exception as exc:
+            if not order_by or not is_unknown_column_error(exc):
+                raise
+            cols, rows = _run(None)
+            sort_applied = False
+        shown, more = split_bounded_rows(rows, max_rows)
+        return BoundedResult(cols, shown, more, sort_applied)
 
     def discover_columns(self, table_name):
         client = _get_client(self.env, self.connection)

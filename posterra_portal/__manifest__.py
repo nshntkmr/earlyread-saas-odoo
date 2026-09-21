@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Posterra Portal',
-    'version': '19.0.1.8.0',
+    'version': '19.0.1.9.0',
     'category': 'Healthcare',
     'summary': 'Branded login portal and dashboard for Home Health Agency clients',
     'description': """
@@ -65,6 +65,12 @@
         # Projections (Mark Projected Compliant) — admin views + menus + crons
         'views/projection_views.xml',
         'data/projection_cron.xml',
+        # Page PDF export — print template, audit log (tenant-scoped read),
+        # reconciler cron. Log menu hangs off menu_posterra_config.
+        'views/pdf_export_templates.xml',
+        'security/pdf_export_security.xml',
+        'views/pdf_export_log_views.xml',
+        'data/pdf_export_cron.xml',
     ],
     'assets': {
         'web.assets_frontend': [

@@ -191,6 +191,13 @@ export function FilterProvider({ children, pageConfig, apiBase }) {
   // resets land in filterValues as ONE commit → ONE widget refetch wave.
   const crossFilterResolverRef = useRef(null)
 
+  // ── Widget request-state registry (PDF export) ──────────────────────────────
+  // Each WidgetGrid (page-summary / tab-content) registers, under its
+  // placement key, a function returning the per-widget request state it sends
+  // to /data: { scope_options, scope_values, widget_filters }. The Export PDF
+  // button reads it so the PDF runs every widget with the screen's inputs.
+  const widgetStateRegistryRef = useRef({})
+
   /** Cross-filter entry point: pending updates instantly (dropdown UI), then
    *  the FilterBar cascade resolver refreshes dependent options and returns
    *  its value resets, and everything commits to filterValues in one shot.
@@ -257,6 +264,7 @@ export function FilterProvider({ children, pageConfig, apiBase }) {
       applyCrossFilter,
       applyImmediate,
       crossFilterResolverRef,
+      widgetStateRegistryRef,
       currentTabKey,
       setCurrentTabKey,
       accessToken,

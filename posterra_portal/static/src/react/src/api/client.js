@@ -133,6 +133,9 @@ export async function apiFetchBlob(url, token, opts = {}, refreshFn = null) {
     blob: await res.blob(),
     filename: parseContentDispositionFilename(res.headers.get('Content-Disposition')),
     truncated: res.headers.get('X-Download-Truncated') === '1',
+    // PDF export: the server flags a report with widgets that failed or were
+    // not loaded within the time limit (the PDF itself carries the notice).
+    incomplete: res.headers.get('X-PDF-Incomplete') === '1',
   }
 }
 

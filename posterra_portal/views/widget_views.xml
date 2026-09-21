@@ -733,6 +733,24 @@
                             </group>
                         </page>
 
+                        <!-- ──────────────────────────── PDF Export tab ── -->
+                        <page string="PDF Export" name="pdf_export">
+                            <group>
+                                <group string="Page PDF">
+                                    <field name="pdf_include"/>
+                                    <field name="pdf_page_break_before" invisible="not pdf_include"/>
+                                    <field name="pdf_col_span" invisible="not pdf_include"/>
+                                </group>
+                            </group>
+                            <div class="text-muted">
+                                Used by the page's Export PDF button (Pages → PDF Export), which
+                                prints every included widget of the tab being viewed. Record
+                                headers, KPI cards and tables are printed; tables always print full
+                                width. Independent of this widget's Download settings. Kept when the
+                                library definition is updated.
+                            </div>
+                        </page>
+
                         <page string="Composite Items" name="composite_items"
                               invisible="chart_type != 'composite'">
                             <p class="text-muted">

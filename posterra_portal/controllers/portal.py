@@ -240,7 +240,31 @@ def _build_page_config_json(app, page, tabs, page_filters, filter_options,
         ],
         'filter_dep_map': json.loads(filter_dep_map_json or '{}'),
         'filter_dependencies': filter_dependencies,
+        # PDF export: present ONLY when enabled, so every other page keeps a
+        # byte-identical page_config.
+        **({'pdf_export': _pdf_export_config(page)} if page.pdf_export_enabled else {}),
     }, default=str)
+
+
+def _pdf_export_config(page):
+    """Client config for the Export PDF button (pages with export enabled)."""
+    from ..services.pdf_export.cell_format import safe_color
+    from ..services.pdf_export.limits import KEYNOTE_MAX_CHARS
+    return {
+        'enabled': True,
+        'orientation': page.pdf_orientation or 'landscape',
+        'keynote_enabled': bool(page.pdf_keynote_enabled),
+        'keynote_max_chars': KEYNOTE_MAX_CHARS,
+        # Tabs that show the button. Same rule as dashboard.page.pdf_tab_allowed
+        # (enforced again on export): not restricted → every tab; restricted →
+        # only the listed (active) tabs, possibly none.
+        'tab_restricted': bool(page.pdf_tab_ids),
+        'tab_keys': page.pdf_tab_ids.filtered('is_active').mapped('key'),
+        'button': {
+            'bg_color': safe_color(page.pdf_button_bg_color),
+            'text_color': safe_color(page.pdf_button_text_color),
+        },
+    }
 
 
 def _extract_vc_field(widget, field, default=''):
@@ -1316,7 +1340,10 @@ class PosterraPortal(CustomerPortal):
             elif region == 'page_header_end':
                 has_page_header_end_filters = True
         has_page_header_start = has_page_header_start_badges or has_page_header_start_filters
-        has_page_header_end = has_page_header_end_badges or has_page_header_end_filters
+        # The Export PDF button lives in the header END slot, so a PDF-enabled
+        # page needs that slot even without end badges/filters.
+        has_page_header_end = (has_page_header_end_badges or has_page_header_end_filters
+                               or bool(current_page and current_page.pdf_export_enabled))
         has_page_header_actions = has_page_header_start or has_page_header_end
 
         # ── 11. Phase 7 — React shell data ─────────────────────────────

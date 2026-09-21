@@ -60,6 +60,11 @@
                                    invisible="color_palette != 'custom'"
                                    placeholder='["#FF5733","#33FF57","#3357FF"]'/>
                         </group>
+                        <group string="PDF Export (defaults for new placements)">
+                            <field name="pdf_include"/>
+                            <field name="pdf_page_break_before" invisible="not pdf_include"/>
+                            <field name="pdf_col_span" invisible="not pdf_include"/>
+                        </group>
                     </group>
 
                     <notebook>

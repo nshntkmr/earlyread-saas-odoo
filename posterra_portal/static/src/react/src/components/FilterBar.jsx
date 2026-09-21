@@ -5,6 +5,7 @@ import { apiFetch } from '../api/client'
 import { cascadeMultiUrl, cascadeUrl, filtersResolveUrl } from '../api/endpoints'
 import FilterControl from './FilterControl'
 import PageBadge from './PageBadge'
+import ExportPdfButton from './ExportPdfButton'
 
 /**
  * FilterBar
@@ -654,6 +655,18 @@ export default function FilterBar({ headerBadges = [] }) {
   const applySlot = headerHasManual ? (endHasFilter ? 'page_header_end' : 'page_header_start') : null
   const startItems = buildSlotItems('page_header_start', applySlot === 'page_header_start')
   const endItems = buildSlotItems('page_header_end', applySlot === 'page_header_end')
+  // Export PDF renders EXACTLY ONCE, last in the END slot (the server opens
+  // that slot for every PDF-enabled page, even without end badges/filters),
+  // and only on the tabs the admin selected (same rule the server enforces).
+  const pdf = config.pdf_export
+  const pdfOnThisTab = !!pdf?.enabled && (
+    !pdf.tab_restricted
+    || !(config.tabs || []).length
+    || (pdf.tab_keys || []).includes(currentTabKey)
+  )
+  if (pdfOnThisTab) {
+    endItems.push(<ExportPdfButton key="hdr-pdf-export" />)
+  }
 
   if (!bar && !tabItems && startItems.length === 0 && endItems.length === 0) return null
 

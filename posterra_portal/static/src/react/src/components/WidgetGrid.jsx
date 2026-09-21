@@ -96,7 +96,7 @@ const KPI_LIKE_TYPES = new Set(['kpi', 'status_kpi', 'gauge_kpi'])
 
 export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }) {
   const { config, filterValues, currentTabKey, accessToken, refreshToken, apiBase, applyCrossFilter,
-          applyImmediate } = useFilters()
+          applyImmediate, widgetStateRegistryRef } = useFilters()
 
   // widgetData state: { "<widgetId>": { ...widgetMeta, data: {...} } }
   const [widgetData, setWidgetData] = useState(initialWidgets || {})
@@ -209,6 +209,28 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
     })
     return out
   }, [widgetFilterValues])
+
+  // ── PDF export: expose this grid's per-widget request state ─────────────
+  // Same composition as every /data fetch: query-mode → the selected option
+  // id; parameter mode → the scope value; plus the widget-filter params.
+  useEffect(() => {
+    if (!widgetStateRegistryRef) return undefined
+    const registry = widgetStateRegistryRef.current
+    registry[placement] = () => {
+      const scope_options = {}, scope_values = {}, widget_filters = {}
+      Object.values(widgetData).forEach(w => {
+        if (w.scope?.query_mode === 'query' && scopeOptionIds[w.id]) {
+          scope_options[w.id] = scopeOptionIds[w.id]
+        } else if (w.scope?.param_name && scopeValues[w.id]) {
+          scope_values[w.id] = scopeValues[w.id]
+        }
+        const wf = wfParamsFor(w)
+        if (Object.keys(wf).length) widget_filters[w.id] = wf
+      })
+      return { scope_options, scope_values, widget_filters }
+    }
+    return () => { delete registry[placement] }
+  }, [widgetStateRegistryRef, placement, widgetData, scopeOptionIds, scopeValues, wfParamsFor])
 
   // ── Widget-scoped control handler ─────────────────────────────────────────
   const handleScopeChange = useCallback(async (widgetId, newValue, optionId) => {

@@ -80,6 +80,27 @@ app.kubernetes.io/instance: {{ .Release.Name }}
     secretKeyRef:
       name: odoo-secrets
       key: POSTERRA_AI_MODEL
+{{- if .Values.pdf.enabled }}
+- name: POSTERRA_PDF_RENDER_URL
+  value: {{ printf "http://%s-pdf:3000" (include "posterra.fullname" .) | quote }}
+- name: POSTERRA_PDF_RENDER_USER
+  valueFrom:
+    secretKeyRef:
+      name: odoo-secrets
+      key: POSTERRA_PDF_RENDER_USER
+- name: POSTERRA_PDF_RENDER_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: odoo-secrets
+      key: POSTERRA_PDF_RENDER_PASSWORD
+- name: POSTERRA_PDF_FINGERPRINT_KEY
+  valueFrom:
+    secretKeyRef:
+      name: odoo-secrets
+      key: POSTERRA_PDF_FINGERPRINT_KEY
+- name: POSTERRA_PDF_FINGERPRINT_KEY_VERSION
+  value: {{ .Values.pdf.fingerprintKeyVersion | quote }}
+{{- end }}
 {{- end -}}
 
 {{/* Full pod spec for a serving workload (portal / admin / combined).

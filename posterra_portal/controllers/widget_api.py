@@ -33,7 +33,7 @@ from odoo import http
 from odoo.http import content_disposition, request
 
 from .auth_api import _get_request_json, _json_error, _json_response, _verify_token
-from .portal import _get_providers_for_user
+from .portal import _get_providers_for_user, _pdf_export_config
 from ..models.dashboard_widget import DOWNLOAD_MAX_ROWS
 from ..utils.widget_filters import parse_widget_filter_kw, apply_widget_filter_values
 
@@ -493,6 +493,64 @@ def _apply_widget_filters(widget, kw, portal_ctx):
     return apply_widget_filter_values(portal_ctx, declared, values)
 
 
+# ── Widget scope resolution (shared by /data and the PDF export) ───────────
+
+class InvalidScopeOption(ValueError):
+    """Strict mode only: an explicit ``_scope_option_id`` that is not an
+    active option (with SQL) of this widget."""
+
+
+def _resolve_widget_scope(widget, scope_option_id, kw, strict=False):
+    """Decide how a widget request is scoped. Pure: never mutates a ctx.
+
+    Returns ``(option, binding)``:
+      * ``option`` — the query-mode scope option to execute
+        (``execute_option_sql``), or None;
+      * ``binding`` — ``(param_name, value)`` for parameter mode (to put in
+        ``sql_params``), or None. Computed whenever the widget is in a scope
+        mode, exactly like ``api_widget_data`` always did (it is only used
+        when no option runs).
+
+    ``strict=False`` is the ``/data`` contract, unchanged: no id → the
+    DEFAULT option; a foreign / inactive / SQL-less / non-integer id →
+    silently fall back to the widget SQL. ``strict=True`` (PDF export) raises
+    ``InvalidScopeOption`` for an explicit id that is not valid instead.
+    """
+    Option = widget.env['dashboard.widget.scope.option'].sudo()
+    option = None
+    if widget.scope_query_mode == 'query':
+        opt_id = scope_option_id
+        if not opt_id:
+            default = widget._default_query_scope_option()
+            if default:
+                opt_id = default.id
+        if opt_id:
+            try:
+                opt = Option.browse(int(opt_id))
+                if (opt.exists() and opt.widget_id.id == widget.id
+                        and opt.is_active and opt.query_sql):
+                    option = opt
+            except (ValueError, TypeError):
+                pass
+            if option is None and strict and scope_option_id:
+                raise InvalidScopeOption(
+                    f'Scope option {scope_option_id!r} is not valid for widget {widget.id}')
+
+    binding = None
+    if widget.scope_mode in ('dependent', 'independent'):
+        pname = ''
+        if widget.scope_mode == 'dependent' and widget.scope_filter_id:
+            pname = (widget.scope_filter_id.param_name
+                     or widget.scope_filter_id.field_name or '')
+        elif widget.scope_mode == 'independent':
+            pname = widget.scope_param_name or ''
+        if pname:
+            scope_val = (kw.get(pname) or '').strip()
+            if scope_val and scope_val.lower() not in ('', 'all'):
+                binding = (pname, scope_val)
+    return option, binding
+
+
 # ── Normalise widget data for JSON serialisation ──────────────────────────────
 
 def _normalise_widget_data(data: dict) -> dict:
@@ -741,6 +799,8 @@ class PosterraWidgetAPI(http.Controller):
             'filter_dependencies': filter_dependencies,
             'widgets':             widgets_data,
             'hha_selector':        hha_selector,
+            # Same rule as portal._build_page_config_json: key only when enabled.
+            **({'pdf_export': _pdf_export_config(page)} if page.pdf_export_enabled else {}),
         })
 
     # ------------------------------------------------------------------ #
@@ -830,47 +890,31 @@ class PosterraWidgetAPI(http.Controller):
                         portal_ctx['sql_params']['_drill_state_fips'] = _df
 
         # ── Widget-scoped control override ───────────────────────────────
+        # Shared resolver (also used by the PDF export). Non-strict = the
+        # historical /data contract: no option id on a "Different SQL Per
+        # Option" widget → the DEFAULT option (same rule as the page's first
+        # paint); an invalid id silently falls back to the widget SQL below.
         _scope_option_id = kw.pop('_scope_option_id', None)
+        _scope_opt, _scope_binding = _resolve_widget_scope(
+            widget, _scope_option_id, kw, strict=False)
 
-        # No option id on a "Different SQL Per Option" widget → run the
-        # DEFAULT option (same rule as the page's first paint) so the
-        # option's column config / x-y mapping apply. Empty recordset →
-        # unchanged fallback to the widget-level SQL below.
-        if widget.scope_query_mode == 'query' and not _scope_option_id:
-            _default_opt = widget._default_query_scope_option()
-            if _default_opt:
-                _scope_option_id = _default_opt.id
-
-        if widget.scope_query_mode == 'query' and _scope_option_id:
+        if _scope_opt:
             # Query Mode: use the selected option's SQL instead of widget's
             try:
-                opt = request.env['dashboard.widget.scope.option'].sudo().browse(
-                    int(_scope_option_id))
-                if (opt.exists() and opt.widget_id.id == widget.id
-                        and opt.is_active and opt.query_sql):
-                    raw_data = opt.execute_option_sql(portal_ctx)
-                    clean_data = _normalise_widget_data(raw_data)
-                    return _json_response({
-                        'widget_id':  widget.id,
-                        'chart_type': widget.chart_type,
-                        'data':       clean_data,
-                        '_scope_option_id': opt.id,
-                    })
+                raw_data = _scope_opt.execute_option_sql(portal_ctx)
+                clean_data = _normalise_widget_data(raw_data)
+                return _json_response({
+                    'widget_id':  widget.id,
+                    'chart_type': widget.chart_type,
+                    'data':       clean_data,
+                    '_scope_option_id': _scope_opt.id,
+                })
             except (ValueError, TypeError):
                 pass  # fall through to normal execution
 
-        if widget.scope_mode in ('dependent', 'independent'):
+        if _scope_binding:
             # Parameter Mode: inject scope param into sql_params
-            pname = ''
-            if widget.scope_mode == 'dependent' and widget.scope_filter_id:
-                pname = (widget.scope_filter_id.param_name
-                         or widget.scope_filter_id.field_name or '')
-            elif widget.scope_mode == 'independent':
-                pname = widget.scope_param_name or ''
-            if pname:
-                scope_val = (kw.get(pname) or '').strip()
-                if scope_val and scope_val.lower() not in ('', 'all'):
-                    portal_ctx['sql_params'][pname] = scope_val
+            portal_ctx['sql_params'][_scope_binding[0]] = _scope_binding[1]
 
         # ── Execute widget data logic ─────────────────────────────────────
         raw_data = widget.get_portal_data(portal_ctx)

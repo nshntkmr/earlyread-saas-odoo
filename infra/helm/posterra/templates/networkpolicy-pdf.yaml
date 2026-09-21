@@ -1,0 +1,42 @@
+{{- if .Values.pdf.enabled }}
+# Defense in depth for the Gotenberg render service: only the Odoo pods may
+# call it, and it may not open ANY outbound connection (no DNS either — all
+# assets are inline data: URIs and every network sub-request is refused by
+# Gotenberg itself).
+#
+# NOTE: enforced only when the cluster runs a network-policy engine. The dev
+# AKS cluster currently reports networkPolicy=none, so this object is accepted
+# but NOT enforced there; the render service's own deny-list, private-IP
+# denial and basic auth are the active controls until policy enforcement is
+# enabled cluster-wide.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "posterra.fullname" . }}-pdf
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+    posterra.io/role: pdf
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "posterra.selectorLabels" . | nindent 6 }}
+      posterra.io/role: pdf
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [{{ include "posterra.name" . | quote }}]
+              - key: posterra.io/role
+                operator: In
+                values: ["combined", "portal", "admin", "cron"]
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress: []
+{{- end }}

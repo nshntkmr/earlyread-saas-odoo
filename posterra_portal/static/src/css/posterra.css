@@ -450,6 +450,30 @@
 .pv-header-filter { display: flex; align-items: center; min-width: 0; }
 .pv-header-apply { display: inline-flex; gap: 6px; align-items: center; }
 
+/* Page PDF export — header button + dialog (reuses the .wb-modal shell). */
+.pv-header-pdf { display: inline-flex; align-items: center; }
+.pv-pdf-export-btn { white-space: nowrap; }
+.pv-pdf-export-btn .fa { margin-right: 4px; color: inherit; }
+/* Admin-coloured button (inline background/border/text): darken on hover. */
+.pv-pdf-export-btn--custom:hover,
+.pv-pdf-export-btn--custom:focus-visible { filter: brightness(0.92); }
+.pv-pdf-modal { width: 480px; }
+.pv-pdf-help { color: #52606d; font-size: 13px; margin: 0 0 12px; }
+.pv-pdf-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 13px; }
+.pv-pdf-field > span { font-weight: 600; color: #1f2933; }
+.pv-pdf-field small { font-weight: 400; color: #7b8794; }
+.pv-pdf-field textarea { width: 100%; resize: vertical; border: 1px solid #cbd2d9; border-radius: 6px;
+                         padding: 8px 10px; font: inherit; }
+.pv-pdf-inline { flex-direction: row; align-items: center; gap: 10px; }
+.pv-pdf-inline select { border: 1px solid #cbd2d9; border-radius: 6px; padding: 4px 8px; font: inherit; }
+.pv-pdf-count { align-self: flex-end; }
+.pv-pdf-status { color: #0b6e4f; font-size: 13px; }
+.pv-pdf-error { background: #fdecea; border: 1px solid #e8a29b; color: #7a1e16; border-radius: 6px;
+                padding: 8px 10px; font-size: 13px; }
+.pv-pdf-notice { background: #fff8e6; border: 1px solid #f0c36d; border-radius: 6px; padding: 8px 10px;
+                 font-size: 13px; }
+.pv-pdf-modal .wb-modal-footer { justify-content: flex-end; gap: 8px; }
+
 /* Remote autocomplete (server search, zero preload). The dropdown itself is
    portalled to <body> as position:fixed, so it never clips inside the header. */
 .pv-remote-ac {

@@ -4,6 +4,7 @@ import { libraryCreateUrl, libraryDetailUrl, sourceDetailUrl } from '../../api/e
 
 // Step components
 import ChartTypePicker    from './ChartTypePicker'
+import PdfExportOptions   from './PdfExportOptions'
 import TableJoinBuilder   from './TableJoinBuilder'
 import CustomSqlEditor    from './CustomSqlEditor'
 import ColumnMapper       from './ColumnMapper'
@@ -264,6 +265,10 @@ const initialState = {
     showAxisLabels: true,
     showDataLabels: false,
     barStack: false,
+    // Page PDF export (definition defaults, seeded into new placements)
+    pdfInclude: true,
+    pdfPageBreakBefore: false,
+    pdfColSpan: '',
   },
 
   // Step 6
@@ -596,6 +601,9 @@ function reducer(state, action) {
           showAxisLabels: true,
           showDataLabels: false,
           barStack: d.bar_stack || false,
+          pdfInclude: d.pdf_include !== false,
+          pdfPageBreakBefore: d.pdf_page_break_before === true,
+          pdfColSpan: d.pdf_col_span || '',
         },
         visualFlags: (() => {
           try { return d.visual_config ? JSON.parse(d.visual_config) : {} }
@@ -1350,6 +1358,15 @@ export default function WidgetBuilder({
               />
             </>
           )}
+
+          {/* PDF export options — shown on the final step of every flow */}
+          {!canNext && (
+            <PdfExportOptions
+              chartType={state.chartType}
+              appearance={state.appearance}
+              onChange={v => dispatch({ type: 'SET_APPEARANCE', value: { ...state.appearance, ...v } })}
+            />
+          )}
         </div>
 
         {/* Footer navigation */}
@@ -1464,6 +1481,11 @@ function buildCreatePayload(state) {
     show_axis_labels: state.appearance.showAxisLabels !== false,
     show_data_labels: state.appearance.showDataLabels === true,
     bar_stack: state.chartType === 'bar' && (state.visualFlags.stack ?? state.appearance.barStack) === true,
+    // Always sent (unticking must reach library_update). Definition-only:
+    // placed instances keep their own values.
+    pdf_include: state.appearance.pdfInclude !== false,
+    pdf_page_break_before: state.appearance.pdfPageBreakBefore === true,
+    pdf_col_span: state.appearance.pdfColSpan || '',
     visual_config: Object.keys(state.visualFlags || {}).length > 0
       ? JSON.stringify(state.visualFlags)
       : '',

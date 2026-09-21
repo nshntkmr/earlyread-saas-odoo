@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PDF export audit log: tenant-scoped read access.
+     Posterra admins see logs of the apps their partner can access; system
+     administrators see all. No group has write/create/unlink ACLs — rows are
+     written by the export controller through an autonomous superuser cursor
+     and the model refuses write()/unlink() for everyone. -->
+<odoo>
+    <record id="rule_pdf_export_log_app_scope" model="ir.rule">
+        <field name="name">PDF export log: own apps</field>
+        <field name="model_id" ref="model_dashboard_pdf_export_log"/>
+        <field name="groups" eval="[(4, ref('posterra_portal.group_posterra_admin'))]"/>
+        <field name="domain_force">[('app_id', 'in', user.partner_id.portal_app_ids.ids)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="rule_pdf_export_log_system_all" model="ir.rule">
+        <field name="name">PDF export log: system administrators</field>
+        <field name="model_id" ref="model_dashboard_pdf_export_log"/>
+        <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+</odoo>

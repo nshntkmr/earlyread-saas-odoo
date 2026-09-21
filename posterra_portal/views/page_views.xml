@@ -400,6 +400,57 @@
                                 </group>
                             </group>
                         </page>
+
+                        <page string="PDF Export" name="pdf_export">
+                            <group>
+                                <group string="PDF Export">
+                                    <field name="pdf_export_enabled"/>
+                                    <field name="pdf_orientation" invisible="not pdf_export_enabled"/>
+                                    <field name="pdf_paper" invisible="not pdf_export_enabled"/>
+                                    <field name="pdf_row_limit" invisible="not pdf_export_enabled"/>
+                                    <field name="pdf_max_columns" invisible="not pdf_export_enabled"/>
+                                </group>
+                                <group string="Content" invisible="not pdf_export_enabled">
+                                    <field name="pdf_title_template"
+                                           placeholder="{app_name} — {page_name} — {tab_name}"/>
+                                    <field name="pdf_footer_text"
+                                           placeholder="e.g. Confidential — {app_name}"/>
+                                    <field name="pdf_show_logo"/>
+                                    <field name="pdf_show_filters"/>
+                                    <field name="pdf_keynote_enabled"/>
+                                </group>
+                            </group>
+                            <group invisible="not pdf_export_enabled">
+                                <group string="Where the button appears">
+                                    <field name="pdf_tab_ids" widget="many2many_tags"
+                                           domain="[('page_id', '=', id)]"
+                                           options="{'no_create': True}"
+                                           placeholder="Every tab"/>
+                                    <div class="text-muted" colspan="2">
+                                        Leave empty to show the button on every tab. Only the
+                                        listed tabs can be exported. Save the page first so its
+                                        tabs can be picked.
+                                    </div>
+                                </group>
+                                <group string="Button colors">
+                                    <field name="pdf_button_bg_color" widget="color"/>
+                                    <field name="pdf_button_text_color" widget="color"/>
+                                    <div class="text-muted" colspan="2">
+                                        Blank uses the standard outline button. A custom
+                                        background with no text color uses white text.
+                                    </div>
+                                </group>
+                            </group>
+                            <div class="alert alert-info" role="alert" invisible="not pdf_export_enabled">
+                                The PDF prints the current tab's record headers, KPI cards and
+                                tables with the applied filters. Charts are listed as not
+                                included. Widgets on Snowflake sources are skipped with a notice.
+                                Enabling PDF export makes every included table's rows exportable
+                                as PDF, regardless of the widget's Download settings — turn off
+                                <strong>Include in PDF</strong> on a widget (widget form, PDF Export
+                                tab) to leave it out.
+                            </div>
+                        </page>
                     </notebook>
                 </sheet>
             </form>

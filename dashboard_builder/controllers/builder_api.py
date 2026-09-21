@@ -22,6 +22,11 @@ _logger = logging.getLogger(__name__)
 
 # ── JSON helpers — local to dashboard_builder ────────────────────────────────
 from .utils import _json_response, _json_error, _get_request_json
+from ..services.pdf_layout import (
+    pdf_layout_from_definition as _pdf_layout_from_definition,
+    pdf_layout_payload as _pdf_layout_payload,
+    pdf_layout_vals as _pdf_layout_vals,
+)
 
 
 def _get_verify_token():
@@ -430,6 +435,7 @@ class BuilderAPI(http.Controller):
                 'chart_height': body.get('chart_height', 350),
                 'color_palette': body.get('color_palette', 'healthcare'),
                 'color_custom_json': body.get('color_custom_json', ''),
+                **_pdf_layout_vals(body, create=True),
                 'click_action': body.get('click_action', 'none'),
                 'action_page_key': body.get('action_page_key', ''),
                 'action_tab_key': body.get('action_tab_key', ''),
@@ -646,6 +652,8 @@ class BuilderAPI(http.Controller):
 
         if 'col_span' in body:
             update_vals['col_span'] = str(body['col_span'])
+        # PDF print layout of THIS instance (only keys present in the body).
+        update_vals.update(_pdf_layout_vals(body))
 
         # SQL fields
         if 'sql' in body:
@@ -978,6 +986,7 @@ class BuilderAPI(http.Controller):
             'default_width_pct': defn.default_width_pct or 0,
             'default_row_span': defn.default_row_span or 1,
             'bar_stack': defn.bar_stack or False,
+            **_pdf_layout_payload(defn),
             'table_column_config': '',
             'detail_drawer_config': defn.detail_drawer_config or '',
             # Ranked Detail List v2 configs (consolidated JSON) — required
@@ -1303,6 +1312,8 @@ def _build_widget_vals_from_definition(defn, body):
         'chart_height': defn.chart_height,
         'color_palette': defn.color_palette,
         'color_custom_json': defn.color_custom_json or '',
+        # PDF print layout seeded at placement (always a NEW instance here)
+        **_pdf_layout_from_definition(defn),
         'click_action': defn.click_action,
         'action_page_key': defn.action_page_key or '',
         'action_tab_key': defn.action_tab_key or '',

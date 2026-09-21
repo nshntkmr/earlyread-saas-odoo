@@ -59,6 +59,18 @@ export function widgetDownloadUrl(apiBase, widgetId, params = {}) {
 }
 
 /**
+ * URL for the page PDF export (POST; the JSON body carries tab, filters,
+ * per-widget scope/filter state, keynote and orientation).
+ *
+ * @param {string} apiBase — e.g. "/api/v1"
+ * @param {number} pageId  — dashboard.page ID
+ * @returns {string}
+ */
+export function pagePdfExportUrl(apiBase, pageId) {
+  return `${apiBase}/page/${pageId}/export/pdf`
+}
+
+/**
  * Build the URL for fetching cascading filter options.
  *
  * @param {string} apiBase      — e.g. "/api/v1"

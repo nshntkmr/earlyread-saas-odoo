@@ -259,7 +259,14 @@ class DashboardWidgetScopeOption(models.Model):
             from ..utils.query_executors import get_executor
             source = self.schema_source_id or self.widget_id.schema_source_id
             executor = get_executor(self.env, source)
-            cols, rows = executor.execute(sql, safe_params)
+            # Opt-in bounded execution (PDF export only); absent context key →
+            # the unchanged execute() path.
+            limits = self.env.context.get('pv_execution_limits')
+            if limits:
+                from .dashboard_widget import _run_bounded
+                cols, rows = _run_bounded(self.env, executor, sql, safe_params, limits)
+            else:
+                cols, rows = executor.execute(sql, safe_params)
 
             # Format result using per-option column config when available
             widget = self.widget_id

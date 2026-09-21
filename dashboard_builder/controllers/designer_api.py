@@ -16,6 +16,11 @@ from odoo import http
 from odoo.http import request
 
 from .utils import _json_response, _json_error, _get_request_json
+from ..services.pdf_layout import (
+    pdf_layout_from_definition as _pdf_layout_from_definition,
+    pdf_layout_payload as _pdf_layout_payload,
+    pdf_layout_vals as _pdf_layout_vals,
+)
 
 
 # Match the first table identifier in a FROM clause.  Handles optional
@@ -1300,6 +1305,8 @@ class DesignerAPI(http.Controller):
             'search_enabled': defn.search_enabled or False,
             'search_placeholder': defn.search_placeholder or 'Search...',
             'default_width_pct': defn.default_width_pct or 0,
+            # PDF export print layout (definition defaults for new placements)
+            **_pdf_layout_payload(defn),
             # Ranked Detail List v2 configs (consolidated JSON). Previously
             # omitted from the response, which caused the builder's edit
             # flow to load blank Master Row Layout + Detail Config — save
@@ -1376,6 +1383,7 @@ class DesignerAPI(http.Controller):
                 'default_width_pct': int(body.get('width_pct', 0) or 0),
                 'default_row_span': int(body.get('row_span', 1)),
                 'chart_height': body.get('chart_height', 350),
+                **_pdf_layout_vals(body, create=True),
                 'color_palette': body.get('color_palette', 'healthcare'),
                 'bar_stack': bool(body.get('bar_stack', False)),
                 'click_action': body.get('click_action', 'none'),
@@ -1675,6 +1683,9 @@ class DesignerAPI(http.Controller):
 
         if 'col_span' in body:
             update_vals['default_col_span'] = str(body['col_span'])
+        # PDF print layout: updates the DEFINITION only — never synced to
+        # placed instances (see the preserved-fields note below).
+        update_vals.update(_pdf_layout_vals(body))
         if 'width_pct' in body:
             update_vals['default_width_pct'] = int(body['width_pct'] or 0)
         if 'row_span' in body:
@@ -1801,8 +1812,10 @@ class DesignerAPI(http.Controller):
 
             # ── Propagate data fields to all linked widget instances ──────
             # Instance-specific fields (name, page_id, tab_id, col_span,
-            # chart_height, color_palette, sequence) are NOT synced — they
-            # may have been customized per-instance by the admin.
+            # chart_height, color_palette, sequence, and the PDF print
+            # layout pdf_include / pdf_page_break_before / pdf_col_span) are
+            # NOT synced — they may have been customized per-instance by the
+            # admin.
             try:
                 Widget = request.env['dashboard.widget'].sudo()
                 instances = Widget.search([('definition_id', '=', defn.id)])
@@ -2309,6 +2322,9 @@ class DesignerAPI(http.Controller):
             # dedup path above deliberately preserves the existing instance's
             # customized width_pct).
             vals['width_pct'] = defn.default_width_pct or 0
+            # PDF print layout: seeded on first placement only; instance-owned
+            # afterwards (the dedup path above keeps the instance's values).
+            vals.update(_pdf_layout_from_definition(defn))
             widget = Widget.create(vals)
 
             # Composite: materialize child records from the definition's

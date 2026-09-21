@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PDF export audit log (read-only). Loaded after menuitems.xml because the
+     menu hangs off posterra_portal.menu_posterra_config. -->
+<odoo>
+    <record id="view_pdf_export_log_list" model="ir.ui.view">
+        <field name="name">dashboard.pdf.export.log.list</field>
+        <field name="model">dashboard.pdf.export.log</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0"
+                  decoration-danger="event_type == 'failed'"
+                  decoration-warning="event_type == 'completion_unknown'"
+                  decoration-muted="event_type == 'started'">
+                <field name="create_date" string="When"/>
+                <field name="event_type"/>
+                <field name="user_id"/>
+                <field name="app_id"/>
+                <field name="page_id"/>
+                <field name="tab_key"/>
+                <field name="error_code"/>
+                <field name="duration_ms" optional="show"/>
+                <field name="bytes" optional="hide"/>
+                <field name="input_fingerprint" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_pdf_export_log_form" model="ir.ui.view">
+        <field name="name">dashboard.pdf.export.log.form</field>
+        <field name="model">dashboard.pdf.export.log</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group string="Export">
+                            <field name="event_type"/>
+                            <field name="started_id"/>
+                            <field name="create_date" string="When"/>
+                            <field name="user_id"/>
+                            <field name="app_id"/>
+                            <field name="page_id"/>
+                            <field name="tab_key"/>
+                            <field name="orientation"/>
+                            <field name="keynote_used"/>
+                        </group>
+                        <group string="Outcome">
+                            <field name="error_code"/>
+                            <field name="bytes"/>
+                            <field name="duration_ms"/>
+                            <field name="collect_ms"/>
+                            <field name="render_ms"/>
+                        </group>
+                    </group>
+                    <group string="Inputs (no values are stored)">
+                        <field name="filter_params"/>
+                        <field name="widget_ids"/>
+                        <field name="scope_option_ids"/>
+                        <field name="input_fingerprint"/>
+                        <field name="fingerprint_key_version"/>
+                        <field name="notices_json"/>
+                        <field name="row_totals_json"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_pdf_export_log" model="ir.actions.act_window">
+        <field name="name">PDF Export Log</field>
+        <field name="res_model">dashboard.pdf.export.log</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_pdf_export_log" name="PDF Export Log"
+              parent="posterra_portal.menu_posterra_config"
+              action="action_pdf_export_log" sequence="91"/>
+</odoo>

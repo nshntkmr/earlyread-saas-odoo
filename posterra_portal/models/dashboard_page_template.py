@@ -20,6 +20,16 @@ from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
+# dashboard.page PDF export settings carried by page templates (plain scalars).
+PAGE_PDF_FIELDS = (
+    'pdf_export_enabled', 'pdf_orientation', 'pdf_paper', 'pdf_title_template',
+    'pdf_show_filters', 'pdf_show_logo', 'pdf_footer_text', 'pdf_row_limit',
+    'pdf_max_columns', 'pdf_keynote_enabled', 'pdf_button_bg_color',
+    'pdf_button_text_color',
+)
+# pdf_tab_ids travels as tab KEYS ('pdf_tab_keys') and is re-linked to the
+# restored tabs by key.
+
 
 class DashboardPageTemplate(models.Model):
     _name = 'dashboard.page.template'
@@ -98,6 +108,9 @@ class DashboardPageTemplate(models.Model):
             'subtitle': page.subtitle or '',
             'footnote': page.footnote or '',
             'help_text': page.help_text or '',
+            # PDF export (plain scalars; restored with model defaults when absent)
+            **{fld: getattr(page, fld) for fld in PAGE_PDF_FIELDS},
+            'pdf_tab_keys': page.pdf_tab_ids.mapped('key'),
         }
 
         # ── Tabs ───────────────────────────────────────────────────
@@ -231,6 +244,10 @@ class DashboardPageTemplate(models.Model):
                 'download_icon_color': w.download_icon_color or '',
                 'download_filename': w.download_filename or '',
                 'download_row_limit': w.download_row_limit or 0,
+                # PDF print layout (instance-owned)
+                'pdf_include': bool(w.pdf_include),
+                'pdf_page_break_before': bool(w.pdf_page_break_before),
+                'pdf_col_span': w.pdf_col_span or '',
                 # KPI
                 'kpi_format': w.kpi_format or 'number',
                 'kpi_prefix': w.kpi_prefix or '',
@@ -799,6 +816,8 @@ class DashboardPageTemplate(models.Model):
             'footnote': page_meta.get('footnote', ''),
             'help_text': page_meta.get('help_text', ''),
             'is_active': True,
+            # PDF export — keys absent in older templates → model defaults
+            **{fld: page_meta[fld] for fld in PAGE_PDF_FIELDS if fld in page_meta},
         })
         _logger.info('Template %s: created page %s (id=%d)', self.name, page.name, page.id)
 
@@ -813,6 +832,17 @@ class DashboardPageTemplate(models.Model):
                 'is_active': t.get('is_active', True),
             })
             tab_map[t['key']] = tab.id
+
+        # PDF button tabs: re-link by key. An unknown key fails loudly — never
+        # silently drop it (an emptied list would mean "every tab").
+        pdf_tab_keys = page_meta.get('pdf_tab_keys') or []
+        if pdf_tab_keys:
+            missing = [k for k in pdf_tab_keys if k not in tab_map]
+            if missing:
+                raise ValidationError(
+                    "PDF export tabs reference tab key(s) %s, which this template's "
+                    "tabs do not define." % ', '.join(missing))
+            page.write({'pdf_tab_ids': [(6, 0, [tab_map[k] for k in pdf_tab_keys])]})
 
         # ── Create filters (map param_name → new filter ID) ───────
         filter_map = {}  # param_name → new_filter_id
@@ -1040,6 +1070,13 @@ class DashboardPageTemplate(models.Model):
                         'download_filename', 'download_row_limit'):
                 if fld in w:
                     wvals[fld] = w[fld]
+            # PDF print layout — same `if fld in w` rule for older templates.
+            for fld in ('pdf_include', 'pdf_page_break_before'):
+                if fld in w:
+                    wvals[fld] = bool(w[fld])
+            if 'pdf_col_span' in w:
+                wvals['pdf_col_span'] = w['pdf_col_span'] if w['pdf_col_span'] in (
+                    '3', '4', '6', '8', '12') else False
             # Resolve download schema source by table name
             dl_table = w.get('download_schema_source_table', '')
             if dl_table:

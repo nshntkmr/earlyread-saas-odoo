@@ -75,3 +75,39 @@ deploymentMode: ""
 deployments: {}
 cron:
   enabled: false
+
+# Page PDF export — Gotenberg render service (own Deployment + ClusterIP
+# Service). OFF by default. Before enabling in an env:
+#   1. create Key Vault secrets pdf-render-user, pdf-render-password,
+#      pdf-fingerprint-key (see externalsecret-odoo.yaml);
+#   2. (recommended) mirror the image into ACR so pulls don't depend on
+#      Docker Hub:  az acr import --name earlyreadsaasacreread
+#        --source docker.io/gotenberg/gotenberg:8.37.0-chromium
+#        --image gotenberg:8.37.0-chromium
+#      then set pdf.image.repository to earlyreadsaasacreread.azurecr.io/gotenberg.
+# Flags verified on 8.37.0 in phase 0 (page-pdf-export-phase0-findings.md).
+pdf:
+  enabled: false
+  image:
+    repository: docker.io/gotenberg/gotenberg
+    tag: 8.37.0-chromium
+    # Pinned by digest; the tag is informational. Re-verify flags on any bump.
+    digest: sha256:0d28ae9a96441588ef739623726bd500ad0720b77266c6f1351a13e333fbd61c
+  replicas: 1
+  # = the Odoo render reserve (services/pdf_export/limits.py RENDER_RESERVE_S)
+  # so Gotenberg cancels a conversion when Odoo stops waiting.
+  apiTimeout: 8s
+  bodyLimit: 12MB
+  # One export runs cluster-wide at a time (Odoo advisory lock) → one
+  # conversion; the queue size COUNTS the in-flight conversion.
+  maxConcurrency: 1
+  queueSize: 2
+  restartAfter: 50
+  fingerprintKeyVersion: env-1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1536Mi

@@ -119,6 +119,33 @@ _BLOCKED_KEYWORDS = re.compile(
 DOWNLOAD_MAX_ROWS = 100_000
 
 
+def _run_bounded(env, executor, sql, params, limits, report=True):
+    """Execute through ``executor.execute_bounded`` for the PDF export.
+
+    Reached ONLY when the caller put ``pv_execution_limits`` in the context
+    (``{'max_rows', 'timeout_s', 'order_by'}``); every other caller keeps the
+    unchanged ``executor.execute()`` path. Results are reported back through
+    the mutable ``pv_execution_report`` context dict so the export can print
+    "more rows available" / "configured sort not applied" notices. Returns
+    the usual ``(cols, rows)`` so builders are untouched.
+    """
+    res = executor.execute_bounded(
+        sql, params,
+        max_rows=limits.get('max_rows'),
+        timeout_s=limits.get('timeout_s'),
+        order_by=limits.get('order_by'))
+    out = env.context.get('pv_execution_report')
+    if report and isinstance(out, dict):
+        out.update({
+            'bounded': True,
+            'more_available': bool(res.more_available),
+            'sort_requested': bool(limits.get('order_by')),
+            'sort_applied': bool(res.sort_applied),
+            'row_count': len(res.rows),
+        })
+    return res.cols, res.rows
+
+
 def _comparison_annotation(abs_diff, pct_diff, vc):
     """Comparison Card badge text. Shared rule with the Designer preview
     (dashboard_builder.services.preview_formatter.comparison_annotation):
@@ -838,6 +865,10 @@ class DashboardWidget(models.Model):
         self.chart_height = defn.chart_height or 350
         self.color_palette = defn.color_palette or 'healthcare'
         self.color_custom_json = defn.color_custom_json
+        # PDF print layout: seeded from the definition like col_span.
+        self.pdf_include = defn.pdf_include
+        self.pdf_page_break_before = defn.pdf_page_break_before
+        self.pdf_col_span = defn.pdf_col_span
         # Data source
         if defn.data_mode == 'custom_sql':
             self.query_type = 'sql'
@@ -1721,6 +1752,11 @@ class DashboardWidget(models.Model):
         executor = get_executor(
             self.env,
             schema_source if schema_source is not None else self.schema_source_id)
+        # Opt-in bounded execution (PDF export only). Absent context key →
+        # the unchanged ``execute()`` path, byte-identical for every caller.
+        limits = self.env.context.get('pv_execution_limits')
+        if limits:
+            return _run_bounded(self.env, executor, sql, safe_params, limits)
         return executor.execute(sql, safe_params)
 
     # =========================================================================
@@ -5803,6 +5839,13 @@ class DashboardWidget(models.Model):
 
         from ..utils.query_executors import get_executor
         executor = get_executor(self.env, self.schema_source_id)
+        limits = self.env.context.get('pv_execution_limits')
+        if limits:
+            # Annotation rows are never truncated or re-sorted; only the
+            # export's per-statement timeout applies.
+            return _run_bounded(self.env, executor, sql, dict(params),
+                                dict(limits, max_rows=None, order_by=None),
+                                report=False)
         return executor.execute(sql, dict(params))
 
     # =========================================================================

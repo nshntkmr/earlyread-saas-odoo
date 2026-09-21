@@ -1,0 +1,116 @@
+{{- if .Values.pdf.enabled }}
+# Gotenberg render service for the page PDF export (plan v5).
+# Own Deployment + ClusterIP Service; the Odoo pods POST HTML to it.
+# Hardening (verified on 8.37.0-chromium, phase 0):
+#   * network sub-requests blocked in Chromium (deny-list keeps the pinned
+#     default local-file rule + blocks http/https/ws/ftp), private IPs denied,
+#     JavaScript off, downloadFrom / webhooks / PDF-engine routes disabled;
+#   * basic auth REQUIRED — the dev cluster runs networkPolicy=none, so the
+#     NetworkPolicy below is not enforced there;
+#   * Chromium runs --no-sandbox inside the image → non-root uid 1001,
+#     read-only root filesystem (tmpfs /tmp + HOME), all capabilities
+#     dropped, no privilege escalation, RuntimeDefault seccomp, no SA token.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "posterra.fullname" . }}-pdf
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posterra.labels" . | nindent 4 }}
+    posterra.io/role: pdf
+spec:
+  replicas: {{ .Values.pdf.replicas }}
+  selector:
+    matchLabels:
+      {{- include "posterra.selectorLabels" . | nindent 6 }}
+      posterra.io/role: pdf
+  template:
+    metadata:
+      labels:
+        {{- include "posterra.selectorLabels" . | nindent 8 }}
+        posterra.io/role: pdf
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gotenberg
+          image: "{{ .Values.pdf.image.repository }}:{{ .Values.pdf.image.tag }}@{{ .Values.pdf.image.digest }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - gotenberg
+            - --api-port=3000
+            - --api-timeout={{ .Values.pdf.apiTimeout }}
+            - --api-body-limit={{ .Values.pdf.bodyLimit }}
+            - --api-enable-basic-auth
+            - --api-disable-download-from
+            - --webhook-disable
+            - --pdfengines-disable-routes
+            - --chromium-auto-start
+            - --chromium-max-concurrency={{ .Values.pdf.maxConcurrency }}
+            - --chromium-max-queue-size={{ .Values.pdf.queueSize }}
+            - --chromium-restart-after={{ .Values.pdf.restartAfter }}
+            - --chromium-disable-javascript
+            - --chromium-deny-private-ips
+            - --chromium-clear-cache
+            - --chromium-clear-cookies
+            - --chromium-clear-storage
+            - '--chromium-deny-list=^file:(?!//\/tmp/).*'
+            - '--chromium-deny-list=^(https?|wss?|ftp)://.*'
+            - --log-level=warn
+            - --log-std-format=json
+          env:
+            - name: GOTENBERG_API_BASIC_AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_PDF_RENDER_USER
+            - name: GOTENBERG_API_BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odoo-secrets
+                  key: POSTERRA_PDF_RENDER_PASSWORD
+          ports:
+            - name: http
+              containerPort: 3000
+          # /health is not behind basic auth (verified), so probes need no creds.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.pdf.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/gotenberg
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi
+        - name: home
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

@@ -42,6 +42,23 @@ class BaseQueryExecutor(object):
         """
         raise NotImplementedError
 
+    def execute_bounded(self, query, params, *, max_rows=None, timeout_s=None,
+                        order_by=None, execution_context=None):
+        """Opt-in bounded execution (PDF export). ``execute()`` is unchanged.
+
+        Returns a ``BoundedResult`` ``(cols, rows, more_available,
+        sort_applied)``: ``rows`` holds at most ``max_rows`` rows (the
+        database is asked for ``max_rows + 1`` — see ``bounded.wrap_bounded``),
+        ``order_by`` is ``[(result_column, 'asc'|'desc'), ...]`` applied
+        before truncation, ``timeout_s`` caps this statement only.
+        ``max_rows=None`` means no row limit (timeout only).
+
+        The base class raises: an engine without an override is NOT silently
+        run unbounded (no execute-then-slice fallback).
+        """
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support bounded execution')
+
     def discover_columns(self, table_name):
         """Return ``[(column_name, native_type), ...]`` for ``table_name``.
 

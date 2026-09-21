@@ -27,6 +27,55 @@ class PostgresLocalExecutor(BaseQueryExecutor):
             rows = cr.fetchall()
             return cols, rows
 
+    def execute_bounded(self, query, params, *, max_rows=None, timeout_s=None,
+                        order_by=None, execution_context=None):
+        """Bounded execution on the request cursor (see BaseQueryExecutor).
+
+        Timeout: ``SET LOCAL statement_timeout`` inside a savepoint. SET LOCAL
+        survives RELEASE SAVEPOINT (it lasts until the transaction ends), so
+        the previous value is captured first and restored in ``finally`` —
+        OUTSIDE the savepoint, so a failed statement (savepoint rolled back,
+        which already undoes the SET) never runs the restore inside an
+        aborted transaction.
+        """
+        from .bounded import (BoundedResult, is_unknown_column_error,
+                              split_bounded_rows, wrap_bounded)
+        cr = self.env.cr
+        params = params if params is not None else {}
+
+        def _run(sort):
+            sql = wrap_bounded(query, max_rows=max_rows, order_by=sort,
+                               dialect='postgres')
+            previous = None
+            if timeout_s:
+                cr.execute('SHOW statement_timeout')
+                previous = cr.fetchone()[0]
+            try:
+                with cr.savepoint():
+                    if timeout_s:
+                        ms = max(1, int(float(timeout_s) * 1000))
+                        cr.execute('SET LOCAL statement_timeout = %s', (f'{ms}ms',))
+                    cr.execute(sql, params)
+                    cols = [d[0] for d in cr.description] if cr.description else []
+                    rows = cr.fetchall()
+            finally:
+                if previous is not None:
+                    cr.execute('SET LOCAL statement_timeout = %s', (previous,))
+            return cols, rows
+
+        sort_applied = bool(order_by)
+        try:
+            cols, rows = _run(order_by)
+        except Exception as exc:
+            if not order_by or not is_unknown_column_error(exc):
+                raise
+            _logger.info('Bounded query: configured sort column not in the '
+                         'result; retrying without the sort.')
+            cols, rows = _run(None)
+            sort_applied = False
+        shown, more = split_bounded_rows(rows, max_rows)
+        return BoundedResult(cols, shown, more, sort_applied)
+
     def discover_columns(self, table_name):
         cr = self.env.cr
         cr.execute("""
