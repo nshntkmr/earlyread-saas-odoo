@@ -3326,6 +3326,7 @@
     padding: 2px 7px;
     font-size: clamp(0.5rem, 3cqw, 0.65rem);
     vertical-align: middle;
+    white-space: nowrap;
 }
 
 /* RAG status card — colored left border */

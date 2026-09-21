@@ -119,6 +119,28 @@ _BLOCKED_KEYWORDS = re.compile(
 DOWNLOAD_MAX_ROWS = 100_000
 
 
+def _comparison_annotation(abs_diff, pct_diff, vc):
+    """Comparison Card badge text. Shared rule with the Designer preview
+    (dashboard_builder.services.preview_formatter.comparison_annotation):
+    parts are gated by ``comparison_show_absolute`` / ``comparison_show_pct``
+    (default True); absolute part is 'pts' with one decimal when the card's
+    Value Format is percent; both off → '' (no badge)."""
+    vc = vc or {}
+    show_abs = vc.get('comparison_show_absolute', True) is not False
+    show_pct = vc.get('comparison_show_pct', True) is not False
+    sign = '+' if abs_diff > 0 else ''
+    parts = []
+    if show_abs:
+        if (vc.get('kpi_format') or '') == 'percent':
+            parts.append(f'{sign}{abs_diff:.1f} pts')
+        else:
+            parts.append(f'{sign}{abs_diff:,.0f}')
+    if show_pct:
+        pct = f'{sign}{pct_diff:.1f}%'
+        parts.append(f'({pct})' if show_abs else pct)
+    return ' '.join(parts)
+
+
 class DashboardWidget(models.Model):
     _name = 'dashboard.widget'
     _inherit = ['dashboard.widget.action.mixin']
@@ -4930,11 +4952,13 @@ class DashboardWidget(models.Model):
                         pct_diff = round(((cur - pri) / abs(pri) * 100) if pri else 0, 1)
                         result['absolute_diff'] = abs_diff
                         result['pct_diff'] = pct_diff
-                        # Auto-compute diff annotation
-                        sign = '+' if abs_diff > 0 else ''
-                        result['diff_annotation'] = (
-                            f'{sign}{abs_diff:,.0f} ({sign}{pct_diff:.1f}%)'
-                        )
+                        # Diff annotation honours the Comparison Settings toggles
+                        # (comparison_show_absolute / comparison_show_pct, both
+                        # default True → unchanged "abs (pct%)"). Percent-format
+                        # cards show the absolute part in points ("-48.4 pts").
+                        # Mirrored in preview_formatter._format_kpi_preview.
+                        result['diff_annotation'] = _comparison_annotation(
+                            abs_diff, pct_diff, vc)
                         if abs_diff > 0:
                             result['diff_status'] = 'status-up'
                         elif abs_diff < 0:

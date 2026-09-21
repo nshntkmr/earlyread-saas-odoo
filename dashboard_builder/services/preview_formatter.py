@@ -402,6 +402,28 @@ def _format_trend_secondary(current_raw, prior_raw, comp_label, noun, visual_con
     return f'{noun}: {prior_raw}'
 
 
+def comparison_annotation(abs_diff, pct_diff, visual_config):
+    """Comparison Card badge text — mirror of
+    posterra_portal.models.dashboard_widget._comparison_annotation (keep in
+    sync): parts gated by comparison_show_absolute / comparison_show_pct
+    (default True); 'pts' with one decimal for percent-format cards; both
+    off → '' (no badge)."""
+    vc = visual_config or {}
+    show_abs = vc.get('comparison_show_absolute', True) is not False
+    show_pct = vc.get('comparison_show_pct', True) is not False
+    sign = '+' if abs_diff > 0 else ''
+    parts = []
+    if show_abs:
+        if (vc.get('kpi_format') or '') == 'percent':
+            parts.append('%s%.1f pts' % (sign, abs_diff))
+        else:
+            parts.append('%s%s' % (sign, '{:,.0f}'.format(abs_diff)))
+    if show_pct:
+        pct = '%s%.1f%%' % (sign, pct_diff)
+        parts.append('(%s)' % pct if show_abs else pct)
+    return ' '.join(parts)
+
+
 def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
     """Build KPI preview data from raw SQL results."""
     visual_config = visual_config or {}
@@ -505,8 +527,7 @@ def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
                 pri = float(prior_raw or 0)
                 abs_diff = cur - pri
                 pct_diff = round(((cur - pri) / abs(pri) * 100) if pri else 0, 1)
-                sign = '+' if abs_diff > 0 else ''
-                result['diff_annotation'] = f'{sign}{abs_diff:,.0f} ({sign}{pct_diff:.1f}%)'
+                result['diff_annotation'] = comparison_annotation(abs_diff, pct_diff, visual_config)
                 result['diff_status'] = ('status-up' if abs_diff > 0
                                          else 'status-down' if abs_diff < 0
                                          else 'status-neutral')
