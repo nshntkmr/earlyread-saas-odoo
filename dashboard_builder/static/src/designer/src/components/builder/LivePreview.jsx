@@ -815,20 +815,25 @@ export default function LivePreview({
         <div className="wb-preview-kpi">
           {cmpCompact ? (
             <div className="wb-kpi-preview-card wb-kpi-preview-card--compact">
-              <div className="wb-cmp-head">
-                {kpiShowLabel && (
-                  <span className="wb-kpi-label" style={{ ...(kpiLabelStyle || {}), marginTop: 0 }}>
-                    {previewData.label || builderState.appearance?.title || 'KPI'}
-                  </span>
-                )}
-                {cmpBadgePos !== 'below' && cmpBadge}
-              </div>
+              {(kpiShowLabel || (cmpBadgePos !== 'below' && cmpBadgePos !== 'beside_value')) && (
+                <div className="wb-cmp-head">
+                  {kpiShowLabel && (
+                    <span className="wb-kpi-label" style={{ ...(kpiLabelStyle || {}), marginTop: 0 }}>
+                      {previewData.label || builderState.appearance?.title || 'KPI'}
+                    </span>
+                  )}
+                  {cmpBadgePos !== 'below' && cmpBadgePos !== 'beside_value' && cmpBadge}
+                </div>
+              )}
               <div className="wb-cmp-tiles">
                 <div className="wb-cmp-tile" style={{ background: cmpLeftBg, color: cmpLeftFg }}>
                   {cmpShowSide && previewData.current_label && (
                     <div className="wb-cmp-tile-label">{previewData.current_label}</div>
                   )}
-                  <div className="wb-cmp-tile-value">{previewData.formatted_value || '—'}</div>
+                  <div className="wb-cmp-tile-value">
+                    {previewData.formatted_value || '—'}
+                    {cmpBadgePos === 'beside_value' && cmpBadge}
+                  </div>
                 </div>
                 <div className="wb-cmp-tile" style={{ background: cmpRightBg, color: cmpRightFg }}>
                   {cmpShowSide && previewData.prior_label && (

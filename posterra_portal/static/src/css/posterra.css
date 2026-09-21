@@ -3319,6 +3319,15 @@
 
 .pv-kpi-card-compact-foot { display: flex; }
 
+/* Badge beside the left value (comparison_badge_position = 'beside_value') */
+.pv-kpi-card-compact-tile-value .pv-kpi-card-compact-badge {
+    display: inline-flex;
+    margin-left: 6px;
+    padding: 2px 7px;
+    font-size: clamp(0.5rem, 3cqw, 0.65rem);
+    vertical-align: middle;
+}
+
 /* RAG status card — colored left border */
 .pv-kpi-card--rag-green { border-left: 4px solid #10b981; }
 .pv-kpi-card--rag-amber { border-left: 4px solid #f59e0b; }

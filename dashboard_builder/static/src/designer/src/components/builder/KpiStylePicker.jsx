@@ -785,6 +785,7 @@ export default function KpiStylePicker({
                   onChange={e => handleCfg('comparison_badge_position', e.target.value)}
                 >
                   <option value="title_row">Title row (right)</option>
+                  <option value="beside_value">Beside the left value (no badge row)</option>
                   <option value="below">Below the tiles</option>
                 </select>
               </div>

@@ -86,7 +86,9 @@ export default function KpiCardGeneric({ data = {}, name }) {
   const vcfg = data.visual_config || {}
   if (kpi_variant === 'comparison' && vcfg.comparison_layout === 'compact_split') {
     const showSide = vcfg.comparison_show_side_labels !== false
-    const badgeBelow = vcfg.comparison_badge_position === 'below'
+    const badgePos = vcfg.comparison_badge_position || 'title_row'
+    const badgeBelow = badgePos === 'below'
+    const badgeBeside = badgePos === 'beside_value'
     const leftBg = vcfg.comparison_left_bg || '#E1F5EE'
     const leftFg = vcfg.comparison_left_color || '#0F6E56'
     const rightBg = vcfg.comparison_right_bg || '#F1EFE8'
@@ -97,12 +99,17 @@ export default function KpiCardGeneric({ data = {}, name }) {
         <span>{data.diff_annotation}</span>
       </div>
     ) : null
+    // Head row is dropped entirely when it would be empty (no label, badge
+    // elsewhere) so the card does not keep a blank line.
+    const showHead = !!labelEl || (!badgeBelow && !badgeBeside && !!badge)
     return (
       <div className="pv-kpi-card-compact">
-        <div className="pv-kpi-card-compact-head">
-          {labelEl}
-          {!badgeBelow && badge}
-        </div>
+        {showHead && (
+          <div className="pv-kpi-card-compact-head">
+            {labelEl}
+            {!badgeBelow && !badgeBeside && badge}
+          </div>
+        )}
         <div className="pv-kpi-card-compact-tiles">
           <div className="pv-kpi-card-compact-tile" style={{ background: leftBg, color: leftFg }}>
             {showSide && data.current_label && (
@@ -110,6 +117,7 @@ export default function KpiCardGeneric({ data = {}, name }) {
             )}
             <div className="pv-kpi-card-compact-tile-value" style={valueStyle}>
               {formatted_value ?? '—'}
+              {badgeBeside && badge}
             </div>
           </div>
           <div className="pv-kpi-card-compact-tile" style={{ background: rightBg, color: rightFg }}>
