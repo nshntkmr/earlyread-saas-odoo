@@ -12,6 +12,29 @@ void CELL_RENDERERS
 // Register all AG Grid Community modules (required for v35+)
 ModuleRegistry.registerModules([AllCommunityModule])
 
+// ── Total row helpers (shared shape with the Designer preview + PDF) ────────
+// Rows where String(row[column]) === value are pinned to the bottom. The match
+// is on the raw row value (hidden columns included), never on rendered text.
+export function splitTotalRows(rows, column, value) {
+  const col = typeof column === 'string' ? column.trim() : ''
+  if (!col || value == null || value === '') return { bodyRows: rows || [], totalRows: [] }
+  const want = String(value)
+  const bodyRows = [], totalRows = []
+  for (const r of rows || []) {
+    const v = r?.[col]
+    ;(v != null && String(v) === want ? totalRows : bodyRows).push(r)
+  }
+  return { bodyRows, totalRows }
+}
+
+// Bold label + values with a top rule; AG Grid passes rowPinned for pinned rows.
+function totalRowStyle(params) {
+  if (params.node?.rowPinned) {
+    return { fontWeight: 700, borderTop: '2px solid #cbd2d9', background: '#f7f9fa' }
+  }
+  return undefined
+}
+
 // ── AG Grid Table (new mode) ────────────────────────────────────────────────
 function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widgetId, fetchDrawerDetail, registerGridApi,
                        projectionApi = null, onProjectionSaved = null, appliedFilters = null, onShowMonth = null }) {
@@ -43,6 +66,16 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widget
   const resolvedColDefs = useMemo(
     () => resolveColumnDefs(columnDefs),
     [columnDefs]
+  )
+
+  // Total row (visual_config.tableTotalRowColumn / tableTotalRowValue): rows
+  // whose column equals the value leave the scrollable body and are pinned to
+  // the bottom in bold, so a SQL "GRAND TOTAL" row never sorts, filters or
+  // pages away. Blank setting → every row stays in the body (unchanged).
+  // Mirrored in the Designer's PreviewGrid and the PDF collector.
+  const { bodyRows, totalRows } = useMemo(
+    () => splitTotalRows(rowData, vc.tableTotalRowColumn, vc.tableTotalRowValue),
+    [rowData, vc.tableTotalRowColumn, vc.tableTotalRowValue]
   )
 
   const defaultColDef = useMemo(() => ({
@@ -166,7 +199,9 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widget
           ref={gridRef}
           theme={themeQuartz}
           columnDefs={resolvedColDefs}
-          rowData={rowData}
+          rowData={bodyRows}
+          pinnedBottomRowData={totalRows.length ? totalRows : undefined}
+          getRowStyle={totalRows.length ? totalRowStyle : undefined}
           defaultColDef={defaultColDef}
           columnTypes={CUSTOM_COLUMN_TYPES}
           domLayout={(fillHeight || displayMode !== 'autoHeight') ? 'normal' : 'autoHeight'}
@@ -183,7 +218,7 @@ function AGGridTable({ data, onCellClick, searchText, fillHeight = false, widget
       </div>
       {displayMode !== 'pagination' && row_count != null && (
         <div className="pv-table-meta text-muted small mt-1">
-          Showing {rowData.length} of {row_count} rows
+          Showing {bodyRows.length} of {row_count - totalRows.length} rows
         </div>
       )}
       {canDrawer && drawerRow && (

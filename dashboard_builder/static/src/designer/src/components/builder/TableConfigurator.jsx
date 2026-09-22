@@ -362,6 +362,33 @@ export default function TableConfigurator({
               </div>
             )}
           </div>
+          {/* Total row: rows whose column equals the value are pinned to the
+              bottom in bold (portal grid + Designer preview + PDF). Blank = off. */}
+          <div className="tc-table-options-grid" style={{ marginTop: 8 }}>
+            <div>
+              <label className="tcs-label">Total row column</label>
+              <select className="wb-select wb-select--sm"
+                value={visualFlags.tableTotalRowColumn || ''}
+                onChange={e => onUpdate({ type: 'SET_VISUAL_FLAGS', value: { ...visualFlags, tableTotalRowColumn: e.target.value } })}
+              >
+                <option value="">None</option>
+                {availableColumns.map(c => (
+                  <option key={c.column_name} value={c.column_name}>{c.column_name}</option>
+                ))}
+              </select>
+            </div>
+            {visualFlags.tableTotalRowColumn && (
+              <div>
+                <label className="tcs-label">Total row value</label>
+                <input type="text" className="wb-input wb-input--sm"
+                  style={{ width: 160 }}
+                  value={visualFlags.tableTotalRowValue || ''}
+                  placeholder="e.g. Grand total"
+                  onChange={e => onUpdate({ type: 'SET_VISUAL_FLAGS', value: { ...visualFlags, tableTotalRowValue: e.target.value } })}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Add column dropdown */}
@@ -524,6 +551,14 @@ export default function TableConfigurator({
  * configured columnDefs. Gives true WYSIWYG: alignment, formatters, pinning,
  * sorting, conditional formatting all visible in the preview.
  */
+// Keep visually in sync with totalRowStyle in the portal's DataTable.jsx.
+function previewTotalRowStyle(params) {
+  if (params.node?.rowPinned) {
+    return { fontWeight: 700, borderTop: '2px solid #cbd2d9', background: '#f7f9fa' }
+  }
+  return undefined
+}
+
 function PreviewGrid({ previewData, columns, visualFlags = {} }) {
   const prevCols = previewData.columns || []
   const prevRows = previewData.rows || []
@@ -593,6 +628,21 @@ function PreviewGrid({ previewData, columns, visualFlags = {} }) {
     suppressMovable: true,
   }), [])
 
+  // Total row — same split as the portal's DataTable.jsx (splitTotalRows):
+  // rows whose column equals the value are pinned to the bottom in bold.
+  const totalCol = (visualFlags.tableTotalRowColumn || '').trim()
+  const totalVal = visualFlags.tableTotalRowValue
+  const { bodyRows, totalRows } = useMemo(() => {
+    if (!totalCol || totalVal == null || totalVal === '') return { bodyRows: rowData, totalRows: [] }
+    const want = String(totalVal)
+    const body = [], totals = []
+    for (const r of rowData) {
+      const v = r?.[totalCol]
+      ;(v != null && String(v) === want ? totals : body).push(r)
+    }
+    return { bodyRows: body, totalRows: totals }
+  }, [rowData, totalCol, totalVal])
+
   if (!prevCols.length) {
     return <div className="text-muted p-3">No data returned.</div>
   }
@@ -610,7 +660,9 @@ function PreviewGrid({ previewData, columns, visualFlags = {} }) {
         <AgGridReact
           theme={themeQuartz}
           columnDefs={resolvedColDefs}
-          rowData={rowData}
+          rowData={bodyRows}
+          pinnedBottomRowData={totalRows.length ? totalRows : undefined}
+          getRowStyle={totalRows.length ? previewTotalRowStyle : undefined}
           defaultColDef={defaultColDef}
           columnTypes={CUSTOM_COLUMN_TYPES}
           domLayout={displayMode === 'autoHeight' ? 'autoHeight' : 'normal'}

@@ -72,6 +72,25 @@ def effective_column_defs(widget, option):
     return cols if isinstance(cols, list) else []
 
 
+def split_total_rows(rows, visual_config):
+    """``(body_rows, total_rows)`` — mirror of ``splitTotalRows`` in the
+    portal's DataTable.jsx: a row is a total row when
+    ``str(row[column]) == str(value)`` on the RAW row value (hidden columns
+    included), never on rendered text. Unset / blank → all rows are body."""
+    vc = visual_config if isinstance(visual_config, dict) else {}
+    col = vc.get('tableTotalRowColumn')
+    val = vc.get('tableTotalRowValue')
+    col = col.strip() if isinstance(col, str) else ''
+    if not col or val is None or val == '':
+        return list(rows or []), []
+    want = str(val)
+    body, totals = [], []
+    for r in rows or []:
+        v = r.get(col) if isinstance(r, dict) else None
+        (totals if (v is not None and str(v) == want) else body).append(r)
+    return body, totals
+
+
 def select_widgets(page, tab):
     """Widgets printed for this tab, in screen order: page-summary grid first,
     then the tab-content grid (tab widgets + page-wide widgets)."""
@@ -214,14 +233,24 @@ class Collector:
         more = bool(report.get('more_available'))
         if len(rows) > self.row_limit:            # ORM tables / defence in depth
             rows, more = rows[:self.row_limit], True
+        # Total row (visual_config.tableTotalRowColumn / tableTotalRowValue):
+        # the portal grid pins matching rows to the bottom in bold; the PDF
+        # prints them last, bold, after the body rows regardless of the sort.
+        # Blank setting → every row is a body row (byte-identical output).
+        body_rows, total_rows = split_total_rows(rows, data.get('visual_config'))
         cols, total_cols = printable_columns(column_defs, self.col_limit)
-        printed = []
-        for r in rows:
-            crow = {k: client_value(v) for k, v in r.items()}
-            printed.append([render_cell(c, crow) for c in cols])
+
+        def _print(row_list):
+            printed = []
+            for r in row_list:
+                crow = {k: client_value(v) for k, v in r.items()}
+                printed.append([render_cell(c, crow) for c in cols])
+            return printed
+
         return {
             'columns': [{'label': header_label(c)} for c in cols],
-            'rows': printed,
+            'rows': _print(body_rows),
+            'total_rows': _print(total_rows),
             'row_shown': len(rows),
             'more_available': more,
             'columns_shown': len(cols),

@@ -244,6 +244,23 @@ class TestCellFormat(TransactionCase):
                'cellRendererParams': {'colorMap': {'X': 'red;background:url(//evil)'}}}
         self.assertNotIn('evil', str(cell_format.render_cell(bad, {'v': 'X'})[0]))
 
+    def test_total_rows_split_mirrors_the_grid(self):
+        """visual_config.tableTotalRowColumn / tableTotalRowValue pins matching
+        rows (raw value, string compare) after the body; blank → unchanged."""
+        from ..services.pdf_export.collector import split_total_rows
+        rows = [{'SECTION': 'Stars', 'M': 'a'}, {'SECTION': 'Grand total', 'M': 'GRAND TOTAL'},
+                {'SECTION': 'Stars', 'M': 'b'}]
+        body, totals = split_total_rows(
+            rows, {'tableTotalRowColumn': 'SECTION', 'tableTotalRowValue': 'Grand total'})
+        self.assertEqual([r['M'] for r in body], ['a', 'b'])
+        self.assertEqual([r['M'] for r in totals], ['GRAND TOTAL'])
+        for vc in ({}, None, {'tableTotalRowColumn': 'SECTION'}, {'tableTotalRowValue': 'x'}):
+            self.assertEqual(split_total_rows(rows, vc), (rows, []))
+        # numeric value vs string value both match on str(); None never matches
+        body, totals = split_total_rows([{'K': 9}, {'K': '9'}, {'K': None}],
+                                        {'tableTotalRowColumn': 'K', 'tableTotalRowValue': 9})
+        self.assertEqual((len(body), len(totals)), (1, 2))
+
 
 # ─────────────────────────────────────────────────────────────────────────
 @tagged('post_install', '-at_install', 'posterra_pdf_export')
