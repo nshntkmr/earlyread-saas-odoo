@@ -5831,6 +5831,19 @@ class DashboardWidget(models.Model):
         if not sql:
             return [], []
 
+        # Same "All means omit" treatment as the main SQL (_execute_sql):
+        # [[ AND col IN %(param)s ]] disappears when the filter is blank,
+        # and any remaining placeholder without a filter value binds NULL
+        # instead of raising KeyError. Without this an annotation query that
+        # used optional clauses failed silently and every label printed its
+        # raw %(...)s template.
+        params = dict(params or {})
+        if '[[' in sql:
+            from ..utils.filter_builder import resolve_optional_clauses
+            sql = resolve_optional_clauses(sql, params)
+        for m in re.finditer(r'%\(([^)]+)\)s', sql):
+            params.setdefault(m.group(1), None)
+
         # Reuse the same SQL sanitisation from dashboard_page_section
         import re as _re
         _BLOCKED = _re.compile(
