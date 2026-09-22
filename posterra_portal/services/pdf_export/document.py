@@ -254,6 +254,9 @@ def build_view(env, *, page, tab, app, user, dataset, keynote, orientation, pape
             if b.get('columns_total', 0) > b.get('columns_shown', 0):
                 caption.append(f"first {b['columns_shown']} of {b['columns_total']} columns shown")
             view['table'] = {'columns': b['columns'], 'rows': b['rows'],
+                             # pinned "Total row" rows (collector.split_total_rows) —
+                             # printed bold after the body by the template
+                             'total_rows': b.get('total_rows') or [],
                              'caption': '. '.join(caption) + '.',
                              'dense': b.get('columns_shown', 0) > 12}
         blocks.append(view)
@@ -262,11 +265,14 @@ def build_view(env, *, page, tab, app, user, dataset, keynote, orientation, pape
     # outside a grid item). A "new page before" flag starts a new row.
     rows = []
     for view in blocks:
+        # "New page before" on the FIRST printed widget would leave page 1
+        # holding only the title block — never honour it there.
+        brk = bool(view['break_before']) and bool(rows)
         if view['kind'] == 'table':
-            rows.append({'type': 'table', 'block': view, 'break_before': view['break_before']})
+            rows.append({'type': 'table', 'block': view, 'break_before': brk})
             continue
-        if not rows or rows[-1]['type'] != 'grid' or view['break_before']:
-            rows.append({'type': 'grid', 'blocks': [], 'break_before': view['break_before']})
+        if not rows or rows[-1]['type'] != 'grid' or brk:
+            rows.append({'type': 'grid', 'blocks': [], 'break_before': brk})
         rows[-1]['blocks'].append(view)
     return {
         'title': title,
