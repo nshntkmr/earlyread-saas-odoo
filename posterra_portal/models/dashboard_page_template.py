@@ -106,6 +106,9 @@ class DashboardPageTemplate(models.Model):
             'icon': page.icon or '',
             'portal_type': page.portal_type or 'hha',
             'subtitle': page.subtitle or '',
+            'subtitle_style': page.subtitle_style or 'plain',
+            'subtitle_color': page.subtitle_color or '',
+            'subtitle_accent_color': page.subtitle_accent_color or '',
             'footnote': page.footnote or '',
             'help_text': page.help_text or '',
             # PDF export (plain scalars; restored with model defaults when absent)
@@ -485,6 +488,10 @@ class DashboardPageTemplate(models.Model):
                 'text_color': b.text_color or '',
                 'icon_color': b.icon_color or '',
                 'is_link': b.is_link,
+                # placement was never exported before → older templates restore
+                # to the legacy slot (key absent = left NULL on restore)
+                'placement': b.placement or '',
+                'badge_style': b.badge_style or 'text',
             })
 
         return {
@@ -815,6 +822,9 @@ class DashboardPageTemplate(models.Model):
             'icon': page_meta.get('icon', ''),
             'portal_type': page_meta.get('portal_type', 'hha'),
             'subtitle': page_meta.get('subtitle', ''),
+            'subtitle_style': page_meta.get('subtitle_style') or 'plain',
+            'subtitle_color': page_meta.get('subtitle_color', ''),
+            'subtitle_accent_color': page_meta.get('subtitle_accent_color', ''),
             'footnote': page_meta.get('footnote', ''),
             'help_text': page_meta.get('help_text', ''),
             'is_active': True,
@@ -1260,7 +1270,10 @@ class DashboardPageTemplate(models.Model):
                 'text_color': bdata.get('text_color', ''),
                 'icon_color': bdata.get('icon_color', ''),
                 'is_link': bdata.get('is_link', False),
+                'badge_style': bdata.get('badge_style') or 'text',
             }
+            if bdata.get('placement'):
+                bvals['placement'] = bdata['placement']
             table_name = bdata.get('schema_source_table', '')
             if table_name:
                 source = Source.search([('table_name', '=', table_name)], limit=1)

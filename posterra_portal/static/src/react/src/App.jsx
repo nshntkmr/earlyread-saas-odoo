@@ -35,7 +35,8 @@ export default function App({ pageConfig, initialWidgets, initialSections, initi
     .filter(b => b.placement === 'below_header_start')
     .slice().sort(bySeq)
   const headerBadges = allBadges
-    .filter(b => b.placement === 'page_header_start' || b.placement === 'page_header_end')
+    .filter(b => b.placement === 'page_header_start' || b.placement === 'page_header_end'
+              || b.placement === 'page_header_strip')
 
   // ── Page-level widget placement (render_region) ───────────────────────
   // Existing widgets carry no render_region → all resolve to tab_content, so

@@ -66,6 +66,11 @@ class DashboardPageBadge(models.Model):
     is_link = fields.Boolean(
         string='Render as Link', default=False,
         help='If true, renders value as a clickable tel: link (for phone numbers)')
+    badge_style = fields.Selection(
+        [('text', 'Text'), ('pill', 'Pill')],
+        string='Style', default='text',
+        help='Text = plain label (default). Pill = rounded chip: Text Color as '
+             'the label colour over a light tint of the same colour.')
 
     # ── Placement (opt-in; blank = legacy below-header, right-aligned) ─────────
     # NOTE: intentionally NO field-level ``default`` — a stored default would
@@ -79,6 +84,7 @@ class DashboardPageBadge(models.Model):
             ('below_header_start', 'Below Header — Start (left)'),
             ('page_header_start', 'Page Header — Start (left)'),
             ('page_header_end', 'Page Header — End (right)'),
+            ('page_header_strip', 'Page Header — Under subtitle'),
         ],
         string='Placement',
         help='Where this annotation renders. Blank = legacy below-header '

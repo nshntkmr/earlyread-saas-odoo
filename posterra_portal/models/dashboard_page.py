@@ -102,6 +102,17 @@ class DashboardPage(models.Model):
     # ── Annotations ────────────────────────────────────────────────────────
     subtitle  = fields.Char(string='Subtitle',
         help='Displayed under the page title in the header bar')
+    # Opt-in header look (blank/plain = today's muted line, byte-identical).
+    subtitle_style = fields.Selection([
+        ('plain', 'Plain'),
+        ('accent_bar', 'Accent bar'),
+    ], string='Subtitle Style', default='plain',
+        help='Plain = muted line under the title (default). Accent bar = a '
+             'coloured left rule with darker, slightly larger text.')
+    subtitle_color = fields.Char(string='Subtitle Color',
+        help='Hex text colour for the subtitle (e.g. #374151). Blank = default.')
+    subtitle_accent_color = fields.Char(string='Accent Color',
+        help='Hex colour of the accent bar (e.g. #15803d). Blank = app primary.')
     footnote  = fields.Text(string='Footnote',
         help='Displayed at the bottom of the page content area')
     help_text = fields.Text(string='Help Text',

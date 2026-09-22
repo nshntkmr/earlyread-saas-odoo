@@ -1318,6 +1318,9 @@ class PosterraPortal(CustomerPortal):
         initial_badges = []
         has_page_header_start_badges = False
         has_page_header_end_badges = False
+        # 'page_header_strip' = a row of badges UNDER the subtitle (opt-in;
+        # renders as an extra grid row only when a badge is placed there).
+        has_page_header_strip = False
         if current_page:
             active_badges = current_page.badge_ids.filtered(lambda b: b.is_active)
             for badge in active_badges:
@@ -1328,6 +1331,8 @@ class PosterraPortal(CustomerPortal):
                     has_page_header_start_badges = True
                 elif placement == 'page_header_end':
                     has_page_header_end_badges = True
+                elif placement == 'page_header_strip':
+                    has_page_header_strip = True
                 initial_badges.append({
                     'id': badge.id,
                     'icon': badge.icon or '',
@@ -1337,6 +1342,7 @@ class PosterraPortal(CustomerPortal):
                     'icon_color': badge.icon_color or '',
                     'is_link': badge.is_link,
                     'placement': placement,
+                    'badge_style': badge.badge_style or 'text',
                     'sequence': badge.sequence,
                 })
         initial_badges_json = json.dumps(initial_badges)
@@ -1363,7 +1369,12 @@ class PosterraPortal(CustomerPortal):
         # page needs that slot even without end badges/filters.
         has_page_header_end = (has_page_header_end_badges or has_page_header_end_filters
                                or bool(current_page and current_page.pdf_export_enabled))
-        has_page_header_actions = has_page_header_start or has_page_header_end
+        # The strip row needs the grid layout too (it is a third grid row).
+        has_page_header_actions = has_page_header_start or has_page_header_end or has_page_header_strip
+        # Subtitle look (page-level opt-in; plain = unchanged markup)
+        subtitle_style = (current_page and current_page.subtitle_style) or 'plain'
+        subtitle_color = _safe_hex(current_page and current_page.subtitle_color)
+        subtitle_accent_color = _safe_hex(current_page and current_page.subtitle_accent_color)
 
         # ── 11. Phase 7 — React shell data ─────────────────────────────
         # Build JSON blobs and a fresh JWT for the React app-root div.
@@ -1434,6 +1445,10 @@ class PosterraPortal(CustomerPortal):
             'has_page_header_start':         has_page_header_start,
             'has_page_header_end':           has_page_header_end,
             'has_page_header_actions':       has_page_header_actions,
+            'has_page_header_strip':         has_page_header_strip,
+            'subtitle_style':                subtitle_style,
+            'subtitle_color':                subtitle_color,
+            'subtitle_accent_color':         subtitle_accent_color,
             # Sidebar theme (admin-configurable per app)
             'sidebar_theme': app.sidebar_theme or 'dark',
             # Phase 7 — React shell data (embedded as data-* on #app-root)

@@ -350,6 +350,7 @@
                                     <field name="is_active"/>
                                     <field name="is_link"/>
                                     <field name="placement"/>
+                                    <field name="badge_style"/>
                                 </list>
                                 <form>
                                     <sheet>
@@ -368,6 +369,7 @@
                                                        widget="char"/>
                                                 <field name="font_size" placeholder="0 = default 13px"/>
                                                 <field name="is_link"/>
+                                                <field name="badge_style"/>
                                             </group>
                                         </group>
                                         <group string="SQL Query">
@@ -389,6 +391,11 @@
                                 <group>
                                     <field name="subtitle"
                                            placeholder="e.g. Executive command center"/>
+                                    <field name="subtitle_style"/>
+                                    <field name="subtitle_color" widget="color"
+                                           invisible="subtitle_style != 'accent_bar'"/>
+                                    <field name="subtitle_accent_color" widget="color"
+                                           invisible="subtitle_style != 'accent_bar'"/>
                                     <field name="help_text" widget="text"
                                            placeholder="Tooltip text shown via info icon next to page title"
                                            style="min-height: 60px;"/>

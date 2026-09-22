@@ -647,6 +647,10 @@ export default function FilterBar({ headerBadges = [] }) {
 
   const startEl = typeof document !== 'undefined' && document.getElementById('pv-page-header-actions-start')
   const endEl = typeof document !== 'undefined' && document.getElementById('pv-page-header-actions-end')
+  // Badge strip under the subtitle — badges only (filters never target it),
+  // so it carries no Apply button.
+  const stripEl = typeof document !== 'undefined' && document.getElementById('pv-page-header-strip')
+  const stripItems = buildSlotItems('page_header_strip', false)
   // Manual header filters need an Apply trigger (the bar may be hidden). Render
   // it EXACTLY ONCE — in the slot that holds header filters (end preferred) —
   // never once per slot. Clear All is global, matching the bar's Clear All.
@@ -668,13 +672,14 @@ export default function FilterBar({ headerBadges = [] }) {
     endItems.push(<ExportPdfButton key="hdr-pdf-export" />)
   }
 
-  if (!bar && !tabItems && startItems.length === 0 && endItems.length === 0) return null
+  if (!bar && !tabItems && startItems.length === 0 && endItems.length === 0 && stripItems.length === 0) return null
 
   return (
     <>
       {bar}
       {startEl && startItems.length > 0 && createPortal(startItems, startEl)}
       {endEl && endItems.length > 0 && createPortal(endItems, endEl)}
+      {stripEl && stripItems.length > 0 && createPortal(stripItems, stripEl)}
       {tabSlotEl && tabItems && createPortal(tabItems, tabSlotEl)}
     </>
   )

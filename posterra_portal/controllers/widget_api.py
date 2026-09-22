@@ -1608,6 +1608,7 @@ class PosterraWidgetAPI(http.Controller):
                 'icon_color': badge.icon_color or '',
                 'is_link': badge.is_link,
                 'placement': badge.placement or 'below_header_end',
+                'badge_style': badge.badge_style or 'text',
                 'sequence': badge.sequence,
             })
 

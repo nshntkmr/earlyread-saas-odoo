@@ -116,7 +116,7 @@
                 <div class="pv-main flex-grow-1">
 
                     <!-- Page header -->
-                    <div t-att-class="'pv-page-header pv-page-header--with-actions' if has_page_header_actions else 'pv-page-header'">
+                    <div t-att-class="'pv-page-header pv-page-header--with-actions' + (' pv-page-header--with-strip' if has_page_header_strip else '') if has_page_header_actions else 'pv-page-header'">
                         <div t-if="has_page_header_start" id="pv-page-header-actions-start" class="pv-page-header-actions pv-page-header-actions--start"/>
                         <h2 class="pv-page-title mb-0">
                             <i t-attf-class="fa #{current_page and current_page.icon or ''} me-2"
@@ -159,11 +159,19 @@
                                 </span>
                             </t>
                         </h2>
+                        <!-- Subtitle. 'plain' (default) keeps the historical markup exactly;
+                             'accent_bar' opts into the coloured left rule (page setting). -->
                         <small class="text-muted"
-                               t-if="current_page and current_page.subtitle"
+                               t-if="current_page and current_page.subtitle and subtitle_style != 'accent_bar'"
+                               t-esc="current_page.subtitle"/>
+                        <small class="pv-page-subtitle--accent"
+                               t-if="current_page and current_page.subtitle and subtitle_style == 'accent_bar'"
+                               t-att-style="((('color:' + subtitle_color + ';') if subtitle_color else '') + (('border-left-color:' + subtitle_accent_color + ';') if subtitle_accent_color else '')) or None"
                                t-esc="current_page.subtitle"/>
                         <small class="text-muted"
                                t-if="not (current_page and current_page.subtitle)">Executive command center</small>
+                        <!-- Badge strip under the subtitle (placement = page_header_strip; React portals into it) -->
+                        <div t-if="has_page_header_strip" id="pv-page-header-strip" class="pv-page-header-strip"/>
                         <div t-if="has_page_header_end" id="pv-page-header-actions-end" class="pv-page-header-actions pv-page-header-actions--end"/>
                     </div>
 
