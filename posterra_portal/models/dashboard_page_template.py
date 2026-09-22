@@ -281,6 +281,8 @@ class DashboardPageTemplate(models.Model):
                 # Annotations
                 'subtitle': w.subtitle or '',
                 'footnote': w.footnote or '',
+                'subtitle_color': w.subtitle_color or '',
+                'footnote_color': w.footnote_color or '',
                 'info_text': w.info_text or '',
                 'annotation_type': w.annotation_type or 'none',
                 'annotation_text': w.annotation_text or '',
@@ -1009,6 +1011,8 @@ class DashboardPageTemplate(models.Model):
                 'drill_detail_columns': w.get('drill_detail_columns', ''),
                 'subtitle': w.get('subtitle', ''),
                 'footnote': w.get('footnote', ''),
+                'subtitle_color': w.get('subtitle_color', ''),
+                'footnote_color': w.get('footnote_color', ''),
                 'info_text': w.get('info_text', ''),
                 'annotation_type': w.get('annotation_type', 'none'),
                 'annotation_text': w.get('annotation_text', ''),

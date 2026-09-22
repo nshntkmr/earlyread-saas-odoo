@@ -723,6 +723,10 @@ class DashboardWidget(models.Model):
         help='Displayed below the widget content area.\n'
              'Supports SQL interpolation: %(column_name)s is replaced with first-row values.\n'
              'Example: "Source: CMS data as of %(data_date)s"')
+    subtitle_color = fields.Char(string='Subtitle Color',
+        help='Text colour for the subtitle (hex, e.g. #0f6e56). Blank = default grey.')
+    footnote_color = fields.Char(string='Footnote Color',
+        help='Text colour for the footnote (hex, e.g. #0f6e56). Blank = default grey.')
     info_text = fields.Text(string='Info Tooltip',
         help='Shows a small info icon next to the widget title; hover or click it '
              'to read this text. Leave blank to hide the icon.\n'

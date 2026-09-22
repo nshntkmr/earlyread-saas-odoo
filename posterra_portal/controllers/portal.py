@@ -5,6 +5,7 @@ import json
 import logging
 import mimetypes
 import os
+import re
 import time as _time
 
 import odoo.exceptions
@@ -267,6 +268,15 @@ def _pdf_export_config(page):
     }
 
 
+_HEX_COLOR_RE = re.compile(r'^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$')
+
+
+def _safe_hex(value):
+    """Admin-typed colour → hex string or '' (never an arbitrary CSS value)."""
+    value = (value or '').strip()
+    return value if _HEX_COLOR_RE.match(value) else ''
+
+
 def _extract_vc_field(widget, field, default=''):
     """Extract a field from widget.visual_config JSON, with fallback."""
     try:
@@ -321,6 +331,9 @@ def _build_initial_widgets_json(widgets, widget_data):
             # Annotations (SQL-interpolated when %(col)s syntax used)
             'subtitle':           resolved_subtitle,
             'footnote':           resolved_footnote,
+            # Optional text colours (blank = default muted grey, unchanged)
+            'subtitle_color':     _safe_hex(w.subtitle_color),
+            'footnote_color':     _safe_hex(w.footnote_color),
             'info_text':          resolved_info_text,
             'annotation_type':    w.annotation_type or 'none',
             'annotation_text':    resolved_annotation_text,

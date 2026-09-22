@@ -979,8 +979,10 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
               fetch (SQL-driven %(col)s templates — same pattern as the info
               tooltip and badge); w.subtitle is the page-load value, which for
               a lazily loaded tab is the raw template. */}
+          {/* Bootstrap's text-muted is !important, so it is dropped when a colour is set */}
           {!isCompact && !isChromeless && (w.data?._resolved_subtitle || w.subtitle) && (
-            <div className="pv-widget-subtitle text-muted px-3">
+            <div className={`pv-widget-subtitle px-3${w.subtitle_color ? '' : ' text-muted'}`}
+                 style={w.subtitle_color ? { color: w.subtitle_color } : undefined}>
               {w.data?._resolved_subtitle || w.subtitle}
             </div>
           )}
@@ -1034,7 +1036,8 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
             <WidgetComponent data={w.data} height={componentHeight} name={w.name} {...extraProps} />
           )}
           {!isChromeless && (w.data?._resolved_footnote || w.footnote) && (
-            <div className="pv-widget-footnote text-muted px-3 pb-2 mt-auto border-top pt-1">
+            <div className={`pv-widget-footnote px-3 pb-2 mt-auto border-top pt-1${w.footnote_color ? '' : ' text-muted'}`}
+                 style={w.footnote_color ? { color: w.footnote_color } : undefined}>
               {w.data?._resolved_footnote || w.footnote}
             </div>
           )}
