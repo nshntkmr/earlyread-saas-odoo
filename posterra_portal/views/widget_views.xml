@@ -745,9 +745,10 @@
                             <div class="text-muted">
                                 Used by the page's Export PDF button (Pages → PDF Export), which
                                 prints every included widget of the tab being viewed. Record
-                                headers, KPI cards and tables are printed; tables always print full
-                                width. Independent of this widget's Download settings. Kept when the
-                                library definition is updated.
+                                headers, KPI cards, tables and standard charts are printed; maps and
+                                other custom widgets are listed as not included. Tables always print
+                                full width. Independent of this widget's Download settings. Kept when
+                                the library definition is updated.
                             </div>
                         </page>
 

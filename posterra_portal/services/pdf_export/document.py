@@ -5,8 +5,9 @@ The template (``posterra_portal.pdf_export_document``) only lays out a
 sanitised view model built here: every admin colour goes through
 ``safe_color``, values are plain strings (QWeb escapes them) and table cells
 are pre-escaped ``Markup`` from ``cell_format``. Nothing is fetched at render
-time — the logo is an inline data URI and JavaScript is disabled in the
-renderer.
+time — the logo is an inline data URI, and the only script is the chart
+block from ``charts.chart_scripts`` (vendored library as a data URI + the
+server's chart options as escaped JSON).
 """
 
 import base64
@@ -16,9 +17,43 @@ import re
 from markupsafe import Markup, escape
 
 from .cell_format import safe_color
+from .charts import CHART_PLACEHOLDER, chart_scripts
+from .render_client import MARGIN_LEFT_IN, MARGIN_RIGHT_IN, PAPER_SIZES_IN
 
 _PLACEHOLDER_RE = re.compile(r'\{([A-Za-z0-9_]+)\}')
 DEFAULT_TITLE = '{app_name} — {page_name} — {tab_name}'
+
+# Print grid geometry (must match the template CSS): 12 columns, 7px gap,
+# cards with 8px padding + 1px border. Charts are drawn by script BEFORE the
+# print layout exists, so each chart gets explicit pixel dimensions computed
+# from the paper width (1in = 96 CSS px).
+GRID_COLUMNS = 12
+GRID_GAP_PX = 7
+CARD_CHROME_PX = 18
+CHART_MIN_H, CHART_MAX_H = 160, 440
+SPARKLINE_H = 40                                # portal: EChartWidget height={40}
+MINI_GAUGE_DEFAULT, MINI_GAUGE_MIN, MINI_GAUGE_MAX = 64, 40, 120   # payload mini_gauge_size
+
+
+def _mini_gauge_size(payload):
+    try:
+        size = int(payload.get('mini_gauge_size') or MINI_GAUGE_DEFAULT)
+    except (TypeError, ValueError):
+        size = MINI_GAUGE_DEFAULT
+    return max(MINI_GAUGE_MIN, min(MINI_GAUGE_MAX, size))
+
+
+def content_width_px(paper, orientation):
+    w, h = PAPER_SIZES_IN.get(paper or 'letter', PAPER_SIZES_IN['letter'])
+    if orientation == 'landscape':
+        w, h = h, w
+    return (w - MARGIN_LEFT_IN - MARGIN_RIGHT_IN) * 96
+
+
+def card_inner_width_px(content_px, span):
+    n = int(span) if str(span) in ('3', '4', '6', '8', '12') else GRID_COLUMNS
+    col = (content_px - (GRID_COLUMNS - 1) * GRID_GAP_PX) / GRID_COLUMNS
+    return max(80, int(col * n + (n - 1) * GRID_GAP_PX - CARD_CHROME_PX))
 
 
 def resolve_template(template, values):
@@ -80,12 +115,17 @@ def _kpi_view(block):
         })
     if view['variant'] in ('progress', 'mini_gauge') and p.get('progress_pct') is not None:
         try:
-            pct = max(0.0, min(100.0, float(p.get('progress_pct'))))
+            raw_pct = float(p.get('progress_pct'))
         except (TypeError, ValueError):
-            pct = 0.0
+            raw_pct = 0.0
+        pct = max(0.0, min(100.0, raw_pct))
         view.update({'progress_pct': f'{pct:.1f}'.rstrip('0').rstrip('.'),
                      'progress_color': safe_color(p.get('bar_color'), '#0d9488'),
-                     'progress_note': str(p.get('progress_annotation') or '')})
+                     'progress_note': str(p.get('progress_annotation') or ''),
+                     # portal: status-up when at/above 100 % of target, else status-down
+                     'progress_note_color': '#059669' if raw_pct >= 100 else '#dc2626'})
+    if view['variant'] == 'mini_gauge':
+        view['status_text'] = str(p.get('gauge_status_text') or '')
     return view
 
 
@@ -134,13 +174,14 @@ def _names(items, limit=6):
 def build_notices(notices):
     """``[{text, severity}]`` printed under the title (severity info|warn|bad)."""
     out = [{'severity': 'info',
-            'text': 'This PDF includes record headers, KPI cards and tables. Grid sorting and '
-                    'column filters applied on screen are not reflected; tables use their '
+            'text': 'This PDF includes record headers, KPI cards, tables and charts. Grid sorting '
+                    'and column filters applied on screen are not reflected; tables use their '
                     'configured default order.'}]
     if notices.get('omitted'):
         n = len(notices['omitted'])
-        out.append({'severity': 'info', 'text': f'{n} chart widget{"s were" if n > 1 else " was"} '
-                                                f'not included: {_names(notices["omitted"])}.'})
+        out.append({'severity': 'info', 'text': f'{n} widget{"s" if n > 1 else ""} of a type the PDF '
+                                                f'cannot print yet {"were" if n > 1 else "was"} not '
+                                                f'included: {_names(notices["omitted"])}.'})
     if notices.get('skipped_engine'):
         n = len(notices['skipped_engine'])
         out.append({'severity': 'warn', 'text': f'{n} widget{"s" if n > 1 else ""} use a data source '
@@ -172,6 +213,8 @@ def build_view(env, *, page, tab, app, user, dataset, keynote, orientation, pape
     for f in filters:
         values[f['param']] = f['value_label']
     title = resolve_template(page.pdf_title_template or DEFAULT_TITLE, values)
+    content_px = content_width_px(paper, orientation)
+    specs = []          # charts drawn by the render service's script
     blocks = []
     for b in dataset.get('blocks') or []:
         span = b.get('col_span') or '12'
@@ -179,8 +222,29 @@ def build_view(env, *, page, tab, app, user, dataset, keynote, orientation, pape
                 'break_before': bool(b.get('page_break_before')), 'status': b.get('status')}
         if b.get('status') == 'failed':
             view['kind'] = 'unavailable'
+        elif b['kind'] == 'chart':
+            spec = {'id': f'pvc{len(specs) + 1}', 'option': b['option'],
+                    'width': card_inner_width_px(content_px, view['span']),
+                    'height': max(CHART_MIN_H, min(CHART_MAX_H, int(b.get('height') or 350)))}
+            specs.append(spec)
+            view['chart'] = {'id': spec['id'], 'width': spec['width'], 'height': spec['height']}
+            view['sub_kpis'] = b.get('sub_kpis') or []          # gauge_kpi only
+            view['alert_text'] = b.get('alert_text') or ''
         elif b['kind'] == 'kpi':
             view['kpi'] = _kpi_view(b)
+            if b.get('mini_option'):
+                variant = view['kpi']['variant']
+                if variant == 'mini_gauge':
+                    # Portal "split" card: ring on the left (its centre shows
+                    # the value), label / status / annotation on the right.
+                    width = height = _mini_gauge_size(b.get('payload') or {})
+                    view['kpi']['layout'] = 'split'
+                else:
+                    width, height = card_inner_width_px(content_px, view['span']), SPARKLINE_H
+                spec = {'id': f'pvc{len(specs) + 1}', 'option': b['mini_option'],
+                        'width': width, 'height': height}
+                specs.append(spec)
+                view['kpi']['mini'] = {'id': spec['id'], 'width': width, 'height': height}
         elif b['kind'] == 'record_header':
             view['header'] = _header_view(b)
         elif b['kind'] == 'table':
@@ -216,6 +280,8 @@ def build_view(env, *, page, tab, app, user, dataset, keynote, orientation, pape
         'notices': build_notices(dataset.get('notices') or {}),
         'keynote': keynote or '',
         'rows': rows,
+        'chart_scripts': chart_scripts(specs),
+        'chart_placeholder': CHART_PLACEHOLDER,
         'orientation': orientation,
         'paper': paper,
         'consistency': 'Data was freshly collected when this PDF was generated; it is not a '

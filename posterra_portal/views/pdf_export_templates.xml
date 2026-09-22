@@ -7,8 +7,10 @@
     (consecutive cards share a 12-column grid; each table is its own
     full-width row so long tables paginate reliably). All values are escaped
     by t-out except table cells, which arrive as pre-escaped Markup from
-    services/pdf_export/cell_format.py. No external resources: JavaScript is
-    disabled in the renderer and every network sub-request is blocked.
+    services/pdf_export/cell_format.py. No external resources: every network
+    sub-request is blocked in the renderer. The only scripts are the
+    server-built chart block (services/pdf_export/charts.py): the vendored
+    ECharts library as a data: URI and the chart specs as escaped JSON.
 -->
 <odoo>
     <template id="pdf_export_document" name="PDF Export Document">
@@ -92,6 +94,24 @@
                     .pv-pill { color: #fff; font-weight: 700; border-radius: 3px; padding: 1px 5px; }
                     .pv-comp-main { font-weight: 600; }
                     .pv-consistency { color: #9aa5b1; font-size: 7.5px; margin-top: 10px; }
+                    .pv-chart { overflow: hidden; margin-top: 4px; }
+                    .pv-chart svg { display: block; }
+                    .pv-kpi-mini { margin-top: 4px; }
+                    .pv-chart-pending, .pv-chart-error { color: #9aa5b1; font-size: 8px; display: flex;
+                                      align-items: center; justify-content: center; text-align: center;
+                                      border: 1px dashed #cbd2d9; }
+                    .kpi-split { display: flex; align-items: center; gap: 10px; }
+                    .kpi-split .pv-chart { margin-top: 0; flex-shrink: 0; }
+                    .kpi-split-text { min-width: 0; }
+                    .kpi-note { font-size: 8px; font-weight: 600; margin-top: 2px; }
+                    .gauge-subs { display: flex; gap: 6px; margin-top: 5px; }
+                    .gauge-sub { flex: 1; min-width: 0; background: #f5f7fa; border-radius: 5px; padding: 4px 6px;
+                                 text-align: center; }
+                    .gauge-sub .l { font-size: 7.5px; color: #52606d; }
+                    .gauge-sub .val { font-size: 12px; font-weight: 700; }
+                    .gauge-sub .sl { font-size: 7px; color: #7b8794; }
+                    .gauge-alert { margin-top: 5px; padding: 4px 8px; background: #fff8e6; border-left: 3px solid #f59e0b;
+                                   border-radius: 3px; font-size: 8px; }
                 </style>
             </head>
             <body>
@@ -153,12 +173,35 @@
                     </div>
                 </t>
                 <div class="pv-consistency" t-out="v['consistency']"/>
+                <!-- Chart drawing (server-built Markup: vendored ECharts via a
+                     data: URI + JSON specs with <, >, & escaped). Drawn
+                     synchronously before the load event, so the renderer needs
+                     no wait; each chart box keeps its "Chart not drawn"
+                     placeholder if scripts cannot run. Empty without charts. -->
+                <t t-out="v['chart_scripts']"/>
             </body>
         </html>
     </template>
 
     <template id="pdf_export_block" name="PDF Export Block">
-        <t t-if="blk['kind'] == 'kpi'">
+        <t t-if="blk['kind'] == 'kpi' and blk['kpi'].get('layout') == 'split'">
+            <!-- mini_gauge: ring left (its centre shows the value), text right -->
+            <t t-set="k" t-value="blk['kpi']"/>
+            <div t-attf-class="pv-card span-#{blk['span']}">
+                <div class="kpi-split">
+                    <div class="pv-chart pv-chart-pending" t-att-id="k['mini']['id']"
+                         t-attf-style="width:#{k['mini']['width']}px;height:#{k['mini']['height']}px"
+                         t-out="v['chart_placeholder']"/>
+                    <div class="kpi-split-text">
+                        <div class="kpi-t" t-out="k['title']"/>
+                        <div class="kpi-s" t-if="k.get('status_text')" t-out="k['status_text']"/>
+                        <div class="kpi-note" t-if="k.get('progress_note')"
+                             t-att-style="'color:%s' % k['progress_note_color']" t-out="k['progress_note']"/>
+                    </div>
+                </div>
+            </div>
+        </t>
+        <t t-elif="blk['kind'] == 'kpi'">
             <t t-set="k" t-value="blk['kpi']"/>
             <div t-attf-class="pv-card span-#{blk['span']}">
                 <div class="kpi-t" t-out="k['title']"/>
@@ -178,7 +221,28 @@
                     <div class="kpi-prog"><span t-attf-style="width:#{k['progress_pct']}%;background:#{k['progress_color']}"/></div>
                     <div class="kpi-s" t-if="k['progress_note']" t-out="k['progress_note']"/>
                 </t>
+                <div t-if="k.get('mini')" class="pv-chart pv-kpi-mini pv-chart-pending" t-att-id="k['mini']['id']"
+                     t-attf-style="width:#{k['mini']['width']}px;height:#{k['mini']['height']}px"
+                     t-out="v['chart_placeholder']"/>
                 <div class="kpi-s" t-if="k['secondary']" t-out="k['secondary']"/>
+            </div>
+        </t>
+        <t t-elif="blk['kind'] == 'chart'">
+            <div t-attf-class="pv-card span-#{blk['span']}">
+                <div class="kpi-t" t-out="blk['name']"/>
+                <div class="pv-chart pv-chart-pending" t-att-id="blk['chart']['id']"
+                     t-attf-style="width:#{blk['chart']['width']}px;height:#{blk['chart']['height']}px"
+                     t-out="v['chart_placeholder']"/>
+                <div class="gauge-subs" t-if="blk.get('sub_kpis')">
+                    <t t-foreach="blk['sub_kpis']" t-as="sk">
+                        <div class="gauge-sub">
+                            <div class="l" t-out="sk['label']"/>
+                            <div class="val" t-out="sk['value']"/>
+                            <div class="sl" t-if="sk['sub_label']" t-out="sk['sub_label']"/>
+                        </div>
+                    </t>
+                </div>
+                <div class="gauge-alert" t-if="blk.get('alert_text')" t-out="blk['alert_text']"/>
             </div>
         </t>
         <t t-elif="blk['kind'] == 'record_header'">

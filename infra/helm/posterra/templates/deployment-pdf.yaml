@@ -1,10 +1,15 @@
 {{- if .Values.pdf.enabled }}
 # Gotenberg render service for the page PDF export (plan v5).
 # Own Deployment + ClusterIP Service; the Odoo pods POST HTML to it.
-# Hardening (verified on 8.37.0-chromium, phase 0):
+# Hardening (verified on 8.37.0-chromium, phase 0; re-verified with
+# JavaScript on for charts):
 #   * network sub-requests blocked in Chromium (deny-list keeps the pinned
 #     default local-file rule + blocks http/https/ws/ftp), private IPs denied,
-#     JavaScript off, downloadFrom / webhooks / PDF-engine routes disabled;
+#     downloadFrom / webhooks / PDF-engine routes disabled;
+#   * JavaScript is ON so charts can be drawn (approved 2026-09-21): the page
+#     is built by Odoo — the only scripts are the vendored ECharts library
+#     (data: URI) and server-built chart specs; fetch/XHR/WebSocket/beacon
+#     requests are refused by the same deny-list;
 #   * basic auth REQUIRED — the dev cluster runs networkPolicy=none, so the
 #     NetworkPolicy below is not enforced there;
 #   * Chromium runs --no-sandbox inside the image → non-root uid 1001,
@@ -55,7 +60,6 @@ spec:
             - --chromium-max-concurrency={{ .Values.pdf.maxConcurrency }}
             - --chromium-max-queue-size={{ .Values.pdf.queueSize }}
             - --chromium-restart-after={{ .Values.pdf.restartAfter }}
-            - --chromium-disable-javascript
             - --chromium-deny-private-ips
             - --chromium-clear-cache
             - --chromium-clear-cookies

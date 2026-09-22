@@ -111,7 +111,7 @@ class DashboardPage(models.Model):
     pdf_export_enabled = fields.Boolean(
         string='Enable PDF Export', default=False,
         help='Shows an "Export PDF" button that prints the current tab '
-             '(record headers, KPIs and tables) with the applied filters. '
+             '(record headers, KPIs, tables and charts) with the applied filters. '
              'Enabling PDF export makes every included table\'s rows '
              'exportable as PDF, regardless of the widget\'s Download '
              'settings. Use "Include in PDF" on each widget to leave a '

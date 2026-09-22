@@ -246,6 +246,85 @@ class TestCellFormat(TransactionCase):
 
 
 # ─────────────────────────────────────────────────────────────────────────
+@tagged('post_install', '-at_install', 'posterra_pdf_export')
+class TestPdfCharts(TransactionCase):
+
+    def test_embed_json_cannot_close_the_script(self):
+        from ..services.pdf_export.charts import embed_json
+        out = embed_json({'label': '</script><img src=x onerror=alert(1)>', 'amp': 'a&b'})
+        self.assertNotIn('<', out)
+        self.assertNotIn('>', out)
+        self.assertNotIn('&', out)
+        self.assertEqual(json.loads(out)['label'], '</script><img src=x onerror=alert(1)>')
+
+    def test_printable_option_is_static(self):
+        from ..services.pdf_export.charts import printable_option
+        src = {'series': [{'type': 'line', 'data': [1, 2]}], 'toolbox': {'show': True},
+               'dataZoom': [{'type': 'slider', 'start': 10}, {'type': 'inside'}]}
+        out = printable_option(src)
+        self.assertFalse(out['animation'])
+        self.assertEqual(out['series'][0]['progressive'], 0)      # one synchronous frame
+        self.assertFalse(out['series'][0]['animation'])
+        self.assertFalse(out['toolbox']['show'])
+        self.assertFalse(out['dataZoom'][0]['show'])
+        self.assertEqual(out['dataZoom'][0]['start'], 10)          # selected range kept
+        self.assertNotIn('show', out['dataZoom'][1])
+        self.assertNotIn('animation', src)                         # input untouched
+        self.assertNotIn('progressive', src['series'][0])
+        single = printable_option({'series': {'type': 'gauge', 'data': [{'value': 5}]}})
+        self.assertEqual(single['series']['progressive'], 0)       # object-form series too
+
+    def test_scripts_only_when_there_are_charts(self):
+        from ..services.pdf_export.charts import chart_scripts
+        self.assertEqual(str(chart_scripts([])), '')               # chart-free PDFs carry no script
+        full = str(chart_scripts([{'id': 'pvc1', 'option': {'series': []}, 'width': 300, 'height': 200}]))
+        self.assertIn('data:text/javascript;base64,', full)
+        self.assertIn("d.textContent='';", full)                  # placeholder cleared before drawing
+        self.assertNotIn('__pvChartsReady', full)                  # nothing for the renderer to wait on
+        self.assertEqual(full.count('</script>'), 3)
+
+    def test_chart_option_sources(self):
+        from ..services.pdf_export.charts import chart_option
+        self.assertEqual(chart_option({'echart_json': '{"series": [1]}'}), {'series': [1]})
+        self.assertEqual(chart_option({'echart_option': {'series': [2]}}), {'series': [2]})
+        self.assertIsNone(chart_option({'type': 'gauge', 'rows': []}))   # custom gauge style
+        self.assertIsNone(chart_option({'echart_json': 'not json'}))
+
+    def test_chart_width_fits_the_print_grid(self):
+        from ..services.pdf_export.document import card_inner_width_px, content_width_px
+        full = content_width_px('letter', 'landscape')
+        self.assertAlmostEqual(full, 979.2, places=1)
+        self.assertEqual(card_inner_width_px(full, '12'), int(full) - 18)
+        half = card_inner_width_px(full, '6')
+        self.assertLess(half * 2 + 7 + 36, full + 2)
+
+    def test_render_sends_no_wait_condition(self):
+        # Charts draw before the load event; a wait condition would make every
+        # export time out on a renderer that runs without JavaScript.
+        from ..services.pdf_export.render_client import paper_form
+        form = paper_form('letter', 'landscape')
+        self.assertFalse([k for k in form if k.lower().startswith('wait')])
+
+    def test_mini_gauge_size_is_clamped(self):
+        from ..services.pdf_export.document import _mini_gauge_size
+        self.assertEqual(_mini_gauge_size({}), 64)
+        self.assertEqual(_mini_gauge_size({'mini_gauge_size': 90}), 90)
+        self.assertEqual(_mini_gauge_size({'mini_gauge_size': 5000}), 120)
+        self.assertEqual(_mini_gauge_size({'mini_gauge_size': 'x'}), 64)
+
+    def test_vendored_echarts_matches_the_portal_version(self):
+        from ..services.pdf_export.charts import ECHARTS_VERSION, echarts_script_src
+        module = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(module, 'static', 'lib', 'echarts', 'VERSION'), encoding='ascii') as fh:
+            self.assertEqual(fh.read().strip(), ECHARTS_VERSION)
+        self.assertTrue(echarts_script_src().startswith('data:text/javascript;base64,'))
+        pkg = os.path.join(module, 'static', 'src', 'react', 'node_modules', 'echarts', 'package.json')
+        if os.path.exists(pkg):        # dev checkouts only (node_modules is not in the image)
+            with open(pkg, encoding='utf-8') as fh:
+                self.assertEqual(json.load(fh)['version'], ECHARTS_VERSION)
+
+
+# ─────────────────────────────────────────────────────────────────────────
 class _PdfFixture:
     """Shared records: app, page with 2 tabs, PG-backed widgets."""
 
@@ -277,7 +356,21 @@ class _PdfFixture:
                                       {'field': 'label', 'headerName': 'Label'},
                                       {'field': 'hidden', 'headerName': 'Hidden', 'hide': True}])))
         cls.chart = W.create(dict(base, name='Trend', chart_type='bar', sequence=30,
-                                  query_sql='SELECT 1 AS x, 2 AS y', x_column='x', y_columns='y'))
+                                  query_sql=("SELECT 'Jan' AS x, 2 AS y UNION ALL "
+                                             "SELECT 'Feb', 5 UNION ALL SELECT '</script><b>x', 3"),
+                                  x_column='x', y_columns='y'))
+        cls.gauge_kpi = W.create(dict(base, name='Gauge KPI', chart_type='kpi', sequence=32,
+                                      query_sql='SELECT 42 AS v, 80 AS target', x_column='v',
+                                      visual_config=json.dumps({'kpi_style': 'mini_gauge'})))
+        cls.spark_kpi = W.create(dict(base, name='Spark KPI', chart_type='kpi', sequence=33,
+                                      query_sql="SELECT 7 AS v, '1,3,2,5' AS sparkline_data",
+                                      x_column='v', visual_config=json.dumps({'kpi_style': 'sparkline'})))
+        cls.gauge_breakdown = W.create(dict(base, name='Gauge Breakdown', chart_type='gauge_kpi', sequence=34,
+                                            query_sql="SELECT 64 AS v, 12 AS open_gaps, 'Behind plan' AS note",
+                                            x_column='v', gauge_sub_kpi_columns='open_gaps',
+                                            gauge_sub_kpi_labels='Open Gaps', gauge_alert_column='note'))
+        cls.map_widget = W.create(dict(base, name='Region Map', chart_type='map', sequence=35,
+                                       query_sql='SELECT 1 AS x', x_column='x'))
         cls.excluded = W.create(dict(base, name='Not Printed', chart_type='kpi', sequence=40,
                                      query_sql='SELECT 1 AS v', x_column='v', pdf_include=False))
         cls.other_tab = W.create(dict(base, name='Other Tab KPI', chart_type='kpi', sequence=50,
@@ -501,7 +594,36 @@ class TestPdfExportRoute(HttpCase, _RouteBase):
         self.assertIn('Showing first 10 rows; more rows are available', html)
         self.assertLess(html.index('>30<'), html.index('>29<'))       # configured sort, before cap
         self.assertNotIn('>Hidden<', html)                              # hidden column dropped
-        self.assertIn('1 chart widget was not included: Trend', html)   # omitted notice
+        # charts: drawn in the render service from the server option
+        self.assertIn('>Trend<', html)
+        self.assertIn('id="pv-chart-data"', html)
+        self.assertIn('data:text/javascript;base64,', html)
+        self.assertEqual(html.count('</script>'), 3)                    # data value never closes a script
+        self.assertIn('\\u003c/script\\u003e', html)
+        marker = '<script type="application/json" id="pv-chart-data">'
+        start = html.index(marker) + len(marker)
+        specs = json.loads(html[start:html.index('</script>', start)])
+        # Trend, mini gauge KPI, sparkline KPI, gauge + KPI breakdown
+        self.assertEqual([s['id'] for s in specs], ['pvc1', 'pvc2', 'pvc3', 'pvc4'])
+        trend, gauge, spark, breakdown = specs
+        self.assertEqual([p['type'] for p in trend['option']['series']], ['bar'])
+        self.assertEqual((gauge['width'], gauge['height']), (64, 64))
+        self.assertEqual(gauge['option']['series'][0]['type'], 'gauge')
+        self.assertEqual(spark['height'], 40)
+        self.assertEqual(breakdown['option']['series'][0]['type'], 'gauge')
+        self.assertTrue(all(s['progressive'] == 0 for spec in specs for s in spec['option']['series']))
+        self.assertEqual(html.count('Chart not drawn'), 4)              # placeholder per chart box
+        tiles = html[html.index('class="gauge-subs"'):]
+        self.assertIn('Open Gaps', tiles[:600])
+        self.assertIn('12%', tiles[:600])
+        self.assertIn('Behind plan', html)                              # gauge alert line
+        # mini gauge prints like the portal: ring + text, no duplicate CSS bar
+        self.assertIn('class="kpi-split"', html)
+        split = html[html.index('class="kpi-split"'):]
+        self.assertIn('Gauge KPI', split[:1500])
+        self.assertIn('48pp below benchmark', split[:1500])
+        self.assertEqual(html.count('class="kpi-prog"'), 0)
+        self.assertIn('1 widget of a type the PDF cannot print yet was not included: Region Map', html)
         self.assertIn('Snowflake KPI', html)                            # skipped notice
         self.assertNotIn('Not Printed', html)                           # pdf_include=False
         self.assertNotIn('Other Tab KPI', html)                         # other tab

@@ -442,9 +442,12 @@
                                 </group>
                             </group>
                             <div class="alert alert-info" role="alert" invisible="not pdf_export_enabled">
-                                The PDF prints the current tab's record headers, KPI cards and
-                                tables with the applied filters. Charts are listed as not
-                                included. Widgets on Snowflake sources are skipped with a notice.
+                                The PDF prints the current tab's record headers, KPI cards,
+                                tables and charts (bar, line, pie, donut, radar, scatter, heatmap,
+                                sankey, gauge, gauge + KPI breakdown) with the applied filters.
+                                Maps, bullet / traffic-light / percentile gauge styles and other
+                                custom widgets are listed as not included. Widgets on Snowflake sources
+                                are skipped with a notice.
                                 Enabling PDF export makes every included table's rows exportable
                                 as PDF, regardless of the widget's Download settings — turn off
                                 <strong>Include in PDF</strong> on a widget (widget form, PDF Export

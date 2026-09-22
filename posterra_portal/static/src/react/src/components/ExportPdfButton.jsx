@@ -119,8 +119,8 @@ export default function ExportPdfButton() {
         </div>
         <div className="wb-modal-body">
           <p className="pv-pdf-help">
-            Prints the current tab&apos;s record headers, KPI cards and tables with the filters
-            you applied. Charts are not included in this version.
+            Prints the current tab&apos;s record headers, KPI cards, tables and charts with the
+            filters you applied. Maps and some custom widgets are not included yet.
           </p>
           {pdf.keynote_enabled && (
             <label className="pv-pdf-field">

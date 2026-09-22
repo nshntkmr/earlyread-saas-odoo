@@ -22,6 +22,10 @@ from .limits import CONNECT_TIMEOUT_S, MAX_HTML_BYTES, render_settings
 _logger = logging.getLogger(__name__)
 
 PAPER_SIZES_IN = {'letter': (8.5, 11.0), 'a4': (8.27, 11.69)}
+MARGIN_LEFT_IN = MARGIN_RIGHT_IN = 0.4   # document.py sizes charts from these
+# No wait condition is sent: charts are drawn synchronously before the page's
+# load event (see charts.py), so a renderer without JavaScript still prints
+# the page (chart boxes then show their placeholder) instead of timing out.
 
 
 class RenderError(Exception):
@@ -40,7 +44,7 @@ def paper_form(paper, orientation):
     return {
         'paperWidth': f'{w}', 'paperHeight': f'{h}',
         'marginTop': '0.45', 'marginBottom': '0.6',
-        'marginLeft': '0.4', 'marginRight': '0.4',
+        'marginLeft': f'{MARGIN_LEFT_IN}', 'marginRight': f'{MARGIN_RIGHT_IN}',
         'printBackground': 'true', 'preferCssPageSize': 'false',
         'generateDocumentOutline': 'false',
     }

@@ -1,9 +1,12 @@
 import React from 'react'
 
-// Chart types the page PDF export prints in v1 (others are listed in the PDF
-// as "not included"). Kept in sync with posterra_portal
-// services/pdf_export/collector.py V1_KINDS.
-const PRINTED_TYPES = new Set(['record_header', 'kpi', 'status_kpi', 'table'])
+// Chart types the page PDF export prints (others are listed in the PDF as
+// "not included"). Kept in sync with posterra_portal
+// services/pdf_export/collector.py V1_KINDS + charts.PRINTABLE_CHART_TYPES.
+const PRINTED_TYPES = new Set([
+  'record_header', 'kpi', 'status_kpi', 'table',
+  'bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'sankey', 'gauge', 'gauge_kpi',
+])
 
 const SPANS = [
   { value: '', label: 'Same as on screen' },
@@ -32,6 +35,11 @@ export default function PdfExportOptions({ chartType, appearance, onChange }) {
       {!printed && (
         <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
           This widget type is not printed in the page PDF yet; the PDF lists it as not included.
+        </div>
+      )}
+      {(chartType === 'gauge' || chartType === 'gauge_kpi') && (
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
+          Bullet, traffic-light and percentile gauge styles are listed as not included.
         </div>
       )}
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>

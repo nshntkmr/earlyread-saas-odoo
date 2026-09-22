@@ -22,16 +22,20 @@ import logging
 import time
 
 from .cell_format import client_value, header_label, printable_columns, render_cell
+from .charts import (KPI_MINI_CHART_VARIANTS, PRINTABLE_CHART_TYPES, chart_option,
+                     printable_option)
 from .limits import clamp_column_limit, clamp_row_limit
 
 _logger = logging.getLogger(__name__)
 
-# chart_type → printed block kind (v1: headers, KPIs, tables)
+# chart_type → printed block kind: headers, KPIs, tables and standard ECharts
+# charts (drawn in the render service from the server's chart option).
 V1_KINDS = {
     'record_header': 'record_header',
     'kpi': 'kpi',
     'status_kpi': 'kpi',
     'table': 'table',
+    **{ct: 'chart' for ct in PRINTABLE_CHART_TYPES},
 }
 UNSUPPORTED_ENGINES = ('snowflake',)   # decision V1: skipped, never queried
 
@@ -180,8 +184,28 @@ class Collector:
             block.update(self._table_block(data, report))
             if report.get('sort_requested') and not report.get('sort_applied'):
                 self.notices['sort_not_applied'].append({'widget_id': w.id, 'name': w.name})
+        elif kind == 'chart':
+            option = chart_option(data)
+            if not option:
+                # e.g. a gauge style drawn by a custom React widget
+                self.notices['omitted'].append({'widget_id': w.id, 'name': w.name,
+                                                'chart_type': w.chart_type})
+                return None
+            block['option'] = printable_option(option)
+            block['height'] = w.chart_height or 350
+            if w.chart_type == 'gauge_kpi':
+                # GaugeKPI.jsx shows sub-KPI tiles and an alert line under the ring
+                block['sub_kpis'] = [
+                    {'label': str(s.get('label') or ''), 'value': str(s.get('value') or ''),
+                     'sub_label': str(s.get('sub_label') or '')}
+                    for s in (data.get('sub_kpis') or []) if isinstance(s, dict)]
+                block['alert_text'] = str(data.get('alert_text') or '')
         else:
             block['payload'] = data
+            if kind == 'kpi' and (data.get('kpi_variant') or '') in KPI_MINI_CHART_VARIANTS:
+                mini = chart_option(data)
+                if mini:
+                    block['mini_option'] = printable_option(mini)
         return block
 
     def _table_block(self, data, report):
