@@ -90,6 +90,22 @@ resource "random_password" "odoo_admin" {
   min_numeric      = 4
 }
 
+# Page PDF export: basic-auth password shared by the Odoo pods and the
+# Gotenberg render service (Helm pdf.*), plus the HMAC key for the export
+# audit fingerprint. Alphanumeric only, because the values travel through
+# Kubernetes env vars and an HTTP Authorization header. Must exist in Key
+# Vault BEFORE the helm upgrade that sets pdf.enabled=true (the ExternalSecret
+# odoo-secrets fails its whole sync if one of its keys is missing).
+resource "random_password" "pdf_render" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "pdf_fingerprint" {
+  length  = 64
+  special = false
+}
+
 module "postgresql" {
   source = "../../modules/postgresql"
 
@@ -130,6 +146,9 @@ module "keyvault" {
     "ai-model"               = "claude-opus-4-6"
     "filestore-account-name" = var.filestore_storage_name
     "filestore-account-key"  = "REPLACE_ME"
+    "pdf-render-user"        = "posterra-pdf"
+    "pdf-render-password"    = random_password.pdf_render.result
+    "pdf-fingerprint-key"    = random_password.pdf_fingerprint.result
   }
 
   tags = local.tags
