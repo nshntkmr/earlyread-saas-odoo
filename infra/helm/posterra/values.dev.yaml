@@ -58,3 +58,10 @@ deployments:
 
 cron:
   enabled: false
+
+# PDF export renderer (Gotenberg). Depends on KV secrets pdf-render-user,
+# pdf-render-password, pdf-fingerprint-key (created 2026-09-22 by Terraform).
+# Expect ~1 min of CreateContainerConfigError on serving pods immediately
+# after this flips on: Helm applies the ExternalSecret last.
+pdf:
+  enabled: true
