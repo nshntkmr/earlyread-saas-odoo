@@ -80,7 +80,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
     secretKeyRef:
       name: odoo-secrets
       key: POSTERRA_AI_MODEL
-{{- if .Values.pdf.enabled }}
+{{- end -}}
+
+{{/* Page PDF export env — serving pods only (included by posterra.podSpec
+     when pdf.enabled). The init Job must NOT include it: the Job runs as a
+     pre-upgrade hook, BEFORE Helm updates the odoo-secrets ExternalSecret, so
+     on the upgrade that first sets pdf.enabled=true these keys do not exist
+     in the Secret yet and the Job pod would sit in CreateContainerConfigError
+     until the hook times out. The cron pod does not need it either (only the
+     export route reads these values). Pass the ROOT context ($). */}}
+{{- define "posterra.pdfEnv" -}}
 - name: POSTERRA_PDF_RENDER_URL
   value: {{ printf "http://%s-pdf:3000" (include "posterra.fullname" .) | quote }}
 - name: POSTERRA_PDF_RENDER_USER
@@ -100,7 +109,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
       key: POSTERRA_PDF_FINGERPRINT_KEY
 - name: POSTERRA_PDF_FINGERPRINT_KEY_VERSION
   value: {{ .Values.pdf.fingerprintKeyVersion | quote }}
-{{- end }}
 {{- end -}}
 
 {{/* Full pod spec for a serving workload (portal / admin / combined).
@@ -140,6 +148,9 @@ containers:
         containerPort: 8072
     env:
       {{- include "posterra.commonEnv" $root | nindent 6 }}
+      {{- if $root.Values.pdf.enabled }}
+      {{- include "posterra.pdfEnv" $root | nindent 6 }}
+      {{- end }}
       - name: ODOO_WORKERS
         value: {{ $cfg.workers | quote }}
       - name: ODOO_MAX_CRON_THREADS
