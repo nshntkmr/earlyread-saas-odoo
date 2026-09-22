@@ -523,6 +523,11 @@ def _format_kpi_preview(chart_type, columns, rows, config, visual_config=None):
                 prior_raw, config.get('kpi_format', 'number'),
                 config.get('kpi_prefix', ''), config.get('kpi_suffix', ''), kpi_unit)
             try:
+                # NULL on either side → no badge (mirror of the portal branch in
+                # dashboard_widget._build_kpi_data): the tile shows '--' and a
+                # diff against zero would be misleading.
+                if raw_val is None or prior_raw is None:
+                    raise ValueError('no comparison')
                 cur = float(raw_val or 0)
                 pri = float(prior_raw or 0)
                 abs_diff = cur - pri

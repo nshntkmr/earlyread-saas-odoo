@@ -4981,9 +4981,17 @@ class DashboardWidget(models.Model):
                 y_comp = (self.y_columns or '').split(',')[0].strip()
                 if y_comp and y_comp in col_idx and rows:
                     try:
+                        prior_raw = rows[0][col_idx[y_comp]]
+                        result['prior_formatted'] = self._format_kpi_with_unit(prior_raw, vc)
+                        # A NULL on either side means "no comparison": the tile
+                        # already prints '--', so emit NO badge rather than a
+                        # diff against zero ("+14.5 pts" beside a '--' goal).
+                        # Cards with two real values are unchanged. Mirrored in
+                        # preview_formatter._format_kpi_preview.
+                        if raw_val is None or prior_raw is None:
+                            raise ValueError('no comparison')
                         cur = float(raw_val or 0)
-                        pri = float(rows[0][col_idx[y_comp]] or 0)
-                        result['prior_formatted'] = self._format_kpi_with_unit(rows[0][col_idx[y_comp]], vc)
+                        pri = float(prior_raw or 0)
                         abs_diff = cur - pri
                         pct_diff = round(((cur - pri) / abs(pri) * 100) if pri else 0, 1)
                         result['absolute_diff'] = abs_diff
