@@ -812,7 +812,10 @@
                                                    invisible="data_mode != 'own_sql'"/>
                                             <field name="where_clause_exclude"
                                                    invisible="data_mode != 'own_sql'"/>
-                                            <field name="query_sql" widget="ace" options="{'mode': 'sql'}"
+                                            <!-- widget="text", not "ace": Odoo 19's CodeEditor has no SQL mode
+                                                 and rejects unknown modes (OwlError in debug mode). -->
+                                            <field name="query_sql" widget="text"
+                                                   style="font-family: monospace; min-height: 120px;"
                                                    invisible="data_mode != 'own_sql'"
                                                    placeholder="SELECT ... FROM ... WHERE {where_clause}"
                                                    required="data_mode == 'own_sql' and chart_type != 'text_note'"/>
@@ -865,10 +868,12 @@
 
                                         <group string="Table"
                                                invisible="chart_type != 'table'">
+                                            <!-- JSON uses mode 'javascript': Odoo 19's CodeEditor only
+                                                 accepts javascript/xml/qweb/scss/python. -->
                                             <field name="table_column_config" widget="ace"
-                                                   options="{'mode': 'json'}"/>
+                                                   options="{'mode': 'javascript'}"/>
                                             <field name="column_link_config" widget="ace"
-                                                   options="{'mode': 'json'}"/>
+                                                   options="{'mode': 'javascript'}"/>
                                         </group>
 
                                         <group string="Text Note Content"
@@ -880,12 +885,12 @@
                                         <group string="Advanced"
                                                invisible="chart_type == 'text_note'">
                                             <field name="visual_config" widget="ace"
-                                                   options="{'mode': 'json'}"/>
+                                                   options="{'mode': 'javascript'}"/>
                                             <field name="color_custom_json" widget="ace"
-                                                   options="{'mode': 'json'}"
+                                                   options="{'mode': 'javascript'}"
                                                    invisible="chart_type not in ('bar','line','pie','donut')"/>
                                             <field name="echart_override" widget="ace"
-                                                   options="{'mode': 'json'}"
+                                                   options="{'mode': 'javascript'}"
                                                    invisible="chart_type not in ('bar','line','pie','donut','radar','scatter','heatmap','gauge','gauge_kpi')"/>
                                         </group>
                                     </sheet>

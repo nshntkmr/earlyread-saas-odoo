@@ -90,8 +90,9 @@
                             </field>
                         </page>
                         <page string="Custom CSS" name="custom_css">
+                            <!-- mode 'scss' (plain CSS is valid SCSS): Odoo 19's CodeEditor has no 'css' mode. -->
                             <field name="custom_css" widget="ace"
-                                   options="{'mode': 'css'}"
+                                   options="{'mode': 'scss'}"
                                    placeholder="/* Extra CSS for this app's portal pages */"/>
                         </page>
                     </notebook>
