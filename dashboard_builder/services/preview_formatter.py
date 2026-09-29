@@ -10,6 +10,8 @@ import json
 import logging
 import math
 
+from . import bar_value_labels
+
 _logger = logging.getLogger(__name__)
 
 # ── Color palettes ────────────────────────────────────────────────────────────
@@ -790,6 +792,10 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
     if chart_type in ('bar', 'line'):
         option['legend'] = {}
         option['yAxis'] = {'type': 'value'}
+        # "Label for Hidden Values" keeps SQL NULLs so they can be labelled
+        # (shared with the portal builder; off → the historical `or 0`).
+        keep_null = bool(bar_value_labels.null_label_for(
+            chart_type, vc, bool(vc.get('show_labels'))))
 
         if series_col and series_col in col_idx:
             # Series break: group rows by x category, then by series value
@@ -804,7 +810,7 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                     seen_cats.add(cat)
                 sv = str(col_val(r, series_col) or 'Other')
                 yv = col_val(r, y_col_list[0]) if y_col_list else 0
-                series_map.setdefault(sv, {})[cat] = yv or 0
+                series_map.setdefault(sv, {})[cat] = bar_value_labels.series_value(yv, keep_null)
 
             option['xAxis'] = {'type': 'category', 'data': categories}
             option['series'] = [
@@ -816,7 +822,9 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             x_data = [str(col_val(r, x_col) or '') for r in rows]
             option['xAxis'] = {'type': 'category', 'data': x_data}
             option['series'] = [
-                {'name': yc, 'type': chart_type, 'data': [col_val(r, yc) or 0 for r in rows]}
+                {'name': yc, 'type': chart_type,
+                 'data': [bar_value_labels.series_value(col_val(r, yc), keep_null)
+                          for r in rows]}
                 for yc in y_col_list
             ]
 
@@ -1668,8 +1676,25 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
         # Show value labels on bars
         if vc.get('show_labels'):
             pos = 'inside' if vc.get('stack') else 'top'
+            base_label = {'show': True, 'position': pos}
+            if bar_value_labels.vertical_labels_on(chart_type, vc, vc.get('orientation')):
+                base_label.update(bar_value_labels.vertical_label_style(pos))
             for s in option.get('series', []):
-                s['label'] = {'show': True, 'position': pos}
+                s['label'] = dict(base_label)
+            # "Label for Hidden Values" — same rewrite as the portal builder
+            null_label = bar_value_labels.null_label_for(chart_type, vc, True)
+            if null_label:
+                horizontal = vc.get('orientation') == 'horizontal'
+                cat_axis = option.get('yAxis' if horizontal else 'xAxis')
+                bar_value_labels.apply_null_labels(
+                    option.get('series', []),
+                    cat_axis.get('data', []) if isinstance(cat_axis, dict) else [],
+                    null_label,
+                    number_format=vc.get('number_format', 'auto'),
+                    percent=vc.get('number_format') == 'percent',
+                    pct_of_total=bool(vc.get('show_percent_in_label')),
+                    horizontal=horizontal,
+                )
 
         # Hide axis labels
         if vc.get('show_axis_labels') is False:

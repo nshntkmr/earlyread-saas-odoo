@@ -79,6 +79,30 @@ BAR_FLAGS = [
         'show_when': {'show_labels': True},
     },
     {
+        'flag': 'label_direction',
+        'type': 'select',
+        'default': 'horizontal',
+        'label': 'Value Label Direction',
+        'help': 'Vertical turns each value label upright, so the labels of '
+                'side-by-side bars can never overlap. Vertical bars only.',
+        'options': [
+            {'value': 'horizontal', 'label': 'Horizontal (default)'},
+            {'value': 'vertical', 'label': 'Vertical'},
+        ],
+        'show_when': {'show_labels': True},
+    },
+    {
+        'flag': 'null_label',
+        'type': 'text',
+        'default': '',
+        'label': 'Label for Hidden Values',
+        'help': 'Text shown on the value label and in the hover tooltip where '
+                'the SQL returns NULL, e.g. "<11" for a suppressed small count; '
+                'the bar stays empty. Return 0 from the SQL for a real zero. '
+                'Leave empty to keep the default (NULL shows as 0).',
+        'show_when': {'show_labels': True},
+    },
+    {
         'flag': 'color_mode',
         'type': 'select',
         'default': 'by_series',

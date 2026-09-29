@@ -1918,6 +1918,13 @@ class DashboardWidget(models.Model):
                 or ''
             ).strip()
 
+            # Opt-in bar value-label options, shared with the Designer preview:
+            # "Label for Hidden Values" (null_label) and "Value Label Direction".
+            # Both off → every step below produces exactly the historical option.
+            from odoo.addons.dashboard_builder.services import bar_value_labels as bvl
+            null_label = bvl.null_label_for(ct, vc, show_labels)
+            keep_null = bool(null_label)
+
             option['tooltip']['trigger'] = 'axis'
             option['legend'] = {}
 
@@ -1939,7 +1946,7 @@ class DashboardWidget(models.Model):
                     sv = str(col_val(r, series_col) or 'Other')
                     xv = str(col_val(r, x_col) or '')
                     yv = col_val(r, y_col_list[0]) if y_col_list else 0
-                    data_map[(sv, xv)] = yv or 0
+                    data_map[(sv, xv)] = bvl.series_value(yv, keep_null)
 
                 # Preserve insertion order of series names
                 series_names = list(dict.fromkeys(
@@ -1953,7 +1960,8 @@ class DashboardWidget(models.Model):
                 x_data = [str(col_val(r, x_col) or '') for r in rows]
                 option['xAxis'] = {'type': 'category', 'data': x_data}
                 option['series'] = [
-                    {'name': yc, 'type': ct, 'data': [col_val(r, yc) or 0 for r in rows]}
+                    {'name': yc, 'type': ct,
+                     'data': [bvl.series_value(col_val(r, yc), keep_null) for r in rows]}
                     for yc in y_col_list
                 ]
 
@@ -1996,7 +2004,9 @@ class DashboardWidget(models.Model):
                         if idx < len(s['data']))
                     if total:
                         for s in option.get('series', []):
-                            if idx < len(s['data']):
+                            # None only exists while a hidden-value label is
+                            # set; keep it so the label still prints that text.
+                            if idx < len(s['data']) and s['data'][idx] is not None:
                                 s['data'][idx] = round(
                                     (s['data'][idx] or 0) / total * 100, 1)
 
@@ -2044,8 +2054,30 @@ class DashboardWidget(models.Model):
                 base_label = {'show': True, 'position': pos}
                 if pct_stack_active or number_format == 'percent':
                     base_label['formatter'] = '{c}%'
+                # "Value Label Direction = Vertical" (opt-in): upright labels
+                # so side-by-side bars' labels cannot overlap.
+                if bvl.vertical_labels_on(ct, vc, orientation):
+                    base_label.update(bvl.vertical_label_style(pos))
                 for s in option.get('series', []):
                     s['label'] = dict(base_label)
+
+                # "Label for Hidden Values" (opt-in): each point carries its
+                # display text, read by BOTH the label and the axis tooltip —
+                # a SQL NULL prints the configured text (e.g. "<11") instead of
+                # 0. It formats every point itself, so the two per-point label
+                # blocks below stand aside while it is set.
+                if null_label:
+                    cat_axis = ('yAxis' if ct == 'bar' and orientation == 'horizontal'
+                                else 'xAxis')
+                    bvl.apply_null_labels(
+                        option.get('series', []),
+                        option.get(cat_axis, {}).get('data', []),
+                        null_label,
+                        number_format=number_format,
+                        percent=pct_stack_active or number_format == 'percent',
+                        pct_of_total=show_pct_label,
+                        horizontal=(orientation == 'horizontal'),
+                    )
 
                 # ── Percent in label: "2,484 (42.9%)" ────────────────
                 #
@@ -2062,7 +2094,8 @@ class DashboardWidget(models.Model):
                 # itself is already being treated as a percentage.
                 if (show_pct_label and ct == 'bar'
                         and not pct_stack_active
-                        and number_format != 'percent'):
+                        and number_format != 'percent'
+                        and not null_label):
                     # Compute grand total across all series and categories
                     grand_total = 0
                     for s in option.get('series', []):
@@ -2086,7 +2119,7 @@ class DashboardWidget(models.Model):
                             s['data'] = new_data
 
                 # ── Number formatting (comma thousands) ───────────────
-                if number_format == 'comma' and not show_pct_label:
+                if number_format == 'comma' and not show_pct_label and not null_label:
                     for s in option.get('series', []):
                         new_data = []
                         for v in s.get('data', []):
