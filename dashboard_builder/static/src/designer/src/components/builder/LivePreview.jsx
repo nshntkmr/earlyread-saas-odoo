@@ -927,7 +927,7 @@ export default function LivePreview({
         <button
           type="button"
           className="wb-btn wb-btn--success wb-btn--lg"
-          onClick={onSave}
+          onClick={() => onSave()}
           disabled={saving || placing}
         >
           {saving ? (

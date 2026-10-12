@@ -401,7 +401,7 @@ export default function SmartTableConfigurator({
           <button
             type="button"
             className="wb-btn wb-btn--outline"
-            onClick={onSave}
+            onClick={() => onSave()}
             disabled={!canSave || saving || placing}
             title={canSave ? 'Save the widget definition to the library' : (validationErrors[0] || 'Enter a widget name')}
           >
