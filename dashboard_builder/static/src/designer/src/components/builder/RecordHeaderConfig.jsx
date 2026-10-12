@@ -61,10 +61,19 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
   const addItem = () => set('subtitle_items', [...subtitleItems, { column: '', icon: '' }])
   const removeItem = (idx) => set('subtitle_items', subtitleItems.filter((_, i) => i !== idx))
 
-  const colOptions = (blankLabel) => (
+  // Column dropdown. A value saved before the SQL changed (alias renamed or
+  // dropped) stays visible as a "(not in SQL result)" option: a controlled
+  // <select> whose value is missing from its options would otherwise DISPLAY
+  // the blank entry while the stale value is still stored — and the formatter
+  // fails closed on it ("Configured … column not found"), so the admin must
+  // be able to see it to clear it.
+  const colOptions = (blankLabel, current = '') => (
     <>
       <option value="">{blankLabel}</option>
       {columns.map(c => <option key={c} value={c}>{c}</option>)}
+      {current && !columns.includes(current) && (
+        <option value={current}>{current} (not in SQL result)</option>
+      )}
     </>
   )
 
@@ -144,10 +153,10 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
             </label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <select className="wb-select wb-select--sm" value={vf.title_status_column || ''} onChange={e => set('title_status_column', e.target.value)}>
-                {colOptions('— status text column (none) —')}
+                {colOptions('— status text column (none) —', vf.title_status_column)}
               </select>
               <select className="wb-select wb-select--sm" value={vf.title_status_tone_column || ''} onChange={e => set('title_status_tone_column', e.target.value)}>
-                {colOptions('— tone column (neutral) —')}
+                {colOptions('— tone column (neutral) —', vf.title_status_tone_column)}
               </select>
             </div>
           </div>
@@ -158,7 +167,7 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
               <i className="fa fa-info-circle wb-flag-info" title="Optional text shown under the title, e.g. 'Provider group · Humana MA'. Ignored when Subtitle Items are set." />
             </label>
             <select className="wb-select wb-select--sm" value={vf.subtitle_column || ''} onChange={e => set('subtitle_column', e.target.value)}>
-              {colOptions('(none)')}
+              {colOptions('(none)', vf.subtitle_column)}
             </select>
           </div>
 
@@ -171,7 +180,7 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
             {subtitleItems.map((it, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr auto', gap: 6, alignItems: 'center', marginBottom: 6 }}>
                 <select className="wb-select wb-select--sm" value={it.column || ''} onChange={e => setItem(i, { column: e.target.value })}>
-                  {colOptions('— column —')}
+                  {colOptions('— column —', it.column)}
                 </select>
                 <input type="text" className="wb-input wb-input--sm" placeholder="fa-user" value={it.icon || ''} onChange={e => setItem(i, { icon: e.target.value })} />
                 <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={() => removeItem(i)} aria-label="Remove item">
@@ -193,7 +202,7 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
             {badges.map((b, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr auto auto', gap: 6, alignItems: 'center', marginBottom: 6 }}>
                 <select className="wb-select wb-select--sm" value={b.column || ''} onChange={e => setBadge(i, { column: e.target.value })}>
-                  {colOptions('— column —')}
+                  {colOptions('— column —', b.column)}
                 </select>
                 <input type="text" className="wb-input wb-input--sm" placeholder="Label" value={b.label || ''} onChange={e => setBadge(i, { label: e.target.value })} />
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
@@ -245,7 +254,7 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
               <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 6, marginBottom: 8 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 0.9fr auto', gap: 6, alignItems: 'center' }}>
                   <select className="wb-select wb-select--sm" value={s.column || ''} onChange={e => setStat(i, { column: e.target.value })}>
-                    {colOptions('— column —')}
+                    {colOptions('— column —', s.column)}
                   </select>
                   <input type="text" className="wb-input wb-input--sm" placeholder="Label" value={s.label || ''} onChange={e => setStat(i, { label: e.target.value })} />
                   <input type="text" className="wb-input wb-input--sm" placeholder="fa-users" value={s.icon || ''} onChange={e => setStat(i, { icon: e.target.value })} />
@@ -264,7 +273,7 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 6, marginTop: 6, alignItems: 'center' }}>
                   <select className="wb-select wb-select--sm" value={s.prior_column || ''} onChange={e => setStat(i, { prior_column: e.target.value })}>
-                    {colOptions('— no trend arrow (prior column) —')}
+                    {colOptions('— no trend arrow (prior column) —', s.prior_column)}
                   </select>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                     <input type="checkbox" checked={s.higher_is_better !== false}
@@ -275,13 +284,13 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, marginTop: 6, alignItems: 'center' }}
                      title={`Caption = small text after the value (e.g. a month). Status = pill text after the value. ${TONE_HELP}`}>
                   <select className="wb-select wb-select--sm" value={s.caption_column || ''} onChange={e => setStat(i, { caption_column: e.target.value })}>
-                    {colOptions('— caption column —')}
+                    {colOptions('— caption column —', s.caption_column)}
                   </select>
                   <select className="wb-select wb-select--sm" value={s.status_column || ''} onChange={e => setStat(i, { status_column: e.target.value })}>
-                    {colOptions('— status text column —')}
+                    {colOptions('— status text column —', s.status_column)}
                   </select>
                   <select className="wb-select wb-select--sm" value={s.status_tone_column || ''} onChange={e => setStat(i, { status_tone_column: e.target.value })}>
-                    {colOptions('— status tone column —')}
+                    {colOptions('— status tone column —', s.status_tone_column)}
                   </select>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, whiteSpace: 'nowrap' }}>
                     <input type="checkbox" checked={s.color_value_by_status === true || s.color_value_by_status === 'true'}
@@ -305,7 +314,7 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
             </label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <select className="wb-select wb-select--sm" value={vf.chips_column || ''} onChange={e => set('chips_column', e.target.value)}>
-                {colOptions('(none)')}
+                {colOptions('(none)', vf.chips_column)}
               </select>
               <input type="text" className="wb-input wb-input--sm" placeholder="Chips label, e.g. Markets" style={{ maxWidth: 180 }}
                 value={vf.chips_label || ''} onChange={e => set('chips_label', e.target.value)} />
