@@ -112,9 +112,11 @@ export default function WidgetGrid({ initialWidgets, placement = 'tab-content' }
   const visibleForGrid = (w) =>
     isPageSummary || !currentTabKey || !w.tab_key || w.tab_key === currentTabKey
   // A settled-empty record_header (no selected record) is filtered out so it
-  // leaves no blank card; loading/error states keep their wrapper.
+  // leaves no blank card; loading/error states keep their wrapper. A header
+  // with an opt-in empty_text (visual_config) stays and renders that text.
   const isTrulyEmptyHeader = (w) =>
-    w.chart_type === 'record_header' && w.data?.empty && !loading[w.id] && !errors[w.id]
+    w.chart_type === 'record_header' && w.data?.empty && !w.data?.empty_text
+      && !loading[w.id] && !errors[w.id]
 
   // Widget-scoped control state
   // Scope state is seeded SYNCHRONOUSLY from the initial widgets (not only in

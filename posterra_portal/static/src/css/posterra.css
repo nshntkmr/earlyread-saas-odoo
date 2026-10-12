@@ -3640,6 +3640,178 @@
     .pv-record-header-stats { grid-template-columns: repeat(2, minmax(96px, 1fr)); }
 }
 
+/* Prototype-style additions to the scorecard. Every rule below keys off a
+   payload element that only exists when its visual_config key is set
+   (empty_text, title_status, subtitle_items, badges, stat.caption,
+   stat.status, stats_style = 'panel'); headers without those keys never
+   match these selectors, so their rendering is untouched. */
+.pv-record-header--empty {
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 26px 18px;
+    color: #6b7280;
+    font-size: 14px;
+}
+.pv-record-header--empty i { font-size: 18px; color: #9ca3af; }
+.pv-record-header-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    min-width: 0;
+}
+.pv-record-header-status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.pv-record-header-subtitle--items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    font-size: 13px;
+    color: #4b5563;
+}
+.pv-record-header-subtitle-item { display: inline-flex; align-items: center; gap: 6px; }
+.pv-record-header-subtitle-item i { font-size: 12px; color: #6b7280; }
+.pv-record-header-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    margin-top: 2px;
+}
+.pv-record-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #111827;
+    font: inherit;
+    line-height: 1;
+    white-space: nowrap;
+}
+.pv-record-header-badge--copy { cursor: pointer; }
+.pv-record-header-badge--copy:hover { background: #e1e7f0; }
+.pv-record-header-badge--copy i { font-size: 11px; color: #94a0b2; }
+.pv-record-header-badge--copy.is-copied i { color: #059669; }
+.pv-record-header-badge-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+.pv-record-header-badge-value {
+    font-size: 12.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.pv-record-header-stat-caption {
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    color: #6b7280;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.pv-record-header-stat-status {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+/* stats_style = 'panel': the tiles become one grey panel beside the identity
+   (hairline dividers), 4 across → 2×2 → a full-width band as the card narrows.
+   The header root is the size container; the root's own padding/gap move to
+   the identity and chip row so the panel can bleed to the card edge. */
+.pv-record-header--panel {
+    container-type: inline-size;
+    padding: 0;
+    gap: 0;
+    align-items: stretch;
+}
+.pv-record-header--panel .pv-record-header-identity {
+    flex: 1 1 auto;
+    padding: 14px 18px;
+}
+.pv-record-header--panel .pv-record-header-chips {
+    padding: 10px 18px 12px;
+}
+.pv-record-header-stats--panel {
+    flex: 3 1 560px;
+    gap: 0;
+    padding: 10px 8px;
+    background: #f8fafc;
+    border-left: 1px solid #eef1f5;
+    align-content: center;
+    grid-template-columns: repeat(var(--pv-rh-stats, 4), minmax(0, 1fr));
+}
+.pv-record-header-stats--panel .pv-record-header-stat {
+    background: transparent;
+    border-radius: 0;
+    padding: 6px 12px;
+    border-left: 1px solid #e3e8ef;
+}
+.pv-record-header-stats--panel .pv-record-header-stat:first-child { border-left: 0; }
+@container (max-width: 1199px) {
+    .pv-record-header-stats--panel {
+        flex-basis: 300px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 8px;
+    }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(3) { border-left: 0; }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(n+3) {
+        border-top: 1px solid #e3e8ef;
+        padding-top: 12px;
+    }
+}
+@container (max-width: 1049px) {
+    .pv-record-header-stats--panel {
+        flex-basis: 100%;
+        border-left: 0;
+        border-top: 1px solid #eef1f5;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        row-gap: 0;
+    }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(3) { border-left: 1px solid #e3e8ef; }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(n+3) { border-top: 0; padding-top: 6px; }
+}
+@container (max-width: 639px) {
+    .pv-record-header-stats--panel { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(3) { border-left: 0; }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(n+3) {
+        border-top: 1px solid #e3e8ef;
+        padding-top: 12px;
+    }
+}
+@container (max-width: 399px) {
+    .pv-record-header-stats--panel { grid-template-columns: minmax(0, 1fr); }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(n+1) { border-left: 0; }
+    .pv-record-header-stats--panel .pv-record-header-stat:nth-child(n+2) {
+        border-top: 1px solid #e3e8ef;
+        padding-top: 12px;
+    }
+}
+@media (max-width: 640px) {
+    /* The base rule above stacks the header vertically; a flex-basis would
+       then become a HEIGHT, so the panel sizes to its content instead. */
+    .pv-record-header-stats--panel { flex-basis: auto; }
+}
+
 /* ── Map Widget — Floating Panel UI ───────────────────────────────── */
 
 /* Widget wrapper */

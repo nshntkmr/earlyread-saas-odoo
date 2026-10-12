@@ -173,5 +173,128 @@ class TestScorecard(unittest.TestCase):
         self.assertIn('error', F(COLS, [ROW, ROW], self.CFG))
 
 
+class TestScorecardPrototypeKeys(unittest.TestCase):
+    """Opt-in identity/tile extras (title status, subtitle items, badges,
+    tile caption/status, panel style, empty text). The first test locks the
+    contract that matters most: a scorecard that sets none of them gets the
+    exact payload it got before they existed."""
+
+    COLS2 = COLS + ['RATE_MONTH', 'RATE_STATUS', 'RATE_TONE', 'ELIG',
+                    'ELIG_TONE', 'MBI', 'EID', 'GENDER']
+    ROW2 = ROW + ('Aug 2026', 'Below 85%', 'success', 'Currently eligible',
+                  'SUCCESS', '1EG4-TE5-MK72', '', 'Male')
+    BASE = TestScorecard.CFG
+    NEUTRAL = fmt.TONE_COLORS['neutral']
+    SUCCESS = fmt.TONE_COLORS['success']
+
+    def _row(self, **cells):
+        row = list(self.ROW2)
+        for col, val in cells.items():
+            row[self.COLS2.index(col)] = val
+        return tuple(row)
+
+    def test_absent_keys_leave_payload_identical(self):
+        plain = F(self.COLS2, [self.ROW2], self.BASE)
+        blanks = dict(self.BASE, stats_style='', badges=[], subtitle_items=[],
+                      title_status_column='', title_status_tone_column='',
+                      empty_text='')
+        self.assertEqual(plain, F(self.COLS2, [self.ROW2], blanks))
+        for key in ('stats_style', 'badges', 'subtitle_items', 'title_status',
+                    'empty_text'):
+            self.assertNotIn(key, plain)
+        for st in plain['stats']:
+            self.assertNotIn('caption', st)
+            self.assertNotIn('status', st)
+        # 'tiles' is the default and must not leak a key either.
+        self.assertNotIn('stats_style',
+                         F(self.COLS2, [self.ROW2], dict(self.BASE, stats_style='tiles')))
+
+    def test_panel_style(self):
+        out = F(self.COLS2, [self.ROW2], dict(self.BASE, stats_style='panel'))
+        self.assertEqual(out['stats_style'], 'panel')
+
+    def test_tile_caption_and_status(self):
+        cfg = dict(self.BASE, stats=[
+            {'column': 'RATE', 'format': 'percent', 'caption_column': 'RATE_MONTH',
+             'status_column': 'RATE_STATUS', 'status_tone_column': 'RATE_TONE',
+             'color_value_by_status': True},
+            {'column': 'PLAN_COUNT', 'status_column': 'RATE_STATUS'},  # no tone → neutral
+        ])
+        st = F(self.COLS2, [self.ROW2], cfg)['stats']
+        self.assertEqual(st[0]['caption'], 'Aug 2026')
+        self.assertEqual(st[0]['status'], {'text': 'Below 85%',
+                                           'color': self.SUCCESS['color'],
+                                           'background': self.SUCCESS['background']})
+        self.assertEqual(st[0]['value_color'], self.SUCCESS['color'])
+        self.assertEqual(st[1]['status']['color'], self.NEUTRAL['color'])
+        self.assertNotIn('value_color', st[1])
+        # Blank caption/status text → no key; unknown tone → neutral colours.
+        st = F(self.COLS2, [self._row(RATE_MONTH='', RATE_STATUS=None)], cfg)['stats']
+        self.assertNotIn('caption', st[0])
+        self.assertNotIn('status', st[0])
+        self.assertNotIn('value_color', st[0])
+        st = F(self.COLS2, [self._row(RATE_TONE='bogus')], cfg)['stats']
+        self.assertEqual(st[0]['status']['background'], self.NEUTRAL['background'])
+        # Configured-but-missing columns fail closed like every other column.
+        for bad in ({'caption_column': 'NOPE'}, {'status_column': 'NOPE'},
+                    {'status_column': 'RATE_STATUS', 'status_tone_column': 'NOPE'}):
+            spec = dict({'column': 'RATE'}, **bad)
+            self.assertIn('error', F(self.COLS2, [self.ROW2], dict(self.BASE, stats=[spec])))
+
+    def test_title_status(self):
+        cfg = dict(self.BASE, title_status_column='ELIG', title_status_tone_column='ELIG_TONE')
+        out = F(self.COLS2, [self.ROW2], cfg)
+        # tone words are case-insensitive ('SUCCESS' in the row)
+        self.assertEqual(out['title_status'], {'text': 'Currently eligible',
+                                               'color': self.SUCCESS['color'],
+                                               'background': self.SUCCESS['background']})
+        out = F(self.COLS2, [self.ROW2], dict(self.BASE, title_status_column='ELIG'))
+        self.assertEqual(out['title_status']['color'], self.NEUTRAL['color'])
+        self.assertNotIn('title_status', F(self.COLS2, [self._row(ELIG='')], cfg))
+        self.assertIn('error', F(self.COLS2, [self.ROW2], dict(self.BASE, title_status_column='NOPE')))
+        self.assertIn('error', F(self.COLS2, [self.ROW2],
+                                 dict(self.BASE, title_status_column='ELIG',
+                                      title_status_tone_column='NOPE')))
+
+    def test_badges(self):
+        cfg = dict(self.BASE, badges=[
+            {'column': 'MBI', 'label': 'MBI', 'copy': True},
+            {'column': 'EID', 'label': 'EID', 'copy': 'true'},   # blank value → hidden
+            {'column': 'PROVIDER_NAME'},                          # label: spec → override → column
+            {'column': ''},
+        ], label_overrides={'PROVIDER_NAME': 'Provider'})
+        self.assertEqual(F(self.COLS2, [self.ROW2], cfg)['badges'], [
+            {'key': 'MBI', 'label': 'MBI', 'value': '1EG4-TE5-MK72', 'copy': True},
+            {'key': 'PROVIDER_NAME', 'label': 'Provider',
+             'value': 'Upperline Healthcare PC', 'copy': False},
+        ])
+        self.assertEqual(F(self.COLS2, [self.ROW2], dict(self.BASE, badges=[{'column': 'PLAN_COUNT'}]))['badges'],
+                         [{'key': 'PLAN_COUNT', 'label': 'PLAN_COUNT', 'value': '8', 'copy': False}])
+        # JSON-string form (visual_config round-trip) and fail-closed column.
+        self.assertEqual(F(self.COLS2, [self.ROW2], dict(self.BASE, badges='[{"column": "MBI"}]'))['badges'][0]['value'],
+                         '1EG4-TE5-MK72')
+        self.assertIn('error', F(self.COLS2, [self.ROW2], dict(self.BASE, badges=[{'column': 'NOPE'}])))
+
+    def test_subtitle_items(self):
+        cfg = dict(self.BASE, subtitle_items=[
+            {'column': 'GENDER', 'icon': 'fa-user'},
+            {'column': 'EID', 'icon': 'fa-id-card'},   # blank value → skipped
+            {'column': ''},
+        ])
+        out = F(self.COLS2, [self.ROW2], cfg)
+        self.assertEqual(out['subtitle_items'], [{'icon': 'fa-user', 'value': 'Male'}])
+        self.assertEqual(out['subtitle'], 'Provider group')   # plain subtitle still emitted
+        self.assertIn('error', F(self.COLS2, [self.ROW2], dict(self.BASE, subtitle_items=[{'column': 'NOPE'}])))
+
+    def test_empty_text(self):
+        self.assertEqual(F(COLS, [], self.BASE), {'type': 'record_header', 'empty': True})
+        self.assertEqual(F(COLS, [], dict(self.BASE, empty_text=' Find a member to begin ')),
+                         {'type': 'record_header', 'empty': True,
+                          'empty_text': 'Find a member to begin'})
+        # Generic: the classic layout gets the placeholder too.
+        self.assertEqual(F(COLS, [], {'empty_text': 'x'})['empty_text'], 'x')
+        self.assertEqual(F(COLS, [], {}), {'type': 'record_header', 'empty': True})
+
+
 if __name__ == '__main__':
     unittest.main()

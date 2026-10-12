@@ -11,10 +11,21 @@ import React from 'react'
  *   avatar_mode      'initials' | 'none'
  *   avatar_color     hex
  *   avatar_shape     'circle' | 'rounded'          (scorecard)
+ *   empty_text       placeholder when the query returns no row (both layouts)
  *   label_overrides  {column: label}               (classic footer labels)
  *   subtitle_column  column name                   (scorecard)
- *   stats            [{column, label, icon, format}] (scorecard, 1..6)
+ *   subtitle_items   [{column, icon}]              (scorecard; replaces subtitle)
+ *   title_status_column, title_status_tone_column  (scorecard; pill by the title)
+ *   badges           [{column, label, copy}]       (scorecard; identifier pills)
+ *   stats_style      'tiles' | 'panel'             (scorecard)
+ *   stats            [{column, label, icon, format, caption_column,
+ *                      status_column, status_tone_column,
+ *                      color_value_by_status, ...}] (scorecard, 1..6)
  *   chips_column, chips_label, chip_color, chip_text_color (scorecard)
+ *
+ * Tone columns return a word: success | warning | danger | info | neutral.
+ * Every key here is opt-in: a blank value emits nothing, so a header saved
+ * before a key existed renders exactly as it did.
  *
  * Title (x_column) and classic footer columns (y_columns) stay in the SQL
  * step's column mapping; this panel lists the SQL result columns so the
@@ -26,17 +37,29 @@ const FORMATS = [
   { value: 'text',    label: 'Text (as is)' },
 ]
 
+const TONE_HELP = 'Tone column: the SQL returns success, warning, danger, info or neutral — the colour comes from the palette, never from SQL.'
+
 export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumns = '', visualFlags = {}, onFlagChange }) {
   const vf = visualFlags || {}
   const set = (k, v) => onFlagChange(k, v)
   const layout = vf.header_layout || 'classic'
   const stats = Array.isArray(vf.stats) ? vf.stats : []
+  const badges = Array.isArray(vf.badges) ? vf.badges : []
+  const subtitleItems = Array.isArray(vf.subtitle_items) ? vf.subtitle_items : []
   const overrides = vf.label_overrides || {}
   const footerCols = String(yColumns || '').split(',').map(s => s.trim()).filter(Boolean)
 
   const setStat = (idx, patch) => set('stats', stats.map((s, i) => (i === idx ? { ...s, ...patch } : s)))
   const addStat = () => set('stats', [...stats, { column: '', label: '', icon: '', format: 'number' }])
   const removeStat = (idx) => set('stats', stats.filter((_, i) => i !== idx))
+
+  const setBadge = (idx, patch) => set('badges', badges.map((b, i) => (i === idx ? { ...b, ...patch } : b)))
+  const addBadge = () => set('badges', [...badges, { column: '', label: '', copy: true }])
+  const removeBadge = (idx) => set('badges', badges.filter((_, i) => i !== idx))
+
+  const setItem = (idx, patch) => set('subtitle_items', subtitleItems.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
+  const addItem = () => set('subtitle_items', [...subtitleItems, { column: '', icon: '' }])
+  const removeItem = (idx) => set('subtitle_items', subtitleItems.filter((_, i) => i !== idx))
 
   const colOptions = (blankLabel) => (
     <>
@@ -84,6 +107,16 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
         </div>
       </div>
 
+      <div className="wb-field-row">
+        <label className="wb-field-label">
+          Empty State Text
+          <i className="fa fa-info-circle wb-flag-info"
+             title="Shown as a quiet placeholder when the query returns no row (e.g. no record selected yet). Blank = the header is hidden, as before." />
+        </label>
+        <input type="text" className="wb-input wb-input--sm" placeholder="e.g. Find a member to begin" style={{ maxWidth: 360 }}
+          value={vf.empty_text || ''} onChange={e => set('empty_text', e.target.value)} />
+      </div>
+
       {layout === 'classic' && footerCols.length > 0 && (
         <div className="wb-field-row">
           <label className="wb-field-label">
@@ -105,11 +138,88 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
         <>
           <div className="wb-field-row">
             <label className="wb-field-label">
+              Title Status Chip
+              <i className="fa fa-info-circle wb-flag-info"
+                 title={`Optional coloured pill beside the title, e.g. "Currently eligible". Text column = the words; ${TONE_HELP}`} />
+            </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <select className="wb-select wb-select--sm" value={vf.title_status_column || ''} onChange={e => set('title_status_column', e.target.value)}>
+                {colOptions('— status text column (none) —')}
+              </select>
+              <select className="wb-select wb-select--sm" value={vf.title_status_tone_column || ''} onChange={e => set('title_status_tone_column', e.target.value)}>
+                {colOptions('— tone column (neutral) —')}
+              </select>
+            </div>
+          </div>
+
+          <div className="wb-field-row">
+            <label className="wb-field-label">
               Subtitle Column
-              <i className="fa fa-info-circle wb-flag-info" title="Optional text shown under the title, e.g. 'Provider group · Humana MA'." />
+              <i className="fa fa-info-circle wb-flag-info" title="Optional text shown under the title, e.g. 'Provider group · Humana MA'. Ignored when Subtitle Items are set." />
             </label>
             <select className="wb-select wb-select--sm" value={vf.subtitle_column || ''} onChange={e => set('subtitle_column', e.target.value)}>
               {colOptions('(none)')}
+            </select>
+          </div>
+
+          <div className="wb-field-row">
+            <label className="wb-field-label">
+              Subtitle Items (with icons)
+              <i className="fa fa-info-circle wb-flag-info"
+                 title="Optional: one column per item, shown as 'icon value' separated by dots (e.g. fa-user Male · fa-calendar 80 yrs). Replaces the Subtitle Column when any item is set. A blank value hides its item." />
+            </label>
+            {subtitleItems.map((it, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr auto', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                <select className="wb-select wb-select--sm" value={it.column || ''} onChange={e => setItem(i, { column: e.target.value })}>
+                  {colOptions('— column —')}
+                </select>
+                <input type="text" className="wb-input wb-input--sm" placeholder="fa-user" value={it.icon || ''} onChange={e => setItem(i, { icon: e.target.value })} />
+                <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={() => removeItem(i)} aria-label="Remove item">
+                  <i className="fa fa-times" />
+                </button>
+              </div>
+            ))}
+            <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={addItem}>
+              <i className="fa fa-plus me-1" /> Add Item
+            </button>
+          </div>
+
+          <div className="wb-field-row">
+            <label className="wb-field-label">
+              Identifier Badges
+              <i className="fa fa-info-circle wb-flag-info"
+                 title="Optional pills under the subtitle: small label + value (e.g. MEMBER ID 362905714), with a click-to-copy button when Copy is on. A NULL value hides its badge. Label blank = the column name." />
+            </label>
+            {badges.map((b, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr auto auto', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                <select className="wb-select wb-select--sm" value={b.column || ''} onChange={e => setBadge(i, { column: e.target.value })}>
+                  {colOptions('— column —')}
+                </select>
+                <input type="text" className="wb-input wb-input--sm" placeholder="Label" value={b.label || ''} onChange={e => setBadge(i, { label: e.target.value })} />
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                  <input type="checkbox" checked={b.copy !== false && b.copy !== 'false'}
+                    onChange={e => setBadge(i, { copy: e.target.checked })} />
+                  Copy
+                </label>
+                <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={() => removeBadge(i)} aria-label="Remove badge">
+                  <i className="fa fa-times" />
+                </button>
+              </div>
+            ))}
+            <button type="button" className="wb-btn wb-btn--outline wb-btn--sm" onClick={addBadge}>
+              <i className="fa fa-plus me-1" /> Add Badge
+            </button>
+          </div>
+
+          <div className="wb-field-row">
+            <label className="wb-field-label">
+              Stats Style
+              <i className="fa fa-info-circle wb-flag-info"
+                 title="Tiles: each stat in its own rounded tile (default). Panel: one grey panel beside the identity with hairline dividers; 4 across, then 2×2, then a full-width band as the card narrows." />
+            </label>
+            <select className="wb-select wb-select--sm" value={vf.stats_style || 'tiles'} onChange={e => set('stats_style', e.target.value)}>
+              <option value="tiles">Tiles (default)</option>
+              <option value="panel">Panel (prototype look)</option>
             </select>
           </div>
 
@@ -160,6 +270,23 @@ export default function RecordHeaderConfig({ columns = [], xColumn = '', yColumn
                     <input type="checkbox" checked={s.higher_is_better !== false}
                       onChange={e => setStat(i, { higher_is_better: e.target.checked })} />
                     Higher is better (green when up)
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, marginTop: 6, alignItems: 'center' }}
+                     title={`Caption = small text after the value (e.g. a month). Status = pill text after the value. ${TONE_HELP}`}>
+                  <select className="wb-select wb-select--sm" value={s.caption_column || ''} onChange={e => setStat(i, { caption_column: e.target.value })}>
+                    {colOptions('— caption column —')}
+                  </select>
+                  <select className="wb-select wb-select--sm" value={s.status_column || ''} onChange={e => setStat(i, { status_column: e.target.value })}>
+                    {colOptions('— status text column —')}
+                  </select>
+                  <select className="wb-select wb-select--sm" value={s.status_tone_column || ''} onChange={e => setStat(i, { status_tone_column: e.target.value })}>
+                    {colOptions('— status tone column —')}
+                  </select>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={s.color_value_by_status === true || s.color_value_by_status === 'true'}
+                      onChange={e => setStat(i, { color_value_by_status: e.target.checked })} />
+                    Colour value by status
                   </label>
                 </div>
               </div>

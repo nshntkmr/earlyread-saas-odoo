@@ -24,6 +24,33 @@ identity):
 
 DEFAULT_AVATAR_COLOR = '#087ad8'
 
+# Tone palette for the opt-in status pills (title status / tile status). The
+# SQL returns a TONE WORD, never a colour; unknown or blank words fall back to
+# neutral. Values mirror widget_config_defaults.DEFAULT_STYLES + NEUTRAL_STATUS
+# (the attribute_grid / metric_list palette) — duplicated here because this
+# module must stay import-free so the standalone tests can load it by path.
+TONE_COLORS = {
+    'info':    {'color': '#087ad8', 'background': '#e7f1fb'},
+    'success': {'color': '#059669', 'background': '#ecfdf5'},
+    'warning': {'color': '#d97706', 'background': '#fef3c7'},
+    'danger':  {'color': '#dc2626', 'background': '#fee2e2'},
+    'neutral': {'color': '#6b7280', 'background': '#f3f4f6'},
+}
+
+
+def _status(text, tone):
+    """Status pill payload: text + the tone's colours (unknown → neutral)."""
+    colours = TONE_COLORS.get(str(tone or '').strip().lower()) or TONE_COLORS['neutral']
+    return {'text': text, 'color': colours['color'],
+            'background': colours['background']}
+
+
+def _truthy(val):
+    """visual_config booleans arrive as bool, int or text ('true')."""
+    if isinstance(val, str):
+        return val.strip().lower() in ('1', 'true', 'yes', 'on')
+    return bool(val)
+
 
 def _cell(row, idx):
     """Render a cell as text; DB NULL/None → '' (never the string 'None')."""
@@ -59,7 +86,13 @@ def format_record_header(cols, rows, config):
 
     # ── Row cardinality (fail closed) ──────────────────────────────────
     if not rows:
-        return {'type': 'record_header', 'empty': True}
+        empty = {'type': 'record_header', 'empty': True}
+        # Opt-in placeholder ("Find a member to begin"). Absent → the grid
+        # drops the empty header exactly as before.
+        empty_text = str(config.get('empty_text') or '').strip()
+        if empty_text:
+            empty['empty_text'] = empty_text
+        return empty
     if len(rows) > 1:
         return {'type': 'record_header',
                 'error': 'Identity query returned multiple rows'}
@@ -134,6 +167,63 @@ def format_record_header(cols, rows, config):
     else:
         payload['subtitle'] = ''
 
+    # ── Opt-in identity extras — an absent config key emits NO payload key,
+    #    so headers configured before these existed are byte-identical. ────
+    # subtitle_items: [{column, icon}] → "icon value" items; the renderers
+    # show them instead of the plain subtitle when present.
+    items_cfg = _as_list(config.get('subtitle_items'))
+    if items_cfg:
+        items = []
+        for spec in items_cfg:
+            col = str(spec.get('column') or '').strip()
+            if not col:
+                continue
+            if col not in col_idx:
+                return {'type': 'record_header',
+                        'error': 'Configured subtitle item column not found: %s' % col}
+            val = _cell(row, col_idx[col])
+            if val:
+                items.append({'icon': str(spec.get('icon') or '').strip(), 'value': val})
+        payload['subtitle_items'] = items
+
+    # title_status_column (+ optional tone column) → coloured pill by the title.
+    ts_col = str(config.get('title_status_column') or '').strip()
+    if ts_col:
+        if ts_col not in col_idx:
+            return {'type': 'record_header',
+                    'error': 'Configured title status column not found: %s' % ts_col}
+        tone_col = str(config.get('title_status_tone_column') or '').strip()
+        if tone_col and tone_col not in col_idx:
+            return {'type': 'record_header',
+                    'error': 'Configured title status tone column not found: %s' % tone_col}
+        text = _cell(row, col_idx[ts_col])
+        if text:
+            payload['title_status'] = _status(
+                text, _cell(row, col_idx[tone_col]) if tone_col else '')
+
+    # badges: [{column, label, copy}] → identifier pills under the subtitle.
+    # A NULL/blank value hides its badge rather than printing an empty pill.
+    badges_cfg = _as_list(config.get('badges'))
+    if badges_cfg:
+        badges = []
+        for spec in badges_cfg:
+            col = str(spec.get('column') or '').strip()
+            if not col:
+                continue
+            if col not in col_idx:
+                return {'type': 'record_header',
+                        'error': 'Configured badge column not found: %s' % col}
+            val = _cell(row, col_idx[col])
+            if not val:
+                continue
+            badges.append({
+                'key': col,
+                'label': (spec.get('label') or overrides.get(col) or col),
+                'value': val,
+                'copy': _truthy(spec.get('copy')),
+            })
+        payload['badges'] = badges
+
     # Tile colours: per-tile override → header-wide default → blank (CSS
     # default). Blank keys are omitted from the payload so the renderers'
     # stylesheet defaults apply unchanged.
@@ -172,8 +262,38 @@ def format_record_header(cols, rows, config):
                            higher_is_better=spec.get('higher_is_better', True))
             if trend:
                 stat['trend'] = trend
+        # Optional caption: small text after the value (e.g. "Aug 2026").
+        cap_col = str(spec.get('caption_column') or '').strip()
+        if cap_col:
+            if cap_col not in col_idx:
+                return {'type': 'record_header',
+                        'error': 'Configured caption column not found: %s' % cap_col}
+            caption = _cell(row, col_idx[cap_col])
+            if caption:
+                stat['caption'] = caption
+        # Optional status pill (+ tone column). color_value_by_status paints
+        # the value in the pill's colour (e.g. MLR red above 100%).
+        st_col = str(spec.get('status_column') or '').strip()
+        if st_col:
+            if st_col not in col_idx:
+                return {'type': 'record_header',
+                        'error': 'Configured status column not found: %s' % st_col}
+            tone_col = str(spec.get('status_tone_column') or '').strip()
+            if tone_col and tone_col not in col_idx:
+                return {'type': 'record_header',
+                        'error': 'Configured status tone column not found: %s' % tone_col}
+            text = _cell(row, col_idx[st_col])
+            if text:
+                stat['status'] = _status(
+                    text, _cell(row, col_idx[tone_col]) if tone_col else '')
+                if _truthy(spec.get('color_value_by_status')):
+                    stat['value_color'] = stat['status']['color']
         stats.append(stat)
     payload['stats'] = stats
+    # stats_style 'panel' = one grey panel with hairline dividers (the
+    # prototype look); anything else keeps today's tiles and emits no key.
+    if str(config.get('stats_style') or '').strip() == 'panel':
+        payload['stats_style'] = 'panel'
 
     chips_col = (config.get('chips_column') or '').strip()
     chips = []

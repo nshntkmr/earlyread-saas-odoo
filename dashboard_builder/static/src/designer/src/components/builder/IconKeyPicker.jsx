@@ -13,7 +13,9 @@ export default function IconKeyPicker({ apiBase, value, onChange, allowEmpty = t
 
   useEffect(() => {
     if (_cache) return
-    designerFetch(`${apiBase}/dashboard/designer/api/icons`)
+    // apiBase is already the Designer API root (/dashboard/designer/api) —
+    // same convention as every other endpoint builder in api/endpoints.js.
+    designerFetch(`${apiBase}/icons`)
       .then((rows) => { _cache = rows || []; setIcons(_cache) })
       .catch(() => setIcons([]))
   }, [apiBase])
