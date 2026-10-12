@@ -782,7 +782,10 @@ class DashboardWidget(models.Model):
     ], default='right', string='Text Align')
     annotation_font_size = fields.Integer(string='Font Size', default=12)
     annotation_color = fields.Char(string='Annotation Color', default='#6b7280',
-        help='Hex color for annotation text')
+        help='Hex color for annotation text / the header badge. For the badge '
+             'it may also be a %(column)s template (like Annotation Text): the '
+             'column returns a hex or a tone word — success, warning, danger, '
+             'info, neutral — so the colour follows the data, e.g. %(RISK_TONE)s.')
 
     # ── Hatched / Pattern fills ────────────────────────────────────────────
     pattern_style = fields.Selection([
@@ -5842,6 +5845,16 @@ class DashboardWidget(models.Model):
         resolved_annotation = _interp(self.annotation_text)
         if resolved_annotation:
             result['_resolved_annotation_text'] = resolved_annotation
+
+        # Header-badge colour from SQL (opt-in): ONLY a %(column)s template is
+        # resolved; a plain hex / the field default emits no key, so existing
+        # widgets' payloads are unchanged. resolve_badge_colour validates the
+        # substituted value (hex or tone word; anything else — including an
+        # unresolved template — → '' = classic grey), so SQL never injects CSS.
+        colour_tpl = self.annotation_color or ''
+        if '%(' in colour_tpl:
+            from ..utils.annotation_colors import resolve_badge_colour
+            result['_resolved_annotation_color'] = resolve_badge_colour(_interp(colour_tpl))
 
         # Also resolve annotation_value from annotation query if column is set
         if self.annotation_value_column and self.annotation_value_column in template_vars:

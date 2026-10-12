@@ -19,3 +19,4 @@ from . import test_projection_service
 from . import test_projection_publisher
 from . import test_scope_option_default
 from . import test_pdf_export
+from . import test_annotation_colors

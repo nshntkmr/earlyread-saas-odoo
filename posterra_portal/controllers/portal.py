@@ -307,6 +307,19 @@ def _build_initial_widgets_json(widgets, widget_data):
         resolved_footnote = wd.pop('_resolved_footnote', '') or w.footnote or ''
         resolved_info_text = wd.pop('_resolved_info_text', '') or w.info_text or ''
         resolved_annotation_text = wd.pop('_resolved_annotation_text', '') or w.annotation_text or ''
+        # Badge colour: a %(column)s template is resolved by
+        # _interpolate_annotations (validated hex or '' = classic grey). When
+        # it could not run (widget error / no data) the raw template must not
+        # reach React as a "colour", so it is sent blank. The field default
+        # #6b7280 is sent blank too (see the comment on annotation_color).
+        resolved_annotation_color = wd.pop('_resolved_annotation_color', None)
+        raw_annotation_color = w.annotation_color or ''
+        if resolved_annotation_color is not None:
+            annotation_color = resolved_annotation_color
+        elif '%(' in raw_annotation_color or raw_annotation_color.lower() == '#6b7280':
+            annotation_color = ''
+        else:
+            annotation_color = raw_annotation_color
 
         result[str(w.id)] = {
             'id':           w.id,
@@ -342,8 +355,7 @@ def _build_initial_widgets_json(widgets, widget_data):
             # existing badge carries without anyone choosing it → sent as ''
             # so those badges keep their classic grey look; only an explicitly
             # chosen colour reaches React.
-            'annotation_color':   (w.annotation_color or '')
-                                  if (w.annotation_color or '').lower() != '#6b7280' else '',
+            'annotation_color':   annotation_color,
             # Widget-level click action (for charts — bar / line / scatter / etc.)
             # Tables use per-column click actions inside table_column_config
             # which is serialized as part of `data` below. These four fields are
