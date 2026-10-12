@@ -327,6 +327,12 @@
                                     <field name="render_region"/>
                                     <field name="chart_type"/>
                                     <field name="col_span"/>
+                                    <!-- Custom width + row span inline, so a page's
+                                         grid can be arranged here without opening
+                                         each widget. -->
+                                    <field name="width_pct" string="Width (%)"
+                                           optional="show"/>
+                                    <field name="row_span" optional="show"/>
                                     <field name="color_palette"/>
                                     <field name="is_active"/>
                                 </list>

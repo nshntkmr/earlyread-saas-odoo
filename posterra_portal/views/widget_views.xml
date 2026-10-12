@@ -106,6 +106,11 @@
                             <field name="max_width_pct"
                                    placeholder="0 = no limit"
                                    help="Max width 1-100%. Limits auto-scaling. 0 = no limit."/>
+                            <!-- Stored + rendered since the grid gained row spans and
+                                 set by the Designer at placement, but it was never on
+                                 this form: a tall card beside two stacked cards could
+                                 only be arranged by re-placing the widget. -->
+                            <field name="row_span"/>
                             <field name="chart_height"/>
                             <field name="color_palette"
                                    invisible="chart_type == 'table'"/>
