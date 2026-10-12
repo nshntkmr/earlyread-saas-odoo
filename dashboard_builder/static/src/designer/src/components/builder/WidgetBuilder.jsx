@@ -830,7 +830,13 @@ export default function WidgetBuilder({
     setSaving(true)
     setSaveError(null)
     try {
-      const payload = { ...buildCreatePayload(state), ...overrides }
+      // Only a plain object may extend the payload. A "Save" button that
+      // passes this function straight to onClick hands it the click EVENT;
+      // spreading that pulled DOM nodes into the body and JSON.stringify
+      // died with "Converting circular structure to JSON (HTMLButtonElement)".
+      const extra = (overrides && Object.getPrototypeOf(overrides) === Object.prototype)
+        ? overrides : {}
+      const payload = { ...buildCreatePayload(state), ...extra }
       let result
       if (editId) {
         result = await designerFetch(libraryDetailUrl(apiBase, editId), {
