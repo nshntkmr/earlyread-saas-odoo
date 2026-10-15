@@ -10,7 +10,7 @@ import json
 import logging
 import math
 
-from . import bar_value_labels
+from . import bar_value_labels, heatmap_cells
 
 _logger = logging.getLogger(__name__)
 
@@ -1635,6 +1635,9 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
                               'data': [[x, y] for x, y in zip(x_data, y_data)]}]
 
     elif chart_type == 'heatmap':
+        # "Leave SQL NULL Cells Empty" keeps NULL as an undrawn cell (shared
+        # with the portal builder; off → the historical `or 0`).
+        blank_null = heatmap_cells.blank_null_on(vc)
         x_vals = sorted({str(col_val(r, x_col) or '') for r in rows})
         y_vals = sorted({str(col_val(r, y_col_list[0]) or '') for r in rows}) if y_col_list else []
         z_col = y_col_list[1] if len(y_col_list) > 1 else (columns[2] if len(columns) > 2 else None)
@@ -1643,12 +1646,13 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             xi = x_vals.index(str(col_val(r, x_col) or ''))
             yi = y_vals.index(str(col_val(r, y_col_list[0]) or '')) if y_col_list else 0
             zv = col_val(r, z_col) if z_col else 0
-            heat_data.append([xi, yi, zv or 0])
+            heat_data.append([xi, yi, heatmap_cells.cell_value(zv, blank_null)])
+        vmin, vmax = heatmap_cells.value_range(heat_data)
         option['xAxis'] = {'type': 'category', 'data': x_vals}
         option['yAxis'] = {'type': 'category', 'data': y_vals}
         option['visualMap'] = {
-            'min': min((d[2] for d in heat_data), default=0),
-            'max': max((d[2] for d in heat_data), default=1),
+            'min': vmin,
+            'max': vmax,
             'calculable': True,
             'orient': 'horizontal', 'left': 'center', 'bottom': '5%',
             'inRange': {'color': (colors[:2] if len(colors) >= 2

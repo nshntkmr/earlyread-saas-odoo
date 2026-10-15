@@ -2246,6 +2246,23 @@ KEY_TAKEAWAYS_FLAGS = [
     },
 ]
 
+# ─ Heatmap flags ─────────────────────────────────────────────────────────────
+# Column mapping: x_column = column category, y_columns[0] = row category,
+# y_columns[1] (or the 3rd SQL column) = cell value. Implemented once in
+# services/heatmap_cells.py for the portal builder AND the designer preview.
+HEATMAP_FLAGS = [
+    {
+        'flag': 'heatmap_blank_null',
+        'type': 'boolean',
+        'default': False,
+        'label': 'Leave SQL NULL Cells Empty',
+        'help': 'Off (default): every empty value is drawn as 0. '
+                'On: a SQL NULL draws no cell at all — no colour, no value label — '
+                'so the grid shows a blank where there is nothing to count. '
+                'Return NULL for "nothing there" and 0 for a real zero.',
+    },
+]
+
 CHART_FLAGS = {
     'bar': COMMON_FLAGS + BAR_FLAGS,
     'pie': COMMON_FLAGS + PIE_FLAGS,
@@ -2258,6 +2275,7 @@ CHART_FLAGS = {
     'sankey': COMMON_FLAGS + SANKEY_FLAGS,
     'sankey_member_flow': COMMON_FLAGS,
     'key_takeaways': COMMON_FLAGS + KEY_TAKEAWAYS_FLAGS,
+    'heatmap': COMMON_FLAGS + HEATMAP_FLAGS,
     # 'radar': RADAR_FLAGS,   # future
     'map': MAP_FLAGS,
     'albers_choropleth': ALBERS_CHOROPLETH_FLAGS,
