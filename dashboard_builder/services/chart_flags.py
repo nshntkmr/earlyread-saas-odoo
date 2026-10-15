@@ -2261,6 +2261,18 @@ HEATMAP_FLAGS = [
                 'so the grid shows a blank where there is nothing to count. '
                 'Return NULL for "nothing there" and 0 for a real zero.',
     },
+    {
+        'flag': 'heatmap_label_column',
+        'type': 'text',
+        'default': '',
+        'label': 'Cell Label Column',
+        'help': 'Optional. SQL column whose text is printed on each cell instead '
+                'of the value; the colour still follows the value. Use it for '
+                'suppressed counts ("<11"), or for a totals row/column whose cells '
+                'carry -1: with "range": [0, 100000] and an "outOfRange" colour in '
+                'the ECharts override (and no "min"), those cells draw in that '
+                'colour while the label prints the total.',
+    },
 ]
 
 CHART_FLAGS = {

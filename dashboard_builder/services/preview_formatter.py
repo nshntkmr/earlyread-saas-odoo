@@ -1638,6 +1638,8 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
         # "Leave SQL NULL Cells Empty" keeps NULL as an undrawn cell (shared
         # with the portal builder; off → the historical `or 0`).
         blank_null = heatmap_cells.blank_null_on(vc)
+        # "Cell Label Column": a 4th element per cell carries the label text.
+        label_col = heatmap_cells.label_column(vc, columns)
         x_vals = sorted({str(col_val(r, x_col) or '') for r in rows})
         y_vals = sorted({str(col_val(r, y_col_list[0]) or '') for r in rows}) if y_col_list else []
         z_col = y_col_list[1] if len(y_col_list) > 1 else (columns[2] if len(columns) > 2 else None)
@@ -1646,7 +1648,10 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
             xi = x_vals.index(str(col_val(r, x_col) or ''))
             yi = y_vals.index(str(col_val(r, y_col_list[0]) or '')) if y_col_list else 0
             zv = col_val(r, z_col) if z_col else 0
-            heat_data.append([xi, yi, heatmap_cells.cell_value(zv, blank_null)])
+            point = [xi, yi, heatmap_cells.cell_value(zv, blank_null)]
+            if label_col:
+                point.append(heatmap_cells.label_text(col_val(r, label_col)))
+            heat_data.append(point)
         vmin, vmax = heatmap_cells.value_range(heat_data)
         option['xAxis'] = {'type': 'category', 'data': x_vals}
         option['yAxis'] = {'type': 'category', 'data': y_vals}
@@ -1660,6 +1665,9 @@ def _build_echart_preview(chart_type, columns, rows, config, visual_config=None)
         }
         option['series'] = [{'type': 'heatmap', 'data': heat_data,
                               'label': {'show': True}}]
+        if label_col:
+            option['series'][0]['label']['formatter'] = heatmap_cells.LABEL_FORMATTER
+            option['visualMap']['dimension'] = heatmap_cells.VALUE_DIMENSION
 
     # ── Apply visual flags (chart-library-agnostic → ECharts translation) ──
     if chart_type == 'bar' and vc:

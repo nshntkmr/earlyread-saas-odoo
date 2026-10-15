@@ -3098,6 +3098,8 @@ class DashboardWidget(models.Model):
             except (json.JSONDecodeError, TypeError):
                 _vc_heat = {}
             blank_null = heatmap_cells.blank_null_on(_vc_heat)
+            # "Cell Label Column": a 4th element per cell carries the label text.
+            label_col = heatmap_cells.label_column(_vc_heat, cols)
             x_vals = sorted({str(col_val(r, x_col) or '') for r in rows})
             y_vals = sorted({str(col_val(r, y_col_list[0]) or '') for r in rows}) if y_col_list else []
             z_col = y_col_list[1] if len(y_col_list) > 1 else (cols[2] if len(cols) > 2 else None)
@@ -3106,7 +3108,10 @@ class DashboardWidget(models.Model):
                 xi = x_vals.index(str(col_val(r, x_col) or ''))
                 yi = y_vals.index(str(col_val(r, y_col_list[0]) or '')) if y_col_list else 0
                 zv = col_val(r, z_col) if z_col else 0
-                heat_data.append([xi, yi, heatmap_cells.cell_value(zv, blank_null)])
+                point = [xi, yi, heatmap_cells.cell_value(zv, blank_null)]
+                if label_col:
+                    point.append(heatmap_cells.label_text(col_val(r, label_col)))
+                heat_data.append(point)
             vmin, vmax = heatmap_cells.value_range(heat_data)
             option['xAxis'] = {'type': 'category', 'data': x_vals}
             option['yAxis'] = {'type': 'category', 'data': y_vals}
@@ -3120,6 +3125,11 @@ class DashboardWidget(models.Model):
             }
             option['series'] = [{'type': 'heatmap', 'data': heat_data,
                                   'label': {'show': True}}]
+            if label_col:
+                # Print the 4th element; keep colouring by the value (ECharts
+                # would otherwise map the LAST dimension — the label text).
+                option['series'][0]['label']['formatter'] = heatmap_cells.LABEL_FORMATTER
+                option['visualMap']['dimension'] = heatmap_cells.VALUE_DIMENSION
 
         elif ct == 'sankey':
             # Sankey requires (source, target, value[, category]) rows.
