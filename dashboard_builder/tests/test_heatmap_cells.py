@@ -59,6 +59,32 @@ class TestCellValue(unittest.TestCase):
         self.assertEqual(hc.cell_value(Decimal('2.5'), True), Decimal('2.5'))
 
 
+class TestLabelColumn(unittest.TestCase):
+
+    COLS = ['MONTH', 'CLAIM_TYPE', 'VALUE', 'LABEL']
+
+    def test_off_unless_set_and_present(self):
+        for vc in ({}, None, [], {'heatmap_label_column': ''},
+                   {'heatmap_label_column': '  '}, {'heatmap_label_column': 7},
+                   {'heatmap_label_column': 'MISSING'}):
+            self.assertEqual(hc.label_column(vc, self.COLS), '', vc)
+        self.assertEqual(hc.label_column({'heatmap_label_column': 'LABEL'}, []), '')
+
+    def test_on_when_the_query_returns_it(self):
+        self.assertEqual(hc.label_column({'heatmap_label_column': 'LABEL'}, self.COLS), 'LABEL')
+        self.assertEqual(hc.label_column({'heatmap_label_column': ' LABEL '}, self.COLS), 'LABEL')
+        self.assertEqual(hc.LABEL_COLUMN_FLAG, 'heatmap_label_column')
+        self.assertEqual(hc.LABEL_FORMATTER, '{@[3]}')
+        self.assertEqual(hc.VALUE_DIMENSION, 2)
+
+    def test_label_text(self):
+        self.assertEqual(hc.label_text(None), '')
+        self.assertEqual(hc.label_text(''), '')
+        self.assertEqual(hc.label_text('<11'), '<11')
+        self.assertEqual(hc.label_text(7), '7')
+        self.assertEqual(hc.label_text(Decimal('7')), '7')
+
+
 class TestValueRange(unittest.TestCase):
 
     def test_historical_defaults_and_minmax(self):

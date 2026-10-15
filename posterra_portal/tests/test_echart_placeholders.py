@@ -190,3 +190,58 @@ class TestHeatmapBlankCells(TransactionCase):
             self.assertEqual(self._cells(preview), self._cells(portal), flag)
             self.assertEqual(preview['visualMap']['min'], portal['visualMap']['min'])
             self.assertEqual(preview['visualMap']['max'], portal['visualMap']['max'])
+
+
+@tagged('posterra_echart_placeholders', 'post_install', '-at_install')
+class TestHeatmapLabelColumn(TransactionCase):
+    """"Cell Label Column": the 4th element of every cell is the label text,
+    the series prints it and visualMap keeps colouring by the value."""
+
+    COLS = ['MONTH', 'CLAIM_TYPE', 'VALUE', 'LABEL']
+    ROWS = [['2026-01', 'Office visit', 3, '3'],
+            ['2026-02', 'Office visit', None, ''],      # blank cell
+            ['Total', 'Office visit', -1, '7'],         # totals cell: out of range, label prints
+            ['2026-01', 'All claim types', -1, '3']]
+    CONFIG = {'x_column': 'MONTH', 'y_columns': 'CLAIM_TYPE, VALUE'}
+
+    def _heat(self, vc):
+        return self.env['dashboard.widget'].new({
+            'chart_type': 'heatmap', 'name': 'H', 'query_type': 'sql',
+            'x_column': 'MONTH', 'y_columns': 'CLAIM_TYPE, VALUE',
+            'visual_config': json.dumps(vc)})
+
+    def test_label_dimension_formatter_and_value_mapping(self):
+        vc = {'heatmap_blank_null': True, 'heatmap_label_column': 'LABEL'}
+        opt = self._heat(vc)._build_echart_option(self.COLS, self.ROWS)
+        series = opt['series'][0]
+        points = sorted(series['data'], key=lambda d: (d[0], d[1]))
+        # x sorted: '2026-01' < '2026-02' < 'Total'; y sorted: 'All claim types' < 'Office visit'
+        self.assertEqual(points, [[0, 0, -1, '3'], [0, 1, 3, '3'],
+                                  [1, 1, None, ''], [2, 1, -1, '7']])
+        self.assertEqual(series['label'], {'show': True, 'formatter': '{@[3]}'})
+        self.assertEqual(opt['visualMap']['dimension'], 2)
+        # the range still comes from the values (the -1 totals included, so a
+        # widget override sets min: 0 to push them out of range)
+        self.assertEqual((opt['visualMap']['min'], opt['visualMap']['max']), (-1, 3))
+
+    def test_unset_or_missing_column_is_byte_identical(self):
+        base = self._heat({'heatmap_blank_null': True})._build_echart_option(self.COLS, self.ROWS)
+        for vc in ({'heatmap_blank_null': True, 'heatmap_label_column': ''},
+                   {'heatmap_blank_null': True, 'heatmap_label_column': 'NOT_IN_RESULT'}):
+            opt = self._heat(vc)._build_echart_option(self.COLS, self.ROWS)
+            self.assertEqual(json.dumps(opt, default=str, sort_keys=True),
+                             json.dumps(base, default=str, sort_keys=True), vc)
+        self.assertEqual(len(base['series'][0]['data'][0]), 3)
+        self.assertNotIn('formatter', base['series'][0]['label'])
+        self.assertNotIn('dimension', base['visualMap'])
+
+    def test_designer_preview_parity(self):
+        vc = {'heatmap_blank_null': True, 'heatmap_label_column': 'LABEL'}
+        portal = self._heat(vc)._build_echart_option(self.COLS, self.ROWS)
+        preview = preview_formatter.format_preview(
+            'heatmap', self.COLS, self.ROWS, config=self.CONFIG,
+            visual_config=vc)['echart_option']
+        self.assertEqual(sorted(preview['series'][0]['data']),
+                         sorted(portal['series'][0]['data']))
+        self.assertEqual(preview['series'][0]['label'], portal['series'][0]['label'])
+        self.assertEqual(preview['visualMap']['dimension'], portal['visualMap']['dimension'])
