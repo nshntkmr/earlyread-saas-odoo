@@ -13,11 +13,21 @@
     list in the override would replace the SQL-built series.
 
 Example — a band behind the month the user picked on a month × category
-heatmap, in visual_config::
+heatmap: a pinned axis-pointer shadow in the ECharts Override (verified by
+rendering the portal's ECharts build server-side)::
 
-    {"series_styles": {"*": {"markArea": {"itemStyle": {"color": "rgba(29,95,191,0.14)"},
-        "data": [[{"xAxis": "%(SERVICE_YEAR)s-%(SERVICE_MONTH)s"},
-                  {"xAxis": "%(SERVICE_YEAR)s-%(SERVICE_MONTH)s"}]]}}}}
+    {"xAxis": {"axisPointer": {"show": "%(SERVICE_YEAR)s", "status": "%(SERVICE_MONTH)s",
+                               "value": "%(SERVICE_YEAR)s-%(SERVICE_MONTH)s",
+                               "type": "shadow", "triggerOn": "none", "label": {"show": false},
+                               "shadowStyle": {"color": "rgba(29,95,191,0.16)"}}}}
+
+``show`` and ``status`` carry the raw filter text on purpose: a blank Year
+leaves ``show`` falsy (no pointer collected), a blank Month leaves ``status``
+falsy (hidden) — ECharts pins an UNKNOWN category value to the last category
+instead of dropping it, so the gates are what keep "All" band-free. A
+``series_styles`` ``markArea`` is the wrong tool on a heatmap: the same
+category at both ends is a zero-width area (only bar series expand a category
+to its band).
 
 Rules, all deliberately narrow:
   • Only the exact ``%(NAME)s`` form is a token. A lone ``%`` (``"left": "98%"``)
