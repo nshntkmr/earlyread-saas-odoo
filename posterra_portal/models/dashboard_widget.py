@@ -712,7 +712,11 @@ class DashboardWidget(models.Model):
     echart_override = fields.Text(
         string='ECharts Override (JSON)',
         help='JSON object deep-merged into the generated ECharts option.\n'
-             'Set "color" here to override the color palette.')
+             'Set "color" here to override the color palette.\n'
+             'Inside string values, %(param)s is replaced with the applied value '
+             'of that page filter before the JSON is read — e.g. a markArea on '
+             '"%(SERVICE_YEAR)s-%(SERVICE_MONTH)s" highlights the selected month. '
+             'Unknown names stay as typed; a plain % is never touched.')
 
     # ── Annotations (all widget types) ─────────────────────────────────────
     subtitle = fields.Char(string='Subtitle',
@@ -1125,12 +1129,14 @@ class DashboardWidget(models.Model):
             return Option
         return opt
 
-    def _format_scope_result(self, cols, rows):
+    def _format_scope_result(self, cols, rows, portal_ctx=None):
         """Format SQL result based on chart_type for scope option query mode.
 
         Called by dashboard.widget.scope.option.execute_option_sql() when the
         option has its own SQL (query mode). Returns the same dict shape that
         get_portal_data() returns so React can render the result unchanged.
+        ``portal_ctx`` (optional) supplies the applied filter values that
+        %(param)s placeholders in the ECharts override resolve from.
         """
         self.ensure_one()
         if self.chart_type == 'table':
@@ -1161,7 +1167,9 @@ class DashboardWidget(models.Model):
             return self._build_metric_list_data(cols, rows)
         else:
             # ECharts types (bar, line, pie, donut, gauge, radar, scatter, heatmap)
-            option = self._build_echart_option(cols, rows)
+            option = self._build_echart_option(
+                cols, rows,
+                filter_values=(portal_ctx or {}).get('filter_values_by_name'))
             return {'echart_json': json.dumps(option, default=str)}
 
     # =========================================================================
@@ -1295,7 +1303,9 @@ class DashboardWidget(models.Model):
             # Default: ECharts (bar/line/pie/donut/radar/scatter/heatmap)
             # Run annotation query once and pass to chart builder
             ann_row = self._get_annotation_row(portal_ctx)
-            option = self._build_echart_option(cols, rows, ann_row=ann_row)
+            option = self._build_echart_option(
+                cols, rows, ann_row=ann_row,
+                filter_values=(portal_ctx or {}).get('filter_values_by_name'))
             result = {'echart_json': json.dumps(option, default=str)}
         return result
 
@@ -1852,8 +1862,14 @@ class DashboardWidget(models.Model):
             _logger.warning('widget %s annotation query error: %s', self.id, exc)
         return {}
 
-    def _build_echart_option(self, cols, rows, ann_row=None):
-        """Build a minimal ECharts option dict for the configured chart_type."""
+    def _build_echart_option(self, cols, rows, ann_row=None, filter_values=None):
+        """Build a minimal ECharts option dict for the configured chart_type.
+
+        ``filter_values`` — the applied page-filter values by param name
+        (``portal_ctx['filter_values_by_name']``); %(param)s placeholders in
+        ``echart_override`` resolve from it. None (no context) leaves every
+        placeholder as typed.
+        """
         x_col = (self.x_column or '').strip()
         y_cols_raw = (self.y_columns or '').strip()
         y_col_list = [c.strip() for c in y_cols_raw.split(',') if c.strip()]
@@ -3074,6 +3090,14 @@ class DashboardWidget(models.Model):
                 }]
 
         elif ct == 'heatmap':
+            # "Leave SQL NULL Cells Empty" keeps NULL as an undrawn cell
+            # (shared with the Designer preview; off → the historical `or 0`).
+            from odoo.addons.dashboard_builder.services import heatmap_cells
+            try:
+                _vc_heat = json.loads(self.visual_config or '{}') or {}
+            except (json.JSONDecodeError, TypeError):
+                _vc_heat = {}
+            blank_null = heatmap_cells.blank_null_on(_vc_heat)
             x_vals = sorted({str(col_val(r, x_col) or '') for r in rows})
             y_vals = sorted({str(col_val(r, y_col_list[0]) or '') for r in rows}) if y_col_list else []
             z_col = y_col_list[1] if len(y_col_list) > 1 else (cols[2] if len(cols) > 2 else None)
@@ -3082,12 +3106,13 @@ class DashboardWidget(models.Model):
                 xi = x_vals.index(str(col_val(r, x_col) or ''))
                 yi = y_vals.index(str(col_val(r, y_col_list[0]) or '')) if y_col_list else 0
                 zv = col_val(r, z_col) if z_col else 0
-                heat_data.append([xi, yi, zv or 0])
+                heat_data.append([xi, yi, heatmap_cells.cell_value(zv, blank_null)])
+            vmin, vmax = heatmap_cells.value_range(heat_data)
             option['xAxis'] = {'type': 'category', 'data': x_vals}
             option['yAxis'] = {'type': 'category', 'data': y_vals}
             option['visualMap'] = {
-                'min': min((d[2] for d in heat_data), default=0),
-                'max': max((d[2] for d in heat_data), default=1),
+                'min': vmin,
+                'max': vmax,
                 'calculable': True,
                 'orient': 'horizontal', 'left': 'center', 'bottom': '5%',
                 'inRange': {'color': (colors[:2] if len(colors) >= 2
@@ -3374,19 +3399,23 @@ class DashboardWidget(models.Model):
             _vc_styles = json.loads(self.visual_config or '{}') or {}
         except (json.JSONDecodeError, TypeError):
             _vc_styles = {}
-        self._apply_series_styles(option, _vc_styles)
+        self._apply_series_styles(option, _vc_styles, filter_values)
 
-        # Deep-merge echart_override JSON if provided
+        # Deep-merge echart_override JSON if provided. %(param)s placeholders
+        # inside it resolve to the applied filter values first (no token or no
+        # context → the text is parsed exactly as typed).
         if self.echart_override:
             try:
-                override = json.loads(self.echart_override)
+                from ..utils.echart_placeholders import resolve_echart_placeholders
+                override = json.loads(
+                    resolve_echart_placeholders(self.echart_override, filter_values))
                 option = _deep_merge(option, override)
             except Exception as e:
                 _logger.warning('widget %s echart_override JSON error: %s', self.id, e)
 
         return option
 
-    def _apply_series_styles(self, option, vc):
+    def _apply_series_styles(self, option, vc, filter_values=None):
         """Apply visual_config.series_styles to generated ECharts series.
 
         Matches each series by its ECharts ``name`` (works for both y_columns and
@@ -3394,11 +3423,15 @@ class DashboardWidget(models.Model):
         an exact-name entry is applied after so it wins. Style dicts are deep-merged;
         structural keys (data/name/type/encode/dimensions/datasetIndex/datasetId/id/
         seriesLayoutBy) are stripped so only styling changes and SQL data is never
-        touched. No series_styles → no-op.
+        touched. No series_styles → no-op. ``%(param)s`` tokens in the style
+        strings resolve to ``filter_values`` (e.g. a markArea on the selected
+        month); no token or no context → the styles apply exactly as typed.
         """
         styles = vc.get('series_styles') if isinstance(vc, dict) else None
         if not isinstance(styles, dict) or not styles:
             return
+        from ..utils.echart_placeholders import resolve_placeholders_deep
+        styles = resolve_placeholders_deep(styles, filter_values)
         series_list = option.get('series')
         if not isinstance(series_list, list):
             return

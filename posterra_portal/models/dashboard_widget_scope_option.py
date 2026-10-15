@@ -372,7 +372,7 @@ class DashboardWidgetScopeOption(models.Model):
                 # option's effective level — _build_map_choropleth reads the widget
                 # visual_config level and has NO option awareness, so injecting the
                 # SQL param alone is not enough (Codex).
-                result = widget._format_scope_result(cols, rows)
+                result = widget._format_scope_result(cols, rows, portal_ctx)
                 if isinstance(result, dict):
                     lvl = widget._effective_map_level(
                         option=self, raw_map_level=sql_params.get('_map_level'))
@@ -390,13 +390,13 @@ class DashboardWidgetScopeOption(models.Model):
                     widget.x_column = self.x_column or orig_x
                     widget.y_columns = self.y_columns or orig_y
                     widget.series_column = self.series_column or orig_s
-                    return widget._format_scope_result(cols, rows)
+                    return widget._format_scope_result(cols, rows, portal_ctx)
                 finally:
                     widget.x_column = orig_x
                     widget.y_columns = orig_y
                     widget.series_column = orig_s
             else:
-                return widget._format_scope_result(cols, rows)
+                return widget._format_scope_result(cols, rows, portal_ctx)
 
         except Exception as exc:
             _logger.warning(
