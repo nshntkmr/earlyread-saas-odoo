@@ -4,7 +4,7 @@ import React from 'react'
 // "not included"). Kept in sync with posterra_portal
 // services/pdf_export/collector.py V1_KINDS + charts.PRINTABLE_CHART_TYPES.
 const PRINTED_TYPES = new Set([
-  'record_header', 'kpi', 'status_kpi', 'table',
+  'record_header', 'kpi', 'status_kpi', 'table', 'attribute_grid', 'metric_list',
   'bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'sankey', 'gauge', 'gauge_kpi',
 ])
 

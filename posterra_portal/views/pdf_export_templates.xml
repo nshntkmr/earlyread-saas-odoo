@@ -113,7 +113,82 @@
                     .gauge-sub .sl { font-size: 7px; color: #7b8794; }
                     .gauge-alert { margin-top: 5px; padding: 4px 8px; background: #fff8e6; border-left: 3px solid #f59e0b;
                                    border-radius: 3px; font-size: 8px; }
+                    /* Card notes (WidgetGrid: header badge, subtitle, footnote) */
+                    .pv-wbadge { display: inline-block; font-size: 7.5px; font-weight: 600; border-radius: 8px;
+                                 padding: 1px 6px; margin-left: 5px; vertical-align: 1px; background: #f3f4f6;
+                                 color: #1f2933; text-transform: none; letter-spacing: 0; }
+                    .pv-wsub { font-size: 8px; color: #7b8794; margin-top: 1px; }
+                    .pv-wfoot { font-size: 7.5px; color: #7b8794; border-top: 1px solid #eef2f7; margin-top: 5px;
+                                padding-top: 3px; }
+                    .tbl .pv-wsub { margin: -1px 0 2px; }
+                    /* Record Header scorecard extras (only rendered when configured) */
+                    .hdr-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; }
+                    .hdr-status { font-size: 8.5px; font-weight: 600; border-radius: 999px; padding: 1px 7px;
+                                  white-space: nowrap; }
+                    .hdr-items { display: flex; flex-wrap: wrap; gap: 1px 10px; color: #4b5563; font-size: 9.5px; }
+                    .hdr-items .pv-fa { color: #6b7280; margin-right: 3px; font-size: 9px; }
+                    .hdr-badges { display: flex; flex-wrap: wrap; gap: 4px 5px; margin-top: 3px; }
+                    .hdr-badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px;
+                                 background: #eef2f7; padding: 2px 7px; white-space: nowrap; }
+                    .hdr-badge .l { font-size: 7px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+                                    color: #6b7280; }
+                    .hdr-badge .val { font-size: 8.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+                    .stat .l .pv-fa { margin-right: 3px; }
+                    .stat .cap { font-size: 8.5px; font-weight: 400; color: #6b7280; margin-left: 4px; }
+                    .stat .st { font-size: 7.5px; font-weight: 600; border-radius: 999px; padding: 1px 6px;
+                                margin-left: 5px; vertical-align: 2px; white-space: nowrap; }
+                    .hdr-stats.panel { gap: 0; background: #f8fafc; border: 1px solid #eef1f5; border-radius: 5px;
+                                       padding: 4px 2px; }
+                    .hdr-stats.panel .stat { border-radius: 0; padding: 3px 9px; border-left: 1px solid #e3e8ef; }
+                    .hdr-stats.panel .stat.first-col { border-left: 0; }
+                    .hdr-stats.panel .stat.next-row { border-top: 1px solid #e3e8ef; padding-top: 6px; margin-top: 3px; }
+                    .hdr-side { display: flex; align-items: center; gap: 12px; }
+                    .hdr-side .hdr-top { flex: 1 1 auto; min-width: 0; }
+                    .hdr-side .hdr-stats { flex: 3 1 0; margin-top: 0; }
+                    .hdr-empty { display: flex; align-items: center; justify-content: center; gap: 6px; color: #6b7280;
+                                 font-size: 10px; padding: 10px 0; }
+                    /* Attribute Grid (mirrors grid-utils widgetCards.css at print scale) */
+                    .pvag { margin-top: 4px; }
+                    .pvag-lead { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+                                 justify-content: center; font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+                    .pvag-grid { display: grid; column-gap: 14px; row-gap: 7px; }
+                    .pvag.compact .pvag-grid { column-gap: 10px; row-gap: 4px; }
+                    .pvag-div { border-top: 1px solid #eef2f7; margin: 1px 0; }
+                    .pvag-item { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+                    .pvag-item.inline { align-items: center; }
+                    .pvag-item.inline .pvag-body { display: flex; align-items: baseline; gap: 5px; }
+                    .pvag-ico { flex: 0 0 auto; width: 19px; height: 19px; border-radius: 50%; display: inline-flex;
+                                align-items: center; justify-content: center; font-size: 8.5px; }
+                    .pvag-body { min-width: 0; }
+                    .pvag-l { font-size: 7px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+                              color: #8a94a6; margin-bottom: 1px; }
+                    .pvag-v { font-size: 10px; color: #1f2937; overflow-wrap: anywhere; }
+                    .pvag-v.strong { font-weight: 700; }
+                    .pvag-v.null { color: #9ca3af; }
+                    .pvag-s { font-size: 8.5px; color: #6b7280; }
+                    /* Metric List (mirrors grid-utils widgetCards.css at print scale) */
+                    .pvml-item { padding: 5px 0; }
+                    .pvml-item + .pvml-item { border-top: 1px solid #f1f5f9; }
+                    .pvml-row { display: flex; align-items: center; justify-content: space-between; gap: 6px;
+                                margin-bottom: 3px; }
+                    .pvml-l { font-size: 9.5px; font-weight: 700; color: #111827; min-width: 0; }
+                    .pvml-l .pv-fa { margin-right: 4px; color: #6b7280; }
+                    .pvml-r { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+                    .pvml-v { font-size: 11px; font-weight: 800; }
+                    .pvml-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 7.5px; font-weight: 600;
+                                  border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+                    .pvml-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+                    .pvml-track { width: 100%; border-radius: 999px; overflow: hidden; }
+                    .pvml-fill { height: 100%; border-radius: 999px; }
+                    .pvml-oor { font-size: 7.5px; margin-top: 2px; color: #9ca3af; }
+                    .pvml-detail { font-size: 8.5px; margin-top: 3px; color: #64748b; overflow-wrap: anywhere; }
+                    .pvml-detail b { color: #475569; }
+                    .pvml-legend, .pvml-thr { display: flex; flex-wrap: wrap; gap: 8px; font-size: 7.5px; color: #6b7280; }
+                    .pvml-thr { margin-top: 3px; }
+                    .pvml-legend { border-top: 1px solid #f1f5f9; padding-top: 5px; margin-top: 2px; }
+                    .pvml-entry { display: inline-flex; align-items: center; gap: 4px; }
                 </style>
+                <style t-if="v.get('icon_css')" t-out="v['icon_css']"/>
             </head>
             <body>
                 <div class="pv-title">
@@ -151,8 +226,15 @@
                         </t>
                         <t t-else="">
                             <t t-set="blk" t-value="row['block']"/>
+                            <t t-set="n" t-value="blk.get('notes') or {}"/>
                             <div t-att-class="'tbl dense' if blk['table']['dense'] else 'tbl'">
-                                <h3 t-out="blk['name']"/>
+                                <h3 t-if="not n.get('badge')" t-out="blk['name']"/>
+                                <h3 t-else=""><t t-out="blk['name']"/><span class="pv-wbadge"
+                                    t-att-style="('color:%s;background:%s' % (n['badge_color'], n['badge_bg'])) if n.get('badge_color') else None"
+                                    t-out="n['badge']"/></h3>
+                                <div class="pv-wsub" t-if="n.get('subtitle')"
+                                     t-att-style="('color:%s' % n['subtitle_color']) if n.get('subtitle_color') else None"
+                                     t-out="n['subtitle']"/>
                                 <div class="cap" t-out="blk['table']['caption']"/>
                                 <table>
                                     <thead><tr>
@@ -179,6 +261,9 @@
                                         </t>
                                     </tbody>
                                 </table>
+                                <div class="pv-wfoot" t-if="n.get('footnote')"
+                                     t-att-style="('color:%s' % n['footnote_color']) if n.get('footnote_color') else None"
+                                     t-out="n['footnote']"/>
                             </div>
                         </t>
                     </div>
@@ -194,28 +279,120 @@
         </html>
     </template>
 
+    <!-- Card head / foot: the portal card chrome (WidgetGrid.jsx) — title with
+         the header badge, subtitle under it, footnote at the bottom. Each
+         piece only when the widget has it (collector.widget_notes). -->
+    <template id="pdf_export_card_head" name="PDF Export Card Head">
+        <t t-set="n" t-value="blk.get('notes') or {}"/>
+        <div class="kpi-t" t-if="not n.get('badge')" t-out="title"/>
+        <div class="kpi-t" t-else=""><t t-out="title"/><span class="pv-wbadge"
+            t-att-style="('color:%s;background:%s' % (n['badge_color'], n['badge_bg'])) if n.get('badge_color') else None"
+            t-out="n['badge']"/></div>
+        <div class="pv-wsub" t-if="n.get('subtitle')"
+             t-att-style="('color:%s' % n['subtitle_color']) if n.get('subtitle_color') else None"
+             t-out="n['subtitle']"/>
+    </template>
+
+    <template id="pdf_export_card_foot" name="PDF Export Card Foot">
+        <t t-set="n" t-value="blk.get('notes') or {}"/>
+        <div class="pv-wfoot" t-if="n.get('footnote')"
+             t-att-style="('color:%s' % n['footnote_color']) if n.get('footnote_color') else None"
+             t-out="n['footnote']"/>
+    </template>
+
+    <!-- Record Header identity: avatar, name (+ status chip), subtitle or
+         subtitle items, identifier badges. Extras only when configured. -->
+    <template id="pdf_export_hdr_identity" name="PDF Export Header Identity">
+        <div class="hdr-top">
+            <div t-if="h['avatar_text']" t-att-class="'avatar round' if h['avatar_round'] else 'avatar'"
+                 t-att-style="'background:%s' % h['avatar_color']" t-out="h['avatar_text']"/>
+            <div>
+                <div class="hdr-title" t-if="not h.get('title_status')" t-out="h['title']"/>
+                <div class="hdr-title-row" t-else="">
+                    <div class="hdr-title" t-out="h['title']"/>
+                    <span class="hdr-status"
+                          t-att-style="'color:%s;background:%s' % (h['title_status']['color'], h['title_status']['background'])"
+                          t-out="h['title_status']['text']"/>
+                </div>
+                <div class="hdr-items" t-if="h.get('subtitle_items')">
+                    <t t-foreach="h['subtitle_items']" t-as="it">
+                        <span><span class="pv-fa" t-if="it['icon']" t-out="it['icon']"/><t t-out="it['value']"/></span>
+                    </t>
+                </div>
+                <div class="hdr-sub" t-elif="h['subtitle']" t-out="h['subtitle']"/>
+                <div class="hdr-badges" t-if="h.get('badges')">
+                    <t t-foreach="h['badges']" t-as="bd">
+                        <span class="hdr-badge"><span class="l" t-out="bd['label']"/><span class="val" t-out="bd['value']"/></span>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="pdf_export_hdr_stat" name="PDF Export Header Stat">
+        <div class="l" t-if="not s.get('icon')" t-att-style="'color:%s' % s['label_color']" t-out="s['label']"/>
+        <div class="l" t-else="" t-att-style="'color:%s' % s['label_color']"><span class="pv-fa"
+             t-att-style="('color:%s' % s['icon_color']) if s.get('icon_color') else None"
+             t-out="s['icon']"/><t t-out="s['label']"/></div>
+        <div class="val" t-att-style="'color:%s' % s['value_color']">
+            <t t-out="s['value']"/>
+            <span class="tr" t-if="s['trend_arrow']" t-att-style="'color:%s' % s['trend_color']">
+                <t t-out="s['trend_arrow']"/> <t t-out="s['trend_delta']"/>
+            </span>
+            <span class="cap" t-if="s.get('caption')" t-out="s['caption']"/>
+            <span class="st" t-if="s.get('status')"
+                  t-att-style="'color:%s;background:%s' % (s['status']['color'], s['status']['background'])"
+                  t-out="s['status']['text']"/>
+        </div>
+    </template>
+
+    <!-- Tiles (default) or, with stats_style = 'panel', one grey panel whose
+         column count follows the printed width (document.panel_columns). -->
+    <template id="pdf_export_hdr_stats" name="PDF Export Header Stats">
+        <t t-set="pn" t-value="h.get('panel')"/>
+        <div class="hdr-stats" t-if="h['stats'] and not pn">
+            <t t-foreach="h['stats']" t-as="s">
+                <div class="stat" t-att-style="'background:%s' % s['bg']">
+                    <t t-call="posterra_portal.pdf_export_hdr_stat"/>
+                </div>
+            </t>
+        </div>
+        <div class="hdr-stats panel" t-elif="h['stats']"
+             t-attf-style="grid-template-columns: repeat(#{pn['cols']}, minmax(0, 1fr))">
+            <t t-foreach="h['stats']" t-as="s">
+                <div t-att-class="('stat %s' % s['cls']) if s.get('cls') else 'stat'"
+                     t-att-style="('background:%s' % s['bg']) if s['bg'] else None">
+                    <t t-call="posterra_portal.pdf_export_hdr_stat"/>
+                </div>
+            </t>
+        </div>
+    </template>
+
     <template id="pdf_export_block" name="PDF Export Block">
+        <!-- the portal grid's gridRow: span N (only when > 1) -->
+        <t t-set="rs" t-value="('grid-row: span %s' % blk['row_span']) if blk.get('row_span') else None"/>
         <t t-if="blk['kind'] == 'kpi' and blk['kpi'].get('layout') == 'split'">
             <!-- mini_gauge: ring left (its centre shows the value), text right -->
             <t t-set="k" t-value="blk['kpi']"/>
-            <div t-attf-class="pv-card span-#{blk['span']}">
+            <div t-attf-class="pv-card span-#{blk['span']}" t-att-style="rs">
                 <div class="kpi-split">
                     <div class="pv-chart pv-chart-pending" t-att-id="k['mini']['id']"
                          t-attf-style="width:#{k['mini']['width']}px;height:#{k['mini']['height']}px"
                          t-out="v['chart_placeholder']"/>
                     <div class="kpi-split-text">
-                        <div class="kpi-t" t-out="k['title']"/>
+                        <t t-call="posterra_portal.pdf_export_card_head"><t t-set="title" t-value="k['title']"/></t>
                         <div class="kpi-s" t-if="k.get('status_text')" t-out="k['status_text']"/>
                         <div class="kpi-note" t-if="k.get('progress_note')"
                              t-att-style="'color:%s' % k['progress_note_color']" t-out="k['progress_note']"/>
                     </div>
                 </div>
+                <t t-call="posterra_portal.pdf_export_card_foot"/>
             </div>
         </t>
         <t t-elif="blk['kind'] == 'kpi'">
             <t t-set="k" t-value="blk['kpi']"/>
-            <div t-attf-class="pv-card span-#{blk['span']}">
-                <div class="kpi-t" t-out="k['title']"/>
+            <div t-attf-class="pv-card span-#{blk['span']}" t-att-style="rs">
+                <t t-call="posterra_portal.pdf_export_card_head"><t t-set="title" t-value="k['title']"/></t>
                 <div class="kpi-v" t-att-style="('color:%s' % k['value_color']) if k['value_color'] else None">
                     <t t-out="k['value']"/>
                     <span class="arrow" t-if="k['arrow']" t-att-style="'color:%s' % k['arrow_color']" t-out="k['arrow']"/>
@@ -236,11 +413,12 @@
                      t-attf-style="width:#{k['mini']['width']}px;height:#{k['mini']['height']}px"
                      t-out="v['chart_placeholder']"/>
                 <div class="kpi-s" t-if="k['secondary']" t-out="k['secondary']"/>
+                <t t-call="posterra_portal.pdf_export_card_foot"/>
             </div>
         </t>
         <t t-elif="blk['kind'] == 'chart'">
-            <div t-attf-class="pv-card span-#{blk['span']}">
-                <div class="kpi-t" t-out="blk['name']"/>
+            <div t-attf-class="pv-card span-#{blk['span']}" t-att-style="rs">
+                <t t-call="posterra_portal.pdf_export_card_head"><t t-set="title" t-value="blk['name']"/></t>
                 <div class="pv-chart pv-chart-pending" t-att-id="blk['chart']['id']"
                      t-attf-style="width:#{blk['chart']['width']}px;height:#{blk['chart']['height']}px"
                      t-out="v['chart_placeholder']"/>
@@ -254,34 +432,27 @@
                     </t>
                 </div>
                 <div class="gauge-alert" t-if="blk.get('alert_text')" t-out="blk['alert_text']"/>
+                <t t-call="posterra_portal.pdf_export_card_foot"/>
             </div>
         </t>
         <t t-elif="blk['kind'] == 'record_header'">
             <t t-set="h" t-value="blk['header']"/>
-            <div t-attf-class="pv-card span-#{blk['span']}">
-                <t t-if="h['empty']"><div class="pv-muted">No record for the selected filters.</div></t>
+            <div t-attf-class="pv-card span-#{blk['span']}" t-att-style="rs">
+                <t t-if="h['empty']">
+                    <div class="hdr-empty" t-if="h.get('empty_text')" t-out="h['empty_text']"/>
+                    <div class="pv-muted" t-else="">No record for the selected filters.</div>
+                </t>
                 <t t-else="">
-                    <div class="hdr-top">
-                        <div t-if="h['avatar_text']" t-att-class="'avatar round' if h['avatar_round'] else 'avatar'"
-                             t-att-style="'background:%s' % h['avatar_color']" t-out="h['avatar_text']"/>
-                        <div>
-                            <div class="hdr-title" t-out="h['title']"/>
-                            <div class="hdr-sub" t-if="h['subtitle']" t-out="h['subtitle']"/>
+                    <t t-if="h.get('panel') and h['panel']['beside']">
+                        <div class="hdr-side">
+                            <t t-call="posterra_portal.pdf_export_hdr_identity"/>
+                            <t t-call="posterra_portal.pdf_export_hdr_stats"/>
                         </div>
-                    </div>
-                    <div class="hdr-stats" t-if="h['stats']">
-                        <t t-foreach="h['stats']" t-as="s">
-                            <div class="stat" t-att-style="'background:%s' % s['bg']">
-                                <div class="l" t-att-style="'color:%s' % s['label_color']" t-out="s['label']"/>
-                                <div class="val" t-att-style="'color:%s' % s['value_color']">
-                                    <t t-out="s['value']"/>
-                                    <span class="tr" t-if="s['trend_arrow']" t-att-style="'color:%s' % s['trend_color']">
-                                        <t t-out="s['trend_arrow']"/> <t t-out="s['trend_delta']"/>
-                                    </span>
-                                </div>
-                            </div>
-                        </t>
-                    </div>
+                    </t>
+                    <t t-else="">
+                        <t t-call="posterra_portal.pdf_export_hdr_identity"/>
+                        <t t-call="posterra_portal.pdf_export_hdr_stats"/>
+                    </t>
                     <div class="hdr-fields" t-if="h['fields']">
                         <t t-foreach="h['fields']" t-as="fld">
                             <div><div class="l" t-out="fld['label']"/><div class="val" t-out="fld['value']"/></div>
@@ -297,8 +468,85 @@
                 </t>
             </div>
         </t>
+        <t t-elif="blk['kind'] == 'attribute_grid'">
+            <!-- AttributeGrid.jsx: items in SQL order, column + span from the
+                 shared placement (services/pdf_export/placement.py); the grid's
+                 auto-placement decides the rows exactly as on screen. -->
+            <t t-set="g" t-value="blk['grid']"/>
+            <div t-attf-class="pv-card span-#{blk['span']}" t-att-style="rs">
+                <t t-call="posterra_portal.pdf_export_card_head"><t t-set="title" t-value="blk['name']"/></t>
+                <div class="pv-muted pvag" t-if="g['empty']" t-out="g['empty_text']"/>
+                <div t-else="" t-att-class="'pvag compact' if g['compact'] else 'pvag'">
+                    <div class="pvag-lead" t-if="g['leading']"
+                         t-att-style="'color:%s;background:%s' % (g['leading']['fg'], g['leading']['bg'])">
+                        <span t-att-class="'pv-fa' if g['leading']['is_icon'] else None" t-out="g['leading']['text']"/>
+                    </div>
+                    <div class="pvag-grid" t-attf-style="grid-template-columns: repeat(#{g['cols']}, minmax(0, 1fr))">
+                        <t t-foreach="g['items']" t-as="it">
+                            <div class="pvag-div" t-if="it['divider']" t-attf-style="grid-column: 1 / span #{g['cols']}"/>
+                            <div t-att-class="'pvag-item inline' if it['inline'] else 'pvag-item'"
+                                 t-attf-style="grid-column: #{it['grid_column']}">
+                                <span class="pvag-ico" t-if="it['icon']"
+                                      t-att-style="'color:%s;background:%s' % (it['icon_fg'], it['icon_bg'])"><span
+                                      class="pv-fa" t-out="it['icon']"/></span>
+                                <div class="pvag-body">
+                                    <div class="pvag-l" t-out="it['label']"/>
+                                    <span t-att-class="'pvag-v' + (' strong' if it['strong'] else '') + (' null' if it['null'] else '')"
+                                          t-out="it['value']"/>
+                                    <div class="pvag-s" t-if="it['secondary']" t-out="it['secondary']"/>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+                <t t-call="posterra_portal.pdf_export_card_foot"/>
+            </div>
+        </t>
+        <t t-elif="blk['kind'] == 'metric_list'">
+            <!-- MetricList.jsx: label, status pill, value in the status colour,
+                 bar, detail, per-metric thresholds, legend. -->
+            <t t-set="m" t-value="blk['metrics']"/>
+            <div t-attf-class="pv-card span-#{blk['span']}" t-att-style="rs">
+                <t t-call="posterra_portal.pdf_export_card_head"><t t-set="title" t-value="blk['name']"/></t>
+                <div class="pv-muted" t-if="m['empty']" t-out="m['empty_text']"/>
+                <div t-else="" class="pvml">
+                    <t t-foreach="m['items']" t-as="it">
+                        <div class="pvml-item">
+                            <div class="pvml-row">
+                                <span class="pvml-l"><span class="pv-fa" t-if="it['icon']" t-out="it['icon']"/><t t-out="it['label']"/></span>
+                                <span class="pvml-r">
+                                    <span class="pvml-badge" t-if="it['badge']"
+                                          t-att-style="'color:%s;background:%s' % (it['badge']['color'], it['badge']['background'])"><span
+                                          class="pvml-dot" t-att-style="'background:%s' % it['badge']['color']"/><t t-out="it['badge']['label']"/></span>
+                                    <span class="pvml-v" t-att-style="'color:%s' % it['color']" t-out="it['value']"/>
+                                </span>
+                            </div>
+                            <div class="pvml-track" t-if="it['pct'] is not None"
+                                 t-attf-style="height:#{m['bar_h']}px;background:#{m['track']}"><div class="pvml-fill"
+                                 t-attf-style="width:#{it['pct']}%;background:#{it['color']}"/></div>
+                            <div class="pvml-oor" t-if="it['out_of_range']">value outside configured scale</div>
+                            <div class="pvml-detail" t-if="it['detail']"><b t-if="m['detail_label']"><t
+                                 t-out="m['detail_label']"/>: </b><t t-out="it['detail']"/></div>
+                            <div class="pvml-thr" t-if="it['thresholds']">
+                                <t t-foreach="it['thresholds']" t-as="th">
+                                    <span class="pvml-entry"><span class="pvml-dot" t-att-style="'background:%s' % th['color']"/><t
+                                          t-out="th['label']"/><t t-if="th['text']"> · <t t-out="th['text']"/></t></span>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                    <div class="pvml-legend" t-if="m['legend']">
+                        <t t-foreach="m['legend']" t-as="e">
+                            <span class="pvml-entry"><span class="pvml-dot" t-att-style="'background:%s' % e['color']"/><t
+                                  t-out="e['label']"/></span>
+                        </t>
+                    </div>
+                </div>
+                <t t-call="posterra_portal.pdf_export_card_foot"/>
+            </div>
+        </t>
         <t t-else="">
-            <div t-attf-class="pv-card unavail span-#{blk['span']}">
+            <div t-attf-class="pv-card unavail span-#{blk['span']}" t-att-style="rs">
                 <b t-out="blk['name']"/><br/>Widget unavailable
             </div>
         </t>

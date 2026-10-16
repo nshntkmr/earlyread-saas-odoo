@@ -20,7 +20,7 @@ import json
 import os
 import re
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -342,6 +342,259 @@ class TestPdfCharts(TransactionCase):
 
 
 # ─────────────────────────────────────────────────────────────────────────
+def _print_blocks(env, blocks, orientation='landscape'):
+    """build_view + render_html for hand-made collector blocks."""
+    from ..services.pdf_export import document
+    page = SimpleNamespace(name='Member 360', pdf_title_template='', pdf_show_logo=False,
+                           pdf_show_filters=False, pdf_footer_text='')
+    view = document.build_view(
+        env, page=page, tab=SimpleNamespace(name='Patient Details'),
+        app=SimpleNamespace(name='PDF App', logo=False), user=SimpleNamespace(login='u', name='U'),
+        dataset={'blocks': blocks}, keynote='', orientation=orientation, paper='letter',
+        generated_at=datetime(2026, 10, 16, 12, 0))
+    return view, document.render_html(env, view)
+
+
+def _body(html):
+    return html[html.index('<body>'):]
+
+
+@tagged('post_install', '-at_install', 'posterra_pdf_export')
+class TestPdfPrintCards(TransactionCase):
+    """Attribute Grid / Metric List cards, Record Header extras, card notes,
+    Font Awesome icons and row span in the page PDF (Member 360, Oct 2026)."""
+
+    ICON_MAP = {'building': {'fa_class': 'fa-building', 'label': 'Building'},
+                'phone': {'fa_class': 'fa-phone', 'label': 'Phone'}}
+
+    def test_placement_matches_the_shared_fixture(self):
+        from ..services.pdf_export import placement
+        path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pdf_placement.json')
+        with open(path, encoding='utf-8') as fh:
+            cases = json.load(fh)['cases']
+        self.assertGreaterEqual(len(cases), 8)
+        for c in cases:
+            with self.subTest(c['name']):
+                cols = placement.effective_columns(c['width'], c['configured'])
+                self.assertEqual(cols, c['expected_columns'])
+                got = [i['resolved'] for i in placement.resolve_placement(c['items'], cols)]
+                self.assertEqual(got, c['expected'])
+
+    def test_icon_glyphs_and_font(self):
+        from ..services.pdf_export import icons
+        self.assertEqual(icons.glyph('fa-phone'), '')
+        self.assertEqual(icons.glyph('fa fa-times fa-fw'), '')     # modifiers skipped
+        self.assertEqual(icons.glyph('fa-close'), '')              # alias selector
+        self.assertEqual(icons.glyph('fa-not-a-glyph'), '')
+        self.assertEqual(icons.glyph(None), '')
+        css = str(icons.font_face_css())
+        self.assertIn('data:font/woff2;base64,', css)
+        self.assertNotIn('url(http', css)
+        used = icons.IconSet()
+        self.assertEqual(used('fa-nope'), '')
+        self.assertFalse(used.used)
+        used('fa-user')
+        self.assertTrue(used.used)
+
+    def test_attribute_grid_card(self):
+        from odoo.addons.dashboard_builder.services.attribute_grid_formatter import format_attribute_grid
+        cfg = {'version': 1, 'columns': 2, 'fields': [
+            {'key': 'dob', 'label': 'Date of birth', 'value_column': 'DOB'},
+            {'key': 'plan', 'label': 'Plan', 'value_column': 'PLAN'},
+            {'key': 'addr', 'label': 'Home address', 'value_column': 'ADDR'},
+            {'key': 'mso', 'label': 'MSO provider group', 'value_column': 'MSO',
+             'icon': {'mode': 'static', 'key': 'building'}},
+            {'key': 'pcp', 'label': 'Primary care provider', 'value_column': 'PCP', 'span': 2,
+             'divider_before': True, 'emphasis': 'strong'},
+            {'key': 'tel', 'label': 'Telephone', 'value_column': 'TEL',
+             'link': {'type': 'tel', 'template': '{TEL}'}}]}
+        payload = format_attribute_grid(
+            ['DOB', 'PLAN', 'ADDR', 'MSO', 'PCP', 'TEL'],
+            [('01/24/1948', 'Gold Plus', '12 Main St', None, 'Dr Ada Lovelace', '555-0100')],
+            cfg, icon_map=self.ICON_MAP)
+        view, html = _print_blocks(self.env, [{'kind': 'attribute_grid', 'name': 'Member Profile',
+                                               'col_span': '6', 'status': 'ok', 'payload': payload}])
+        grid = view['rows'][0]['blocks'][0]['grid']
+        self.assertEqual(grid['cols'], 2)                       # 468 px landscape half card
+        self.assertEqual([i['grid_column'] for i in grid['items']],
+                         ['1 / span 1', '2 / span 1', '1 / span 1', '2 / span 1', '1 / span 2', '1 / span 1'])
+        body = _body(html)
+        self.assertIn('Member Profile', body)
+        self.assertIn('Primary care provider', body)
+        self.assertIn('pvag-v strong', body)
+        self.assertIn('pvag-v null', body)                      # NULL MSO → null text, grey
+        self.assertIn('', body)                           # fa-building glyph
+        self.assertIn('555-0100', body)                         # tel link printed as text
+        self.assertNotIn('href=', body)
+        self.assertIn("font-family: 'PvFontAwesome'", html)     # font embedded because an icon printed
+        # portrait half card (348 px) collapses to one column, as the screen does under 360 px
+        view, _html = _print_blocks(self.env, [{'kind': 'attribute_grid', 'name': 'P', 'col_span': '6',
+                                                'status': 'ok', 'payload': payload}], orientation='portrait')
+        self.assertEqual(view['rows'][0]['blocks'][0]['grid']['cols'], 1)
+        # empty payload → its empty text
+        empty = format_attribute_grid(['DOB'], [], cfg)
+        _view, html = _print_blocks(self.env, [{'kind': 'attribute_grid', 'name': 'P', 'col_span': '6',
+                                                'status': 'ok', 'payload': empty}])
+        self.assertIn('No information available', _body(html))
+
+    def test_metric_list_card(self):
+        from odoo.addons.dashboard_builder.services.metric_list_formatter import format_metric_list
+        cfg = {'version': 1, 'detail_label': 'Drivers',
+               'mapping': {'key_column': 'K', 'label_column': 'L', 'value_column': 'V', 'detail_column': 'D'},
+               'status_rules': [
+                   {'key': 'high', 'label': 'High', 'color': '#dc2626', 'background': '#fee2e2',
+                    'range': {'min': 0.9}},
+                   {'key': 'low', 'label': 'Low', 'color': '#16a34a', 'background': '#dcfce7',
+                    'range': {'max': 0.65}}],
+               'legend': {'mode': 'semantic'}}
+        payload = format_metric_list(['K', 'L', 'V', 'D'], [
+            ('sepsis', 'Sepsis', 0.92, 'Two admits'), ('eol', 'End of life', 0.41, None),
+            ('mid', 'High cost', 0.7, None)], cfg)
+        view, html = _print_blocks(self.env, [{'kind': 'metric_list', 'name': 'Risk', 'col_span': '6',
+                                               'status': 'ok', 'payload': payload}])
+        m = view['rows'][0]['blocks'][0]['metrics']
+        self.assertEqual([i['pct'] for i in m['items']], ['92', '41', '70'])
+        self.assertEqual(m['items'][0]['badge']['label'], 'High')
+        self.assertEqual(m['items'][0]['color'], '#dc2626')
+        self.assertIsNone(m['items'][2]['badge'])               # no rule → neutral, no pill
+        self.assertEqual(m['items'][2]['color'], '#6b7280')
+        self.assertEqual([e['label'] for e in m['legend']], ['High', 'Low'])
+        body = _body(html)
+        self.assertIn('width:92%;background:#dc2626', body)
+        self.assertIn('Drivers', body)
+        self.assertIn('Two admits', body)
+        self.assertNotIn('PvFontAwesome', html)                 # no icon → no font
+
+    def _scorecard(self, extras):
+        from odoo.addons.dashboard_builder.services.record_header_formatter import format_record_header
+        cols = ['NAME', 'GENDER', 'AGE', 'ST', 'TONE', 'MID', 'MBI', 'RISK', 'RMONTH', 'MLR', 'MLRS', 'MLRT', 'CHIPS']
+        row = ('Walter Grigsby', 'Male', '80 yrs', 'Currently eligible · 6 of 8 months', 'success',
+               '019622015', '1AB2-CD3-EF45', '1.370', 'Aug 2026', '34%', 'Below 85%', 'success', 'Mar,Apr,May')
+        cfg = {'header_layout': 'scorecard', 'x_column': 'NAME', 'avatar_color': '#1d5fbf',
+               'avatar_shape': 'circle', 'chips_column': 'CHIPS', 'chips_label': 'Eligible 2026',
+               'stats': [{'column': 'RISK', 'label': 'Risk score', 'format': 'text'},
+                         {'column': 'MLR', 'label': 'MLR', 'format': 'text'}]}
+        if extras:
+            cfg.update({
+                'title_status_column': 'ST', 'title_status_tone_column': 'TONE',
+                'subtitle_items': [{'column': 'GENDER', 'icon': 'fa-user'}, {'column': 'AGE', 'icon': 'fa-calendar'}],
+                'badges': [{'column': 'MID', 'label': 'Member ID', 'copy': True}, {'column': 'MBI', 'label': 'MBI'}],
+                'stats_style': 'panel',
+                'stats': [{'column': 'RISK', 'label': 'Risk score', 'format': 'text', 'icon': 'fa-line-chart',
+                           'icon_color': '#b65c00', 'caption_column': 'RMONTH'},
+                          {'column': 'MLR', 'label': 'MLR', 'format': 'text',
+                           'status_column': 'MLRS', 'status_tone_column': 'MLRT'}]})
+        return format_record_header(cols, [row], cfg)
+
+    def test_header_extras_print_only_when_configured(self):
+        payload = self._scorecard(extras=True)
+        view, html = _print_blocks(self.env, [{'kind': 'record_header', 'name': 'Member header',
+                                               'col_span': '12', 'status': 'ok', 'payload': payload}])
+        h = view['rows'][0]['blocks'][0]['header']
+        self.assertEqual(h['title_status']['text'], 'Currently eligible · 6 of 8 months')
+        self.assertEqual(h['title_status']['color'], '#059669')
+        self.assertEqual([i['value'] for i in h['subtitle_items']], ['Male', '80 yrs'])
+        self.assertTrue(all(i['icon'] for i in h['subtitle_items']))
+        self.assertEqual([b['label'] for b in h['badges']], ['Member ID', 'MBI'])
+        self.assertEqual(h['panel'], {'cols': 4, 'beside': False})   # 961 px → band of 4
+        self.assertEqual(h['stats'][0]['caption'], 'Aug 2026')
+        self.assertEqual(h['stats'][1]['status']['text'], 'Below 85%')
+        self.assertEqual(h['stats'][0]['icon_color'], '#b65c00')
+        self.assertEqual(h['stats'][0]['bg'], '')                    # panel: transparent tiles
+        body = _body(html)
+        for text in ('class="hdr-status"', 'class="hdr-items"', 'class="hdr-badge"', 'Member ID',
+                     '019622015', 'class="hdr-stats panel"', 'class="cap"', 'Below 85%', 'Eligible 2026'):
+            self.assertIn(text, body)
+        self.assertIn('PvFontAwesome', html)
+        self.assertNotIn('fa-clone', body)                            # copy button is screen-only
+
+    def test_header_without_extras_keeps_the_old_markup(self):
+        payload = self._scorecard(extras=False)
+        view, html = _print_blocks(self.env, [{'kind': 'record_header', 'name': 'Member header',
+                                               'col_span': '12', 'status': 'ok', 'payload': payload}])
+        h = view['rows'][0]['blocks'][0]['header']
+        for key in ('title_status', 'subtitle_items', 'badges', 'panel'):
+            self.assertNotIn(key, h)
+        body = _body(html)
+        for text in ('hdr-status', 'hdr-items', 'hdr-badge', 'panel', 'class="cap"', 'class="st"',
+                     'pv-fa', 'pv-wsub', 'pv-wfoot', 'pv-wbadge', 'grid-row'):
+            self.assertNotIn(text, body)
+        self.assertIn('class="hdr-stats"', body)
+        self.assertIn('style="background:#f5f7fa"', body)             # tiles keep their default
+        self.assertNotIn('PvFontAwesome', html)
+
+    def test_header_empty_text(self):
+        _view, html = _print_blocks(self.env, [
+            {'kind': 'record_header', 'name': 'H', 'col_span': '12', 'status': 'ok',
+             'payload': {'type': 'record_header', 'empty': True, 'empty_text': 'Find a member to begin'}},
+            {'kind': 'record_header', 'name': 'H2', 'col_span': '12', 'status': 'ok',
+             'payload': {'type': 'record_header', 'empty': True}}])
+        body = _body(html)
+        self.assertIn('Find a member to begin', body)
+        self.assertEqual(body.count('No record for the selected filters.'), 1)
+
+    def test_panel_columns_follow_the_screen_steps(self):
+        from ..services.pdf_export.document import panel_columns
+        self.assertEqual(panel_columns(1300, 3), (3, True))
+        self.assertEqual(panel_columns(1100, 4), (2, True))
+        self.assertEqual(panel_columns(961, 4), (4, False))
+        self.assertEqual(panel_columns(500, 4), (2, False))
+        self.assertEqual(panel_columns(300, 4), (1, False))
+
+    def test_widget_notes_follow_the_card_chrome(self):
+        from ..services.pdf_export.collector import widget_notes
+
+        def w(**kw):
+            base = dict(chart_type='bar', display_mode='standard', subtitle='', footnote='',
+                        subtitle_color='', footnote_color='', annotation_type='none',
+                        annotation_text='', annotation_color='#6b7280')
+            base.update(kw)
+            return SimpleNamespace(**base)
+        n = widget_notes(w(subtitle='%(PCP_NOTE)s', footnote='Static note', annotation_type='badge',
+                           annotation_text='Overall: %(T)s', annotation_color='%(TONE)s'),
+                         {'_resolved_subtitle': 'PCP is Dr Who', '_resolved_annotation_text': 'Overall: Low',
+                          '_resolved_annotation_color': '#059669'})
+        self.assertEqual((n['subtitle'], n['footnote'], n['badge'], n['badge_color']),
+                         ('PCP is Dr Who', 'Static note', 'Overall: Low', '#059669'))
+        # unresolved template → left out; default badge colour → classic grey
+        n = widget_notes(w(subtitle='%(MISSING)s', annotation_type='badge', annotation_text='Fixed'), {})
+        self.assertEqual((n['subtitle'], n['badge'], n['badge_color']), ('', 'Fixed', ''))
+        # badge only for annotation_type badge; compact hides subtitle + badge, keeps footnote
+        self.assertEqual(widget_notes(w(annotation_text='x'), {})['badge'], '')
+        n = widget_notes(w(display_mode='compact', subtitle='s', footnote='f', annotation_type='badge',
+                           annotation_text='b'), {})
+        self.assertEqual((n['subtitle'], n['badge'], n['footnote']), ('', '', 'f'))
+        # record headers are chromeless
+        n = widget_notes(w(chart_type='record_header', subtitle='s', footnote='f'), {})
+        self.assertEqual((n['subtitle'], n['footnote']), ('', ''))
+
+    def test_notes_and_row_span_print(self):
+        notes = {'subtitle': 'Claim type by month', 'subtitle_color': '#1f7a46',
+                 'footnote': 'Claims incurred through Sep 2026', 'footnote_color': 'red;x',
+                 'badge': 'Overall: Low', 'badge_color': '#059669'}
+        chart = {'kind': 'chart', 'name': 'Clinical Overview', 'col_span': '6', 'status': 'ok',
+                 'height': 300, 'row_span': 2, 'notes': notes,
+                 'option': {'xAxis': {'type': 'category', 'data': ['a']}, 'yAxis': {},
+                            'series': [{'type': 'bar', 'data': [1]}]}}
+        table = {'kind': 'table', 'name': 'All Encounters', 'col_span': '12', 'status': 'ok', 'notes': notes,
+                 'columns': [{'label': 'N'}], 'rows': [[['1', 'num', '']]], 'total_rows': [],
+                 'row_shown': 1, 'more_available': False, 'columns_shown': 1, 'columns_total': 1}
+        plain = {'kind': 'chart', 'name': 'Plain', 'col_span': '6', 'status': 'ok', 'height': 300,
+                 'option': {'series': [{'type': 'bar', 'data': [1]}]}}
+        _view, html = _print_blocks(self.env, [chart, table, plain])
+        body = _body(html)
+        self.assertIn('style="grid-row: span 2"', body)
+        self.assertEqual(body.count('grid-row'), 1)                   # only the spanning card
+        self.assertEqual(body.count('Claim type by month'), 2)        # chart + table subtitle
+        self.assertIn('style="color:#1f7a46"', body)
+        self.assertEqual(body.count('Claims incurred through Sep 2026'), 2)
+        self.assertNotIn('red;x', body)                               # invalid colour dropped
+        self.assertIn('color:#059669;background:#0596691f', body)     # badge 12 % tint
+        plain_card = body[body.index('>Plain<') - 200:]
+        self.assertNotIn('pv-w', plain_card[:600])
+
+
+# ─────────────────────────────────────────────────────────────────────────
 class _PdfFixture:
     """Shared records: app, page with 2 tabs, PG-backed widgets."""
 
@@ -388,6 +641,33 @@ class _PdfFixture:
                                             gauge_sub_kpi_labels='Open Gaps', gauge_alert_column='note'))
         cls.map_widget = W.create(dict(base, name='Region Map', chart_type='map', sequence=35,
                                        query_sql='SELECT 1 AS x', x_column='x'))
+        # Attribute Grid + Metric List cards (Member 360) with card notes:
+        # a static subtitle, a SQL-resolved badge and a footnote whose
+        # template cannot resolve (must not print raw).
+        cls.attr_grid = W.create(dict(base, name='Member Profile', chart_type='attribute_grid', sequence=36,
+                                      col_span='12', subtitle='Profile as of the latest load',
+                                      query_sql=("SELECT 'Jan 24, 1948' AS dob, 'Gold Plus' AS plan, "
+                                                 "NULL::text AS mso, 'Dr Ada Lovelace' AS pcp"),
+                                      attribute_grid_config=json.dumps({'version': 1, 'columns': 2, 'fields': [
+                                          {'key': 'dob', 'label': 'Date of birth', 'value_column': 'dob'},
+                                          {'key': 'plan', 'label': 'Plan', 'value_column': 'plan'},
+                                          {'key': 'mso', 'label': 'MSO provider group', 'value_column': 'mso'},
+                                          {'key': 'pcp', 'label': 'Primary care provider', 'value_column': 'pcp',
+                                           'span': 2, 'divider_before': True, 'emphasis': 'strong'}]})))
+        cls.metric_list = W.create(dict(base, name='Risk and Acuity', chart_type='metric_list', sequence=37,
+                                        annotation_type='badge', annotation_text='Overall: %(tier)s',
+                                        footnote='Model run %(NOPE)s',
+                                        query_sql=("SELECT 'sepsis' AS k, 'Sepsis' AS l, 0.92 AS v, 'High Risk' AS tier "
+                                                   "UNION ALL SELECT 'eol', 'End of life', 0.41, 'High Risk'"),
+                                        metric_list_config=json.dumps({
+                                            'version': 1,
+                                            'mapping': {'key_column': 'k', 'label_column': 'l', 'value_column': 'v'},
+                                            'status_rules': [
+                                                {'key': 'high', 'label': 'High', 'color': '#dc2626',
+                                                 'background': '#fee2e2', 'range': {'min': 0.9}},
+                                                {'key': 'low', 'label': 'Low', 'color': '#16a34a',
+                                                 'background': '#dcfce7', 'range': {'max': 0.65}}],
+                                            'legend': {'mode': 'semantic'}})))
         cls.excluded = W.create(dict(base, name='Not Printed', chart_type='kpi', sequence=40,
                                      query_sql='SELECT 1 AS v', x_column='v', pdf_include=False))
         cls.other_tab = W.create(dict(base, name='Other Tab KPI', chart_type='kpi', sequence=50,
@@ -641,6 +921,17 @@ class TestPdfExportRoute(HttpCase, _RouteBase):
         self.assertIn('48pp below benchmark', split[:1500])
         self.assertEqual(html.count('class="kpi-prog"'), 0)
         self.assertIn('1 widget of a type the PDF cannot print yet was not included: Region Map', html)
+        # Attribute Grid + Metric List print (no longer "not included"), with notes
+        grid = html[html.index('class="pvag-grid"'):]
+        self.assertIn('Date of birth', grid[:3000])
+        self.assertIn('Dr Ada Lovelace', grid[:3000])
+        self.assertIn('grid-column: 1 / span 2', grid[:3000])             # PCP full row in 2 columns
+        self.assertIn('Profile as of the latest load', html)
+        self.assertIn('Overall: High Risk', html)                       # SQL-resolved header badge
+        self.assertNotIn('Model run', html)                             # unresolved template never printed
+        self.assertNotIn('%(', html)
+        self.assertIn('width:92%', html)                                # metric bar
+        self.assertIn('class="pvml-badge"', html)                       # status pill
         self.assertIn('Snowflake KPI', html)                            # skipped notice
         self.assertNotIn('Not Printed', html)                           # pdf_include=False
         self.assertNotIn('Other Tab KPI', html)                         # other tab
