@@ -28,16 +28,61 @@ from .limits import clamp_column_limit, clamp_row_limit
 
 _logger = logging.getLogger(__name__)
 
-# chart_type → printed block kind: headers, KPIs, tables and standard ECharts
-# charts (drawn in the render service from the server's chart option).
+# chart_type → printed block kind: headers, KPIs, tables, standard ECharts
+# charts (drawn in the render service from the server's chart option), and
+# the Attribute Grid / Metric List cards (printed from their formatter
+# payloads — the same dicts the shared React components draw).
 V1_KINDS = {
     'record_header': 'record_header',
     'kpi': 'kpi',
     'status_kpi': 'kpi',
     'table': 'table',
+    'attribute_grid': 'attribute_grid',
+    'metric_list': 'metric_list',
     **{ct: 'chart' for ct in PRINTABLE_CHART_TYPES},
 }
 UNSUPPORTED_ENGINES = ('snowflake',)   # decision V1: skipped, never queried
+ROW_SPAN_MAX = 6
+
+
+def _note_text(data, key, static):
+    """Screen rule (``WidgetGrid``: ``w.data?._resolved_X || w.X``): the
+    SQL-resolved text, else the static text. A text that still carries a raw
+    ``%(...)s`` template (the annotation query failed) is left out instead of
+    being printed."""
+    text = (data.get(key) if isinstance(data, dict) else None) or static or ''
+    text = str(text).strip()
+    return '' if '%(' in text else text
+
+
+def widget_notes(w, data):
+    """Subtitle, footnote and header badge of a printed card — the same
+    pieces of card chrome the portal draws (``WidgetGrid.jsx``): none for a
+    record header (chromeless), no subtitle / badge for a compact card (its
+    header row is hidden), the badge only for ``annotation_type == 'badge'``.
+    Colours are passed raw; ``document`` validates them."""
+    chromeless = w.chart_type == 'record_header'
+    compact = (w.display_mode or '') == 'compact'
+    notes = {'subtitle': '', 'subtitle_color': '', 'footnote': '', 'footnote_color': '',
+             'badge': '', 'badge_color': ''}
+    if chromeless:
+        return notes
+    if not compact:
+        notes['subtitle'] = _note_text(data, '_resolved_subtitle', w.subtitle)
+        notes['subtitle_color'] = w.subtitle_color or ''
+        if w.annotation_type == 'badge':
+            notes['badge'] = _note_text(data, '_resolved_annotation_text', w.annotation_text)
+            # Same rule as portal.py: a SQL-driven colour arrives resolved
+            # ('' = classic grey); a raw template or the field default → ''.
+            resolved = data.get('_resolved_annotation_color') if isinstance(data, dict) else None
+            raw = w.annotation_color or ''
+            if resolved is not None:
+                notes['badge_color'] = resolved
+            elif '%(' not in raw and raw.lower() != '#6b7280':
+                notes['badge_color'] = raw
+    notes['footnote'] = _note_text(data, '_resolved_footnote', w.footnote)
+    notes['footnote_color'] = w.footnote_color or ''
+    return notes
 
 
 def _engine(source):
@@ -160,6 +205,8 @@ class Collector:
         kind = V1_KINDS.get(w.chart_type)
         base = {'widget_id': w.id, 'name': w.name or '', 'chart_type': w.chart_type,
                 'kind': kind, 'col_span': w.pdf_col_span or w.col_span or '12',
+                # the portal grid's gridRow: span N (decision D3)
+                'row_span': max(1, min(ROW_SPAN_MAX, w.row_span or 1)),
                 'page_break_before': bool(w.pdf_page_break_before)}
         if not kind:
             self.notices['omitted'].append({'widget_id': w.id, 'name': w.name, 'chart_type': w.chart_type})
@@ -198,7 +245,8 @@ class Collector:
             return dict(base, status='failed', reason=reason, elapsed_ms=elapsed_ms)
         block = dict(base, status='ok', elapsed_ms=elapsed_ms,
                      scope_option_id=option.id if option else None,
-                     scope_value=binding[1] if (binding and not option) else None)
+                     scope_value=binding[1] if (binding and not option) else None,
+                     notes=widget_notes(w, data))
         if kind == 'table':
             block.update(self._table_block(data, report))
             if report.get('sort_requested') and not report.get('sort_applied'):

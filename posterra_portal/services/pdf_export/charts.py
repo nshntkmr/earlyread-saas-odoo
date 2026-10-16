@@ -37,7 +37,8 @@ ECHARTS_VERSION = '5.6.0'
 # (``echart_json``). Gauges only when their style produces one (the bullet /
 # RAG / percentile styles are custom React widgets → "not included").
 # ``gauge_kpi`` also prints its sub-KPI tiles and alert line (GaugeKPI.jsx).
-# Keep in sync with the Designer's PdfExportOptions.jsx PRINTED_TYPES.
+# Keep in sync with the Designer's PdfExportOptions.jsx PRINTED_TYPES (which
+# also lists collector.V1_KINDS' non-chart types).
 PRINTABLE_CHART_TYPES = frozenset({
     'bar', 'line', 'pie', 'donut', 'radar', 'scatter', 'heatmap', 'sankey', 'gauge', 'gauge_kpi'})
 # KPI variants that carry a small ECharts drawing inside the card (the

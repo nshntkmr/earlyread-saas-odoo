@@ -1,0 +1,575 @@
+{
+ "_comment": "Shared by the Python suite (tag posterra_pdf_export, services/pdf_export/placement.py) and static/src/react/scripts/test_pdf_placement_parity.mjs (the real grid-utils placement.js). Expected values were produced by placement.js; change both implementations together.",
+ "cases": [
+  {
+   "name": "member_profile_2col_hole_filled",
+   "width": 468,
+   "configured": 2,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 2
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    }
+   ],
+   "expected_columns": 2,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 1,
+     "col": 2,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 2,
+     "span": 1
+    },
+    {
+     "row": 3,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 4,
+     "col": 1,
+     "span": 2
+    },
+    {
+     "row": 3,
+     "col": 2,
+     "span": 1
+    },
+    {
+     "row": 5,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 5,
+     "col": 2,
+     "span": 1
+    },
+    {
+     "row": 6,
+     "col": 1,
+     "span": 1
+    }
+   ]
+  },
+  {
+   "name": "span_wider_than_columns_is_clamped",
+   "width": 300,
+   "configured": 3,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 3
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    }
+   ],
+   "expected_columns": 1,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    }
+   ]
+  },
+  {
+   "name": "requested_column_start",
+   "width": 950,
+   "configured": 4,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 3,
+      "column_span": 2
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 1,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 4,
+      "column_span": 1
+     }
+    }
+   ],
+   "expected_columns": 4,
+   "expected": [
+    {
+     "row": 1,
+     "col": 3,
+     "span": 2
+    },
+    {
+     "row": 1,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 4,
+     "span": 1
+    }
+   ]
+  },
+  {
+   "name": "row_order_sorts_before_sql_order",
+   "width": 950,
+   "configured": 3,
+   "items": [
+    {
+     "placement": {
+      "row_order": 3,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": 1,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": 2,
+      "column_start": null,
+      "column_span": 2
+     }
+    }
+   ],
+   "expected_columns": 3,
+   "expected": [
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 1,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 2,
+     "span": 1
+    },
+    {
+     "row": 1,
+     "col": 2,
+     "span": 2
+    }
+   ]
+  },
+  {
+   "name": "invalid_start_falls_back_to_auto",
+   "width": 700,
+   "configured": 6,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 4,
+      "column_span": 2
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 0,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 3.5,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 6,
+      "column_span": 1
+     }
+    }
+   ],
+   "expected_columns": 4,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 2
+    },
+    {
+     "row": 1,
+     "col": 3,
+     "span": 1
+    },
+    {
+     "row": 1,
+     "col": 4,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    }
+   ]
+  },
+  {
+   "name": "occupied_request_moves_down",
+   "width": 950,
+   "configured": 2,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 1,
+      "column_span": 2
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 1,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 1,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 2,
+      "column_span": 1
+     }
+    }
+   ],
+   "expected_columns": 2,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 2
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 3,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 3,
+     "col": 2,
+     "span": 1
+    }
+   ]
+  },
+  {
+   "name": "zero_and_missing_span",
+   "width": 950,
+   "configured": 3,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 0
+     }
+    },
+    {
+     "placement": {}
+    },
+    {},
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": null
+     }
+    }
+   ],
+   "expected_columns": 3,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 1,
+     "col": 2,
+     "span": 1
+    },
+    {
+     "row": 1,
+     "col": 3,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    }
+   ]
+  },
+  {
+   "name": "eight_columns_medium_width",
+   "width": 640,
+   "configured": 8,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 2
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 2
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 3
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 5,
+      "column_span": 4
+     }
+    }
+   ],
+   "expected_columns": 4,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 2
+    },
+    {
+     "row": 1,
+     "col": 3,
+     "span": 2
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 3
+    },
+    {
+     "row": 2,
+     "col": 4,
+     "span": 1
+    },
+    {
+     "row": 3,
+     "col": 1,
+     "span": 4
+    }
+   ]
+  },
+  {
+   "name": "tiny_card_single_column",
+   "width": 200,
+   "configured": 4,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": 2,
+      "column_span": 2
+     }
+    },
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    }
+   ],
+   "expected_columns": 1,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 1
+    },
+    {
+     "row": 2,
+     "col": 1,
+     "span": 1
+    }
+   ]
+  },
+  {
+   "name": "no_width_keeps_configured",
+   "width": 0,
+   "configured": 9,
+   "items": [
+    {
+     "placement": {
+      "row_order": null,
+      "column_start": null,
+      "column_span": 1
+     }
+    }
+   ],
+   "expected_columns": 8,
+   "expected": [
+    {
+     "row": 1,
+     "col": 1,
+     "span": 1
+    }
+   ]
+  }
+ ]
+}
