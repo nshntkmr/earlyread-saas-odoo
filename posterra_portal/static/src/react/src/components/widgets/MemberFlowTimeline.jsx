@@ -7,6 +7,38 @@ const DEFAULT_LANES = [
   { key: 'disaligned', label: 'Disaligned', color: '#ef4444', y: 358, width: 22, badgeW: 66, badgeH: 28 },
 ]
 
+// Month columns are spread over a fixed band (FIRST_X..DEFAULT_LAST_X) while
+// they fit. Each column needs MIN_STEP units: room for the widest value box
+// (Still Active, 78) plus a visible ribbon, and for a month label (~65) plus
+// the "->" arrow (~21) between two labels. Up to 8 months fit the band
+// (685 / 7 = 98 per column), so those charts are drawn exactly as before.
+// From 9 months on the canvas grows instead of squeezing the columns, the
+// chart may shrink down to MIN_SCALE of its drawn size to fit the card, and
+// below that the card scrolls sideways.
+const VIEW_WIDTH = 1180
+const FIRST_X = 285
+const DEFAULT_LAST_X = 970
+const MIN_STEP = 92
+const MIN_SCALE = 0.85
+
+// The right-hand lane labels start at lastX + 78 + 32 and are 15px bold
+// (~7 units per character, measured). The widened canvas fills the card
+// exactly, so it must end after the longest label (admins can rename lanes,
+// e.g. "Ineligible➔Eligible") or that label is clipped at the card edge.
+const rightLegendSpace = (laneLabels) => {
+  const longest = Math.max(0, ...laneLabels.map(l => String(l || '').length))
+  return Math.max(VIEW_WIDTH - DEFAULT_LAST_X, Math.ceil(78 + 32 + longest * 7.2 + 10))
+}
+
+const memberFlowLayout = (monthCount, laneLabels) => {
+  const fitStep = monthCount > 1 ? (DEFAULT_LAST_X - FIRST_X) / (monthCount - 1) : 0
+  if (monthCount <= 1 || fitStep >= MIN_STEP) {
+    return { step: fitStep, lastX: DEFAULT_LAST_X, viewWidth: VIEW_WIDTH, widened: false }
+  }
+  const lastX = FIRST_X + MIN_STEP * (monthCount - 1)
+  return { step: MIN_STEP, lastX, viewWidth: lastX + rightLegendSpace(laneLabels), widened: true }
+}
+
 const formatNumber = (value) => {
   const n = Number(value || 0)
   return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n) : '0'
@@ -49,16 +81,17 @@ export default function MemberFlowTimeline({ data, height = 520 }) {
     )
   }
 
-  const viewWidth = 1180
+  const { step, lastX, viewWidth, widened } = memberFlowLayout(months.length, lanes.map(l => l.label))
   const viewHeight = 430
   const startX = 30
   const startY = 176
   const startW = 150
   const startH = 94
-  const firstX = 285
-  const lastX = 970
-  const step = months.length > 1 ? (lastX - firstX) / (months.length - 1) : 0
+  const firstX = FIRST_X
   const columnXs = months.map((_, idx) => firstX + idx * step)
+  // Below this width the chart would shrink past MIN_SCALE, so the wrapper
+  // (overflowX: auto) scrolls instead. 900 = the historical floor.
+  const svgMinWidth = widened ? Math.round(viewWidth * MIN_SCALE) : 900
   const start = data?.start || {}
   const footer = data?.footer || 'Members must have a qualifying claim in the past 12 months to remain eligible.'
   const startTitle = String(start.label || 'Starting Aligned Members')
@@ -80,7 +113,7 @@ export default function MemberFlowTimeline({ data, height = 520 }) {
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Monthly member flow"
-        style={{ minWidth: 900, display: 'block' }}
+        style={{ minWidth: svgMinWidth, display: 'block' }}
       >
         <defs>
           <filter id="member-flow-shadow" x="-15%" y="-15%" width="130%" height="130%">
