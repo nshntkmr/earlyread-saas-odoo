@@ -190,13 +190,24 @@ function MemberFlowPreviewInline({ data, height }) {
     ['recaptured', labels.recaptured || 'Re-captured', '#8b5cf6', 218],
     ['disaligned', labels.disaligned || 'Disaligned', '#ef4444', 264],
   ]
-  const width = 920
-  const step = months.length > 1 ? 560 / (months.length - 1) : 0
+  // Same rule as the portal's MemberFlowTimeline: columns spread over the
+  // fixed band (240..800) while each still gets MIN_STEP units (68-wide value
+  // box + ribbon, month label + "->"); past that the canvas grows, shrinks to
+  // at most 85% to fit, then scrolls. Up to 7 months are drawn as before.
+  const MIN_STEP = 84
+  const fitStep = months.length > 1 ? 560 / (months.length - 1) : 0
+  const widened = months.length > 1 && fitStep < MIN_STEP
+  const step = widened ? MIN_STEP : fitStep
+  const lastX = widened ? 240 + step * (months.length - 1) : 800
+  // Right-hand lane labels start at lastX + 20 (12px bold, ~6.2 units/char);
+  // the widened canvas must end after the longest one or it is clipped.
+  const longestLabel = Math.max(...lanes.map(([, label]) => String(label || '').length))
+  const width = widened ? lastX + Math.max(120, Math.ceil(20 + longestLabel * 6.2 + 10)) : 920
   const xs = months.map((_, i) => 240 + i * step)
   const start = data?.start || {}
   return (
     <div style={{ height, overflowX: 'auto', background: '#fff' }}>
-      <svg viewBox={`0 0 ${width} 330`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ minWidth: 780 }}>
+      <svg viewBox={`0 0 ${width} 330`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ minWidth: widened ? Math.round(width * 0.85) : 780 }}>
         <rect x="22" y="128" width="136" height="76" rx="6" fill="#9ee6d6" />
         <text x="90" y="152" textAnchor="middle" fontSize="12" fontWeight="700" fill="#0f172a">Starting</text>
         <text x="90" y="170" textAnchor="middle" fontSize="12" fontWeight="700" fill="#0f172a">Aligned Members</text>
@@ -214,7 +225,7 @@ function MemberFlowPreviewInline({ data, height }) {
             {months.slice(0, -1).map((m, i) => (
               <path key={`${key}-${i}`} d={`M ${xs[i] + 36} ${y} C ${xs[i] + step / 2} ${y}, ${xs[i] + step / 2} ${y}, ${xs[i + 1] - 36} ${y}`} stroke={color} strokeWidth={key === 'still_active' ? 48 : 18} opacity="0.18" fill="none" strokeLinecap="round" />
             ))}
-            <text x="820" y={y + 4} fontSize="12" fontWeight="700" fill={color}>{label}</text>
+            <text x={lastX + 20} y={y + 4} fontSize="12" fontWeight="700" fill={color}>{label}</text>
             {months.map((m, i) => (
               <g key={`${key}-${i}-v`}>
                 <rect x={xs[i] - 34} y={y - (key === 'still_active' ? 38 : 13)} width="68" height={key === 'still_active' ? 76 : 26} rx="5" fill={color} opacity={key === 'still_active' ? '0.72' : '0.86'} />
@@ -223,7 +234,7 @@ function MemberFlowPreviewInline({ data, height }) {
             ))}
           </g>
         ))}
-        <text x="460" y="315" textAnchor="middle" fontSize="12" fill="#64748b">{data.footer || ''}</text>
+        <text x={width / 2} y="315" textAnchor="middle" fontSize="12" fill="#64748b">{data.footer || ''}</text>
       </svg>
     </div>
   )
